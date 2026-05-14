@@ -1,0 +1,253 @@
+/* @tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+@media (max-width: 768px) {
+	.sidebar {
+		width: 100%;
+	}
+	.sidebar .w-64 {
+		width: 240px; 
+	}
+	.sidebar .w-20 {
+		width: 80px;
+	}
+}
+
+.date-input{
+    color: white;
+}
+
+
+.logo{
+	width: 160px;
+	height: 50px!important;
+} */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: "Plus Jakarta Sans Variable", "Plus Jakarta Sans",
+      "Hind Siliguri", "Inter", ui-sans-serif, system-ui, -apple-system,
+      BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body,
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  button,
+  input,
+  textarea,
+  select,
+  table,
+  .card,
+  .modal,
+  .navbar,
+  .menu {
+    font-family: inherit;
+  }
+
+  button,
+  a,
+  input,
+  textarea,
+  select,
+  [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button,
+  [role="button"] {
+    touch-action: manipulation;
+  }
+}
+
+@layer components {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    transition-property:
+      color, background-color, border-color, box-shadow, opacity, transform;
+    transition-duration: 150ms;
+    transition-timing-function: ease-out;
+  }
+
+  button:not(:disabled):active,
+  [role="button"]:not([aria-disabled="true"]):active {
+    transform: scale(0.98);
+  }
+
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible,
+  [role="button"]:focus-visible {
+    outline: 2px solid #6366f1;
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    width: 100%;
+  }
+
+  .sidebar .w-64 {
+    width: 240px;
+  }
+
+  .sidebar .w-20 {
+    width: 80px;
+  }
+}
+
+.date-input {
+  color: white;
+}
+
+.logo {
+  width: 160px;
+  height: 50px !important;
+}
+
+input[type="date"] {
+  color-scheme: light;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  opacity: 1;
+  filter: none;
+  cursor: pointer;
+}
+
+.hide-date-picker-icon::-webkit-calendar-picker-indicator {
+  opacity: 0;
+  display: none;
+}
+
+.hide-date-picker-icon::-webkit-inner-spin-button,
+.hide-date-picker-icon::-webkit-clear-button {
+  display: none;
+}
+
+.date-black-icon::-webkit-calendar-picker-indicator {
+  opacity: 1;
+  filter: none;
+  cursor: pointer;
+}
+
+.date-time-light {
+  color-scheme: light;
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+.date-time-light::-webkit-calendar-picker-indicator {
+  opacity: 1 !important;
+  cursor: pointer;
+  filter: invert(0) !important;
+}
+
+.date-time-light::-webkit-datetime-edit,
+.date-time-light::-webkit-datetime-edit-fields-wrapper,
+.date-time-light::-webkit-datetime-edit-hour-field,
+.date-time-light::-webkit-datetime-edit-minute-field,
+.date-time-light::-webkit-datetime-edit-ampm-field {
+  color: #0f172a !important;
+  background-color: #ffffff !important;
+}
+
+/* Keep wide data tables usable on every viewport. */
+.overflow-x-auto:has(> table),
+.overflow-x-auto:has(table) {
+  width: 100%;
+  max-width: 100%;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 #e2e8f0;
+}
+
+.overflow-x-auto:has(> table) > table,
+.overflow-x-auto:has(table) table {
+  width: 100%;
+  min-width: max-content;
+}
+
+.overflow-x-auto:has(> table)::-webkit-scrollbar,
+.overflow-x-auto:has(table)::-webkit-scrollbar {
+  height: 10px;
+}
+
+.overflow-x-auto:has(> table)::-webkit-scrollbar-track,
+.overflow-x-auto:has(table)::-webkit-scrollbar-track {
+  background: #e2e8f0;
+  border-radius: 999px;
+}
+
+.overflow-x-auto:has(> table)::-webkit-scrollbar-thumb,
+.overflow-x-auto:has(table)::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 999px;
+  border: 2px solid #e2e8f0;
+}
+
+tr.duplicate-same-day-entry > td {
+  background-color: #fff1f2 !important;
+  border-top-color: #fecdd3 !important;
+  border-bottom-color: #fecdd3 !important;
+}
+
+tr.duplicate-same-day-entry > td:first-child {
+  box-shadow: inset 4px 0 0 #ef4444;
+}
+
+tr.duplicate-same-day-entry:hover > td {
+  background-color: #ffe4e6 !important;
+}
+
+/* ✅ html2canvas safe styles (avoid oklch, filters, fancy shadows) */
+.pdf-safe,
+.pdf-safe * {
+  color: #0f172a !important;
+  /* slate-900 */
+  background-color: transparent;
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+.pdf-safe {
+  background: #ffffff !important;
+}
+
+.pdf-safe .pdf-muted {
+  color: #475569 !important;
+  /* slate-600 */
+}
+
+.pdf-safe .pdf-border {
+  border-color: #e2e8f0 !important;
+  /* slate-200 */
+}
