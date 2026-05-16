@@ -164,7 +164,8 @@ const StockAlertPage = () => {
                     rows.map((row) => {
                       const quantity = safeNumber(row?.quantity);
                       const minimumStock = safeNumber(getDraftValue(row));
-                      const isLowStock = quantity <= minimumStock;
+                      const isStockOut = quantity === 0;
+                      const isLowStock = !isStockOut && quantity <= minimumStock;
 
                       return (
                         <tr key={row.Id} className="group">
@@ -204,12 +205,14 @@ const StockAlertPage = () => {
                           <td className="border-b border-slate-100 px-3 py-4">
                             <span
                               className={`inline-flex rounded-full px-3 py-1 text-xs font-black uppercase tracking-[0.1em] ${
-                                isLowStock
+                                isStockOut
                                   ? "bg-rose-50 text-rose-600"
-                                  : "bg-emerald-50 text-emerald-600"
+                                  : isLowStock
+                                    ? "bg-yellow-50 text-yellow-500"
+                                    : "bg-emerald-50 text-emerald-600"
                               }`}
                             >
-                              {isLowStock ? "Low Stock" : "Healthy"}
+                              {isStockOut ? "Stock Out" : isLowStock ? "Low Stock" : "Healthy"}
                             </span>
                           </td>
                           <td className="border-b border-slate-100 px-3 py-4">

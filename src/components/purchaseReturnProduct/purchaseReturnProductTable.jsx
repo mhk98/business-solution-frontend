@@ -345,6 +345,14 @@ const PurchaseReturnProductTable = () => {
     }));
   }, [receivedData]);
 
+  const selectedEditInventoryItem = useMemo(
+    () =>
+      receivedData.find(
+        (r) => String(r.Id) === String(currentItem?.receivedId),
+      ),
+    [receivedData, currentItem?.receivedId],
+  );
+
   // ✅ react-select light styles (so it looks consistent in light UI)
   const selectStyles = {
     control: (base, state) => ({
@@ -2072,8 +2080,8 @@ const PurchaseReturnProductTable = () => {
                             className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                             placeholder=""
                           />
-                          {selectedCreateInventoryItem && row.size && (() => {
-                            const match = getVariantDisplayRows(selectedCreateInventoryItem).find(
+                          {selectedEditInventoryItem && row.size && (() => {
+                            const match = getVariantDisplayRows(selectedEditInventoryItem).find(
                               (v) => String(v.size || "") === String(row.size || "") && String(v.color || "") === String(row.color || ""),
                             );
                             return match !== undefined ? (

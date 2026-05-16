@@ -221,6 +221,31 @@ const hasDuplicateVariantCombination = (rows) => {
   return false;
 };
 
+const toDateInputValue = (value) => {
+  if (!value) return new Date().toISOString().slice(0, 10);
+  const text = String(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10);
+  }
+
+  return text;
+};
+
+const makeSelectValue = (options, value, fallbackLabel) => {
+  if (value === undefined || value === null || value === "") return null;
+
+  const stringValue = String(value);
+  return (
+    options.find((option) => String(option.value) === stringValue) || {
+      value: stringValue,
+      label: fallbackLabel || stringValue,
+    }
+  );
+};
+
 const createBatchId = () =>
   `batch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -579,12 +604,95 @@ const ReturnProductTable = () => {
     });
   };
 
+  const currentBulkItems = useMemo(
+    () => parseSalesReturnItems(currentItem?.items),
+    [currentItem?.items],
+  );
+  const isEditingBulkReturn = currentBulkItems.length > 0;
+  const currentBulkTotalQuantity = useMemo(
+    () => getSalesReturnItemsTotalQuantity(currentBulkItems),
+    [currentBulkItems],
+  );
+
+  const updateCurrentBulkItem = (index, key, value) => {
+    setCurrentItem((prev) => {
+      const nextItems = parseSalesReturnItems(prev?.items).map(
+        (item, itemIndex) =>
+          itemIndex === index
+            ? {
+                ...item,
+                [key]: value,
+              }
+            : item,
+      );
+
+      return {
+        ...prev,
+        items: nextItems,
+        quantity: String(getSalesReturnItemsTotalQuantity(nextItems)),
+      };
+    });
+  };
+
+  const updateCurrentBulkItemVariantField = (
+    itemIndex,
+    variantIndex,
+    key,
+    value,
+  ) => {
+    setCurrentItem((prev) => {
+      const nextItems = parseSalesReturnItems(prev?.items).map(
+        (item, currentItemIndex) => {
+          if (currentItemIndex !== itemIndex) return item;
+
+          const nextVariants = normalizeVariantRows(item.variants).map(
+            (variant, currentVariantIndex) =>
+              currentVariantIndex === variantIndex
+                ? {
+                    ...variant,
+                    [key]: key === "quantity" ? Number(value) || 0 : value,
+                  }
+                : variant,
+          );
+
+          return {
+            ...item,
+            variants: nextVariants,
+            quantity: getVariantRowsTotalQuantity(nextVariants),
+          };
+        },
+      );
+
+      return {
+        ...prev,
+        items: nextItems,
+        quantity: String(getSalesReturnItemsTotalQuantity(nextItems)),
+      };
+    });
+  };
+
   const openEdit = (rp) => {
-    const variantRows = getInitialVariantRowsFromRecord(rp);
+    const bulkItems = parseSalesReturnItems(rp.items);
+    const firstBulkItem = bulkItems[0] || null;
+    const variantRows = getInitialVariantRowsFromRecord(firstBulkItem || rp);
+    const productId =
+      firstBulkItem?.receivedId ??
+      firstBulkItem?.productId ??
+      rp.receivedId ??
+      rp.productId ??
+      rp.product?.Id ??
+      rp.product?.id ??
+      "";
+    const warehouseId =
+      rp.warehouseId ?? rp.warehouse?.Id ?? rp.warehouse?.id ?? "";
+
     setCurrentItem({
       ...rp,
-      productId: String(rp.productId ?? rp.receivedId ?? ""),
-      receivedId: String(rp.receivedId ?? rp.productId ?? ""),
+      items: bulkItems,
+      productId: String(productId),
+      receivedId: String(productId),
+      warehouseId: String(warehouseId),
+      name: firstBulkItem?.name || rp.name || rp.product?.name || "",
       variantRows,
       quantity: String(
         getVariantRowsTotalQuantity(variantRows) || Number(rp.quantity) || 0,
@@ -593,7 +701,7 @@ const ReturnProductTable = () => {
       purchase_price: rp.purchase_price ?? "",
       note: rp.note ?? "",
       status: rp.status ?? "",
-      date: rp.date ?? "",
+      date: toDateInputValue(rp.date),
       userId,
     });
     setIsEditOpen(true);
@@ -605,11 +713,27 @@ const ReturnProductTable = () => {
   };
 
   const openEdit1 = (rp) => {
-    const variantRows = getInitialVariantRowsFromRecord(rp);
+    const bulkItems = parseSalesReturnItems(rp.items);
+    const firstBulkItem = bulkItems[0] || null;
+    const variantRows = getInitialVariantRowsFromRecord(firstBulkItem || rp);
+    const productId =
+      firstBulkItem?.receivedId ??
+      firstBulkItem?.productId ??
+      rp.receivedId ??
+      rp.productId ??
+      rp.product?.Id ??
+      rp.product?.id ??
+      "";
+    const warehouseId =
+      rp.warehouseId ?? rp.warehouse?.Id ?? rp.warehouse?.id ?? "";
+
     setCurrentItem({
       ...rp,
-      productId: String(rp.productId ?? rp.receivedId ?? ""),
-      receivedId: String(rp.receivedId ?? rp.productId ?? ""),
+      items: bulkItems,
+      productId: String(productId),
+      receivedId: String(productId),
+      warehouseId: String(warehouseId),
+      name: firstBulkItem?.name || rp.name || rp.product?.name || "",
       variantRows,
       quantity: String(
         getVariantRowsTotalQuantity(variantRows) || Number(rp.quantity) || 0,
@@ -618,6 +742,7 @@ const ReturnProductTable = () => {
       purchase_price: rp.purchase_price ?? "",
       note: rp.note ?? "",
       status: rp.status ?? "",
+      date: toDateInputValue(rp.date),
       userId,
     });
     setIsEditOpen1(true);
@@ -946,33 +1071,49 @@ const ReturnProductTable = () => {
   // ✅ update
   const handleUpdate = async () => {
     if (!currentItem?.Id) return toast.error("Invalid item");
-    if (!currentItem?.receivedId && !currentItem?.productId)
+    const bulkItems = parseSalesReturnItems(currentItem?.items);
+    if (!bulkItems.length && !currentItem?.receivedId && !currentItem?.productId)
       return toast.error("Please select a product");
-    if (!currentItem.quantity || Number(currentItem.quantity) <= 0)
+    if (
+      bulkItems.length
+        ? bulkItems.some((item) => Number(item.quantity) <= 0)
+        : !currentItem.quantity || Number(currentItem.quantity) <= 0
+    )
       return toast.error("Please enter valid quantity");
 
     const variantsPayload = getNormalizedVariantsPayload(
       currentItem?.variantRows,
     );
-    if (hasDuplicateVariantCombination(variantsPayload)) {
+    if (!bulkItems.length && hasDuplicateVariantCombination(variantsPayload)) {
       return toast.error("Duplicate size and color combination found");
     }
 
     try {
-      const payload = {
-        note: currentItem.note,
-        status: currentItem.status,
-        warehouseId: Number(currentItem.warehouseId),
-        date: currentItem.date,
-        quantity: Number(currentItem.quantity),
-        sale_price: Number(currentItem.sale_price) || 0,
-        purchase_price: Number(currentItem.purchase_price) || 0,
-        variants: variantsPayload,
-        receivedId: Number(currentItem.receivedId || currentItem.productId),
-        productId: Number(currentItem.productId || currentItem.receivedId),
-        userId: userId,
-        actorRole: role,
-      };
+      const payload =
+        bulkItems.length > 0
+          ? {
+              items: bulkItems,
+              note: currentItem.note,
+              status: currentItem.status,
+              warehouseId: Number(currentItem.warehouseId),
+              date: currentItem.date,
+              userId,
+              actorRole: role,
+            }
+          : {
+              note: currentItem.note,
+              status: currentItem.status,
+              warehouseId: Number(currentItem.warehouseId),
+              date: currentItem.date,
+              quantity: Number(currentItem.quantity),
+              sale_price: Number(currentItem.sale_price) || 0,
+              purchase_price: Number(currentItem.purchase_price) || 0,
+              variants: variantsPayload,
+              receivedId: Number(currentItem.receivedId || currentItem.productId),
+              productId: Number(currentItem.productId || currentItem.receivedId),
+              userId: userId,
+              actorRole: role,
+            };
 
       const res = await updateReturnProduct({
         id: currentItem.Id,
@@ -1625,15 +1766,117 @@ const ReturnProductTable = () => {
       >
         {currentItem && (
           <>
-            <div className="mt-4">
+            {isEditingBulkReturn && (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      Product List
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-indigo-100 bg-white px-4 py-2 text-right">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      Total Quantity
+                    </p>
+                    <p className="text-lg font-black text-slate-900">
+                      {currentBulkTotalQuantity}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                  <table className="min-w-[680px] w-full text-sm">
+                    <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-500">
+                      <tr>
+                        <th className="px-3 py-3 text-left">Product</th>
+                        <th className="px-3 py-3 text-left">Quantity</th>
+                        <th className="px-3 py-3 text-left">Variant Detail</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {currentBulkItems.map((item, index) => (
+                        <tr
+                          key={`edit-return-${item.productId || item.name}-${index}`}
+                        >
+                          <td className="px-3 py-3 align-top font-semibold text-slate-800">
+                            {item.name || `Product #${item.productId || "-"}`}
+                          </td>
+                          <td className="px-3 py-3 align-top">
+                            {item.variants?.length ? (
+                              <p className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-black text-slate-900">
+                                {Number(item.quantity || 0)}
+                              </p>
+                            ) : (
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={item.quantity ?? ""}
+                                onChange={(e) =>
+                                  updateCurrentBulkItem(
+                                    index,
+                                    "quantity",
+                                    e.target.value,
+                                  )
+                                }
+                                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
+                              />
+                            )}
+                          </td>
+                          <td className="px-3 py-3 align-top text-xs text-slate-500">
+                            {item.variants?.length
+                              ? item.variants.map((variant, variantIndex) => (
+                                  <div
+                                    key={`${variant.size}-${variant.color}-${variantIndex}`}
+                                    className="mb-2 grid grid-cols-[1fr_90px] items-end gap-2 last:mb-0"
+                                  >
+                                    <span className="rounded-lg bg-slate-50 px-2 py-1 font-semibold text-slate-600">
+                                      {variant.size || "-"} /{" "}
+                                      {variant.color || "-"}
+                                    </span>
+                                    <div>
+                                      {variantIndex === 0 && (
+                                        <p className="mb-1 text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                                          Qty
+                                        </p>
+                                      )}
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={variant.quantity}
+                                        onChange={(e) =>
+                                          updateCurrentBulkItemVariantField(
+                                            index,
+                                            variantIndex,
+                                            "quantity",
+                                            e.target.value,
+                                          )
+                                        }
+                                        className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
+                                      />
+                                    </div>
+                                  </div>
+                                ))
+                              : "No variants"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            <div className={isEditingBulkReturn ? "hidden" : "mt-4"}>
               <label className="block text-sm text-slate-700">Product</label>
               <Select
                 options={receivedDropdownOptions}
-                value={
-                  receivedDropdownOptions.find(
-                    (o) => o.value === String(currentItem.receivedId),
-                  ) || null
-                }
+                value={makeSelectValue(
+                  receivedDropdownOptions,
+                  currentItem?.receivedId,
+                  currentItem?.name || currentItem?.product?.name,
+                )}
                 onChange={(selected) =>
                   setCurrentItem((p) => ({
                     ...p,
@@ -1651,7 +1894,7 @@ const ReturnProductTable = () => {
                 styles={selectStyles}
               />
             </div>
-            {shouldShowEditVariantOptions && (
+            {!isEditingBulkReturn && shouldShowEditVariantOptions && (
               <div className="mt-4 space-y-3 rounded-2xl border border-slate-200 bg-slate-50/50 p-4">
                 <div>
                   <div>
@@ -1695,11 +1938,11 @@ const ReturnProductTable = () => {
                           </label>
                           <Select
                             options={editSizeOptions}
-                            value={
-                              editSizeOptions.find(
-                                (option) => option.value === row.size,
-                              ) || null
-                            }
+                            value={makeSelectValue(
+                              editSizeOptions,
+                              row.size,
+                              row.size,
+                            )}
                             onChange={(selected) =>
                               updateVariantRow(
                                 "edit",
@@ -1725,11 +1968,11 @@ const ReturnProductTable = () => {
                           </label>
                           <Select
                             options={colorOptions}
-                            value={
-                              colorOptions.find(
-                                (option) => option.value === row.color,
-                              ) || null
-                            }
+                            value={makeSelectValue(
+                              colorOptions,
+                              row.color,
+                              row.color,
+                            )}
                             onChange={(selected) =>
                               updateVariantRow(
                                 "edit",
@@ -1809,13 +2052,11 @@ const ReturnProductTable = () => {
               <label className="block text-sm text-slate-700">Warehouse</label>
               <Select
                 options={warehouseOptions}
-                value={
-                  warehouseOptions.find(
-                    (option) =>
-                      String(option.value) ===
-                      String(currentItem?.warehouseId || ""),
-                  ) || null
-                }
+                value={makeSelectValue(
+                  warehouseOptions,
+                  currentItem?.warehouseId,
+                  currentItem?.warehouse?.name,
+                )}
                 onChange={(selected) =>
                   setCurrentItem({
                     ...currentItem,
@@ -1832,6 +2073,7 @@ const ReturnProductTable = () => {
               />
             </div>
 
+            {!isEditingBulkReturn && (
             <div className="mt-4">
               <label className="block text-sm text-slate-700">Quantity</label>
               <input
@@ -1844,7 +2086,9 @@ const ReturnProductTable = () => {
                 className="h-11 border border-slate-200 rounded-xl px-3 w-full mt-1 text-slate-900 bg-white outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
               />
             </div>
+            )}
 
+            {!isEditingBulkReturn && (
             <div className="mt-4">
               <label className="block text-sm text-slate-700">
                 Sales Price
@@ -1862,6 +2106,8 @@ const ReturnProductTable = () => {
                 className="h-11 border border-slate-200 rounded-xl px-3 w-full mt-1 text-slate-900 bg-white outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
               />
             </div>
+            )}
+            {!isEditingBulkReturn && (
             <div className="mt-4">
               <label className="block text-sm text-slate-700">
                 Purchase Price
@@ -1879,6 +2125,7 @@ const ReturnProductTable = () => {
                 className="h-11 border border-slate-200 rounded-xl px-3 w-full mt-1 text-slate-900 bg-white outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
               />
             </div>
+            )}
 
             {role === "superAdmin" || role === "admin" ? (
               <div className="mt-4">

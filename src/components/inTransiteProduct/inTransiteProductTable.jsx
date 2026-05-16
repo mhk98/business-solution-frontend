@@ -221,6 +221,31 @@ const hasDuplicateVariantCombination = (rows) => {
   return false;
 };
 
+const toDateInputValue = (value) => {
+  if (!value) return new Date().toISOString().slice(0, 10);
+  const text = String(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10);
+  }
+
+  return text;
+};
+
+const makeSelectValue = (options, value, fallbackLabel) => {
+  if (value === undefined || value === null || value === "") return null;
+
+  const stringValue = String(value);
+  return (
+    options.find((option) => String(option.value) === stringValue) || {
+      value: stringValue,
+      label: fallbackLabel || stringValue,
+    }
+  );
+};
+
 const createBatchId = () =>
   `batch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -575,11 +600,27 @@ const IntransiteProductTable = () => {
   };
 
   const openEdit = (rp) => {
-    const variantRows = getInitialVariantRowsFromRecord(rp);
+    const bulkItems = parseTransitItems(rp.items);
+    const firstBulkItem = bulkItems[0] || null;
+    const variantRows = getInitialVariantRowsFromRecord(firstBulkItem || rp);
+    const productId =
+      firstBulkItem?.receivedId ??
+      firstBulkItem?.productId ??
+      rp.receivedId ??
+      rp.productId ??
+      rp.product?.Id ??
+      rp.product?.id ??
+      "";
+    const warehouseId =
+      rp.warehouseId ?? rp.warehouse?.Id ?? rp.warehouse?.id ?? "";
+
     setCurrentItem({
       ...rp,
-      productId: String(rp.productId ?? rp.receivedId ?? ""),
-      receivedId: String(rp.receivedId ?? rp.productId ?? ""),
+      items: bulkItems,
+      productId: String(productId),
+      receivedId: String(productId),
+      warehouseId: String(warehouseId),
+      name: firstBulkItem?.name || rp.name || rp.product?.name || "",
       variantRows,
       quantity: String(
         getVariantRowsTotalQuantity(variantRows) || Number(rp.quantity) || 0,
@@ -588,7 +629,7 @@ const IntransiteProductTable = () => {
       purchase_price: rp.purchase_price ?? "",
       note: rp.note ?? "",
       status: rp.status ?? "",
-      date: rp.date ?? "",
+      date: toDateInputValue(rp.date),
       userId,
     });
     setIsEditOpen(true);
@@ -600,11 +641,27 @@ const IntransiteProductTable = () => {
   };
 
   const openEdit1 = (rp) => {
-    const variantRows = getInitialVariantRowsFromRecord(rp);
+    const bulkItems = parseTransitItems(rp.items);
+    const firstBulkItem = bulkItems[0] || null;
+    const variantRows = getInitialVariantRowsFromRecord(firstBulkItem || rp);
+    const productId =
+      firstBulkItem?.receivedId ??
+      firstBulkItem?.productId ??
+      rp.receivedId ??
+      rp.productId ??
+      rp.product?.Id ??
+      rp.product?.id ??
+      "";
+    const warehouseId =
+      rp.warehouseId ?? rp.warehouse?.Id ?? rp.warehouse?.id ?? "";
+
     setCurrentItem({
       ...rp,
-      productId: String(rp.productId ?? rp.receivedId ?? ""),
-      receivedId: String(rp.receivedId ?? rp.productId ?? ""),
+      items: bulkItems,
+      productId: String(productId),
+      receivedId: String(productId),
+      warehouseId: String(warehouseId),
+      name: firstBulkItem?.name || rp.name || rp.product?.name || "",
       variantRows,
       quantity: String(
         getVariantRowsTotalQuantity(variantRows) || Number(rp.quantity) || 0,
@@ -613,6 +670,7 @@ const IntransiteProductTable = () => {
       purchase_price: rp.purchase_price ?? "",
       note: rp.note ?? "",
       status: rp.status ?? "",
+      date: toDateInputValue(rp.date),
       userId,
     });
     setIsEditOpen1(true);
@@ -1621,11 +1679,11 @@ const IntransiteProductTable = () => {
               <label className="block text-sm text-slate-700">Product</label>
               <Select
                 options={receivedDropdownOptions}
-                value={
-                  receivedDropdownOptions.find(
-                    (o) => o.value === String(currentItem.receivedId),
-                  ) || null
-                }
+                value={makeSelectValue(
+                  receivedDropdownOptions,
+                  currentItem?.receivedId,
+                  currentItem?.name || currentItem?.product?.name,
+                )}
                 onChange={(selected) =>
                   setCurrentItem((p) => ({
                     ...p,
@@ -1687,11 +1745,11 @@ const IntransiteProductTable = () => {
                           </label>
                           <Select
                             options={editSizeOptions}
-                            value={
-                              editSizeOptions.find(
-                                (option) => option.value === row.size,
-                              ) || null
-                            }
+                            value={makeSelectValue(
+                              editSizeOptions,
+                              row.size,
+                              row.size,
+                            )}
                             onChange={(selected) =>
                               updateVariantRow(
                                 "edit",
@@ -1717,11 +1775,11 @@ const IntransiteProductTable = () => {
                           </label>
                           <Select
                             options={colorOptions}
-                            value={
-                              colorOptions.find(
-                                (option) => option.value === row.color,
-                              ) || null
-                            }
+                            value={makeSelectValue(
+                              colorOptions,
+                              row.color,
+                              row.color,
+                            )}
                             onChange={(selected) =>
                               updateVariantRow(
                                 "edit",
@@ -1801,13 +1859,11 @@ const IntransiteProductTable = () => {
               <label className="block text-sm text-slate-700">Warehouse</label>
               <Select
                 options={warehouseOptions}
-                value={
-                  warehouseOptions.find(
-                    (option) =>
-                      String(option.value) ===
-                      String(currentItem?.warehouseId || ""),
-                  ) || null
-                }
+                value={makeSelectValue(
+                  warehouseOptions,
+                  currentItem?.warehouseId,
+                  currentItem?.warehouse?.name,
+                )}
                 onChange={(selected) =>
                   setCurrentItem({
                     ...currentItem,

@@ -1,11 +1,14 @@
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import Select from "react-select";
-import { Boxes, Calendar, X } from "lucide-react";
+import { BadgeDollarSign, Boxes, Calendar, X } from "lucide-react";
 import {
   useGetAllAssetsStockQuery,
   useGetAllAssetsStockWithoutQueryQuery,
 } from "../../features/assetsStock/assetsStock";
+
+const formatNumber = (value) => Number(value || 0).toLocaleString();
+const formatCurrency = (value) => `৳${Number(value || 0).toLocaleString()}`;
 
 const AssetsStockTable = () => {
   const [rows, setRows] = useState([]);
@@ -134,18 +137,32 @@ const AssetsStockTable = () => {
           </p>
         </div>
 
-        <div className="inline-flex items-center gap-4 bg-indigo-50 border border-indigo-100 px-6 py-3 rounded-2xl shadow-sm shadow-indigo-50">
-          <div className="h-10 w-10 bg-white rounded-xl flex items-center justify-center text-indigo-600 shadow-sm">
-            <Boxes size={20} />
-          </div>
-          <div>
-            <div className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em]">
-              Total Stock
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="inline-flex items-center gap-4 bg-indigo-50 border border-indigo-100 px-6 py-3 rounded-2xl shadow-sm shadow-indigo-50">
+            <div className="h-10 w-10 bg-white rounded-xl flex items-center justify-center text-indigo-600 shadow-sm">
+              <Boxes size={20} />
             </div>
-            <div className="text-xl font-black text-indigo-900 tabular-nums">
-              {isLoading
-                ? "Syncing..."
-                : (data?.meta?.totalQuantity ?? 0).toLocaleString()}
+            <div>
+              <div className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em]">
+                Total Quantity
+              </div>
+              <div className="text-xl font-black text-indigo-900 tabular-nums">
+                {isLoading ? "Syncing..." : formatNumber(data?.meta?.totalQuantity)}
+              </div>
+            </div>
+          </div>
+
+          <div className="inline-flex items-center gap-4 bg-emerald-50 border border-emerald-100 px-6 py-3 rounded-2xl shadow-sm shadow-emerald-50">
+            <div className="h-10 w-10 bg-white rounded-xl flex items-center justify-center text-emerald-600 shadow-sm">
+              <BadgeDollarSign size={20} />
+            </div>
+            <div>
+              <div className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.2em]">
+                Total Amount
+              </div>
+              <div className="text-xl font-black text-emerald-900 tabular-nums">
+                {isLoading ? "Syncing..." : formatCurrency(data?.meta?.totalAmount)}
+              </div>
             </div>
           </div>
         </div>

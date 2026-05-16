@@ -266,7 +266,7 @@ const OverviewPage = () => {
   // =========================
   // ✅ Trending Products
   // =========================
-  const [trendFilter, setTrendFilter] = useState("today");
+  const [trendFilter, setTrendFilter] = useState("7");
   const inTransitTrendRange = useMemo(
     () =>
       trendFilter === "yesterday"

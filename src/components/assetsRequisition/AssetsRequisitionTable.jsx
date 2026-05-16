@@ -932,7 +932,14 @@
 // export default AssetsRequisitionTable;
 
 import { motion } from "framer-motion";
-import { Edit, Notebook, Plus, ShoppingBasket, Trash2 } from "lucide-react";
+import {
+  BadgeDollarSign,
+  Edit,
+  Notebook,
+  Plus,
+  ShoppingBasket,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import Select from "react-select";
@@ -949,8 +956,12 @@ import { translations } from "../../utils/translations";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 import {
   useGetAllAssetWithoutQueryQuery,
+  useDeleteAssetMutation,
   useInsertAssetMutation,
 } from "../../features/assets/assets";
+
+const formatNumber = (value) => Number(value || 0).toLocaleString();
+const formatCurrency = (value) => `৳${Number(value || 0).toLocaleString()}`;
 
 const AssetsRequisitionTable = () => {
   const { language } = useLayout();
@@ -1074,6 +1085,7 @@ const AssetsRequisitionTable = () => {
 
   // Asset mutation
   const [insertAsset, { isLoading: isAddingAsset }] = useInsertAssetMutation();
+  const [deleteAsset] = useDeleteAssetMutation();
 
   const addAssetByName = async (name) => {
     const n = String(name || "").trim();
@@ -1348,6 +1360,7 @@ const AssetsRequisitionTable = () => {
       .map((a) => ({
         value: a.name,
         label: a.name,
+        assetId: a.Id,
       }))
       .filter((item) => {
         const key = String(item.value || "")
@@ -1363,6 +1376,62 @@ const AssetsRequisitionTable = () => {
     () => [...assetOptions, { value: "__new__", label: "+ New Asset" }],
     [assetOptions],
   );
+
+  const handleDeleteAssetOption = async (assetOption) => {
+    if (!assetOption?.assetId) return;
+
+    const confirmDelete = await requestDeleteConfirmation({
+      message: `Do you want to delete "${assetOption.label}"?`,
+    });
+    if (!confirmDelete) return toast.info("Delete action was cancelled.");
+
+    try {
+      const res = await deleteAsset(assetOption.assetId).unwrap();
+
+      if (res?.success !== false) {
+        toast.success("Asset deleted successfully!");
+        setAssets((prev) =>
+          prev.filter((asset) => Number(asset.Id) !== Number(assetOption.assetId)),
+        );
+        setCreateProduct((prev) =>
+          prev.name === assetOption.value ? { ...prev, name: "" } : prev,
+        );
+        setCurrentProduct((prev) =>
+          prev?.name === assetOption.value ? { ...prev, name: "" } : prev,
+        );
+      } else {
+        toast.error(res?.message || "Asset delete failed!");
+      }
+    } catch (err) {
+      toast.error(err?.data?.message || "Asset delete failed!");
+    }
+  };
+
+  const formatAssetOptionLabel = (option, { context }) => {
+    if (option.value === "__new__" || context !== "menu") return option.label;
+
+    return (
+      <div className="flex items-center justify-between gap-3">
+        <span className="truncate">{option.label}</span>
+        <button
+          type="button"
+          onMouseDown={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            handleDeleteAssetOption(option);
+          }}
+          className="shrink-0 rounded-md p-1 text-rose-500 hover:bg-rose-50 hover:text-rose-600"
+          title="Delete asset"
+        >
+          <Trash2 size={14} />
+        </button>
+      </div>
+    );
+  };
 
   const selectStyles = useMemo(
     () => ({
@@ -1425,15 +1494,28 @@ const AssetsRequisitionTable = () => {
           {t.add} <Plus size={18} />
         </button>
 
-        <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2">
-          <div className="flex items-center gap-2 text-slate-700">
-            <ShoppingBasket size={18} className="text-amber-500" />
-            <span className="text-sm">{t.total_purchase}</span>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2">
+            <div className="flex items-center gap-2 text-slate-700">
+              <ShoppingBasket size={18} className="text-amber-500" />
+              <span className="text-sm">Total Quantity</span>
+            </div>
+
+            <span className="text-slate-900 font-semibold tabular-nums">
+              {isLoading ? "..." : formatNumber(data?.meta?.totalQuantity)}
+            </span>
           </div>
 
-          <span className="text-slate-900 font-semibold tabular-nums">
-            {isLoading ? "..." : data?.meta?.totalQuantity}
-          </span>
+          <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2">
+            <div className="flex items-center gap-2 text-slate-700">
+              <BadgeDollarSign size={18} className="text-emerald-500" />
+              <span className="text-sm">Total Amount</span>
+            </div>
+
+            <span className="text-slate-900 font-semibold tabular-nums">
+              {isLoading ? "..." : formatCurrency(data?.meta?.totalAmount)}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -1753,6 +1835,7 @@ const AssetsRequisitionTable = () => {
                 placeholder={t.select_assets || "Select Asset"}
                 className="text-sm mt-1"
                 styles={selectStyles}
+                formatOptionLabel={formatAssetOptionLabel}
                 isClearable
               />
 
@@ -1987,6 +2070,7 @@ const AssetsRequisitionTable = () => {
                 placeholder={t.select_assets || "Select Asset"}
                 className="text-sm mt-1"
                 styles={selectStyles}
+                formatOptionLabel={formatAssetOptionLabel}
                 isClearable
               />
 

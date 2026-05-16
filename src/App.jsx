@@ -227,7 +227,11 @@ function App() {
         </div>
 
         <DeleteConfirmationProvider />
-        <Toaster position="top-center" reverseOrder={false} />
+        <Toaster
+          position="top-center"
+          reverseOrder={false}
+          containerStyle={{ zIndex: 2147483647 }}
+        />
       </ErrorBoundary>
     </Provider>
   );

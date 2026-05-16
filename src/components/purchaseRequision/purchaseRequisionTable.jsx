@@ -260,6 +260,31 @@ const hasDuplicateVariantCombination = (rows) => {
   return false;
 };
 
+const toDateInputValue = (value) => {
+  if (!value) return new Date().toISOString().slice(0, 10);
+  const text = String(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+
+  const parsed = new Date(value);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10);
+  }
+
+  return text;
+};
+
+const makeSelectValue = (options, value, fallbackLabel) => {
+  if (value === undefined || value === null || value === "") return null;
+
+  const stringValue = String(value);
+  return (
+    options.find((option) => String(option.value) === stringValue) || {
+      value: stringValue,
+      label: fallbackLabel || stringValue,
+    }
+  );
+};
+
 const purchaseRequisitionStatusesByRole = {
   superAdmin: ["Pending", "Approved"],
   admin: ["Pending", "Approved"],
@@ -681,17 +706,23 @@ const PurchaseRequisionTable = () => {
   const handleEditClick = (rp) => {
     const bulkItems = parsePurchaseRequisitionItems(rp.items);
     const firstBulkItem = bulkItems[0] || null;
+    const productName = firstBulkItem?.name || rp.name || rp.product?.name || "";
     const pidFromRow =
-      rp.productId || firstBulkItem?.productId
-        ? String(rp.productId || firstBulkItem?.productId)
-        : "";
+      firstBulkItem?.productId ??
+      rp.productId ??
+      rp.product?.Id ??
+      rp.product?.id ??
+      "";
     const pidFromName =
       productIdByNameMap.get(
-        String(rp.name || "")
+        String(productName || "")
           .trim()
           .toLowerCase(),
       ) || "";
     const variantRows = getInitialVariantRowsFromRecord(firstBulkItem || rp);
+    const supplierId = rp.supplierId ?? rp.supplier?.Id ?? rp.supplier?.id ?? "";
+    const warehouseId =
+      rp.warehouseId ?? rp.warehouse?.Id ?? rp.warehouse?.id ?? "";
 
     setCurrentProduct({
       ...rp,
@@ -700,7 +731,10 @@ const PurchaseRequisionTable = () => {
       paymentMode: rp.paymentMode ?? "",
       bankName: rp.bankName ?? "",
       bankAccount: rp.bankAccount ?? "",
-      productId: pidFromRow || pidFromName, // ✅ selected ঠিক রাখে
+      productId: String(pidFromRow || pidFromName), // ✅ selected ঠিক রাখে
+      supplierId: String(supplierId),
+      warehouseId: String(warehouseId),
+      name: productName || rp.name || "",
       variantRows,
       quantity: String(
         getVariantRowsTotalQuantity(variantRows) || Number(rp.quantity) || 0,
@@ -709,7 +743,7 @@ const PurchaseRequisionTable = () => {
         rp.amount !== undefined && rp.amount !== null ? String(rp.amount) : "",
       supplier: rp.supplier ?? "",
       note: rp.note ?? rp.remarks ?? "",
-      date: rp.date ?? new Date().toISOString().slice(0, 10),
+      date: toDateInputValue(rp.date),
       userId,
     });
 
@@ -731,17 +765,23 @@ const PurchaseRequisionTable = () => {
   const handleEditClick1 = (rp) => {
     const bulkItems = parsePurchaseRequisitionItems(rp.items);
     const firstBulkItem = bulkItems[0] || null;
+    const productName = firstBulkItem?.name || rp.name || rp.product?.name || "";
     const pidFromRow =
-      rp.productId || firstBulkItem?.productId
-        ? String(rp.productId || firstBulkItem?.productId)
-        : "";
+      firstBulkItem?.productId ??
+      rp.productId ??
+      rp.product?.Id ??
+      rp.product?.id ??
+      "";
     const pidFromName =
       productIdByNameMap.get(
-        String(rp.name || "")
+        String(productName || "")
           .trim()
           .toLowerCase(),
       ) || "";
     const variantRows = getInitialVariantRowsFromRecord(firstBulkItem || rp);
+    const supplierId = rp.supplierId ?? rp.supplier?.Id ?? rp.supplier?.id ?? "";
+    const warehouseId =
+      rp.warehouseId ?? rp.warehouse?.Id ?? rp.warehouse?.id ?? "";
 
     setCurrentProduct({
       ...rp,
@@ -750,7 +790,10 @@ const PurchaseRequisionTable = () => {
       paymentMode: rp.paymentMode ?? "",
       bankName: rp.bankName ?? "",
       bankAccount: rp.bankAccount ?? "",
-      productId: pidFromRow || pidFromName,
+      productId: String(pidFromRow || pidFromName),
+      supplierId: String(supplierId),
+      warehouseId: String(warehouseId),
+      name: productName || rp.name || "",
       variantRows,
       quantity: String(
         getVariantRowsTotalQuantity(variantRows) || Number(rp.quantity) || 0,
@@ -759,6 +802,7 @@ const PurchaseRequisionTable = () => {
         rp.amount !== undefined && rp.amount !== null ? String(rp.amount) : "",
       supplier: rp.supplier ?? "",
       note: rp.note ?? rp.remarks ?? "",
+      date: toDateInputValue(rp.date),
       userId,
     });
 
@@ -1638,8 +1682,9 @@ const PurchaseRequisionTable = () => {
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto mt-6 rounded-2xl border border-slate-200">
-        <table className="min-w-full divide-y divide-slate-200">
+      <div className="mt-6 rounded-2xl border border-slate-200 overflow-hidden">
+        <div className="overflow-auto max-h-[420px] custom-scrollbar">
+        <table className="min-w-[1100px] w-full divide-y divide-slate-200">
           <thead className="bg-slate-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
@@ -1886,6 +1931,7 @@ const PurchaseRequisionTable = () => {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Pagination */}
@@ -2098,11 +2144,11 @@ const PurchaseRequisionTable = () => {
               </label>
               <Select
                 options={productDropdownOptions}
-                value={
-                  productDropdownOptions.find(
-                    (o) => o.value === String(currentProduct?.productId),
-                  ) || null
-                }
+                value={makeSelectValue(
+                  productDropdownOptions,
+                  currentProduct?.productId,
+                  currentProduct?.name || currentProduct?.product?.name,
+                )}
                 onChange={(selected) =>
                   setCurrentProduct({
                     ...currentProduct,
@@ -2161,11 +2207,11 @@ const PurchaseRequisionTable = () => {
                         </label>
                         <Select
                           options={editSizeOptions}
-                          value={
-                            editSizeOptions.find(
-                              (option) => option.value === row.size,
-                            ) || null
-                          }
+                          value={makeSelectValue(
+                            editSizeOptions,
+                            row.size,
+                            row.size,
+                          )}
                           onChange={(selected) =>
                             updateVariantRow(
                               "edit",
@@ -2191,11 +2237,11 @@ const PurchaseRequisionTable = () => {
                         </label>
                         <Select
                           options={colorOptions}
-                          value={
-                            colorOptions.find(
-                              (option) => option.value === row.color,
-                            ) || null
-                          }
+                          value={makeSelectValue(
+                            colorOptions,
+                            row.color,
+                            row.color,
+                          )}
                           onChange={(selected) =>
                             updateVariantRow(
                               "edit",
@@ -2261,13 +2307,11 @@ const PurchaseRequisionTable = () => {
               </label>
               <Select
                 options={warehouseOptions}
-                value={
-                  warehouseOptions.find(
-                    (option) =>
-                      String(option.value) ===
-                      String(currentProduct?.warehouseId || ""),
-                  ) || null
-                }
+                value={makeSelectValue(
+                  warehouseOptions,
+                  currentProduct?.warehouseId,
+                  currentProduct?.warehouse?.name,
+                )}
                 onChange={(selected) =>
                   setCurrentProduct({
                     ...currentProduct,
@@ -2286,13 +2330,11 @@ const PurchaseRequisionTable = () => {
               </label>
               <Select
                 options={supplierOptions}
-                value={
-                  supplierOptions.find(
-                    (option) =>
-                      String(option.value) ===
-                      String(currentProduct?.supplierId || ""),
-                  ) || null
-                }
+                value={makeSelectValue(
+                  supplierOptions,
+                  currentProduct?.supplierId,
+                  currentProduct?.supplier?.name,
+                )}
                 onChange={(selected) =>
                   setCurrentProduct({
                     ...currentProduct,
@@ -2311,13 +2353,11 @@ const PurchaseRequisionTable = () => {
               </label>
               <Select
                 options={bookOptions}
-                value={
-                  bookOptions.find(
-                    (option) =>
-                      String(option.value) ===
-                      String(currentProduct?.bookId || ""),
-                  ) || null
-                }
+                value={makeSelectValue(
+                  bookOptions,
+                  currentProduct?.bookId,
+                  currentProduct?.book?.name || currentProduct?.book?.title,
+                )}
                 onChange={(selected) =>
                   setCurrentProduct({
                     ...currentProduct,
@@ -2336,13 +2376,11 @@ const PurchaseRequisionTable = () => {
               </label>
               <Select
                 options={paymentModeOptions}
-                value={
-                  paymentModeOptions.find(
-                    (option) =>
-                      String(option.value) ===
-                      String(currentProduct?.paymentMode || ""),
-                  ) || null
-                }
+                value={makeSelectValue(
+                  paymentModeOptions,
+                  currentProduct?.paymentMode,
+                  currentProduct?.paymentMode,
+                )}
                 onChange={(selected) =>
                   setCurrentProduct({
                     ...currentProduct,
@@ -2365,13 +2403,11 @@ const PurchaseRequisionTable = () => {
                   </label>
                   <Select
                     options={bankOptions}
-                    value={
-                      bankOptions.find(
-                        (option) =>
-                          String(option.value) ===
-                          String(currentProduct?.bankName || ""),
-                      ) || null
-                    }
+                    value={makeSelectValue(
+                      bankOptions,
+                      currentProduct?.bankName,
+                      currentProduct?.bankName,
+                    )}
                     onChange={(selected) =>
                       setCurrentProduct({
                         ...currentProduct,
@@ -2391,13 +2427,11 @@ const PurchaseRequisionTable = () => {
                   </label>
                   <Select
                     options={getBankAccountOptions(currentProduct?.bankName)}
-                    value={
-                      getBankAccountOptions(currentProduct?.bankName).find(
-                        (option) =>
-                          String(option.value) ===
-                          String(currentProduct?.bankAccount || ""),
-                      ) || null
-                    }
+                    value={makeSelectValue(
+                      getBankAccountOptions(currentProduct?.bankName),
+                      currentProduct?.bankAccount,
+                      currentProduct?.bankAccount,
+                    )}
                     onChange={(selected) =>
                       setCurrentProduct({
                         ...currentProduct,

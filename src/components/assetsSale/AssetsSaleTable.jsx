@@ -1,5 +1,12 @@
 import { motion } from "framer-motion";
-import { BadgeDollarSign, Edit, Notebook, Plus, Trash2 } from "lucide-react";
+import {
+  BadgeDollarSign,
+  Boxes,
+  Edit,
+  Notebook,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import Select from "react-select";
@@ -13,6 +20,9 @@ import {
   useInsertAssetsSaleMutation,
   useUpdateAssetsSaleMutation,
 } from "../../features/assetsSale/assetsSale";
+
+const formatNumber = (value) => Number(value || 0).toLocaleString();
+const formatCurrency = (value) => `৳${Number(value || 0).toLocaleString()}`;
 
 const AssetsSaleTable = () => {
   const role = localStorage.getItem("role");
@@ -429,15 +439,28 @@ const AssetsSaleTable = () => {
           </span>
         </div> */}
 
-        <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2">
-          <div className="flex items-center gap-2 text-slate-700">
-            <BadgeDollarSign size={18} className="text-amber-500" />
-            <span className="text-sm">Total Sale</span>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2">
+            <div className="flex items-center gap-2 text-slate-700">
+              <Boxes size={18} className="text-indigo-500" />
+              <span className="text-sm">Total Quantity</span>
+            </div>
+
+            <span className="text-slate-900 font-semibold tabular-nums">
+              {isLoading ? "Loading..." : formatNumber(data?.meta?.totalQuantity)}
+            </span>
           </div>
 
-          <span className="text-slate-900 font-semibold tabular-nums">
-            {isLoading ? "Loading..." : data?.meta?.totalQuantity}
-          </span>
+          <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2">
+            <div className="flex items-center gap-2 text-slate-700">
+              <BadgeDollarSign size={18} className="text-emerald-500" />
+              <span className="text-sm">Total Amount</span>
+            </div>
+
+            <span className="text-slate-900 font-semibold tabular-nums">
+              {isLoading ? "Loading..." : formatCurrency(data?.meta?.totalAmount)}
+            </span>
+          </div>
         </div>
       </div>
 
