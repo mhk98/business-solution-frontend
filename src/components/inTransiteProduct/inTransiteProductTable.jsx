@@ -27,6 +27,13 @@ const initialCreateForm = {
   date: new Date().toISOString().slice(0, 10),
 };
 
+const initialBulkAddForm = {
+  receivedId: "",
+  productId: "",
+  variantRows: [{ size: "", color: "", quantity: "" }],
+  quantity: "",
+};
+
 const formatMoney = (value) => {
   const amount = Number(value || 0);
   return `৳${amount.toLocaleString("en-US", {
@@ -284,6 +291,7 @@ const IntransiteProductTable = () => {
     ...initialCreateForm,
   });
   const [createItems, setCreateItems] = useState([]);
+  const [bulkAddForm, setBulkAddForm] = useState(initialBulkAddForm);
 
   const [rows, setRows] = useState([]);
 
@@ -325,11 +333,18 @@ const IntransiteProductTable = () => {
     () => receivedData.find((r) => String(r.Id) === String(createForm?.receivedId)),
     [receivedData, createForm?.receivedId],
   );
+  const selectedBulkAddInventoryItem = useMemo(
+    () =>
+      receivedData.find((r) => String(r.Id) === String(bulkAddForm?.receivedId)),
+    [receivedData, bulkAddForm?.receivedId],
+  );
 
   const selectedCreateProductId =
     createForm?.productId || createForm?.receivedId || undefined;
   const selectedEditProductId =
     currentItem?.productId || currentItem?.receivedId || undefined;
+  const selectedBulkAddProductId =
+    bulkAddForm?.productId || bulkAddForm?.receivedId || undefined;
 
   const {
     data: selectedCreateProductRes,
@@ -341,11 +356,19 @@ const IntransiteProductTable = () => {
     useGetSingleProductByIdQuery(selectedEditProductId, {
       skip: !selectedEditProductId,
     });
+  const {
+    data: selectedBulkAddProductRes,
+    isFetching: isFetchingBulkAddProduct,
+  } = useGetSingleProductByIdQuery(selectedBulkAddProductId, {
+    skip: !selectedBulkAddProductId,
+  });
 
   const selectedCreateProductData =
     selectedCreateProductRes?.data || selectedCreateProductRes;
   const selectedEditProductData =
     selectedEditProductRes?.data || selectedEditProductRes;
+  const selectedBulkAddProductData =
+    selectedBulkAddProductRes?.data || selectedBulkAddProductRes;
 
   const createSizeOptions = useMemo(
     () => getVariationOptions(selectedCreateProductData, "size"),
@@ -382,12 +405,26 @@ const IntransiteProductTable = () => {
     () => getVariationOptions(selectedEditProductData, "color"),
     [selectedEditProductData],
   );
+  const bulkAddSizeOptions = useMemo(
+    () => getVariationOptions(selectedBulkAddProductData, "size"),
+    [selectedBulkAddProductData],
+  );
+  const bulkAddColorOptions = useMemo(
+    () => getVariationOptions(selectedBulkAddProductData, "color"),
+    [selectedBulkAddProductData],
+  );
   const shouldShowEditVariantOptions = useMemo(
     () =>
       hasConfiguredVariants(currentItem?.variantRows) ||
       (!isFetchingEditProduct &&
         getVariantRowsFromProduct(selectedEditProductData).length > 0),
     [currentItem?.variantRows, isFetchingEditProduct, selectedEditProductData],
+  );
+  const shouldShowBulkAddVariantOptions = useMemo(
+    () =>
+      !isFetchingBulkAddProduct &&
+      getVariantRowsFromProduct(selectedBulkAddProductData).length > 0,
+    [isFetchingBulkAddProduct, selectedBulkAddProductData],
   );
 
   // ✅ react-select light styles
@@ -599,6 +636,270 @@ const IntransiteProductTable = () => {
     });
   };
 
+  const currentBulkItems = useMemo(
+    () => parseTransitItems(currentItem?.items),
+    [currentItem?.items],
+  );
+  const isEditingBulkTransit = currentBulkItems.length > 0;
+  const currentBulkTotalQuantity = useMemo(
+    () => getTransitItemsTotalQuantity(currentBulkItems),
+    [currentBulkItems],
+  );
+
+  const updateCurrentBulkItem = (index, key, value) => {
+    setCurrentItem((prev) => {
+      const nextItems = parseTransitItems(prev?.items).map((item, itemIndex) =>
+        itemIndex === index
+          ? {
+              ...item,
+              [key]: value,
+            }
+          : item,
+      );
+
+      return {
+        ...prev,
+        items: nextItems,
+        quantity: String(getTransitItemsTotalQuantity(nextItems)),
+      };
+    });
+  };
+
+  const updateCurrentBulkItemVariantField = (
+    itemIndex,
+    variantIndex,
+    key,
+    value,
+  ) => {
+    setCurrentItem((prev) => {
+      const nextItems = parseTransitItems(prev?.items).map(
+        (item, currentItemIndex) => {
+          if (currentItemIndex !== itemIndex) return item;
+
+          const nextVariants = normalizeVariantRows(item.variants).map(
+            (variant, currentVariantIndex) =>
+              currentVariantIndex === variantIndex
+                ? {
+                    ...variant,
+                    [key]: key === "quantity" ? Number(value) || 0 : value,
+                  }
+                : variant,
+          );
+
+          return {
+            ...item,
+            variants: nextVariants,
+            quantity: getVariantRowsTotalQuantity(nextVariants),
+          };
+        },
+      );
+
+      return {
+        ...prev,
+        items: nextItems,
+        quantity: String(getTransitItemsTotalQuantity(nextItems)),
+      };
+    });
+  };
+
+  const resetBulkAddForm = () => {
+    setBulkAddForm(initialBulkAddForm);
+  };
+
+  const handleBulkAddProductSelect = (selected) => {
+    setBulkAddForm((prev) => ({
+      ...prev,
+      receivedId: selected?.value || "",
+      productId: selected?.value || "",
+      variantRows: [createEmptyVariantRow()],
+      quantity: "",
+    }));
+  };
+
+  const updateBulkAddVariantRow = (index, key, value) => {
+    setBulkAddForm((prev) => {
+      const nextRows = normalizeVariantRows(prev?.variantRows).map(
+        (row, rowIndex) =>
+          rowIndex === index
+            ? {
+                ...row,
+                [key]: value,
+                ...(key === "size" ? { color: "" } : {}),
+              }
+            : row,
+      );
+
+      return {
+        ...prev,
+        variantRows: nextRows,
+        quantity: String(getVariantRowsTotalQuantity(nextRows) || ""),
+      };
+    });
+  };
+
+  const addBulkAddVariantRow = () => {
+    setBulkAddForm((prev) => ({
+      ...prev,
+      variantRows: [
+        ...normalizeVariantRows(prev?.variantRows),
+        createEmptyVariantRow(),
+      ],
+    }));
+  };
+
+  const removeBulkAddVariantRow = (index) => {
+    setBulkAddForm((prev) => {
+      const nextRows = normalizeVariantRows(prev?.variantRows).filter(
+        (_, rowIndex) => rowIndex !== index,
+      );
+
+      return {
+        ...prev,
+        variantRows: nextRows.length > 0 ? nextRows : [createEmptyVariantRow()],
+        quantity: String(getVariantRowsTotalQuantity(nextRows) || ""),
+      };
+    });
+  };
+
+  const buildBulkAddItem = () => {
+    if (!bulkAddForm.receivedId && !bulkAddForm.productId) {
+      return { error: "Please select a product" };
+    }
+
+    const variantsPayload = getNormalizedVariantsPayload(
+      bulkAddForm.variantRows,
+    );
+    if (hasDuplicateVariantCombination(variantsPayload)) {
+      return { error: "Duplicate size and color combination found" };
+    }
+
+    const totalQuantity =
+      variantsPayload.length > 0
+        ? getVariantRowsTotalQuantity(variantsPayload)
+        : Number(bulkAddForm.quantity) || 0;
+
+    if (totalQuantity <= 0) return { error: "Please enter valid quantity" };
+
+    const productId = String(bulkAddForm.productId || bulkAddForm.receivedId);
+    const selectedProduct = receivedDropdownOptions.find(
+      (option) => option.value === productId,
+    );
+    const inventoryVariants = getVariantDisplayRows(selectedBulkAddInventoryItem);
+    const unitPurchasePrice =
+      Number(selectedBulkAddInventoryItem?.purchase_price) || 0;
+    const unitSalePrice = Number(selectedBulkAddInventoryItem?.sale_price) || 0;
+
+    const getVariantTotalPrice = (field, fallbackUnitPrice) =>
+      variantsPayload.reduce((sum, variant) => {
+        const invVariant = inventoryVariants.find(
+          (item) =>
+            String(item.size || "") === String(variant.size || "") &&
+            String(item.color || "") === String(variant.color || ""),
+        );
+        const variantUnitPrice =
+          Number(invVariant?.[field]) || Number(fallbackUnitPrice) || 0;
+        return sum + variantUnitPrice * (Number(variant.quantity) || 0);
+      }, 0);
+
+    const totalPurchasePrice =
+      variantsPayload.length > 0 && inventoryVariants.length > 0
+        ? getVariantTotalPrice("purchase_price", unitPurchasePrice)
+        : unitPurchasePrice * totalQuantity;
+    const totalSalePrice =
+      variantsPayload.length > 0 && inventoryVariants.length > 0
+        ? getVariantTotalPrice("sale_price", unitSalePrice)
+        : unitSalePrice * totalQuantity;
+
+    return {
+      item: {
+        receivedId: Number(bulkAddForm.receivedId || bulkAddForm.productId),
+        productId: Number(bulkAddForm.productId || bulkAddForm.receivedId),
+        name:
+          selectedProduct?.label ||
+          selectedBulkAddInventoryItem?.name ||
+          `Product #${productId}`,
+        quantity: totalQuantity,
+        purchase_price: totalPurchasePrice,
+        sale_price: totalSalePrice,
+        variants: variantsPayload,
+      },
+    };
+  };
+
+  const handleAddBulkProduct = () => {
+    const result = buildBulkAddItem();
+    if (result.error) return toast.error(result.error);
+
+    setCurrentItem((prev) => {
+      const currentItems = parseTransitItems(prev?.items);
+      const existingIndex = currentItems.findIndex(
+        (item) =>
+          String(item.receivedId || item.productId) ===
+          String(result.item.receivedId || result.item.productId),
+      );
+
+      if (existingIndex !== -1) {
+        const existingItem = currentItems[existingIndex];
+        const existingVariants = normalizeVariantRows(
+          existingItem.variants,
+        ).filter((variant) => variant.size || variant.color || variant.quantity);
+        const incomingVariants = normalizeVariantRows(
+          result.item.variants,
+        ).filter((variant) => variant.size || variant.color || variant.quantity);
+
+        if (!incomingVariants.length || !existingVariants.length) {
+          toast.error("This product already exists in the list");
+          return prev;
+        }
+
+        const duplicateVariant = incomingVariants.find((incoming) =>
+          existingVariants.some(
+            (existing) =>
+              String(existing.size || "") === String(incoming.size || "") &&
+              String(existing.color || "") === String(incoming.color || ""),
+          ),
+        );
+
+        if (duplicateVariant) {
+          toast.error("This variant already exists in the list");
+          return prev;
+        }
+
+        const mergedVariants = [...existingVariants, ...incomingVariants];
+        const nextItems = currentItems.map((item, index) =>
+          index === existingIndex
+            ? {
+                ...item,
+                variants: mergedVariants,
+                quantity: getVariantRowsTotalQuantity(mergedVariants),
+                purchase_price:
+                  (Number(item.purchase_price) || 0) +
+                  (Number(result.item.purchase_price) || 0),
+                sale_price:
+                  (Number(item.sale_price) || 0) +
+                  (Number(result.item.sale_price) || 0),
+              }
+            : item,
+        );
+
+        return {
+          ...prev,
+          items: nextItems,
+          quantity: String(getTransitItemsTotalQuantity(nextItems)),
+        };
+      }
+
+      const nextItems = [...currentItems, result.item];
+
+      return {
+        ...prev,
+        items: nextItems,
+        quantity: String(getTransitItemsTotalQuantity(nextItems)),
+      };
+    });
+    resetBulkAddForm();
+  };
+
   const openEdit = (rp) => {
     const bulkItems = parseTransitItems(rp.items);
     const firstBulkItem = bulkItems[0] || null;
@@ -632,12 +933,14 @@ const IntransiteProductTable = () => {
       date: toDateInputValue(rp.date),
       userId,
     });
+    resetBulkAddForm();
     setIsEditOpen(true);
   };
 
   const closeEdit = () => {
     setIsEditOpen(false);
     setCurrentItem(null);
+    resetBulkAddForm();
   };
 
   const openEdit1 = (rp) => {
@@ -997,33 +1300,49 @@ const IntransiteProductTable = () => {
   // ✅ update
   const handleUpdate = async () => {
     if (!currentItem?.Id) return toast.error("Invalid item");
-    if (!currentItem?.receivedId && !currentItem?.productId)
+    const bulkItems = parseTransitItems(currentItem?.items);
+    if (!bulkItems.length && !currentItem?.receivedId && !currentItem?.productId)
       return toast.error("Please select a product");
-    if (!currentItem.quantity || Number(currentItem.quantity) <= 0)
+    if (
+      bulkItems.length
+        ? bulkItems.some((item) => Number(item.quantity) <= 0)
+        : !currentItem.quantity || Number(currentItem.quantity) <= 0
+    )
       return toast.error("Please enter valid quantity");
 
     const variantsPayload = getNormalizedVariantsPayload(
       currentItem?.variantRows,
     );
-    if (hasDuplicateVariantCombination(variantsPayload)) {
+    if (!bulkItems.length && hasDuplicateVariantCombination(variantsPayload)) {
       return toast.error("Duplicate size and color combination found");
     }
 
     try {
-      const payload = {
-        note: currentItem.note,
-        status: currentItem.status,
-        warehouseId: Number(currentItem.warehouseId),
-        date: currentItem.date,
-        quantity: Number(currentItem.quantity),
-        sale_price: Number(currentItem.sale_price) || 0,
-        purchase_price: Number(currentItem.purchase_price) || 0,
-        variants: variantsPayload,
-        receivedId: Number(currentItem.receivedId || currentItem.productId),
-        productId: Number(currentItem.productId || currentItem.receivedId),
-        userId: userId,
-        actorRole: role,
-      };
+      const payload =
+        bulkItems.length > 0
+          ? {
+              items: bulkItems,
+              note: currentItem.note,
+              status: currentItem.status,
+              warehouseId: Number(currentItem.warehouseId),
+              date: currentItem.date,
+              userId,
+              actorRole: role,
+            }
+          : {
+              note: currentItem.note,
+              status: currentItem.status,
+              warehouseId: Number(currentItem.warehouseId),
+              date: currentItem.date,
+              quantity: Number(currentItem.quantity),
+              sale_price: Number(currentItem.sale_price) || 0,
+              purchase_price: Number(currentItem.purchase_price) || 0,
+              variants: variantsPayload,
+              receivedId: Number(currentItem.receivedId || currentItem.productId),
+              productId: Number(currentItem.productId || currentItem.receivedId),
+              userId: userId,
+              actorRole: role,
+            };
 
       const res = await updateInTransitProduct({
         id: currentItem.Id,
@@ -1294,14 +1613,14 @@ const IntransiteProductTable = () => {
       </div>
 
       {/* Table */}
-      <div className="w-full max-w-full overflow-x-auto overscroll-x-contain mt-6 rounded-2xl border border-slate-200">
-        <table className="w-full min-w-[1120px] divide-y divide-slate-200 [&_th]:px-3 lg:[&_th]:px-4 [&_td]:px-3 lg:[&_td]:px-4 [&_th]:py-3 [&_td]:py-3">
+      <div className="intransit-product-table-scroll four-row-table-scroll mt-6 rounded-2xl border border-slate-200">
+        <table className="w-full min-w-[2200px] divide-y divide-slate-200 [&_th]:px-3 lg:[&_th]:px-4 [&_td]:px-3 lg:[&_td]:px-4 [&_th]:py-3 [&_td]:py-3">
           <thead className="bg-slate-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Date
               </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider min-w-[420px] max-w-[420px]">
                 Product
               </th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
@@ -1313,7 +1632,7 @@ const IntransiteProductTable = () => {
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Quantity
               </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider min-w-[780px]">
                 Variants
               </th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
@@ -1380,7 +1699,7 @@ const IntransiteProductTable = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
                     {rp.date}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-900">
+                  <td className="px-6 py-4 min-w-[420px] max-w-[420px] whitespace-normal text-sm font-semibold text-slate-900">
                     {rowItems
                       .map((item) => resolveProductName(item))
                       .filter(Boolean)
@@ -1395,9 +1714,9 @@ const IntransiteProductTable = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                     {Number(rowTotalQuantity || rp.quantity || 0).toFixed(2)}
                   </td>
-                  <td className="px-6 py-4 min-w-[260px]">
+                  <td className="px-6 py-4 min-w-[780px]">
                     {hasDisplayItems || rowItems.length > 0 ? (
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-nowrap gap-2">
                         {itemVariantGroups.flatMap(
                           ({ item, variants }, itemIndex) => {
                             const fallbackUnitPurchase = getItemUnitPrice(
@@ -1675,7 +1994,291 @@ const IntransiteProductTable = () => {
       >
         {currentItem && (
           <>
-            <div className="mt-4">
+            {isEditingBulkTransit && (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                      Product List
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-indigo-100 bg-white px-4 py-2 text-right">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      Total Quantity
+                    </p>
+                    <p className="text-lg font-black text-slate-900">
+                      {currentBulkTotalQuantity}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                  <table className="min-w-[860px] w-full text-sm">
+                    <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-500">
+                      <tr>
+                        <th className="min-w-[280px] px-3 py-3 text-left">
+                          Product
+                        </th>
+                        <th className="px-3 py-3 text-left">Quantity</th>
+                        <th className="px-3 py-3 text-left">Variant Detail</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {currentBulkItems.map((item, index) => (
+                        <tr
+                          key={`edit-transit-${item.productId || item.name}-${index}`}
+                        >
+                          <td className="min-w-[280px] px-3 py-3 align-top">
+                            <div className="min-h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-800">
+                              {item.name || `Product #${item.productId || "-"}`}
+                            </div>
+                          </td>
+                          <td className="px-3 py-3 align-top">
+                            {item.variants?.length ? (
+                              <p className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-black text-slate-900">
+                                {Number(item.quantity || 0)}
+                              </p>
+                            ) : (
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={item.quantity ?? ""}
+                                onChange={(e) =>
+                                  updateCurrentBulkItem(
+                                    index,
+                                    "quantity",
+                                    e.target.value,
+                                  )
+                                }
+                                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
+                              />
+                            )}
+                          </td>
+                          <td className="px-3 py-3 align-top text-xs text-slate-500">
+                            {item.variants?.length
+                              ? item.variants.map((variant, variantIndex) => (
+                                  <div
+                                    key={`${variant.size}-${variant.color}-${variantIndex}`}
+                                    className="mb-2 grid grid-cols-[1fr_90px] items-end gap-2 last:mb-0"
+                                  >
+                                    <span className="rounded-lg bg-slate-50 px-2 py-1 font-semibold text-slate-600">
+                                      {variant.size || "-"} /{" "}
+                                      {variant.color || "-"}
+                                    </span>
+                                    <div>
+                                      {variantIndex === 0 && (
+                                        <p className="mb-1 text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                                          Qty
+                                        </p>
+                                      )}
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={variant.quantity}
+                                        onChange={(e) =>
+                                          updateCurrentBulkItemVariantField(
+                                            index,
+                                            variantIndex,
+                                            "quantity",
+                                            e.target.value,
+                                          )
+                                        }
+                                        className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
+                                      />
+                                    </div>
+                                  </div>
+                                ))
+                              : "No variants"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="mt-4 rounded-xl border border-indigo-100 bg-white p-3">
+                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
+                    <div>
+                      <label className="mb-1.5 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
+                        New Product
+                      </label>
+                      <Select
+                        options={receivedDropdownOptions}
+                        value={makeSelectValue(
+                          receivedDropdownOptions,
+                          bulkAddForm.receivedId,
+                        )}
+                        onChange={handleBulkAddProductSelect}
+                        placeholder={
+                          receivedLoading ? "Loading..." : "Select Product"
+                        }
+                        isClearable
+                        isDisabled={receivedLoading}
+                        className="text-black"
+                        styles={selectStyles}
+                      />
+                    </div>
+
+                    {!shouldShowBulkAddVariantOptions && (
+                      <div className="lg:w-36">
+                        <label className="mb-1.5 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
+                          Quantity
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={bulkAddForm.quantity}
+                          onChange={(e) =>
+                            setBulkAddForm((prev) => ({
+                              ...prev,
+                              quantity: e.target.value,
+                            }))
+                          }
+                          disabled={!bulkAddForm.receivedId}
+                          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10 disabled:bg-slate-100 disabled:text-slate-400"
+                        />
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={handleAddBulkProduct}
+                      disabled={
+                        !bulkAddForm.receivedId || isFetchingBulkAddProduct
+                      }
+                      className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Plus size={16} />
+                      Add Product
+                    </button>
+                  </div>
+
+                  {bulkAddForm.receivedId && shouldShowBulkAddVariantOptions && (
+                    <div className="mt-3 space-y-3 rounded-xl bg-slate-50 p-3">
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={addBulkAddVariantRow}
+                          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                        >
+                          <Plus size={14} />
+                          Add Variant
+                        </button>
+                      </div>
+
+                      {normalizeVariantRows(bulkAddForm.variantRows).map(
+                        (row, index) => {
+                          const colorOptions = row.size
+                            ? getVariationColorsForSize(
+                                selectedBulkAddProductData,
+                                row.size,
+                              )
+                            : bulkAddColorOptions;
+
+                          return (
+                            <div
+                              key={`bulk-add-variant-${index}`}
+                              className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_120px_auto] sm:items-end"
+                            >
+                              <div>
+                                <label className="mb-1.5 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
+                                  Size
+                                </label>
+                                <Select
+                                  options={bulkAddSizeOptions}
+                                  value={makeSelectValue(
+                                    bulkAddSizeOptions,
+                                    row.size,
+                                    row.size,
+                                  )}
+                                  onChange={(selected) =>
+                                    updateBulkAddVariantRow(
+                                      index,
+                                      "size",
+                                      selected?.value || "",
+                                    )
+                                  }
+                                  placeholder="Select size..."
+                                  isClearable
+                                  styles={selectStyles}
+                                  className="text-sm font-medium"
+                                  isDisabled={bulkAddSizeOptions.length === 0}
+                                />
+                              </div>
+
+                              <div>
+                                <label className="mb-1.5 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
+                                  Color
+                                </label>
+                                <Select
+                                  options={colorOptions}
+                                  value={makeSelectValue(
+                                    colorOptions,
+                                    row.color,
+                                    row.color,
+                                  )}
+                                  onChange={(selected) =>
+                                    updateBulkAddVariantRow(
+                                      index,
+                                      "color",
+                                      selected?.value || "",
+                                    )
+                                  }
+                                  placeholder="Select color..."
+                                  isClearable
+                                  styles={selectStyles}
+                                  className="text-sm font-medium"
+                                  isDisabled={
+                                    !row.size || colorOptions.length === 0
+                                  }
+                                />
+                              </div>
+
+                              <div>
+                                <label className="mb-1.5 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
+                                  Quantity
+                                </label>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={row.quantity}
+                                  onChange={(e) =>
+                                    updateBulkAddVariantRow(
+                                      index,
+                                      "quantity",
+                                      e.target.value,
+                                    )
+                                  }
+                                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
+                                />
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => removeBulkAddVariantRow(index)}
+                                disabled={
+                                  normalizeVariantRows(bulkAddForm.variantRows)
+                                    .length === 1
+                                }
+                                className="h-11 w-11 rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
+                              >
+                                x
+                              </button>
+                            </div>
+                          );
+                        },
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className={isEditingBulkTransit ? "hidden" : "mt-4"}>
               <label className="block text-sm text-slate-700">Product</label>
               <Select
                 options={receivedDropdownOptions}
@@ -1701,7 +2304,7 @@ const IntransiteProductTable = () => {
                 styles={selectStyles}
               />
             </div>
-            {shouldShowEditVariantOptions && (
+            {!isEditingBulkTransit && shouldShowEditVariantOptions && (
               <div className="mt-4 space-y-3 rounded-2xl border border-slate-200 bg-slate-50/50 p-4">
                 <div>
                   <div>

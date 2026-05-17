@@ -238,7 +238,9 @@ const OverviewPage = () => {
   const inTransitSalesAmount = safeNumber(summary?.inTransitSalesAmount);
   const salesReturnSalesAmount = safeNumber(summary?.salesReturnSalesAmount);
   const inTransitPurchaseAmount = safeNumber(summary?.inTransitPurchaseAmount);
-  const salesReturnPurchaseAmount = safeNumber(summary?.salesReturnPurchaseAmount);
+  const salesReturnPurchaseAmount = safeNumber(
+    summary?.salesReturnPurchaseAmount,
+  );
   const totalCodCharge = safeNumber(summary?.totalCodCharge);
   const totalCodChange = safeNumber(summary?.totalCodChange);
   const totalDeliveryCharge = safeNumber(summary?.totalDeliveryCharge);
@@ -258,9 +260,7 @@ const OverviewPage = () => {
     grossProfit: netRevenue - netPurchase,
     othersExpense: safeNumber(summary?.othersExpense),
     netProfitLoss:
-      netRevenue -
-      netPurchase -
-      safeNumber(summary?.othersExpense),
+      netRevenue - netPurchase - safeNumber(summary?.othersExpense),
   };
 
   // =========================
@@ -538,7 +538,8 @@ const OverviewPage = () => {
                     Profit & Loss
                   </h3>
                   <p className="text-xs font-medium text-slate-400">
-                    Intransit sales minus returns, COD and delivery charges, plus advance payment
+                    Intransit sales minus returns, COD and delivery charges,
+                    plus advance payment
                   </p>
                 </div>
               </div>

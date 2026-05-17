@@ -63,6 +63,16 @@ const initialCreateProduct = {
   warrantyUnit: "Day",
 };
 
+const initialBulkAddProduct = {
+  productId: "",
+  sku: "",
+  weight: "",
+  variantRows: [{ size: "", color: "", quantity: "", purchase_price: "", sale_price: "" }],
+  quantity: "",
+  purchase_price: "",
+  sale_price: "",
+};
+
 const parseVariationValue = (value) => {
   if (Array.isArray(value)) {
     return value.map((item) => String(item).trim()).filter(Boolean);
@@ -301,6 +311,18 @@ const hasDuplicateVariantCombination = (rows) => {
 const createBatchId = () =>
   `batch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+const makeSelectValue = (options, value, fallbackLabel) => {
+  if (value === undefined || value === null || value === "") return null;
+
+  const stringValue = String(value);
+  return (
+    options.find((option) => String(option.value) === stringValue) || {
+      value: stringValue,
+      label: fallbackLabel || stringValue,
+    }
+  );
+};
+
 const parseReceivedItems = (value) => {
   if (Array.isArray(value)) return value;
   if (typeof value !== "string") return [];
@@ -410,6 +432,7 @@ const ReceivedProductTable = () => {
 
   const [createProduct, setCreateProduct] = useState(initialCreateProduct);
   const [createProductItems, setCreateProductItems] = useState([]);
+  const [bulkAddProduct, setBulkAddProduct] = useState(initialBulkAddProduct);
 
   const [rows, setRows] = useState([]);
   const editVariantRowRefs = useRef([]);
@@ -504,6 +527,50 @@ const ReceivedProductTable = () => {
   const { data: inventoryRes } = useGetAllInventoryOverviewWithoutQueryQuery();
   const receivedData = inventoryRes?.data || [];
 
+  const getInventoryRecordForProduct = (productId, fallbackName = "") => {
+    const normalizedName = String(fallbackName || "")
+      .trim()
+      .toLowerCase();
+
+    const idMatch = productId
+      ? receivedData.find(
+          (r) =>
+            Number(r.productId) === Number(productId) ||
+            Number(r.ProductId) === Number(productId) ||
+            Number(r.product?.Id) === Number(productId) ||
+            Number(r.product?.id) === Number(productId),
+        )
+      : null;
+
+    if (idMatch) return idMatch;
+
+    return normalizedName
+      ? receivedData.find(
+          (r) => String(r.name || "").trim().toLowerCase() === normalizedName,
+        ) || null
+      : null;
+  };
+
+  const getInventoryQuantityForProduct = (productId, fallbackName = "") =>
+    Number(getInventoryRecordForProduct(productId, fallbackName)?.quantity || 0);
+
+  const getInventoryQuantityForVariant = (
+    productId,
+    variant,
+    fallbackName = "",
+  ) => {
+    if (!variant?.size && !variant?.color) return null;
+
+    const stockRecord = getInventoryRecordForProduct(productId, fallbackName);
+    const match = getVariantDisplayRows(stockRecord).find(
+      (row) =>
+        String(row.size || "") === String(variant?.size || "") &&
+        String(row.color || "") === String(variant?.color || ""),
+    );
+
+    return match ? Number(match.quantity || 0) : 0;
+  };
+
   const productDropdownOptions = useMemo(() => {
     return (productsData || []).map((p) => ({
       value: getProductRecordId(p),
@@ -522,6 +589,7 @@ const ReceivedProductTable = () => {
 
   const selectedCreateProductId = createProduct?.productId || undefined;
   const selectedEditProductId = currentProduct?.productId || undefined;
+  const selectedBulkAddProductId = bulkAddProduct?.productId || undefined;
 
   const { data: selectedCreateProductRes } =
     useGetSingleReceivedProductByIdQuery(selectedCreateProductId, {
@@ -531,11 +599,17 @@ const ReceivedProductTable = () => {
     selectedEditProductId,
     { skip: !selectedEditProductId },
   );
+  const { data: selectedBulkAddProductRes } =
+    useGetSingleReceivedProductByIdQuery(selectedBulkAddProductId, {
+      skip: !selectedBulkAddProductId,
+    });
 
   const selectedCreateProductData =
     selectedCreateProductRes?.data || selectedCreateProductRes;
   const selectedEditProductData =
     selectedEditProductRes?.data || selectedEditProductRes;
+  const selectedBulkAddProductData =
+    selectedBulkAddProductRes?.data || selectedBulkAddProductRes;
   const selectedCreateProductDataId = selectedCreateProductData
     ? getProductRecordId(selectedCreateProductData)
     : "";
@@ -576,6 +650,18 @@ const ReceivedProductTable = () => {
   const editColorOptions = useMemo(
     () => getVariationOptions(selectedEditProductData, "color"),
     [selectedEditProductData],
+  );
+  const bulkAddSizeOptions = useMemo(
+    () => getVariationOptions(selectedBulkAddProductData, "size"),
+    [selectedBulkAddProductData],
+  );
+  const bulkAddColorOptions = useMemo(
+    () => getVariationOptions(selectedBulkAddProductData, "color"),
+    [selectedBulkAddProductData],
+  );
+  const shouldShowBulkAddVariantOptions = useMemo(
+    () => getVariantRowsFromProduct(selectedBulkAddProductData).length > 0,
+    [selectedBulkAddProductData],
   );
 
   useEffect(() => {
@@ -844,6 +930,7 @@ const ReceivedProductTable = () => {
   const handleModalClose = () => {
     setIsModalOpen(false);
     setCurrentProduct(null);
+    resetBulkAddProduct();
   };
 
   const handleModalClose1 = () => {
@@ -860,10 +947,34 @@ const ReceivedProductTable = () => {
   const [updateReceivedProduct] = useUpdateReceivedProductMutation();
 
   const handleEditClick = (rp) => {
+    const bulkItems = parseReceivedItems(rp.items);
     const variantRows = getInitialVariantRowsFromRecord(rp);
+    const editItems =
+      bulkItems.length > 0
+        ? bulkItems
+        : [
+            {
+              productId: Number(rp.productId) || "",
+              name:
+                rp.name ||
+                rp.product?.name ||
+                productNameMap.get(String(rp.productId)) ||
+                `Product #${rp.productId || "-"}`,
+              quantity:
+                getVariantRowsTotalQuantity(variantRows) ||
+                Number(rp.quantity) ||
+                0,
+              variants: getVariantDisplayRows(rp),
+              sku: rp.sku ?? "",
+              weight: rp.weight ?? "",
+              purchase_price: Number(rp.purchase_price) || 0,
+              sale_price: Number(rp.sale_price) || 0,
+            },
+          ];
 
     setCurrentProduct({
       ...rp,
+      items: editItems,
       productId: rp.productId ? String(rp.productId) : "",
       supplierId: rp.supplierId ?? "",
       warehouseId: rp.warehouseId ?? "",
@@ -891,6 +1002,7 @@ const ReceivedProductTable = () => {
     });
 
     setIsModalOpen(true);
+    resetBulkAddProduct();
   };
 
   const handleEditClick1 = (rp) => {
@@ -1291,6 +1403,202 @@ const ReceivedProductTable = () => {
     }));
   };
 
+  const resetBulkAddProduct = () => {
+    setBulkAddProduct(initialBulkAddProduct);
+  };
+
+  const handleBulkAddProductSelect = (selected) => {
+    const selectedProduct = productsData.find(
+      (product) => getProductRecordId(product) === String(selected?.value || ""),
+    );
+
+    setBulkAddProduct((prev) => ({
+      ...prev,
+      productId: selected?.value || "",
+      sku: selectedProduct?.sku || "",
+      weight: selectedProduct?.weight || "",
+      purchase_price: blankIfZero(
+        getProductBasePrice(selectedProduct, "purchase_price"),
+      ),
+      sale_price: blankIfZero(getProductBasePrice(selectedProduct, "sale_price")),
+      variantRows: [createEmptyVariantRow()],
+      quantity: "",
+    }));
+  };
+
+  const updateBulkAddProductVariantRow = (index, key, value) => {
+    setBulkAddProduct((prev) => {
+      const nextRows = normalizeVariantRows(prev?.variantRows).map(
+        (row, rowIndex) =>
+          rowIndex === index
+            ? {
+                ...row,
+                [key]: value,
+                ...(key === "size" ? { color: "" } : {}),
+              }
+            : row,
+      );
+
+      return {
+        ...prev,
+        variantRows: nextRows,
+        quantity: String(getVariantRowsTotalQuantity(nextRows)),
+      };
+    });
+  };
+
+  const addBulkAddProductVariantRow = () => {
+    setBulkAddProduct((prev) => ({
+      ...prev,
+      variantRows: [
+        ...normalizeVariantRows(prev?.variantRows),
+        createEmptyVariantRow(),
+      ],
+    }));
+  };
+
+  const removeBulkAddProductVariantRow = (index) => {
+    setBulkAddProduct((prev) => {
+      const nextRows = normalizeVariantRows(prev?.variantRows).filter(
+        (_, rowIndex) => rowIndex !== index,
+      );
+
+      return {
+        ...prev,
+        variantRows: nextRows.length > 0 ? nextRows : [createEmptyVariantRow()],
+        quantity: String(getVariantRowsTotalQuantity(nextRows)),
+      };
+    });
+  };
+
+  const buildBulkAddProductItem = () => {
+    if (!bulkAddProduct.productId) return { error: "Please select a product" };
+
+    const variantsPayload = getNormalizedVariantsPayload(
+      bulkAddProduct.variantRows,
+      bulkAddProduct.sku,
+    );
+    if (hasDuplicateVariantCombination(variantsPayload)) {
+      return { error: "Duplicate size and color combination found" };
+    }
+
+    const totalQuantity =
+      variantsPayload.length > 0
+        ? getVariantRowsTotalQuantity(variantsPayload)
+        : Number(bulkAddProduct.quantity) || 0;
+    if (totalQuantity <= 0) return { error: "Please enter a valid quantity" };
+
+    const productId = String(bulkAddProduct.productId);
+    const selectedProduct = productDropdownOptions.find(
+      (option) => option.value === productId,
+    );
+    const firstVariantPrice = variantsPayload.find(
+      (variant) => variant.purchase_price || variant.sale_price,
+    );
+
+    return {
+      item: {
+        productId: Number(productId) || "",
+        name:
+          selectedProduct?.label ||
+          productNameMap.get(productId) ||
+          `Product #${productId}`,
+        quantity: totalQuantity,
+        variants: variantsPayload,
+        sku: bulkAddProduct.sku || "",
+        weight: bulkAddProduct.weight || "",
+        purchase_price:
+          Number(firstVariantPrice?.purchase_price) ||
+          Number(bulkAddProduct.purchase_price) ||
+          0,
+        sale_price:
+          Number(firstVariantPrice?.sale_price) ||
+          Number(bulkAddProduct.sale_price) ||
+          0,
+      },
+    };
+  };
+
+  const handleAddBulkReceivedProduct = () => {
+    const result = buildBulkAddProductItem();
+    if (result.error) return toast.error(result.error);
+
+    setCurrentProduct((prev) => {
+      const currentItems = parseReceivedItems(prev?.items);
+      const existingIndex = currentItems.findIndex(
+        (item) => String(item.productId) === String(result.item.productId),
+      );
+
+      if (existingIndex !== -1) {
+        const existingItem = currentItems[existingIndex];
+        const existingVariants = normalizeVariantRows(
+          existingItem.variants,
+        ).filter((variant) => variant.size || variant.color || variant.quantity);
+        const incomingVariants = normalizeVariantRows(
+          result.item.variants,
+        ).filter((variant) => variant.size || variant.color || variant.quantity);
+
+        if (!incomingVariants.length || !existingVariants.length) {
+          toast.error("This product already exists in the list");
+          return prev;
+        }
+
+        const duplicateVariant = incomingVariants.find((incoming) =>
+          existingVariants.some(
+            (existing) =>
+              String(existing.size || "") === String(incoming.size || "") &&
+              String(existing.color || "") === String(incoming.color || ""),
+          ),
+        );
+        if (duplicateVariant) {
+          toast.error("This variant already exists in the list");
+          return prev;
+        }
+
+        const mergedVariants = [...existingVariants, ...incomingVariants];
+        const nextItems = currentItems.map((item, index) =>
+          index === existingIndex
+            ? {
+                ...item,
+                variants: mergedVariants,
+                quantity: getVariantRowsTotalQuantity(mergedVariants),
+                purchase_price:
+                  Number(result.item.purchase_price) ||
+                  Number(item.purchase_price) ||
+                  0,
+                sale_price:
+                  Number(result.item.sale_price) || Number(item.sale_price) || 0,
+              }
+            : item,
+        );
+
+        return {
+          ...prev,
+          items: nextItems,
+          quantity: String(
+            nextItems.reduce(
+              (total, item) => total + (Number(item.quantity) || 0),
+              0,
+            ),
+          ),
+        };
+      }
+
+      const nextItems = [...currentItems, result.item];
+      return {
+        ...prev,
+        items: nextItems,
+        quantity: String(
+          nextItems.reduce(
+            (total, item) => total + (Number(item.quantity) || 0),
+            0,
+          ),
+        ),
+      };
+    });
+    resetBulkAddProduct();
+  };
+
   const mergeCreateProductItem = (incomingItem) => {
     setCreateProductItems((prev) => {
       const targetProductId = String(incomingItem.payload?.productId || "");
@@ -1579,7 +1887,7 @@ const ReceivedProductTable = () => {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-10">
         <div>
           <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-            {t.received_history || "Received History"}
+            {t.received_history || "Purchase History"}
           </h2>
           <p className="text-slate-500 text-sm mt-1 font-medium">
             {t.incoming_product_acquisitions ||
@@ -1609,7 +1917,7 @@ const ReceivedProductTable = () => {
             onClick={handleAddProduct}
             className="group relative inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white transition-all px-6 py-3 rounded-2xl text-sm font-bold shadow-xl shadow-indigo-100 active:scale-95 overflow-hidden w-full sm:w-auto"
           >
-            <Plus size={18} /> {t.add_new_received || "Add New Received"}
+            <Plus size={18} /> {t.add_new_received || "Add New Purchase"}
           </button>
         </div>
       </div>
@@ -1722,7 +2030,7 @@ const ReceivedProductTable = () => {
       </div>
 
       <div className="relative overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
-        <div className="overflow-x-auto">
+        <div className="four-row-table-scroll rounded-2xl border border-slate-200">
           <table className="min-w-full divide-y divide-slate-100">
             <thead className="bg-slate-50/50">
               <tr>
@@ -2078,7 +2386,7 @@ const ReceivedProductTable = () => {
       <Modal
         isOpen={isModalOpen && !!currentProduct}
         onClose={handleModalClose}
-        title={t.edit_received_product || "Edit Received Product"}
+        title={t.edit_received_product || "Edit Purchase Product"}
       >
         <div
           ref={editModalBodyRef}
@@ -2151,6 +2459,13 @@ const ReceivedProductTable = () => {
                                   }
                                   className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
                                 />
+                                <p className="mt-1 text-[10px] text-slate-400">
+                                  Stock:{" "}
+                                  {getInventoryQuantityForProduct(
+                                    item.productId,
+                                    item.name,
+                                  )}
+                                </p>
                               </div>
                               <div>
                                 <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -2223,6 +2538,14 @@ const ReceivedProductTable = () => {
                                       }
                                       className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
                                     />
+                                    <p className="mt-0.5 text-[10px] text-slate-400">
+                                      Stock:{" "}
+                                      {getInventoryQuantityForVariant(
+                                        item.productId,
+                                        variant,
+                                        item.name,
+                                      ) ?? 0}
+                                    </p>
                                   </div>
                                   <div>
                                     {variantIndex === 0 && (
@@ -2276,6 +2599,264 @@ const ReceivedProductTable = () => {
                     ))}
                   </tbody>
                 </table>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-indigo-100 bg-white p-3">
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
+                  <div>
+                    <label className="mb-1.5 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
+                      New Product
+                    </label>
+                    <Select
+                      options={productDropdownOptions}
+                      value={
+                        productDropdownOptions.find(
+                          (option) =>
+                            option.value === String(bulkAddProduct.productId),
+                        ) || null
+                      }
+                      onChange={handleBulkAddProductSelect}
+                      placeholder={t.search_product || "Search product..."}
+                      isClearable
+                      styles={selectStyles}
+                      {...selectMenuProps}
+                      className="text-sm font-medium text-black"
+                      isDisabled={isLoadingAllProducts}
+                    />
+                  </div>
+
+                  {!shouldShowBulkAddVariantOptions && (
+                    <div className="lg:w-36">
+                      <label className="mb-1.5 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
+                        Quantity
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={bulkAddProduct.quantity}
+                        onChange={(e) =>
+                          setBulkAddProduct((prev) => ({
+                            ...prev,
+                            quantity: e.target.value,
+                          }))
+                        }
+                        disabled={!bulkAddProduct.productId}
+                        className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10 disabled:bg-slate-100 disabled:text-slate-400"
+                      />
+                      {bulkAddProduct.productId && (
+                        <p className="mt-1 text-[10px] text-slate-400">
+                          Stock:{" "}
+                          {getInventoryQuantityForProduct(
+                            bulkAddProduct.productId,
+                          )}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleAddBulkReceivedProduct}
+                    disabled={!bulkAddProduct.productId}
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Plus size={16} />
+                    Add Product
+                  </button>
+                </div>
+
+                {bulkAddProduct.productId && (
+                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-4">
+                    <input
+                      type="text"
+                      value={bulkAddProduct.sku}
+                      onChange={(e) =>
+                        setBulkAddProduct((prev) => ({
+                          ...prev,
+                          sku: e.target.value,
+                        }))
+                      }
+                      className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
+                      placeholder="SKU"
+                    />
+                    <input
+                      type="text"
+                      value={bulkAddProduct.weight}
+                      onChange={(e) =>
+                        setBulkAddProduct((prev) => ({
+                          ...prev,
+                          weight: e.target.value,
+                        }))
+                      }
+                      className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
+                      placeholder="Weight"
+                    />
+                    <input
+                      type="number"
+                      value={bulkAddProduct.purchase_price}
+                      onChange={(e) =>
+                        setBulkAddProduct((prev) => ({
+                          ...prev,
+                          purchase_price: e.target.value,
+                        }))
+                      }
+                      className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
+                      placeholder="Purchase"
+                    />
+                    <input
+                      type="number"
+                      value={bulkAddProduct.sale_price}
+                      onChange={(e) =>
+                        setBulkAddProduct((prev) => ({
+                          ...prev,
+                          sale_price: e.target.value,
+                        }))
+                      }
+                      className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
+                      placeholder="Sale"
+                    />
+                  </div>
+                )}
+
+                {bulkAddProduct.productId && shouldShowBulkAddVariantOptions && (
+                  <div className="mt-3 space-y-3 rounded-xl bg-slate-50 p-3">
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={addBulkAddProductVariantRow}
+                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                      >
+                        <Plus size={14} />
+                        Add Variant
+                      </button>
+                    </div>
+
+                    {normalizeVariantRows(bulkAddProduct.variantRows).map(
+                      (row, index) => {
+                        const colorOptions = row.size
+                          ? getVariationColorsForSize(
+                              selectedBulkAddProductData,
+                              row.size,
+                            )
+                          : bulkAddColorOptions;
+
+                        return (
+                          <div
+                            key={`bulk-received-add-variant-${index}`}
+                            className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_90px_100px_100px_auto] sm:items-end"
+                          >
+                            <Select
+                              options={bulkAddSizeOptions}
+                              value={makeSelectValue(
+                                bulkAddSizeOptions,
+                                row.size,
+                                row.size,
+                              )}
+                              onChange={(selected) =>
+                                updateBulkAddProductVariantRow(
+                                  index,
+                                  "size",
+                                  selected?.value || "",
+                                )
+                              }
+                              placeholder="Size"
+                              isClearable
+                              styles={selectStyles}
+                              {...selectMenuProps}
+                              className="text-sm font-medium"
+                            />
+                            <Select
+                              options={colorOptions}
+                              value={makeSelectValue(
+                                colorOptions,
+                                row.color,
+                                row.color,
+                              )}
+                              onChange={(selected) =>
+                                updateBulkAddProductVariantRow(
+                                  index,
+                                  "color",
+                                  selected?.value || "",
+                                )
+                              }
+                              placeholder="Color"
+                              isClearable
+                              styles={selectStyles}
+                              {...selectMenuProps}
+                              className="text-sm font-medium"
+                              isDisabled={!row.size}
+                            />
+                            <div>
+                              <input
+                                type="number"
+                                value={row.quantity}
+                                onChange={(e) =>
+                                  updateBulkAddProductVariantRow(
+                                    index,
+                                    "quantity",
+                                    e.target.value,
+                                  )
+                                }
+                                className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
+                                placeholder="Qty"
+                              />
+                              {(row.size || row.color) && (
+                                <p className="mt-1 text-[10px] text-slate-400">
+                                  Stock:{" "}
+                                  {getInventoryQuantityForVariant(
+                                    bulkAddProduct.productId,
+                                    row,
+                                  ) ?? 0}
+                                </p>
+                              )}
+                            </div>
+                            <input
+                              type="number"
+                              value={row.purchase_price}
+                              onChange={(e) =>
+                                updateBulkAddProductVariantRow(
+                                  index,
+                                  "purchase_price",
+                                  e.target.value,
+                                )
+                              }
+                              className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
+                              placeholder="Purchase"
+                            />
+                            <input
+                              type="number"
+                              value={row.sale_price}
+                              onChange={(e) =>
+                                updateBulkAddProductVariantRow(
+                                  index,
+                                  "sale_price",
+                                  e.target.value,
+                                )
+                              }
+                              className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
+                              placeholder="Sale"
+                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                removeBulkAddProductVariantRow(index)
+                              }
+                              disabled={
+                                normalizeVariantRows(
+                                  bulkAddProduct.variantRows,
+                                ).length === 1
+                              }
+                              className="h-11 w-11 rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
+                            >
+                              x
+                            </button>
+                          </div>
+                        );
+                      },
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -2474,6 +3055,16 @@ const ReceivedProductTable = () => {
                         className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                         placeholder=""
                       />
+                      {(row.size || row.color) && (
+                        <p className="mt-1 text-[10px] text-slate-400">
+                          Stock:{" "}
+                          {getInventoryQuantityForVariant(
+                            currentProduct?.productId,
+                            row,
+                            currentProduct?.name,
+                          ) ?? 0}
+                        </p>
+                      )}
                     </div>
 
                     <div>
@@ -2556,7 +3147,7 @@ const ReceivedProductTable = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-                {t.received_date || "Received Date"}
+                {t.received_date || "Purchase Date"}
               </label>
               <input
                 type="date"
@@ -2675,6 +3266,15 @@ const ReceivedProductTable = () => {
                     : "bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
                 }`}
               />
+              {!hasConfiguredVariants(currentProduct?.variantRows) && (
+                <p className="mt-1 text-[10px] text-slate-400">
+                  Stock:{" "}
+                  {getInventoryQuantityForProduct(
+                    currentProduct?.productId,
+                    currentProduct?.name,
+                  )}
+                </p>
+              )}
             </div>
           </div>
 
@@ -2885,7 +3485,7 @@ const ReceivedProductTable = () => {
       <Modal
         isOpen={isModalOpen1}
         onClose={handleModalClose1}
-        title={t.add_new_received || "Add New Received Product"}
+        title={t.add_new_received || "Add New Purchase Product"}
       >
         <form
           onSubmit={handleCreateProduct}
@@ -3414,7 +4014,7 @@ const ReceivedProductTable = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-                {t.received_date || "Received Date"}
+                {t.received_date || "Purchase Date"}
               </label>
               <input
                 type="date"
@@ -3598,7 +4198,7 @@ const ReceivedProductTable = () => {
             >
               {createProductItems.length > 0
                 ? "Save Products"
-                : t.confirm_received || "Confirm Received"}
+                : t.confirm_received || "Confirm Purchase"}
             </button>
           </div>
         </form>

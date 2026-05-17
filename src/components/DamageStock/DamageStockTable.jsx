@@ -537,7 +537,7 @@ const DamageStockTable = () => {
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto mt-6">
+      <div className="four-row-table-scroll mt-6 rounded-2xl border border-slate-200">
         <table className="min-w-full divide-y divide-slate-200">
           <thead className="bg-slate-50">
             <tr>

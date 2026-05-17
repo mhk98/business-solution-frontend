@@ -543,14 +543,14 @@ export const SIDEBAR_ITEMS = [
         roles: ["superAdmin", "admin", "inventor"],
       },
       {
-        name: "Received Product",
+        name: "Purchase Product",
         key: "received_product",
         icon: PackagePlus,
         href: "/purchase-product",
         roles: ["superAdmin", "admin", "inventor"],
       },
       {
-        name: "Received Return Product",
+        name: "Purchase Return Product",
         key: "received_return",
         icon: RefreshCcw,
         href: "/purchase-return",

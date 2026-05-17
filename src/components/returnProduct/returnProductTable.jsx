@@ -27,6 +27,13 @@ const initialCreateForm = {
   date: new Date().toISOString().slice(0, 10),
 };
 
+const initialBulkAddForm = {
+  receivedId: "",
+  productId: "",
+  variantRows: [{ size: "", color: "", quantity: "" }],
+  quantity: "",
+};
+
 const formatMoney = (value) => {
   const amount = Number(value || 0);
   return `৳${amount.toLocaleString("en-US", {
@@ -284,6 +291,7 @@ const ReturnProductTable = () => {
     ...initialCreateForm,
   });
   const [createItems, setCreateItems] = useState([]);
+  const [bulkAddForm, setBulkAddForm] = useState(initialBulkAddForm);
 
   const [rows, setRows] = useState([]);
 
@@ -326,11 +334,18 @@ const ReturnProductTable = () => {
       receivedData.find((r) => String(r.Id) === String(createForm?.receivedId)),
     [receivedData, createForm?.receivedId],
   );
+  const selectedBulkAddInventoryItem = useMemo(
+    () =>
+      receivedData.find((r) => String(r.Id) === String(bulkAddForm?.receivedId)),
+    [receivedData, bulkAddForm?.receivedId],
+  );
 
   const selectedCreateProductId =
     createForm?.productId || createForm?.receivedId || undefined;
   const selectedEditProductId =
     currentItem?.productId || currentItem?.receivedId || undefined;
+  const selectedBulkAddProductId =
+    bulkAddForm?.productId || bulkAddForm?.receivedId || undefined;
 
   const {
     data: selectedCreateProductRes,
@@ -342,11 +357,19 @@ const ReturnProductTable = () => {
     useGetSingleProductByIdQuery(selectedEditProductId, {
       skip: !selectedEditProductId,
     });
+  const {
+    data: selectedBulkAddProductRes,
+    isFetching: isFetchingBulkAddProduct,
+  } = useGetSingleProductByIdQuery(selectedBulkAddProductId, {
+    skip: !selectedBulkAddProductId,
+  });
 
   const selectedCreateProductData =
     selectedCreateProductRes?.data || selectedCreateProductRes;
   const selectedEditProductData =
     selectedEditProductRes?.data || selectedEditProductRes;
+  const selectedBulkAddProductData =
+    selectedBulkAddProductRes?.data || selectedBulkAddProductRes;
 
   const createSizeOptions = useMemo(
     () => getVariationOptions(selectedCreateProductData, "size"),
@@ -387,12 +410,26 @@ const ReturnProductTable = () => {
     () => getVariationOptions(selectedEditProductData, "color"),
     [selectedEditProductData],
   );
+  const bulkAddSizeOptions = useMemo(
+    () => getVariationOptions(selectedBulkAddProductData, "size"),
+    [selectedBulkAddProductData],
+  );
+  const bulkAddColorOptions = useMemo(
+    () => getVariationOptions(selectedBulkAddProductData, "color"),
+    [selectedBulkAddProductData],
+  );
   const shouldShowEditVariantOptions = useMemo(
     () =>
       hasConfiguredVariants(currentItem?.variantRows) ||
       (!isFetchingEditProduct &&
         getVariantRowsFromProduct(selectedEditProductData).length > 0),
     [currentItem?.variantRows, isFetchingEditProduct, selectedEditProductData],
+  );
+  const shouldShowBulkAddVariantOptions = useMemo(
+    () =>
+      !isFetchingBulkAddProduct &&
+      getVariantRowsFromProduct(selectedBulkAddProductData).length > 0,
+    [isFetchingBulkAddProduct, selectedBulkAddProductData],
   );
 
   // ✅ react-select light styles
@@ -671,6 +708,204 @@ const ReturnProductTable = () => {
     });
   };
 
+  const resetBulkAddForm = () => {
+    setBulkAddForm(initialBulkAddForm);
+  };
+
+  const handleBulkAddProductSelect = (selected) => {
+    setBulkAddForm((prev) => ({
+      ...prev,
+      receivedId: selected?.value || "",
+      productId: selected?.value || "",
+      variantRows: [createEmptyVariantRow()],
+      quantity: "",
+    }));
+  };
+
+  const updateBulkAddVariantRow = (index, key, value) => {
+    setBulkAddForm((prev) => {
+      const nextRows = normalizeVariantRows(prev?.variantRows).map(
+        (row, rowIndex) =>
+          rowIndex === index
+            ? {
+                ...row,
+                [key]: value,
+                ...(key === "size" ? { color: "" } : {}),
+              }
+            : row,
+      );
+
+      return {
+        ...prev,
+        variantRows: nextRows,
+        quantity: String(getVariantRowsTotalQuantity(nextRows) || ""),
+      };
+    });
+  };
+
+  const addBulkAddVariantRow = () => {
+    setBulkAddForm((prev) => ({
+      ...prev,
+      variantRows: [
+        ...normalizeVariantRows(prev?.variantRows),
+        createEmptyVariantRow(),
+      ],
+    }));
+  };
+
+  const removeBulkAddVariantRow = (index) => {
+    setBulkAddForm((prev) => {
+      const nextRows = normalizeVariantRows(prev?.variantRows).filter(
+        (_, rowIndex) => rowIndex !== index,
+      );
+
+      return {
+        ...prev,
+        variantRows: nextRows.length > 0 ? nextRows : [createEmptyVariantRow()],
+        quantity: String(getVariantRowsTotalQuantity(nextRows) || ""),
+      };
+    });
+  };
+
+  const buildBulkAddItem = () => {
+    if (!bulkAddForm.receivedId && !bulkAddForm.productId) {
+      return { error: "Please select a product" };
+    }
+
+    const variantsPayload = getNormalizedVariantsPayload(
+      bulkAddForm.variantRows,
+    );
+    if (hasDuplicateVariantCombination(variantsPayload)) {
+      return { error: "Duplicate size and color combination found" };
+    }
+
+    const totalQuantity =
+      variantsPayload.length > 0
+        ? getVariantRowsTotalQuantity(variantsPayload)
+        : Number(bulkAddForm.quantity) || 0;
+
+    if (totalQuantity <= 0) return { error: "Please enter valid quantity" };
+
+    const productId = String(bulkAddForm.productId || bulkAddForm.receivedId);
+    const selectedProduct = receivedDropdownOptions.find(
+      (option) => option.value === productId,
+    );
+    const inventoryVariants = getVariantDisplayRows(selectedBulkAddInventoryItem);
+    const unitPurchasePrice =
+      Number(selectedBulkAddInventoryItem?.purchase_price) || 0;
+    const unitSalePrice = Number(selectedBulkAddInventoryItem?.sale_price) || 0;
+
+    const getVariantTotalPrice = (field, fallbackUnitPrice) =>
+      variantsPayload.reduce((sum, variant) => {
+        const invVariant = inventoryVariants.find(
+          (item) =>
+            String(item.size || "") === String(variant.size || "") &&
+            String(item.color || "") === String(variant.color || ""),
+        );
+        const variantUnitPrice =
+          Number(invVariant?.[field]) || Number(fallbackUnitPrice) || 0;
+        return sum + variantUnitPrice * (Number(variant.quantity) || 0);
+      }, 0);
+
+    const totalPurchasePrice =
+      variantsPayload.length > 0 && inventoryVariants.length > 0
+        ? getVariantTotalPrice("purchase_price", unitPurchasePrice)
+        : unitPurchasePrice * totalQuantity;
+    const totalSalePrice =
+      variantsPayload.length > 0 && inventoryVariants.length > 0
+        ? getVariantTotalPrice("sale_price", unitSalePrice)
+        : unitSalePrice * totalQuantity;
+
+    return {
+      item: {
+        receivedId: Number(bulkAddForm.receivedId || bulkAddForm.productId),
+        productId: Number(bulkAddForm.productId || bulkAddForm.receivedId),
+        name:
+          selectedProduct?.label ||
+          selectedBulkAddInventoryItem?.name ||
+          `Product #${productId}`,
+        quantity: totalQuantity,
+        purchase_price: totalPurchasePrice,
+        sale_price: totalSalePrice,
+        variants: variantsPayload,
+      },
+    };
+  };
+
+  const handleAddBulkProduct = () => {
+    const result = buildBulkAddItem();
+    if (result.error) return toast.error(result.error);
+
+    setCurrentItem((prev) => {
+      const currentItems = parseSalesReturnItems(prev?.items);
+      const existingIndex = currentItems.findIndex(
+        (item) =>
+          String(item.receivedId || item.productId) ===
+          String(result.item.receivedId || result.item.productId),
+      );
+
+      if (existingIndex !== -1) {
+        const existingItem = currentItems[existingIndex];
+        const existingVariants = normalizeVariantRows(
+          existingItem.variants,
+        ).filter((variant) => variant.size || variant.color || variant.quantity);
+        const incomingVariants = normalizeVariantRows(
+          result.item.variants,
+        ).filter((variant) => variant.size || variant.color || variant.quantity);
+
+        if (!incomingVariants.length || !existingVariants.length) {
+          toast.error("This product already exists in the list");
+          return prev;
+        }
+
+        const duplicateVariant = incomingVariants.find((incoming) =>
+          existingVariants.some(
+            (existing) =>
+              String(existing.size || "") === String(incoming.size || "") &&
+              String(existing.color || "") === String(incoming.color || ""),
+          ),
+        );
+
+        if (duplicateVariant) {
+          toast.error("This variant already exists in the list");
+          return prev;
+        }
+
+        const mergedVariants = [...existingVariants, ...incomingVariants];
+        const nextItems = currentItems.map((item, index) =>
+          index === existingIndex
+            ? {
+                ...item,
+                variants: mergedVariants,
+                quantity: getVariantRowsTotalQuantity(mergedVariants),
+                purchase_price:
+                  (Number(item.purchase_price) || 0) +
+                  (Number(result.item.purchase_price) || 0),
+                sale_price:
+                  (Number(item.sale_price) || 0) +
+                  (Number(result.item.sale_price) || 0),
+              }
+            : item,
+        );
+
+        return {
+          ...prev,
+          items: nextItems,
+          quantity: String(getSalesReturnItemsTotalQuantity(nextItems)),
+        };
+      }
+
+      const nextItems = [...currentItems, result.item];
+
+      return {
+        ...prev,
+        items: nextItems,
+        quantity: String(getSalesReturnItemsTotalQuantity(nextItems)),
+      };
+    });
+    resetBulkAddForm();
+  };
+
   const openEdit = (rp) => {
     const bulkItems = parseSalesReturnItems(rp.items);
     const firstBulkItem = bulkItems[0] || null;
@@ -704,12 +939,14 @@ const ReturnProductTable = () => {
       date: toDateInputValue(rp.date),
       userId,
     });
+    resetBulkAddForm();
     setIsEditOpen(true);
   };
 
   const closeEdit = () => {
     setIsEditOpen(false);
     setCurrentItem(null);
+    resetBulkAddForm();
   };
 
   const openEdit1 = (rp) => {
@@ -1384,9 +1621,9 @@ const ReturnProductTable = () => {
       </div>
 
       {/* Table */}
-      <div className="w-full max-w-full overflow-x-auto overscroll-x-contain mt-6 rounded-2xl border border-slate-200">
-        <table className="w-full min-w-[1120px] divide-y divide-slate-200 [&_th]:px-3 lg:[&_th]:px-4 [&_td]:px-3 lg:[&_td]:px-4 [&_th]:py-3 [&_td]:py-3">
-          <thead className="bg-slate-50">
+      <div className="return-product-table-scroll four-row-table-scroll mt-6 rounded-2xl border border-slate-200">
+        <table className="w-full min-w-[1680px] divide-y divide-slate-200 [&_th]:px-3 lg:[&_th]:px-4 [&_td]:px-3 lg:[&_td]:px-4 [&_th]:py-3 [&_td]:py-3">
+          <thead className="sticky top-0 z-10 bg-slate-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Date
@@ -1864,6 +2101,184 @@ const ReturnProductTable = () => {
                       ))}
                     </tbody>
                   </table>
+                </div>
+
+                <div className="mt-4 rounded-xl border border-indigo-100 bg-white p-3">
+                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
+                    <div>
+                      <label className="mb-1.5 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
+                        New Product
+                      </label>
+                      <Select
+                        options={receivedDropdownOptions}
+                        value={makeSelectValue(
+                          receivedDropdownOptions,
+                          bulkAddForm.receivedId,
+                        )}
+                        onChange={handleBulkAddProductSelect}
+                        placeholder={
+                          receivedLoading ? "Loading..." : "Select Product"
+                        }
+                        isClearable
+                        isDisabled={receivedLoading}
+                        className="text-black"
+                        styles={selectStyles}
+                      />
+                    </div>
+
+                    {!shouldShowBulkAddVariantOptions && (
+                      <div className="lg:w-36">
+                        <label className="mb-1.5 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
+                          Quantity
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={bulkAddForm.quantity}
+                          onChange={(e) =>
+                            setBulkAddForm((prev) => ({
+                              ...prev,
+                              quantity: e.target.value,
+                            }))
+                          }
+                          disabled={!bulkAddForm.receivedId}
+                          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10 disabled:bg-slate-100 disabled:text-slate-400"
+                        />
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={handleAddBulkProduct}
+                      disabled={
+                        !bulkAddForm.receivedId || isFetchingBulkAddProduct
+                      }
+                      className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Plus size={16} />
+                      Add Product
+                    </button>
+                  </div>
+
+                  {bulkAddForm.receivedId && shouldShowBulkAddVariantOptions && (
+                    <div className="mt-3 space-y-3 rounded-xl bg-slate-50 p-3">
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={addBulkAddVariantRow}
+                          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                        >
+                          <Plus size={14} />
+                          Add Variant
+                        </button>
+                      </div>
+
+                      {normalizeVariantRows(bulkAddForm.variantRows).map(
+                        (row, index) => {
+                          const colorOptions = row.size
+                            ? getVariationColorsForSize(
+                                selectedBulkAddProductData,
+                                row.size,
+                              )
+                            : bulkAddColorOptions;
+
+                          return (
+                            <div
+                              key={`bulk-return-add-variant-${index}`}
+                              className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_120px_auto] sm:items-end"
+                            >
+                              <div>
+                                <label className="mb-1.5 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
+                                  Size
+                                </label>
+                                <Select
+                                  options={bulkAddSizeOptions}
+                                  value={makeSelectValue(
+                                    bulkAddSizeOptions,
+                                    row.size,
+                                    row.size,
+                                  )}
+                                  onChange={(selected) =>
+                                    updateBulkAddVariantRow(
+                                      index,
+                                      "size",
+                                      selected?.value || "",
+                                    )
+                                  }
+                                  placeholder="Select size..."
+                                  isClearable
+                                  styles={selectStyles}
+                                  className="text-sm font-medium"
+                                  isDisabled={bulkAddSizeOptions.length === 0}
+                                />
+                              </div>
+
+                              <div>
+                                <label className="mb-1.5 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
+                                  Color
+                                </label>
+                                <Select
+                                  options={colorOptions}
+                                  value={makeSelectValue(
+                                    colorOptions,
+                                    row.color,
+                                    row.color,
+                                  )}
+                                  onChange={(selected) =>
+                                    updateBulkAddVariantRow(
+                                      index,
+                                      "color",
+                                      selected?.value || "",
+                                    )
+                                  }
+                                  placeholder="Select color..."
+                                  isClearable
+                                  styles={selectStyles}
+                                  className="text-sm font-medium"
+                                  isDisabled={
+                                    !row.size || colorOptions.length === 0
+                                  }
+                                />
+                              </div>
+
+                              <div>
+                                <label className="mb-1.5 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
+                                  Quantity
+                                </label>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={row.quantity}
+                                  onChange={(e) =>
+                                    updateBulkAddVariantRow(
+                                      index,
+                                      "quantity",
+                                      e.target.value,
+                                    )
+                                  }
+                                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
+                                />
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => removeBulkAddVariantRow(index)}
+                                disabled={
+                                  normalizeVariantRows(bulkAddForm.variantRows)
+                                    .length === 1
+                                }
+                                className="h-11 w-11 rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
+                              >
+                                x
+                              </button>
+                            </div>
+                          );
+                        },
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

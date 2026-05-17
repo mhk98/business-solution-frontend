@@ -127,7 +127,7 @@ const InventoryOverviewTable = () => {
 
   const categoryDropdownOptions = useMemo(
     () => [
-      { value: "Received Product", label: "Received Product" },
+      { value: "Purchase Product", label: "Purchase Product" },
       { value: "Purchase Return Product", label: "Purchase Return Product" },
       { value: "In Transit Product", label: "In Transit Product" },
       { value: "Sales Return Product", label: "Sales Return Product" },

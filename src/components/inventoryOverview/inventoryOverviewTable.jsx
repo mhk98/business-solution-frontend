@@ -297,9 +297,9 @@ const InventoryOverviewTable = () => {
         </button>
       </div>
 
-      <div className="relative overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-100">
+      <div className="relative rounded-3xl border border-slate-100 bg-white shadow-sm">
+        <div className="inventory-overview-table-scroll four-row-table-scroll rounded-2xl border border-slate-200">
+          <table className="w-full divide-y divide-slate-100">
             <thead className="bg-slate-50/50">
               <tr>
                 <th className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">

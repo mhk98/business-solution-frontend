@@ -309,6 +309,13 @@ const initialCreateProduct = {
   file: null,
 };
 
+const initialBulkAddProduct = {
+  productId: "",
+  variantRows: [createEmptyVariantRow()],
+  quantity: "",
+  amount: "",
+};
+
 const PurchaseRequisionTable = () => {
   const { language } = useLayout();
   const t = translations[language] || translations.EN;
@@ -346,6 +353,7 @@ const PurchaseRequisionTable = () => {
   // ✅ Add form (INSERT) -> productId (Id)
   const [createProduct, setCreateProduct] = useState(initialCreateProduct);
   const [createProductItems, setCreateProductItems] = useState([]);
+  const [bulkAddProduct, setBulkAddProduct] = useState(initialBulkAddProduct);
 
   const [rows, setRows] = useState([]);
 
@@ -422,6 +430,50 @@ const PurchaseRequisionTable = () => {
   const { data: inventoryRes } = useGetAllInventoryOverviewWithoutQueryQuery();
   const receivedData = inventoryRes?.data || [];
 
+  const getInventoryRecordForProduct = (productId, fallbackName = "") => {
+    const normalizedName = String(fallbackName || "")
+      .trim()
+      .toLowerCase();
+
+    const idMatch = productId
+      ? receivedData.find(
+          (r) =>
+            Number(r.productId) === Number(productId) ||
+            Number(r.ProductId) === Number(productId) ||
+            Number(r.product?.Id) === Number(productId) ||
+            Number(r.product?.id) === Number(productId),
+        )
+      : null;
+
+    if (idMatch) return idMatch;
+
+    return normalizedName
+      ? receivedData.find(
+          (r) => String(r.name || "").trim().toLowerCase() === normalizedName,
+        ) || null
+      : null;
+  };
+
+  const getInventoryQuantityForProduct = (productId, fallbackName = "") =>
+    Number(getInventoryRecordForProduct(productId, fallbackName)?.quantity || 0);
+
+  const getInventoryQuantityForVariant = (
+    productId,
+    variant,
+    fallbackName = "",
+  ) => {
+    if (!variant?.size && !variant?.color) return null;
+
+    const stockRecord = getInventoryRecordForProduct(productId, fallbackName);
+    const match = getVariantDisplayRows(stockRecord).find(
+      (row) =>
+        String(row.size || "") === String(variant?.size || "") &&
+        String(row.color || "") === String(variant?.color || ""),
+    );
+
+    return match ? Number(match.quantity || 0) : 0;
+  };
+
   // ✅ Dropdown options (value = Id, label = name)
 
   const productDropdownOptions = useMemo(() => {
@@ -433,6 +485,7 @@ const PurchaseRequisionTable = () => {
 
   const selectedCreateProductId = createProduct?.productId || undefined;
   const selectedEditProductId = currentProduct?.productId || undefined;
+  const selectedBulkAddProductId = bulkAddProduct?.productId || undefined;
 
   const {
     data: selectedCreateProductRes,
@@ -444,11 +497,19 @@ const PurchaseRequisionTable = () => {
     useGetSingleReceivedProductByIdQuery(selectedEditProductId, {
       skip: !selectedEditProductId,
     });
+  const {
+    data: selectedBulkAddProductRes,
+    isFetching: isFetchingBulkAddProduct,
+  } = useGetSingleReceivedProductByIdQuery(selectedBulkAddProductId, {
+    skip: !selectedBulkAddProductId,
+  });
 
   const selectedCreateProductData =
     selectedCreateProductRes?.data || selectedCreateProductRes;
   const selectedEditProductData =
     selectedEditProductRes?.data || selectedEditProductRes;
+  const selectedBulkAddProductData =
+    selectedBulkAddProductRes?.data || selectedBulkAddProductRes;
   const selectedCreateProductDataId = selectedCreateProductData
     ? String(selectedCreateProductData.Id ?? selectedCreateProductData.id ?? "")
     : "";
@@ -492,6 +553,14 @@ const PurchaseRequisionTable = () => {
     () => getVariationOptions(selectedEditProductData, "color"),
     [selectedEditProductData],
   );
+  const bulkAddSizeOptions = useMemo(
+    () => getVariationOptions(selectedBulkAddProductData, "size"),
+    [selectedBulkAddProductData],
+  );
+  const bulkAddColorOptions = useMemo(
+    () => getVariationOptions(selectedBulkAddProductData, "color"),
+    [selectedBulkAddProductData],
+  );
   const shouldShowEditVariantOptions = useMemo(
     () =>
       hasConfiguredVariants(currentProduct?.variantRows) ||
@@ -502,6 +571,12 @@ const PurchaseRequisionTable = () => {
       isFetchingEditProduct,
       selectedEditProductData,
     ],
+  );
+  const shouldShowBulkAddVariantOptions = useMemo(
+    () =>
+      !isFetchingBulkAddProduct &&
+      getVariantRowsFromProduct(selectedBulkAddProductData).length > 0,
+    [isFetchingBulkAddProduct, selectedBulkAddProductData],
   );
 
   // ✅ productId -> productName map
@@ -593,7 +668,10 @@ const PurchaseRequisionTable = () => {
     setCreateProductItems([]);
     setIsModalOpen1(true);
   };
-  const handleModalClose = () => setIsModalOpen(false);
+  const handleModalClose = () => {
+    setIsModalOpen(false);
+    resetBulkAddProduct();
+  };
   const handleModalClose1 = () => {
     setIsModalOpen1(false);
     setCreateProduct(initialCreateProduct);
@@ -723,15 +801,31 @@ const PurchaseRequisionTable = () => {
     const supplierId = rp.supplierId ?? rp.supplier?.Id ?? rp.supplier?.id ?? "";
     const warehouseId =
       rp.warehouseId ?? rp.warehouse?.Id ?? rp.warehouse?.id ?? "";
+    const resolvedProductId = String(pidFromRow || pidFromName);
+    const editItems =
+      bulkItems.length > 0
+        ? bulkItems
+        : [
+            {
+              productId: Number(resolvedProductId) || "",
+              name: productName || rp.name || `Product #${resolvedProductId || "-"}`,
+              quantity:
+                getVariantRowsTotalQuantity(variantRows) ||
+                Number(rp.quantity) ||
+                0,
+              amount: Number(rp.amount) || 0,
+              variants: getVariantDisplayRows(rp),
+            },
+          ];
 
     setCurrentProduct({
       ...rp,
-      items: bulkItems,
+      items: editItems,
       bookId: String(rp.bookId ?? rp.book?.Id ?? rp.book?.id ?? ""),
       paymentMode: rp.paymentMode ?? "",
       bankName: rp.bankName ?? "",
       bankAccount: rp.bankAccount ?? "",
-      productId: String(pidFromRow || pidFromName), // ✅ selected ঠিক রাখে
+      productId: resolvedProductId, // ✅ selected ঠিক রাখে
       supplierId: String(supplierId),
       warehouseId: String(warehouseId),
       name: productName || rp.name || "",
@@ -748,6 +842,7 @@ const PurchaseRequisionTable = () => {
     });
 
     setIsModalOpen(true);
+    resetBulkAddProduct();
   };
 
   // const handleEditClick1 = (rp) => {
@@ -1169,6 +1264,168 @@ const PurchaseRequisionTable = () => {
         amount: String(getPurchaseRequisitionItemsTotalAmount(nextItems)),
       };
     });
+  };
+
+  const resetBulkAddProduct = () => {
+    setBulkAddProduct(initialBulkAddProduct);
+  };
+
+  const handleBulkAddProductSelect = (selected) => {
+    setBulkAddProduct((prev) => ({
+      ...prev,
+      productId: selected?.value || "",
+      variantRows: [createEmptyVariantRow()],
+      quantity: "",
+      amount: "",
+    }));
+  };
+
+  const updateBulkAddProductVariantRow = (index, key, value) => {
+    setBulkAddProduct((prev) => {
+      const nextRows = normalizeVariantRows(prev?.variantRows).map(
+        (row, rowIndex) =>
+          rowIndex === index
+            ? {
+                ...row,
+                [key]: value,
+                ...(key === "size" ? { color: "" } : {}),
+              }
+            : row,
+      );
+
+      return {
+        ...prev,
+        variantRows: nextRows,
+        quantity: String(getVariantRowsTotalQuantity(nextRows)),
+      };
+    });
+  };
+
+  const addBulkAddProductVariantRow = () => {
+    setBulkAddProduct((prev) => ({
+      ...prev,
+      variantRows: [
+        ...normalizeVariantRows(prev?.variantRows),
+        createEmptyVariantRow(),
+      ],
+    }));
+  };
+
+  const removeBulkAddProductVariantRow = (index) => {
+    setBulkAddProduct((prev) => {
+      const nextRows = normalizeVariantRows(prev?.variantRows).filter(
+        (_, rowIndex) => rowIndex !== index,
+      );
+
+      return {
+        ...prev,
+        variantRows: nextRows.length > 0 ? nextRows : [createEmptyVariantRow()],
+        quantity: String(getVariantRowsTotalQuantity(nextRows)),
+      };
+    });
+  };
+
+  const buildBulkAddProductItem = () => {
+    if (!bulkAddProduct.productId) return { error: "Please select a product" };
+
+    const variantsPayload = getNormalizedVariantsPayload(
+      bulkAddProduct.variantRows,
+    );
+    if (hasDuplicateVariantCombination(variantsPayload)) {
+      return { error: "Duplicate size and color combination found" };
+    }
+
+    const totalQuantity =
+      variantsPayload.length > 0
+        ? getVariantRowsTotalQuantity(variantsPayload)
+        : Number(bulkAddProduct.quantity) || 0;
+    if (totalQuantity <= 0) return { error: "Please enter valid quantity" };
+
+    const productId = String(bulkAddProduct.productId);
+    const selectedProduct = productDropdownOptions.find(
+      (option) => option.value === productId,
+    );
+
+    return {
+      item: {
+        productId: Number(productId) || "",
+        name:
+          selectedProduct?.label ||
+          productNameMap.get(productId) ||
+          `Product #${productId}`,
+        quantity: totalQuantity,
+        amount: Number(bulkAddProduct.amount) || 0,
+        variants: variantsPayload,
+      },
+    };
+  };
+
+  const handleAddBulkPurchaseRequisitionProduct = () => {
+    const result = buildBulkAddProductItem();
+    if (result.error) return toast.error(result.error);
+
+    setCurrentProduct((prev) => {
+      const currentItems = parsePurchaseRequisitionItems(prev?.items);
+      const existingIndex = currentItems.findIndex(
+        (item) => String(item.productId) === String(result.item.productId),
+      );
+
+      if (existingIndex !== -1) {
+        const existingItem = currentItems[existingIndex];
+        const existingVariants = normalizeVariantRows(
+          existingItem.variants,
+        ).filter((variant) => variant.size || variant.color || variant.quantity);
+        const incomingVariants = normalizeVariantRows(
+          result.item.variants,
+        ).filter((variant) => variant.size || variant.color || variant.quantity);
+
+        if (!incomingVariants.length || !existingVariants.length) {
+          toast.error("This product already exists in the list");
+          return prev;
+        }
+
+        const duplicateVariant = incomingVariants.find((incoming) =>
+          existingVariants.some(
+            (existing) =>
+              String(existing.size || "") === String(incoming.size || "") &&
+              String(existing.color || "") === String(incoming.color || ""),
+          ),
+        );
+        if (duplicateVariant) {
+          toast.error("This variant already exists in the list");
+          return prev;
+        }
+
+        const mergedVariants = [...existingVariants, ...incomingVariants];
+        const nextItems = currentItems.map((item, index) =>
+          index === existingIndex
+            ? {
+                ...item,
+                variants: mergedVariants,
+                quantity: getVariantRowsTotalQuantity(mergedVariants),
+                amount:
+                  (Number(item.amount) || 0) + (Number(result.item.amount) || 0),
+              }
+            : item,
+        );
+
+        return {
+          ...prev,
+          items: nextItems,
+          quantity: String(getPurchaseRequisitionItemsTotalQuantity(nextItems)),
+          amount: String(getPurchaseRequisitionItemsTotalAmount(nextItems)),
+        };
+      }
+
+      const nextItems = [...currentItems, result.item];
+      return {
+        ...prev,
+        items: nextItems,
+        quantity: String(getPurchaseRequisitionItemsTotalQuantity(nextItems)),
+        amount: String(getPurchaseRequisitionItemsTotalAmount(nextItems)),
+      };
+    });
+    resetBulkAddProduct();
   };
 
   const createProductItemsTotalQuantity = useMemo(() => {
@@ -1683,7 +1940,7 @@ const PurchaseRequisionTable = () => {
 
       {/* Table */}
       <div className="mt-6 rounded-2xl border border-slate-200 overflow-hidden">
-        <div className="overflow-auto max-h-[420px] custom-scrollbar">
+        <div className="four-row-table-scroll custom-scrollbar">
         <table className="min-w-[1100px] w-full divide-y divide-slate-200">
           <thead className="bg-slate-50">
             <tr>
@@ -2048,12 +2305,13 @@ const PurchaseRequisionTable = () => {
                                     }
                                     className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
                                   />
-                                  {(() => {
-                                    const invItem = receivedData.find((r) => Number(r.productId) === Number(item.productId));
-                                    return invItem ? (
-                                      <p className="mt-1 text-[10px] text-slate-400">Stock: {Number(invItem.quantity || 0)}</p>
-                                    ) : null;
-                                  })()}
+                                  <p className="mt-1 text-[10px] text-slate-400">
+                                    Stock:{" "}
+                                    {getInventoryQuantityForProduct(
+                                      item.productId,
+                                      item.name,
+                                    )}
+                                  </p>
                                 </>
                               )}
                             </div>
@@ -2110,16 +2368,14 @@ const PurchaseRequisionTable = () => {
                                       }
                                       className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
                                     />
-                                    {(() => {
-                                      const invItem = receivedData.find((r) => Number(r.productId) === Number(item.productId));
-                                      if (!invItem) return null;
-                                      const match = getVariantDisplayRows(invItem).find(
-                                        (v) => String(v.size || "") === String(variant.size || "") && String(v.color || "") === String(variant.color || ""),
-                                      );
-                                      return match !== undefined ? (
-                                        <p className="mt-0.5 text-[10px] text-slate-400">Stock: {Number(match.quantity || 0)}</p>
-                                      ) : null;
-                                    })()}
+                                    <p className="mt-0.5 text-[10px] text-slate-400">
+                                      Stock:{" "}
+                                      {getInventoryQuantityForVariant(
+                                        item.productId,
+                                        variant,
+                                        item.name,
+                                      ) ?? 0}
+                                    </p>
                                   </div>
                                 </div>
                               ))
@@ -2129,6 +2385,204 @@ const PurchaseRequisionTable = () => {
                     ))}
                   </tbody>
                 </table>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-indigo-100 bg-white p-3">
+                <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto_auto] lg:items-end">
+                  <div>
+                    <label className="mb-1.5 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
+                      New Product
+                    </label>
+                    <Select
+                      options={productDropdownOptions}
+                      value={makeSelectValue(
+                        productDropdownOptions,
+                        bulkAddProduct.productId,
+                      )}
+                      onChange={handleBulkAddProductSelect}
+                      placeholder="Select Product"
+                      isClearable
+                      styles={selectStyles}
+                      className="text-sm font-medium text-black"
+                      isDisabled={isLoadingAllProducts}
+                    />
+                  </div>
+
+                  {!shouldShowBulkAddVariantOptions && (
+                    <div className="lg:w-36">
+                      <label className="mb-1.5 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
+                        Quantity
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={bulkAddProduct.quantity}
+                        onChange={(e) =>
+                          setBulkAddProduct((prev) => ({
+                            ...prev,
+                            quantity: e.target.value,
+                          }))
+                        }
+                        disabled={!bulkAddProduct.productId}
+                        className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10 disabled:bg-slate-100 disabled:text-slate-400"
+                      />
+                      {bulkAddProduct.productId && (
+                        <p className="mt-1 text-[10px] text-slate-400">
+                          Stock:{" "}
+                          {getInventoryQuantityForProduct(
+                            bulkAddProduct.productId,
+                          )}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="lg:w-36">
+                    <label className="mb-1.5 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
+                      Amount
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={bulkAddProduct.amount}
+                      onChange={(e) =>
+                        setBulkAddProduct((prev) => ({
+                          ...prev,
+                          amount: e.target.value,
+                        }))
+                      }
+                      disabled={!bulkAddProduct.productId}
+                      className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10 disabled:bg-slate-100 disabled:text-slate-400"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleAddBulkPurchaseRequisitionProduct}
+                    disabled={
+                      !bulkAddProduct.productId || isFetchingBulkAddProduct
+                    }
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Plus size={16} />
+                    Add Product
+                  </button>
+                </div>
+
+                {bulkAddProduct.productId && shouldShowBulkAddVariantOptions && (
+                  <div className="mt-3 space-y-3 rounded-xl bg-slate-50 p-3">
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={addBulkAddProductVariantRow}
+                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                      >
+                        <Plus size={14} />
+                        Add Variant
+                      </button>
+                    </div>
+
+                    {normalizeVariantRows(bulkAddProduct.variantRows).map(
+                      (row, index) => {
+                        const colorOptions = row.size
+                          ? getVariationColorsForSize(
+                              selectedBulkAddProductData,
+                              row.size,
+                            )
+                          : bulkAddColorOptions;
+
+                        return (
+                          <div
+                            key={`bulk-purchase-requisition-add-variant-${index}`}
+                            className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_120px_auto] sm:items-end"
+                          >
+                            <Select
+                              options={bulkAddSizeOptions}
+                              value={makeSelectValue(
+                                bulkAddSizeOptions,
+                                row.size,
+                                row.size,
+                              )}
+                              onChange={(selected) =>
+                                updateBulkAddProductVariantRow(
+                                  index,
+                                  "size",
+                                  selected?.value || "",
+                                )
+                              }
+                              placeholder="Select size..."
+                              isClearable
+                              styles={selectStyles}
+                              className="text-sm font-medium"
+                            />
+                            <Select
+                              options={colorOptions}
+                              value={makeSelectValue(
+                                colorOptions,
+                                row.color,
+                                row.color,
+                              )}
+                              onChange={(selected) =>
+                                updateBulkAddProductVariantRow(
+                                  index,
+                                  "color",
+                                  selected?.value || "",
+                                )
+                              }
+                              placeholder="Select color..."
+                              isClearable
+                              styles={selectStyles}
+                              className="text-sm font-medium"
+                              isDisabled={!row.size}
+                            />
+                            <div>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={row.quantity}
+                                onChange={(e) =>
+                                  updateBulkAddProductVariantRow(
+                                    index,
+                                    "quantity",
+                                    e.target.value,
+                                  )
+                                }
+                                className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
+                                placeholder="Qty"
+                              />
+                              {(row.size || row.color) && (
+                                <p className="mt-1 text-[10px] text-slate-400">
+                                  Stock:{" "}
+                                  {getInventoryQuantityForVariant(
+                                    bulkAddProduct.productId,
+                                    row,
+                                  ) ?? 0}
+                                </p>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                removeBulkAddProductVariantRow(index)
+                              }
+                              disabled={
+                                normalizeVariantRows(
+                                  bulkAddProduct.variantRows,
+                                ).length === 1
+                              }
+                              className="h-11 w-11 rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
+                            >
+                              x
+                            </button>
+                          </div>
+                        );
+                      },
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -2282,6 +2736,16 @@ const PurchaseRequisionTable = () => {
                           className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                           placeholder=""
                         />
+                        {(row.size || row.color) && (
+                          <p className="mt-1 text-[10px] text-slate-400">
+                            Stock:{" "}
+                            {getInventoryQuantityForVariant(
+                              currentProduct?.productId,
+                              row,
+                              currentProduct?.name,
+                            ) ?? 0}
+                          </p>
+                        )}
                       </div>
 
                       <button
@@ -2480,6 +2944,15 @@ const PurchaseRequisionTable = () => {
                     : "bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
                 }`}
               />
+              {!hasConfiguredVariants(currentProduct?.variantRows) && (
+                <p className="mt-1 text-[10px] text-slate-400">
+                  Stock:{" "}
+                  {getInventoryQuantityForProduct(
+                    currentProduct?.productId,
+                    currentProduct?.name,
+                  )}
+                </p>
+              )}
             </div>
             )}
             {!isEditingBulkPurchaseRequisition && (
