@@ -273,11 +273,18 @@ const getTransitRowItems = (row) => {
   return items.length ? items : [row];
 };
 
+const getTransitItemQuantity = (item = {}) => {
+  const directQuantity = Number(item?.quantity || 0);
+  if (directQuantity > 0) return directQuantity;
+  return getVariantRowsTotalQuantity(item?.variants);
+};
+
 const getTransitItemsTotalQuantity = (items = []) =>
-  items.reduce((total, item) => total + (Number(item?.quantity) || 0), 0);
+  items.reduce((total, item) => total + getTransitItemQuantity(item), 0);
 
 const IntransiteProductTable = () => {
   const role = localStorage.getItem("role");
+  const canUpdateStatus = ["superAdmin", "admin", "accountant"].includes(role);
   const userId = localStorage.getItem("userId");
 
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -571,6 +578,20 @@ const IntransiteProductTable = () => {
       variant?.[field],
       getItemUnitPrice(item, field),
     );
+  };
+
+  const getItemStockQuantity = (item) =>
+    Number(getSourceRecordForTransitItem(item)?.quantity || 0);
+
+  const getVariantStockQuantity = (item, variant) => {
+    const sourceRecord = getSourceRecordForTransitItem(item);
+    const sourceVariant = getVariantDisplayRows(sourceRecord).find(
+      (source) =>
+        String(source?.size || "") === String(variant?.size || "") &&
+        String(source?.color || "") === String(variant?.color || ""),
+    );
+
+    return Number(sourceVariant?.quantity || 0);
   };
 
   // ✅ add/edit handlers
@@ -1300,7 +1321,10 @@ const IntransiteProductTable = () => {
   // ✅ update
   const handleUpdate = async () => {
     if (!currentItem?.Id) return toast.error("Invalid item");
-    const bulkItems = parseTransitItems(currentItem?.items);
+    const bulkItems = parseTransitItems(currentItem?.items).map((item) => ({
+      ...item,
+      quantity: getTransitItemQuantity(item),
+    }));
     if (!bulkItems.length && !currentItem?.receivedId && !currentItem?.productId)
       return toast.error("Please select a product");
     if (
@@ -2035,24 +2059,34 @@ const IntransiteProductTable = () => {
                           </td>
                           <td className="px-3 py-3 align-top">
                             {item.variants?.length ? (
-                              <p className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-black text-slate-900">
-                                {Number(item.quantity || 0)}
-                              </p>
+                              <div>
+                                <p className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-black text-slate-900">
+                                  {getTransitItemQuantity(item)}
+                                </p>
+                                <p className="mt-1 text-[10px] text-slate-400">
+                                  Stock: {getItemStockQuantity(item)}
+                                </p>
+                              </div>
                             ) : (
-                              <input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={item.quantity ?? ""}
-                                onChange={(e) =>
-                                  updateCurrentBulkItem(
-                                    index,
-                                    "quantity",
-                                    e.target.value,
-                                  )
-                                }
-                                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
-                              />
+                              <div>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={getTransitItemQuantity(item) || ""}
+                                  onChange={(e) =>
+                                    updateCurrentBulkItem(
+                                      index,
+                                      "quantity",
+                                      e.target.value,
+                                    )
+                                  }
+                                  className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
+                                />
+                                <p className="mt-1 text-[10px] text-slate-400">
+                                  Stock: {getItemStockQuantity(item)}
+                                </p>
+                              </div>
                             )}
                           </td>
                           <td className="px-3 py-3 align-top text-xs text-slate-500">
@@ -2087,6 +2121,10 @@ const IntransiteProductTable = () => {
                                         }
                                         className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
                                       />
+                                      <p className="mt-0.5 text-[10px] text-slate-400">
+                                        Stock:{" "}
+                                        {getVariantStockQuantity(item, variant)}
+                                      </p>
                                     </div>
                                   </div>
                                 ))
@@ -2531,7 +2569,7 @@ const IntransiteProductTable = () => {
               />
             </div>
 
-            {role === "superAdmin" || role === "admin" ? (
+            {canUpdateStatus ? (
               <div className="mt-4">
                 <label className="block text-sm text-slate-700">Status</label>
                 <Select

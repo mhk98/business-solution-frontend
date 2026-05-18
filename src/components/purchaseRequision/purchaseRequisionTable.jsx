@@ -292,6 +292,19 @@ const purchaseRequisitionStatusesByRole = {
   inventor: ["Product Received"],
 };
 
+const purchaseRequisitionStatusClasses = {
+  Pending: "bg-amber-50 text-amber-700 border-amber-200",
+  Approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  "Pay For Purchase": "bg-sky-50 text-sky-700 border-sky-200",
+  "Product Received": "bg-indigo-50 text-indigo-700 border-indigo-200",
+  Completed: "bg-violet-50 text-violet-700 border-violet-200",
+  Active: "bg-blue-50 text-blue-700 border-blue-200",
+};
+
+const getPurchaseRequisitionStatusClass = (status) =>
+  purchaseRequisitionStatusClasses[status] ||
+  "bg-slate-50 text-slate-700 border-slate-200";
+
 const initialCreateProduct = {
   warehouseId: "",
   supplierId: "",
@@ -2091,15 +2104,9 @@ const PurchaseRequisionTable = () => {
                 </td> */}
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                     <span
-                      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border ${
-                        rp.status === "Approved"
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                          : rp.status === "Completed"
-                            ? "bg-violet-50 text-violet-700 border-violet-200"
-                            : rp.status === "Active"
-                              ? "bg-blue-50 text-blue-700 border-blue-200" // New color for Active
-                              : "bg-amber-50 text-amber-700 border-amber-200"
-                      }`}
+                      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border ${getPurchaseRequisitionStatusClass(
+                        rp.status,
+                      )}`}
                     >
                       {rp.status}
                     </span>
@@ -3365,6 +3372,13 @@ const PurchaseRequisionTable = () => {
                                     }
                                     className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
                                   />
+                                  <p className="mt-1 text-[10px] text-slate-400">
+                                    Stock:{" "}
+                                    {getInventoryQuantityForProduct(
+                                      item.payload.productId,
+                                      item.label,
+                                    )}
+                                  </p>
                                 </div>
                                 <div>
                                   <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -3421,6 +3435,14 @@ const PurchaseRequisionTable = () => {
                                           }
                                           className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
                                         />
+                                        <p className="mt-0.5 text-[10px] text-slate-400">
+                                          Stock:{" "}
+                                          {getInventoryQuantityForVariant(
+                                            item.payload.productId,
+                                            variant,
+                                            item.label,
+                                          ) ?? 0}
+                                        </p>
                                       </div>
                                     </div>
                                   ),

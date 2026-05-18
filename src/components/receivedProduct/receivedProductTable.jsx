@@ -1057,28 +1057,37 @@ const ReceivedProductTable = () => {
       const firstVariantPrice = variantsPayload.find(
         (variant) => variant.purchase_price || variant.sale_price,
       );
+      const primaryBulkItem = bulkItems[0] || {};
 
       const fd = new FormData();
-      fd.append("productId", Number(currentProduct.productId) || "");
+      fd.append(
+        "productId",
+        Number(primaryBulkItem.productId || currentProduct.productId) || "",
+      );
       fd.append("bookId", Number(currentProduct.bookId) || "");
       fd.append("supplierId", Number(currentProduct.supplierId) || "");
       fd.append("warehouseId", Number(currentProduct.warehouseId) || "");
-      fd.append("quantity", Number(currentProduct.quantity) || 0);
+      fd.append(
+        "quantity",
+        Number(primaryBulkItem.quantity || currentProduct.quantity) || 0,
+      );
       fd.append("variants", JSON.stringify(variantsPayload));
       if (bulkItems.length > 0) {
         fd.append("items", JSON.stringify(bulkItems));
       }
-      fd.append("sku", currentProduct.sku || "");
-      fd.append("weight", currentProduct.weight || "");
+      fd.append("sku", primaryBulkItem.sku || currentProduct.sku || "");
+      fd.append("weight", primaryBulkItem.weight || currentProduct.weight || "");
       fd.append(
         "purchase_price",
         Number(firstVariantPrice?.purchase_price) ||
+          Number(primaryBulkItem.purchase_price) ||
           Number(currentProduct.purchase_price) ||
           0,
       );
       fd.append(
         "sale_price",
         Number(firstVariantPrice?.sale_price) ||
+          Number(primaryBulkItem.sale_price) ||
           Number(currentProduct.sale_price) ||
           0,
       );
@@ -1137,29 +1146,38 @@ const ReceivedProductTable = () => {
       const firstVariantPrice = variantsPayload.find(
         (variant) => variant.purchase_price || variant.sale_price,
       );
+      const bulkItems = parseReceivedItems(currentProduct.items);
+      const primaryBulkItem = bulkItems[0] || {};
 
       const fd = new FormData();
-      fd.append("productId", Number(currentProduct.productId) || "");
+      fd.append(
+        "productId",
+        Number(primaryBulkItem.productId || currentProduct.productId) || "",
+      );
       fd.append("bookId", Number(currentProduct.bookId) || "");
       fd.append("supplierId", Number(currentProduct.supplierId) || "");
       fd.append("warehouseId", Number(currentProduct.warehouseId) || "");
-      fd.append("quantity", Number(currentProduct.quantity) || 0);
+      fd.append(
+        "quantity",
+        Number(primaryBulkItem.quantity || currentProduct.quantity) || 0,
+      );
       fd.append("variants", JSON.stringify(variantsPayload));
-      const bulkItems = parseReceivedItems(currentProduct.items);
       if (bulkItems.length > 0) {
         fd.append("items", JSON.stringify(bulkItems));
       }
-      fd.append("sku", currentProduct.sku || "");
-      fd.append("weight", currentProduct.weight || "");
+      fd.append("sku", primaryBulkItem.sku || currentProduct.sku || "");
+      fd.append("weight", primaryBulkItem.weight || currentProduct.weight || "");
       fd.append(
         "purchase_price",
         Number(firstVariantPrice?.purchase_price) ||
+          Number(primaryBulkItem.purchase_price) ||
           Number(currentProduct.purchase_price) ||
           0,
       );
       fd.append(
         "sale_price",
         Number(firstVariantPrice?.sale_price) ||
+          Number(primaryBulkItem.sale_price) ||
           Number(currentProduct.sale_price) ||
           0,
       );
@@ -3639,16 +3657,15 @@ const ReceivedProductTable = () => {
                             className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                             placeholder=""
                           />
-                          {createProduct?.productId && row.size && (() => {
-                            const invItem = receivedData.find((r) => Number(r.productId) === Number(createProduct.productId));
-                            if (!invItem) return null;
-                            const match = getVariantDisplayRows(invItem).find(
-                              (v) => String(v.size || "") === String(row.size || "") && String(v.color || "") === String(row.color || ""),
-                            );
-                            return match !== undefined ? (
-                              <p className="mt-1 text-[10px] text-slate-400">Stock: {Number(match.quantity || 0)}</p>
-                            ) : null;
-                          })()}
+                          {createProduct?.productId && (row.size || row.color) && (
+                            <p className="mt-1 text-[10px] text-slate-400">
+                              Stock:{" "}
+                              {getInventoryQuantityForVariant(
+                                createProduct.productId,
+                                row,
+                              ) ?? 0}
+                            </p>
+                          )}
                         </div>
 
                         <div>
@@ -3849,12 +3866,13 @@ const ReceivedProductTable = () => {
                                   }
                                   className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
                                 />
-                                {(() => {
-                                  const invItem = receivedData.find((r) => Number(r.productId) === Number(item.payload?.productId));
-                                  return invItem ? (
-                                    <p className="mt-1 text-[10px] text-slate-400">Stock: {Number(invItem.quantity || 0)}</p>
-                                  ) : null;
-                                })()}
+                                <p className="mt-1 text-[10px] text-slate-400">
+                                  Stock:{" "}
+                                  {getInventoryQuantityForProduct(
+                                    item.payload?.productId,
+                                    item.label,
+                                  )}
+                                </p>
                               </div>
                               <div>
                                 <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -3928,16 +3946,14 @@ const ReceivedProductTable = () => {
                                         }
                                         className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
                                       />
-                                      {(() => {
-                                        const invItem = receivedData.find((r) => Number(r.productId) === Number(item.payload?.productId));
-                                        if (!invItem) return null;
-                                        const match = getVariantDisplayRows(invItem).find(
-                                          (v) => String(v.size || "") === String(variant.size || "") && String(v.color || "") === String(variant.color || ""),
-                                        );
-                                        return match !== undefined ? (
-                                          <p className="mt-0.5 text-[10px] text-slate-400">Stock: {Number(match.quantity || 0)}</p>
-                                        ) : null;
-                                      })()}
+                                      <p className="mt-0.5 text-[10px] text-slate-400">
+                                        Stock:{" "}
+                                        {getInventoryQuantityForVariant(
+                                          item.payload?.productId,
+                                          variant,
+                                          item.label,
+                                        ) ?? 0}
+                                      </p>
                                     </div>
                                     <div>
                                       {variantIndex === 0 && (
