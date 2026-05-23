@@ -30,6 +30,7 @@ const EmployeeListTable = () => {
     salary: "",
     note: "",
     date: new Date().toISOString().slice(0, 10),
+    joiningDate: new Date().toISOString().slice(0, 10),
     departmentId: "",
     teamId: "",
     designationId: "",
@@ -43,6 +44,8 @@ const EmployeeListTable = () => {
 
   // store selected name
   const [name, setName] = useState("");
+  const [selectedDepartment, setSelectedDepartment] = useState(null);
+  const [selectedDesignation, setSelectedDesignation] = useState(null);
 
   // ✅ Per-page user selectable (EmployeeTable like)
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -95,7 +98,14 @@ const EmployeeListTable = () => {
   useEffect(() => {
     setCurrentPage(1);
     setStartPage(1);
-  }, [startDate, endDate, name, itemsPerPage]);
+  }, [
+    startDate,
+    endDate,
+    name,
+    selectedDepartment,
+    selectedDesignation,
+    itemsPerPage,
+  ]);
 
   // startDate > endDate হলে endDate ঠিক করে দেবে
   useEffect(() => {
@@ -112,6 +122,8 @@ const EmployeeListTable = () => {
       startDate: startDate || undefined,
       endDate: endDate || undefined,
       name: name || undefined,
+      departmentId: selectedDepartment?.value || undefined,
+      designationId: selectedDesignation?.value || undefined,
     };
 
     Object.keys(args).forEach((k) => {
@@ -120,7 +132,15 @@ const EmployeeListTable = () => {
     });
 
     return args;
-  }, [currentPage, itemsPerPage, startDate, endDate, name]);
+  }, [
+    currentPage,
+    itemsPerPage,
+    startDate,
+    endDate,
+    name,
+    selectedDepartment,
+    selectedDesignation,
+  ]);
 
   const { data, isLoading, isError, error, refetch } =
     useGetAllEmployeeListQuery(queryArgs);
@@ -148,6 +168,7 @@ const EmployeeListTable = () => {
       salary: "",
       note: "",
       date: new Date().toISOString().slice(0, 10),
+      joiningDate: new Date().toISOString().slice(0, 10),
       departmentId: "",
       teamId: "",
       designationId: "",
@@ -169,6 +190,7 @@ const EmployeeListTable = () => {
       name: product.name ?? "",
       note: product.note ?? "",
       status: product.status ?? "",
+      joiningDate: product.joiningDate ?? product.date ?? "",
       departmentId: product.departmentId ? String(product.departmentId) : "",
       teamId: product.teamId ? String(product.teamId) : "",
       designationId: product.designationId ? String(product.designationId) : "",
@@ -190,6 +212,7 @@ const EmployeeListTable = () => {
         price: Number(currentProduct.salary),
         note: currentProduct.note,
         status: currentProduct.status,
+        joiningDate: currentProduct.joiningDate,
         departmentId: currentProduct.departmentId || null,
         teamId: currentProduct.teamId || null,
         designationId: currentProduct.designationId || null,
@@ -223,6 +246,7 @@ const EmployeeListTable = () => {
       note: product.note ?? "",
       status: product.status ?? "",
       date: product.date ?? "",
+      joiningDate: product.joiningDate ?? product.date ?? "",
       departmentId: product.departmentId ? String(product.departmentId) : "",
       teamId: product.teamId ? String(product.teamId) : "",
       designationId: product.designationId ? String(product.designationId) : "",
@@ -248,6 +272,7 @@ const EmployeeListTable = () => {
         note: currentProduct.note,
         status: currentProduct.status,
         date: currentProduct.date,
+        joiningDate: currentProduct.joiningDate,
         departmentId: currentProduct.departmentId || null,
         teamId: currentProduct.teamId || null,
         designationId: currentProduct.designationId || null,
@@ -288,6 +313,7 @@ const EmployeeListTable = () => {
         employee_id: Number(createProduct.employee_id),
         salary: Number(createProduct.salary),
         date: createProduct.date,
+        joiningDate: createProduct.joiningDate,
         note: createProduct.note,
         departmentId: createProduct.departmentId || null,
         teamId: createProduct.teamId || null,
@@ -304,6 +330,10 @@ const EmployeeListTable = () => {
           salary: "",
           note: "",
           date: new Date().toISOString().slice(0, 10),
+          joiningDate: new Date().toISOString().slice(0, 10),
+          departmentId: "",
+          teamId: "",
+          designationId: "",
         });
         refetch?.();
       } else {
@@ -323,7 +353,7 @@ const EmployeeListTable = () => {
     if (!confirmDelete) return toast.info("Delete action was cancelled.");
 
     try {
-      const res = await deleteEmployeeList(id).unwrap();
+      const res = await deleteEmployeeList({ id }).unwrap();
       if (res?.success) {
         toast.success("Product deleted successfully!");
         refetch?.();
@@ -340,6 +370,8 @@ const EmployeeListTable = () => {
     setStartDate("");
     setEndDate("");
     setName("");
+    setSelectedDepartment(null);
+    setSelectedDesignation(null);
   };
 
   // Pagination calculations
@@ -392,9 +424,34 @@ const EmployeeListTable = () => {
       (designationsData?.data || []).map((d) => ({
         value: String(d.Id ?? d.id ?? ""),
         label: d.name || "Unnamed Designation",
+        departmentId: d.departmentId ? String(d.departmentId) : "",
       })),
     [designationsData],
   );
+
+  const getDesignationOptions = (departmentId) => {
+    const normalizedDepartmentId = departmentId ? String(departmentId) : "";
+    if (!normalizedDepartmentId) return designationOptions;
+
+    return designationOptions.filter(
+      (option) =>
+        !option.departmentId || option.departmentId === normalizedDepartmentId,
+    );
+  };
+
+  const getDepartmentLabel = (product) =>
+    product?.department?.name ||
+    departmentOptions.find(
+      (option) => option.value === String(product?.departmentId || ""),
+    )?.label ||
+    "-";
+
+  const getDesignationLabel = (product) =>
+    product?.designation?.name ||
+    designationOptions.find(
+      (option) => option.value === String(product?.designationId || ""),
+    )?.label ||
+    "-";
 
   // ✅ React-select styles (light like EmployeeTable)
   const selectStyles = useMemo(
@@ -482,7 +539,7 @@ const EmployeeListTable = () => {
       </div>
 
       {/* Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end mb-6 w-full justify-center mx-auto">
+      <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-7 gap-4 items-end mb-6 w-full justify-center mx-auto">
         <div className="flex flex-col">
           <label className="text-sm text-slate-600 mb-1">From</label>
           <input
@@ -512,6 +569,39 @@ const EmployeeListTable = () => {
             }
             placeholder="Select Employee"
             isClearable
+            styles={selectStyles}
+            className="w-full"
+          />
+        </div>
+
+        <div className="flex flex-col">
+          <label className="text-sm text-slate-600 mb-1">Department</label>
+          <Select
+            options={departmentOptions}
+            value={selectedDepartment}
+            onChange={(selected) => {
+              setSelectedDepartment(selected || null);
+              setSelectedDesignation(null);
+            }}
+            placeholder={isDepartmentsLoading ? "Loading..." : "Select Department"}
+            isClearable
+            isLoading={isDepartmentsLoading}
+            styles={selectStyles}
+            className="w-full"
+          />
+        </div>
+
+        <div className="flex flex-col">
+          <label className="text-sm text-slate-600 mb-1">Designation</label>
+          <Select
+            options={getDesignationOptions(selectedDepartment?.value)}
+            value={selectedDesignation}
+            onChange={(selected) => setSelectedDesignation(selected || null)}
+            placeholder={
+              isDesignationsLoading ? "Loading..." : "Select Designation"
+            }
+            isClearable
+            isLoading={isDesignationsLoading}
             styles={selectStyles}
             className="w-full"
           />
@@ -548,7 +638,15 @@ const EmployeeListTable = () => {
         <table className="min-w-full divide-y divide-slate-200">
           <thead className="bg-slate-50">
             <tr>
-              {["Name", "Salary", "Status", "Actions"].map((h) => (
+              {[
+                "Name",
+                "Department",
+                "Designation",
+                "Joining Date",
+                "Salary",
+                "Status",
+                "Actions",
+              ].map((h) => (
                 <th
                   key={h}
                   className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider"
@@ -573,6 +671,18 @@ const EmployeeListTable = () => {
                 </td>
 
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                  {getDepartmentLabel(product)}
+                </td>
+
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                  {getDesignationLabel(product)}
+                </td>
+
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                  {product.joiningDate || "-"}
+                </td>
+
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                   {Number(product.salary ?? product.price ?? 0).toFixed(2)}
                 </td>
 
@@ -583,6 +693,8 @@ const EmployeeListTable = () => {
                         ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                         : product.status === "Active"
                           ? "bg-blue-50 text-blue-700 border-blue-200"
+                          : product.status === "Deactive"
+                            ? "bg-rose-50 text-rose-700 border-rose-200"
                           : "bg-amber-50 text-amber-700 border-amber-200"
                     }`}
                   >
@@ -662,7 +774,7 @@ const EmployeeListTable = () => {
             {!isLoading && products.length === 0 && (
               <tr>
                 <td
-                  colSpan={4}
+                  colSpan={7}
                   className="px-6 py-6 text-center text-sm text-slate-600"
                 >
                   No data found
@@ -763,6 +875,15 @@ const EmployeeListTable = () => {
             }
           />
 
+          <Field
+            label="Joining Date"
+            type="date"
+            value={currentProduct?.joiningDate || ""}
+            onChange={(v) =>
+              setCurrentProduct({ ...currentProduct, joiningDate: v })
+            }
+          />
+
           <div>
             <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">
               Department
@@ -804,7 +925,7 @@ const EmployeeListTable = () => {
               Designation
             </label>
             <Select
-              options={designationOptions}
+              options={getDesignationOptions(currentProduct?.departmentId)}
               value={designationOptions.find((o) => o.value === (currentProduct?.designationId || "")) || null}
               onChange={(selected) =>
                 setCurrentProduct({ ...currentProduct, designationId: selected?.value || "" })
@@ -817,42 +938,29 @@ const EmployeeListTable = () => {
             />
           </div>
 
-          {role === "superAdmin" ? (
-            <div>
-              <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">
-                Approval Status
-              </label>
-              <select
-                value={currentProduct?.status || ""}
-                onChange={(e) =>
-                  setCurrentProduct({
-                    ...currentProduct,
-                    status: e.target.value,
-                  })
-                }
-                className="h-12 w-full px-4 rounded-xl border border-slate-200 bg-white font-bold text-sm outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-                required
-              >
-                <option value="">Select Status</option>
-                <option value="Approved">Approved</option>
-                <option value="Pending">Pending</option>
-              </select>
-            </div>
-          ) : (
-            <div>
-              <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">
-                Internal Note
-              </label>
-              <textarea
-                value={currentProduct?.note || ""}
-                onChange={(e) =>
-                  setCurrentProduct({ ...currentProduct, note: e.target.value })
-                }
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white font-bold text-sm outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-                rows={4}
-              />
-            </div>
-          )}
+          <EmployeeStatusSelect
+            value={currentProduct?.status || ""}
+            onChange={(status) =>
+              setCurrentProduct({
+                ...currentProduct,
+                status,
+              })
+            }
+          />
+
+          <div>
+            <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">
+              Internal Note
+            </label>
+            <textarea
+              value={currentProduct?.note || ""}
+              onChange={(e) =>
+                setCurrentProduct({ ...currentProduct, note: e.target.value })
+              }
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white font-bold text-sm outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+              rows={4}
+            />
+          </div>
         </div>
 
         <div className="mt-8 flex justify-end gap-3 pt-6 border-t border-slate-100">
@@ -880,26 +988,15 @@ const EmployeeListTable = () => {
       >
         <div className="space-y-5">
           {role === "superAdmin" ? (
-            <div>
-              <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">
-                Status Overwrite
-              </label>
-              <select
-                value={currentProduct?.status || ""}
-                onChange={(e) =>
-                  setCurrentProduct({
-                    ...currentProduct,
-                    status: e.target.value,
-                  })
-                }
-                className="h-12 w-full px-4 rounded-xl border border-slate-200 bg-white font-bold text-sm outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-                required
-              >
-                <option value="">Select Status</option>
-                <option value="Approved">Approved</option>
-                <option value="Pending">Pending</option>
-              </select>
-            </div>
+            <EmployeeStatusSelect
+              value={currentProduct?.status || ""}
+              onChange={(status) =>
+                setCurrentProduct({
+                  ...currentProduct,
+                  status,
+                })
+              }
+            />
           ) : (
             <div>
               <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">
@@ -977,6 +1074,15 @@ const EmployeeListTable = () => {
             placeholder="0.00"
           />
 
+          <Field
+            label="Joining Date"
+            type="date"
+            value={createProduct.joiningDate}
+            onChange={(v) =>
+              setCreateProduct({ ...createProduct, joiningDate: v })
+            }
+          />
+
           <div>
             <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">
               Department
@@ -1018,7 +1124,7 @@ const EmployeeListTable = () => {
               Designation
             </label>
             <Select
-              options={designationOptions}
+              options={getDesignationOptions(createProduct.departmentId)}
               value={designationOptions.find((o) => o.value === createProduct.designationId) || null}
               onChange={(selected) =>
                 setCreateProduct({ ...createProduct, designationId: selected?.value || "" })
@@ -1093,6 +1199,24 @@ const Field = ({
         readOnly ? "opacity-70 cursor-not-allowed" : ""
       }`}
     />
+  </div>
+);
+
+const EmployeeStatusSelect = ({ value, onChange }) => (
+  <div>
+    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">
+      Status
+    </label>
+    <select
+      value={value || ""}
+      onChange={(e) => onChange(e.target.value)}
+      className="h-12 w-full px-4 rounded-xl border border-slate-200 bg-white font-bold text-sm outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+      required
+    >
+      <option value="">Select Status</option>
+      <option value="Active">Active</option>
+      <option value="Deactive">Deactive</option>
+    </select>
   </div>
 );
 

@@ -31,7 +31,11 @@ import { useLayout } from "../../context/LayoutContext";
 import { translations } from "../../utils/translations";
 import { useGetAllEmployeeListWithoutQueryQuery } from "../../features/employeeList/employeeList";
 import { useGetAllDepartmentsQuery } from "../../features/department/department";
+import { useGetAllDesignationsQuery } from "../../features/designation/designation";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
+
+const isActiveEmployee = (employee) =>
+  String(employee?.status || "").toLowerCase() === "active";
 
 const EmployeeTable = () => {
   const { language } = useLayout();
@@ -65,6 +69,7 @@ const EmployeeTable = () => {
     date: "",
     name: "",
     departmentId: "",
+    designationId: "",
     employeeListId: "",
     employee_id: "",
     bookId: "",
@@ -93,8 +98,9 @@ const EmployeeTable = () => {
 
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [name, setName] = useState("");
+  const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [selectedDepartment, setSelectedDepartment] = useState(null);
+  const [selectedDesignation, setSelectedDesignation] = useState(null);
   const [selectedStatus, setSelectedStatus] = useState("All");
 
   // ✅ Per-page user selectable
@@ -260,8 +266,9 @@ const EmployeeTable = () => {
   }, [
     startDate,
     endDate,
-    name,
+    selectedEmployee,
     selectedDepartment,
+    selectedDesignation,
     selectedStatus,
     itemsPerPage,
   ]);
@@ -271,8 +278,9 @@ const EmployeeTable = () => {
     limit: itemsPerPage,
     startDate: startDate || undefined,
     endDate: endDate || undefined,
-    name: name?.trim() ? name.trim() : undefined,
+    employeeListId: selectedEmployee?.value || undefined,
     departmentId: selectedDepartment?.value || undefined,
+    designationId: selectedDesignation?.value || undefined,
     status: selectedStatus === "All" ? undefined : selectedStatus,
   };
 
@@ -294,26 +302,69 @@ const EmployeeTable = () => {
   const { data: allBookRes } = useGetAllBookWithoutQueryQuery();
   const { data: departmentsData, isLoading: isDepartmentsLoading } =
     useGetAllDepartmentsQuery({ page: 1, limit: 500 });
+  const { data: designationsData, isLoading: isDesignationsLoading } =
+    useGetAllDesignationsQuery({ page: 1, limit: 500 });
 
   // ----------------------------
   // Options
   // ----------------------------
   const employeeOptions = useMemo(() => {
-    return (employeesAll || []).map((e) => ({
-      value: e.name,
-      label: e.name,
-    }));
-  }, [employeesAll]);
+    const seen = new Set();
+
+    return (employeeList?.data || [])
+      .filter(isActiveEmployee)
+      .map((employee) => {
+        const id = employee.Id ?? employee.id ?? "";
+        const name = employee.name || "";
+        const employeeNo = employee.employee_id || "";
+        const key = employeeNo
+          ? `employee-${employeeNo}`
+          : name.trim().toLowerCase();
+
+        if (!key || seen.has(String(key))) return null;
+        seen.add(String(key));
+
+        return {
+          value: String(id),
+          label: name,
+          employee_id: employeeNo,
+        };
+      })
+      .filter(Boolean);
+  }, [employeeList]);
 
   const employeeSalaryOptions = useMemo(() => {
-    return (employeeList?.data || []).map((employee) => ({
-      value: employee.name || "",
-      label: employee.name || "",
-      id: employee.Id ?? employee.id ?? "",
-      employee_id: employee.employee_id || "",
-      salary: employee.salary ?? employee.basic_salary ?? employee.price ?? "",
-      departmentId: employee.departmentId ? String(employee.departmentId) : "",
-    }));
+    const seen = new Set();
+
+    return (employeeList?.data || [])
+      .filter(isActiveEmployee)
+      .map((employee) => {
+        const id = employee.Id ?? employee.id ?? "";
+        const name = employee.name || "";
+        const employeeNo = employee.employee_id || "";
+        const key = employeeNo
+          ? `employee-${employeeNo}`
+          : name.trim().toLowerCase();
+
+        if (!key || seen.has(String(key))) return null;
+        seen.add(String(key));
+
+        return {
+          value: String(id),
+          label: name,
+          id,
+          employee_id: employeeNo,
+          salary:
+            employee.salary ?? employee.basic_salary ?? employee.price ?? "",
+          departmentId: employee.departmentId
+            ? String(employee.departmentId)
+            : "",
+          designationId: employee.designationId
+            ? String(employee.designationId)
+            : "",
+        };
+      })
+      .filter(Boolean);
   }, [employeeList]);
 
   const departmentOptions = useMemo(() => {
@@ -327,6 +378,36 @@ const EmployeeTable = () => {
     departmentOptions.find(
       (option) => String(option.value) === String(departmentId || ""),
     ) || null;
+
+  const designationOptions = useMemo(() => {
+    return (designationsData?.data || []).map((designation) => ({
+      value: String(designation.Id ?? designation.id ?? ""),
+      label: designation.name || "Unnamed Designation",
+      departmentId: designation.departmentId
+        ? String(designation.departmentId)
+        : "",
+    }));
+  }, [designationsData]);
+
+  const getDesignationOptions = (departmentId) => {
+    const normalizedDepartmentId = String(departmentId || "");
+    if (!normalizedDepartmentId) return designationOptions;
+
+    return designationOptions.filter(
+      (option) =>
+        !option.departmentId || option.departmentId === normalizedDepartmentId,
+    );
+  };
+
+  const findDesignationOption = (designationId, departmentId) =>
+    getDesignationOptions(departmentId).find(
+      (option) => String(option.value) === String(designationId || ""),
+    ) || null;
+
+  const filterDesignationOptions = useMemo(
+    () => getDesignationOptions(selectedDepartment?.value),
+    [designationOptions, selectedDepartment],
+  );
 
   const bookOptions = useMemo(() => {
     return (allBookRes?.data || []).map((book) => ({
@@ -417,8 +498,9 @@ const EmployeeTable = () => {
   const applyEmployeeSalaryDefaults = (prev, selected) => {
     const next = {
       ...(prev || {}),
-      name: selected?.value || "",
+      name: selected?.label || "",
       departmentId: selected?.departmentId || "",
+      designationId: selected?.designationId || "",
       employeeListId: selected?.id || "",
       employee_id: selected?.employee_id || "",
       basic_salary:
@@ -495,6 +577,8 @@ const EmployeeTable = () => {
       date: employee.date ?? "",
       name: employee.name ?? "",
       departmentId: employee.departmentId ?? "",
+      designationId:
+        employee.designationId ?? employee.employeeProfile?.designationId ?? "",
       employeeListId:
         employee.employeeListId ??
         getEmployeeInternalId(String(employee.employee_id ?? "").trim()) ??
@@ -572,6 +656,7 @@ const EmployeeTable = () => {
         date: createEmployee.date || undefined,
         name: createEmployee.name || "",
         departmentId: normalizeOptionalId(createEmployee.departmentId),
+        designationId: normalizeOptionalId(createEmployee.designationId),
         employee_id: createEmployee.employee_id || "",
         employeeListId: normalizeOptionalId(createEmployee.employeeListId),
         bookId: normalizeOptionalId(createEmployee.bookId),
@@ -624,6 +709,7 @@ const EmployeeTable = () => {
         date: currentEmployee.date || undefined,
         name: currentEmployee.name || "",
         departmentId: normalizeOptionalId(currentEmployee.departmentId),
+        designationId: normalizeOptionalId(currentEmployee.designationId),
         employee_id: currentEmployee.employee_id || "",
         employeeListId: normalizeOptionalId(currentEmployee.employeeListId),
         bookId: normalizeOptionalId(currentEmployee.bookId),
@@ -701,6 +787,7 @@ const EmployeeTable = () => {
       date: employee.date || undefined,
       name: employee.name || "",
       departmentId: normalizeOptionalId(employee.departmentId),
+      designationId: normalizeOptionalId(employee.designationId),
       employee_id: employee.employee_id || "",
       employeeListId: normalizeOptionalId(employee.employeeListId),
       bookId: normalizeOptionalId(employee.bookId),
@@ -770,8 +857,9 @@ const EmployeeTable = () => {
   const clearFilters = () => {
     setStartDate("");
     setEndDate("");
-    setName("");
+    setSelectedEmployee(null);
     setSelectedDepartment(null);
+    setSelectedDesignation(null);
     setSelectedStatus("All");
 
     setCurrentPage(1);
@@ -1040,314 +1128,7 @@ const EmployeeTable = () => {
     toast.success("Selected payroll sheet downloaded!");
   };
 
-  // ----------------------------
-  // Bulk invoice PDF
-  // ----------------------------
-  // const downloadBulkInvoicePDF = async () => {
-  //   try {
-  //     if (!bulkInvoiceRef.current || selectedEmployees.length === 0) return;
-
-  //     if (document.fonts?.ready) await document.fonts.ready;
-
-  //     const pdf = new jsPDF("p", "mm", "a4");
-  //     const pageW = pdf.internal.pageSize.getWidth();
-  //     const pageH = pdf.internal.pageSize.getHeight();
-
-  //     const invoiceNodes =
-  //       bulkInvoiceRef.current.querySelectorAll(".invoice-page");
-
-  //     for (let i = 0; i < invoiceNodes.length; i++) {
-  //       const node = invoiceNodes[i];
-
-  //       const canvas = await html2canvas(node, {
-  //         scale: 3,
-  //         useCORS: true,
-  //         allowTaint: true,
-  //         backgroundColor: "#ffffff",
-  //         logging: false,
-  //         scrollX: 0,
-  //         scrollY: -window.scrollY,
-  //       });
-
-  //       const imgData = canvas.toDataURL("image/jpeg", 0.98);
-  //       const imgH = (canvas.height * pageW) / canvas.width;
-
-  //       let heightLeft = imgH;
-  //       let position = 0;
-
-  //       if (i > 0) pdf.addPage();
-
-  //       pdf.addImage(imgData, "JPEG", 0, position, pageW, imgH);
-  //       heightLeft -= pageH;
-
-  //       while (heightLeft > 0) {
-  //         position -= pageH;
-  //         pdf.addPage();
-  //         pdf.addImage(imgData, "JPEG", 0, position, pageW, imgH);
-  //         heightLeft -= pageH;
-  //       }
-  //     }
-
-  //     pdf.save(`Invoices_${Date.now()}.pdf`);
-  //   } catch (err) {
-  //     console.error(err);
-  //     toast.error("Bulk PDF download failed!");
-  //   }
-  // };
-
-  // const printBulkInvoices = () => {
-  //   if (!selectedEmployees?.length) return;
-
-  //   const printWindow = window.open("", "_blank", "width=900,height=650");
-  //   if (!printWindow) {
-  //     toast.error("Popup blocked! Allow popups then try again.");
-  //     return;
-  //   }
-
-  //   const formatDate = (d = new Date()) =>
-  //     new Date(d).toLocaleDateString("en-GB"); // dd/mm/yyyy
-
-  //   const escapeHtml = (v) => {
-  //     const s = String(v ?? "");
-  //     return s
-  //       .replaceAll("&", "&amp;")
-  //       .replaceAll("<", "&lt;")
-  //       .replaceAll(">", "&gt;")
-  //       .replaceAll('"', "&quot;")
-  //       .replaceAll("'", "&#039;");
-  //   };
-
-  //   const money = (n) => Number(n || 0).toFixed(2);
-  //   const num = (n) => Number(n || 0);
-
-  //   // ✅ Stable unique suffix so every invoice no is unique in the same print session
-  //   const sessionSuffix = String(Date.now()).slice(-6);
-
-  //   const invoicesHtml = selectedEmployees
-  //     .map((emp, idx) => {
-  //       const invoiceDate = formatDate(new Date());
-
-  //       // Unique invoice no (empId + date + session + index)
-  //       const invoiceNo = `${escapeHtml(emp?.employee_id || "EMP")}-${invoiceDate.replaceAll(
-  //         "/",
-  //         "",
-  //       )}-${sessionSuffix}${idx}`;
-
-  //       return `
-  //       <div class="invoice-container invoice-page">
-  //         <div class="invoice-header">
-  //           <h1>Kafela Mart</h1>
-  //           <p>Address line | Phone: +880 9647-555333</p>
-  //           <p>Invoice Date: ${invoiceDate} | Invoice No: ${invoiceNo}</p>
-  //         </div>
-
-  //         <div class="invoice-details">
-  //           <div class="left">
-  //             <p><strong>Employee:</strong> ${escapeHtml(emp?.name || "-")}</p>
-  //             <p><strong>Employee ID:</strong> ${escapeHtml(
-  //         emp?.employee_id || "-",
-  //       )}</p>
-  //           </div>
-  //           <div class="right">
-  //             <p><strong>Total Salary:</strong> ${money(emp?.total_salary)}</p>
-  //             <p>
-  //               <strong>Net Salary:</strong>
-  //               <span class="net-salary-inline">${money(emp?.net_salary)}</span>
-  //             </p>
-  //           </div>
-  //         </div>
-
-  //         <table class="invoice-table">
-  //           <thead>
-  //             <tr>
-  //               <th>Description</th>
-  //               <th class="amount-col">Amount</th>
-  //             </tr>
-  //           </thead>
-  //           <tbody>
-  //             <tr><td>Basic Salary</td><td class="amount-col">${money(
-  //         emp?.basic_salary,
-  //       )}</td></tr>
-  //             <tr><td>Incentive</td><td class="amount-col">${money(
-  //         emp?.incentive,
-  //       )}</td></tr>
-  //             <tr><td>Holiday Days</td><td class="amount-col">${num(
-  //         emp?.holiday_payment,
-  //       )}</td></tr>
-  //             <tr><td>Advance</td><td class="amount-col">-${money(
-  //         emp?.advance,
-  //       )}</td></tr>
-
-  //             <tr><td>Late (days)</td><td class="amount-col">${num(
-  //         emp?.late,
-  //       )}</td></tr>
-  //             <tr><td>Early Leave (days)</td><td class="amount-col">${num(
-  //         emp?.early_leave,
-  //       )}</td></tr>
-  //             <tr><td>Absent (days)</td><td class="amount-col">${num(
-  //         emp?.absent,
-  //       )}</td></tr>
-  //             <tr><td>Friday Absent (days)</td><td class="amount-col">${num(
-  //         emp?.friday_absent,
-  //       )}</td></tr>
-  //             <tr><td>Unapproval Absent (days)</td><td class="amount-col">${num(
-  //         emp?.unapproval_absent,
-  //       )}</td></tr>
-
-  //             <tr class="total-row">
-  //               <td><strong>Total Salary</strong></td>
-  //               <td class="amount-col"><strong>${money(
-  //         emp?.total_salary,
-  //       )}</strong></td>
-  //             </tr>
-  //             <tr class="net-salary-row">
-  //               <td><strong>Net Salary</strong></td>
-  //               <td class="amount-col net-salary"><strong>${money(
-  //         emp?.net_salary,
-  //       )}</strong></td>
-  //             </tr>
-  //           </tbody>
-  //         </table>
-
-  //         <div class="signature-section">
-  //           <div class="signature"><p>Employee Signature</p></div>
-  //           <div class="signature"><p>Authorized Signature</p></div>
-  //         </div>
-
-  //         <div class="note-section">
-  //           <p><strong>Note:</strong> ${escapeHtml(emp?.note || "")}</p>
-  //         </div>
-  //       </div>
-  //     `;
-  //     })
-  //     .join("");
-
-  //   printWindow.document.open();
-  //   printWindow.document.write(`
-  //   <html>
-  //     <head>
-  //       <title>Print Invoices</title>
-  //       <style>
-  //         * { box-sizing: border-box; }
-  //         body {
-  //           font-family: Arial, sans-serif;
-  //           margin: 0;
-  //           padding: 0;
-  //           background: #fff;
-  //           color: #111;
-  //         }
-
-  //         /* Page break per invoice */
-  //         .invoice-page{
-  //           page-break-after: always;
-  //           break-after: page;
-  //         }
-
-  //         .invoice-container {
-  //           width: 100%;
-  //           margin: 0 auto;
-  //           padding: 25px;
-  //           max-width: 900px;
-  //           background: #f7f7f7;
-  //         }
-
-  //         .invoice-header { text-align: center; margin-bottom: 18px; }
-  //         .invoice-header h1 { font-size: 28px; color: #333; margin: 0; }
-  //         .invoice-header p { font-size: 14px; color: #666; margin: 3px 0; }
-
-  //         .invoice-details {
-  //           display: flex;
-  //           justify-content: space-between;
-  //           gap: 16px;
-  //           margin-bottom: 18px;
-  //         }
-  //         .invoice-details .left { width: 60%; }
-  //         .invoice-details .right { width: 40%; text-align: right; }
-  //         .invoice-details p { margin: 4px 0; }
-  //         .net-salary-inline { font-size: 18px; font-weight: 700; margin-left: 6px; }
-
-  //         /* Table */
-  //         .invoice-table{
-  //           width: 100%;
-  //           border-collapse: collapse;
-  //           border: 1px solid #cbd5e1;
-  //           table-layout: fixed;
-  //           background: #fff;
-  //         }
-  //         .invoice-table th,
-  //         .invoice-table td{
-  //           padding: 10px 12px;
-  //           border: 1px solid #cbd5e1;
-  //           font-size: 14px;
-  //         }
-  //         .invoice-table th{
-  //           background: #f1f5f9;
-  //           font-weight: 700;
-  //         }
-
-  //         /* Force right border (print bug fix) */
-  //         .invoice-table th:last-child,
-  //         .invoice-table td:last-child{
-  //           border-right: 1px solid #cbd5e1 !important;
-  //         }
-
-  //         .amount-col { text-align: right; }
-
-  //         .total-row td { background: #f8fafc; font-weight: 700; }
-  //         .net-salary { font-size: 18px; font-weight: 800; }
-  //         .net-salary-row td { border-bottom: none; }
-
-  //         /* Signatures */
-  //         .signature-section {
-  //           display: flex;
-  //           justify-content: space-between;
-  //           gap: 30px;
-  //           margin-top: 45px;
-  //           break-inside: avoid;
-  //           page-break-inside: avoid;
-  //         }
-  //         .signature {
-  //           width: 45%;
-  //           text-align: center;
-  //           border-top: 1px solid #cbd5e1;
-  //           padding-top: 8px;
-  //           font-size: 14px;
-  //           font-weight: 600;
-  //         }
-  //         .signature p { margin: 0; }
-
-  //         /* Note */
-  //         .note-section{
-  //           margin-top: 18px;
-  //           font-size: 13px;
-  //           color: #555;
-  //         }
-  //         .note-section p { margin: 0; }
-
-  //         @media print{
-  //           body{ background: #fff; }
-  //           .invoice-container{
-  //             max-width: 100%;
-  //             background: #fff; /* change to #f7f7f7 if you want */
-  //           }
-  //         }
-  //       </style>
-  //     </head>
-
-  //     <body>
-  //       ${invoicesHtml}
-  //       <script>
-  //         window.onload = function() {
-  //           window.print();
-  //           window.onafterprint = function() { window.close(); }
-  //         }
-  //       </script>
-  //     </body>
-  //   </html>
-  // `);
-  //   printWindow.document.close();
-  // };
-
+  //
   const printBulkInvoices = () => {
     if (!selectedEmployees?.length) return;
 
@@ -1453,11 +1234,11 @@ const EmployeeTable = () => {
           </table>
 
           ${
-            emp?.note
+            emp?.remarks
               ? `
-            <div class="note-box">
-              <p class="note-title">Important Note</p>
-              <p class="note-text">${escapeHtml(emp?.note)}</p>
+            <div class="remarks-box">
+              <h4 class="remarks-title">Important Note</h4>
+              <p class="remarks-text">${escapeHtml(emp?.remarks)}</p>
             </div>
           `
               : ""
@@ -1643,29 +1424,31 @@ const EmployeeTable = () => {
             border-radius: 0 14px 14px 0;
           }
 
-          .note-box {
-            margin-top: 28px;
-            padding: 16px;
-            background: #fffbeb;
-            border: 1px solid #fde68a;
+          .remarks-box {
+            margin-top: 24px;
+            border: 1px solid #e2e8f0;
             border-radius: 12px;
+            background: #f8fafc;
+            padding: 16px;
+            page-break-inside: avoid;
+            break-inside: avoid;
           }
 
-          .note-title {
-            margin: 0 0 6px;
-            font-size: 10px;
-            font-weight: 800;
-            color: #d97706;
-            text-transform: uppercase;
-            letter-spacing: 0.12em;
-          }
-
-          .note-text {
-            margin: 0;
+          .remarks-title {
+            margin: 0 0 8px;
             font-size: 12px;
-            font-weight: 700;
-            color: #92400e;
-            line-height: 1.6;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+          }
+
+          .remarks-text {
+            margin: 0;
+            font-size: 14px;
+            line-height: 1.5rem;
+            color: #334155;
+            white-space: pre-wrap;
           }
 
           .signature-section {
@@ -1827,7 +1610,7 @@ const EmployeeTable = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-4 items-end mb-6 w-full justify-center mx-auto">
+      <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-7 gap-4 items-end mb-6 w-full justify-center mx-auto">
         <div className="flex flex-col">
           <label className="text-sm text-slate-600 mb-1">{t.from}</label>
           <input
@@ -1854,8 +1637,8 @@ const EmployeeTable = () => {
           </label>
           <Select
             options={employeeOptions}
-            value={employeeOptions.find((o) => o.value === name) || null}
-            onChange={(selected) => setName(selected?.value || "")}
+            value={selectedEmployee}
+            onChange={setSelectedEmployee}
             placeholder={t.select_employee || "Select Employee"}
             isClearable
             styles={selectStyles}
@@ -1868,7 +1651,10 @@ const EmployeeTable = () => {
           <Select
             options={departmentOptions}
             value={selectedDepartment}
-            onChange={setSelectedDepartment}
+            onChange={(selected) => {
+              setSelectedDepartment(selected);
+              setSelectedDesignation(null);
+            }}
             placeholder={
               isDepartmentsLoading
                 ? "Loading departments..."
@@ -1876,6 +1662,24 @@ const EmployeeTable = () => {
             }
             isClearable
             isLoading={isDepartmentsLoading}
+            styles={selectStyles}
+            className="w-full"
+          />
+        </div>
+
+        <div className="flex flex-col">
+          <label className="text-sm text-slate-600 mb-1">Designation</label>
+          <Select
+            options={filterDesignationOptions}
+            value={selectedDesignation}
+            onChange={setSelectedDesignation}
+            placeholder={
+              isDesignationsLoading
+                ? "Loading designations..."
+                : "Select Designation"
+            }
+            isClearable
+            isLoading={isDesignationsLoading}
             styles={selectStyles}
             className="w-full"
           />
@@ -1940,6 +1744,7 @@ const EmployeeTable = () => {
                 { key: "Date", label: t.date },
                 { key: "Employee", label: t.employee || "Employee" },
                 { key: "Department", label: "Department" },
+                { key: "Designation", label: "Designation" },
                 {
                   key: "Employee ID",
                   label: t.employee_id_label || "Employee ID",
@@ -1997,6 +1802,14 @@ const EmployeeTable = () => {
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                   {emp.department?.name ||
                     findDepartmentOption(emp.departmentId)?.label ||
+                    "-"}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                  {emp.designation?.name ||
+                    findDesignationOption(
+                      emp.designationId ?? emp.employeeProfile?.designationId,
+                      emp.departmentId,
+                    )?.label ||
                     "-"}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
@@ -2181,7 +1994,10 @@ const EmployeeTable = () => {
                 options={employeeSalaryOptions}
                 value={
                   employeeSalaryOptions.find(
-                    (option) => option.value === (currentEmployee?.name || ""),
+                    (option) =>
+                      option.value ===
+                        String(currentEmployee?.employeeListId || "") ||
+                      option.label === (currentEmployee?.name || ""),
                   ) || null
                 }
                 onChange={handleCurrentEmployeeSelect}
@@ -2203,6 +2019,7 @@ const EmployeeTable = () => {
                   setCurrentEmployee({
                     ...currentEmployee,
                     departmentId: selected?.value || "",
+                    designationId: "",
                   })
                 }
                 placeholder={
@@ -2212,6 +2029,34 @@ const EmployeeTable = () => {
                 }
                 isClearable
                 isLoading={isDepartmentsLoading}
+                styles={selectStyles}
+                className="w-full"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                Designation
+              </label>
+              <Select
+                options={getDesignationOptions(currentEmployee?.departmentId)}
+                value={findDesignationOption(
+                  currentEmployee?.designationId,
+                  currentEmployee?.departmentId,
+                )}
+                onChange={(selected) =>
+                  setCurrentEmployee({
+                    ...currentEmployee,
+                    designationId: selected?.value || "",
+                  })
+                }
+                placeholder={
+                  isDesignationsLoading
+                    ? "Loading designations..."
+                    : "Select Designation"
+                }
+                isClearable
+                isLoading={isDesignationsLoading}
                 styles={selectStyles}
                 className="w-full"
               />
@@ -2516,7 +2361,10 @@ const EmployeeTable = () => {
                 options={employeeSalaryOptions}
                 value={
                   employeeSalaryOptions.find(
-                    (option) => option.value === createEmployee.name,
+                    (option) =>
+                      option.value ===
+                        String(createEmployee.employeeListId || "") ||
+                      option.label === createEmployee.name,
                   ) || null
                 }
                 onChange={handleCreateEmployeeSelect}
@@ -2538,6 +2386,7 @@ const EmployeeTable = () => {
                   setCreateEmployee({
                     ...createEmployee,
                     departmentId: selected?.value || "",
+                    designationId: "",
                   })
                 }
                 placeholder={
@@ -2547,6 +2396,34 @@ const EmployeeTable = () => {
                 }
                 isClearable
                 isLoading={isDepartmentsLoading}
+                styles={selectStyles}
+                className="w-full"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                Designation
+              </label>
+              <Select
+                options={getDesignationOptions(createEmployee.departmentId)}
+                value={findDesignationOption(
+                  createEmployee.designationId,
+                  createEmployee.departmentId,
+                )}
+                onChange={(selected) =>
+                  setCreateEmployee({
+                    ...createEmployee,
+                    designationId: selected?.value || "",
+                  })
+                }
+                placeholder={
+                  isDesignationsLoading
+                    ? "Loading designations..."
+                    : "Select Designation"
+                }
+                isClearable
+                isLoading={isDesignationsLoading}
                 styles={selectStyles}
                 className="w-full"
               />
@@ -2883,14 +2760,32 @@ const EmployeeTable = () => {
               </tbody>
             </table>
 
-            {invoiceEmployee?.note && (
-              <div className="mt-8 p-4 bg-amber-50 rounded-xl border border-amber-100">
-                <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-1">
-                  {t.important_note || "Important Note"}
-                </p>
-                <p className="text-xs font-bold text-amber-800 leading-relaxed">
-                  {invoiceEmployee.note}
-                </p>
+            {invoiceEmployee?.remarks && (
+              <div className="relative mt-8 overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50 to-white p-5 shadow-sm">
+                {/* Accent Line */}
+                <div className="absolute left-0 top-0 h-full w-1.5 bg-indigo-500" />
+
+                <div className="pl-3">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
+                      📝
+                    </div>
+
+                    <div>
+                      <h4 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">
+                        Important Note
+                      </h4>
+
+                      <p className="text-[11px] text-slate-400 font-medium">
+                        Management / Payroll Remarks
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="whitespace-pre-wrap text-[15px] leading-7 text-slate-700 font-medium">
+                    {invoiceEmployee.remarks}
+                  </p>
+                </div>
               </div>
             )}
 
@@ -3136,14 +3031,32 @@ const EmployeeTable = () => {
                     </tbody>
                   </table>
 
-                  {emp?.note && (
-                    <div className="mt-8 p-4 bg-amber-50 rounded-xl border border-amber-100">
-                      <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-1">
-                        {t.important_note || "Important Note"}
-                      </p>
-                      <p className="text-xs font-bold text-amber-800 leading-relaxed">
-                        {emp.note}
-                      </p>
+                  {invoiceEmployee?.remarks && (
+                    <div className="relative mt-8 overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50 to-white p-5 shadow-sm">
+                      {/* Accent Line */}
+                      <div className="absolute left-0 top-0 h-full w-1.5 bg-indigo-500" />
+
+                      <div className="pl-3">
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
+                            📝
+                          </div>
+
+                          <div>
+                            <h4 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">
+                              Important Note
+                            </h4>
+
+                            <p className="text-[11px] text-slate-400 font-medium">
+                              Management / Payroll Remarks
+                            </p>
+                          </div>
+                        </div>
+
+                        <p className="whitespace-pre-wrap text-[15px] leading-7 text-slate-700 font-medium">
+                          {invoiceEmployee.remarks}
+                        </p>
+                      </div>
                     </div>
                   )}
 

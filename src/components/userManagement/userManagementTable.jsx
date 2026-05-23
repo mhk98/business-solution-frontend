@@ -21,7 +21,10 @@ import {
   useUserStatusUpdateMutation,
   useUserUpdateMutation,
 } from "../../features/auth/auth";
-import { saveRolePermissionsForRole } from "../../utils/navigationPermissions";
+import {
+  ROLE_OPTIONS,
+  saveRolePermissionsForRole,
+} from "../../utils/navigationPermissions";
 import Modal from "../common/Modal";
 import useDebounce from "../../hooks/useDebounce";
 
@@ -33,6 +36,13 @@ const DOCUMENT_LABELS = {
   guardianPhoto: "Guardian Photo",
   guardianIdCard: "Guardian ID Card",
 };
+
+const getVisibleRoleOptions = (actorRole) =>
+  ROLE_OPTIONS.filter(
+    (role) =>
+      actorRole === "superAdmin" ||
+      (role.value !== "superAdmin" && role.value !== "admin"),
+  );
 
 const UserManagementTable = () => {
   const navigate = useNavigate();
@@ -622,20 +632,11 @@ const UserManagementTable = () => {
                 className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
                 required
               >
-                {actorRole === "superAdmin" && (
-                  <>
-                    <option value="superAdmin">Super Admin</option>
-                    <option value="admin">Admin</option>
-                  </>
-                )}
-
-                <option value="marketer">Marketer</option>
-                <option value="leader">Leader</option>
-                <option value="inventor">Inventor</option>
-                <option value="accountant">Accountant</option>
-                <option value="employee">Employee</option>
-                <option value="staff">Staff</option>
-                <option value="user">User</option>
+                {getVisibleRoleOptions(actorRole).map((role) => (
+                  <option key={role.value} value={role.value}>
+                    {role.label}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -718,14 +719,11 @@ const UserManagementTable = () => {
                 required
               >
                 <option value="">Select Role</option>
-                <option value="superAdmin">Super Admin</option>
-                <option value="admin">Admin</option>
-                <option value="marketer">Marketer</option>
-                <option value="leader">Leader</option>
-                <option value="inventor">Inventor</option>
-                <option value="accountant">Accountant</option>
-                <option value="employee">Employee</option>
-                <option value="user">User</option>
+                {getVisibleRoleOptions(actorRole).map((role) => (
+                  <option key={role.value} value={role.value}>
+                    {role.label}
+                  </option>
+                ))}
               </select>
             </div>
 

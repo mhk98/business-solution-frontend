@@ -54,11 +54,23 @@ export const employeeApi = createApi({
         startDate,
         endDate,
         name,
+        employeeListId,
         departmentId,
+        designationId,
         status,
       }) => ({
         url: "/employee",
-        params: { page, limit, startDate, endDate, name, departmentId, status }, // Pass the page and limit as query params
+        params: {
+          page,
+          limit,
+          startDate,
+          endDate,
+          name,
+          employeeListId,
+          departmentId,
+          designationId,
+          status,
+        }, // Pass the page and limit as query params
       }),
       providesTags: ["employee"],
       refetchOnMountOrArgChange: true,

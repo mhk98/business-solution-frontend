@@ -231,18 +231,36 @@ const InventoryOverviewTable = () => {
           </p>
         </div>
 
-        <div className="inline-flex items-center gap-4 bg-indigo-50 border border-indigo-100 px-6 py-3 rounded-2xl shadow-sm shadow-indigo-50">
-          <div className="h-10 w-10 bg-white rounded-xl flex items-center justify-center text-indigo-600 shadow-sm">
-            <ShoppingBasket size={20} />
-          </div>
-          <div>
-            <div className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em]">
-              {t.total_stock}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="inline-flex items-center gap-4 bg-indigo-50 border border-indigo-100 px-6 py-3 rounded-2xl shadow-sm shadow-indigo-50">
+            <div className="h-10 w-10 bg-white rounded-xl flex items-center justify-center text-indigo-600 shadow-sm">
+              <ShoppingBasket size={20} />
             </div>
-            <div className="text-xl font-black text-indigo-900 tabular-nums">
-              {isLoading
-                ? t.syncing
-                : (data?.meta?.totalQuantity ?? 0).toLocaleString()}
+            <div>
+              <div className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em]">
+                Total Quantity
+              </div>
+              <div className="text-xl font-black text-indigo-900 tabular-nums">
+                {isLoading
+                  ? t.syncing
+                  : (data?.meta?.totalQuantity ?? 0).toLocaleString()}
+              </div>
+            </div>
+          </div>
+
+          <div className="inline-flex items-center gap-4 bg-emerald-50 border border-emerald-100 px-6 py-3 rounded-2xl shadow-sm shadow-emerald-50">
+            <div className="h-10 w-10 bg-white rounded-xl flex items-center justify-center text-emerald-600 shadow-sm">
+              <ShoppingBasket size={20} />
+            </div>
+            <div>
+              <div className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.2em]">
+                Total Stock Balance
+              </div>
+              <div className="text-xl font-black text-emerald-900 tabular-nums">
+                {isLoading
+                  ? t.syncing
+                  : formatMoney(data?.meta?.totalStockBalance ?? 0)}
+              </div>
             </div>
           </div>
         </div>

@@ -4,9 +4,11 @@ import {
   CalendarDays,
   ClipboardList,
   Edit3,
+  Plus,
   Save,
   Search,
   Trash2,
+  X,
 } from "lucide-react";
 import Select from "react-select";
 import toast from "react-hot-toast";
@@ -51,6 +53,7 @@ const LogisticWorkReportManager = () => {
   const [fromDate, setFromDate] = useState(today);
   const [toDate, setToDate] = useState(today);
   const [currentPage, setCurrentPage] = useState(1);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   const currentReportArgs = useMemo(
     () => ({ page: 1, limit: 1, reportDate: form.reportDate }),
@@ -177,6 +180,15 @@ const LogisticWorkReportManager = () => {
     setForm({ ...EMPTY_FORM, reportDate: today });
   };
 
+  const openReportModal = () => {
+    setIsReportModalOpen(true);
+  };
+
+  const closeReportModal = () => {
+    setIsReportModalOpen(false);
+    if (editingId) resetForm();
+  };
+
   const handleFormChange = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
@@ -204,6 +216,7 @@ const LogisticWorkReportManager = () => {
           targetId ? "Logistic report updated" : "Logistic report submitted",
         );
         setEditingId(null);
+        setIsReportModalOpen(false);
         refetchReports();
       }
     } catch (err) {
@@ -222,6 +235,7 @@ const LogisticWorkReportManager = () => {
         {},
       ),
     });
+    setIsReportModalOpen(true);
   };
 
   const handleDelete = async (row) => {
@@ -267,67 +281,7 @@ const LogisticWorkReportManager = () => {
       description="Logistic team members submit daily workflow counts, and managers can search, compare, and filter submissions by date range."
       stats={stats}
     >
-      <div className="grid gap-6 xl:grid-cols-[420px_1fr]">
-        <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h3 className="text-lg font-bold text-slate-900">
-                {editingId || currentReport
-                  ? "Edit Logistic Report"
-                  : "Submit Logistic Report"}
-              </h3>
-              <p className="mt-1 text-sm text-slate-500">
-                One report can be submitted per employee for a date.
-              </p>
-            </div>
-            {(editingId || currentReport) && (
-              <button
-                type="button"
-                onClick={resetForm}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 sm:w-auto"
-              >
-                New
-              </button>
-            )}
-          </div>
-
-          <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
-            <InputField
-              label="Report Date"
-              type="date"
-              value={form.reportDate}
-              onChange={(value) => handleFormChange("reportDate", value)}
-              required
-            />
-            <div className="grid gap-3 sm:grid-cols-2">
-              {REPORT_FIELDS.map((field) => (
-                <InputField
-                  key={field.key}
-                  label={field.label}
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={form[field.key]}
-                  onChange={(value) => handleFormChange(field.key, value)}
-                />
-              ))}
-            </div>
-
-            <button
-              type="submit"
-              disabled={creating || updating}
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
-            >
-              <Save size={16} />
-              {creating || updating
-                ? "Saving..."
-                : editingId || currentReport
-                  ? "Update Report"
-                  : "Submit Report"}
-            </button>
-          </form>
-        </section>
-
+      <div className="grid gap-6">
         <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -338,8 +292,18 @@ const LogisticWorkReportManager = () => {
                 Search by name and filter with start and end date.
               </p>
             </div>
-            <div className="text-sm font-semibold text-slate-600">
-              Showing {reports.length} of {totalReports}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={openReportModal}
+                className="inline-flex h-10 items-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700"
+              >
+                <Plus size={16} />
+                Add Logistic Report
+              </button>
+              <div className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600">
+                Showing {reports.length} of {totalReports}
+              </div>
             </div>
           </div>
 
@@ -507,6 +471,87 @@ const LogisticWorkReportManager = () => {
           )}
         </section>
       </div>
+
+      {isReportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-6 backdrop-blur-sm">
+          <div className="flex max-h-[92vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">
+                  {editingId || currentReport
+                    ? "Edit Logistic Report"
+                    : "Submit Logistic Report"}
+                </h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  One report can be submitted per employee for a date.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {(editingId || currentReport) && (
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+                  >
+                    New
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={closeReportModal}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50"
+                  aria-label="Close report modal"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            <form
+              className="min-h-0 overflow-y-auto px-6 py-5"
+              onSubmit={handleSubmit}
+            >
+              <div className="space-y-4">
+                <InputField
+                  label="Report Date"
+                  type="date"
+                  value={form.reportDate}
+                  onChange={(value) => handleFormChange("reportDate", value)}
+                  required
+                />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {REPORT_FIELDS.map((field) => (
+                    <InputField
+                      key={field.key}
+                      label={field.label}
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={form[field.key]}
+                      onChange={(value) => handleFormChange(field.key, value)}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="sticky bottom-0 mt-6 flex justify-end border-t border-slate-100 bg-white pt-4">
+                <button
+                  type="submit"
+                  disabled={creating || updating}
+                  className="inline-flex h-11 min-w-[180px] items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
+                >
+                  <Save size={16} />
+                  {creating || updating
+                    ? "Saving..."
+                    : editingId || currentReport
+                      ? "Update Report"
+                      : "Submit Report"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </HrmWorkspace>
   );
 };

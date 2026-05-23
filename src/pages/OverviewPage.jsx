@@ -214,13 +214,20 @@ const OverviewPage = () => {
   // ✅ values (fallback 0)
   const totalAssetsBalance = Number(summary?.totalAssetsBalance || 0);
   const inventoryOverview = Number(summary?.totalInventoryOverview || 0);
+  const totalInventoryQuantity = Number(summary?.totalInventoryQuantity || 0);
   const totalMetaAmount = Number(summary?.totalMetaAmount || 0);
   const totalCashInAmount = Number(summary?.totalCashInAmount || 0);
   const totalCashOutAmount = Number(summary?.totalCashOutAmount || 0);
   const netCashPosition = Number(summary?.netCashPosition || 0);
   const totalDamageStockPrice = Number(summary?.totalDamageStockPrice || 0);
+  const totalDamageStockQuantity = Number(
+    summary?.totalDamageStockQuantity || 0,
+  );
   const totalRepairingStockPrice = Number(
     summary?.totalRepairingStockPrice || 0,
+  );
+  const totalRepairingStockQuantity = Number(
+    summary?.totalRepairingStockQuantity || 0,
   );
   const lowStockCount = Number(summary?.lowStockCount || 0);
   const pendingPurchaseRequisitionCount = Number(
@@ -722,16 +729,19 @@ const OverviewPage = () => {
                   [
                     "Product Stock",
                     `৳${inventoryOverview.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+                    totalInventoryQuantity,
                   ],
                   [
                     "Damage Stock",
                     `৳${totalDamageStockPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+                    totalDamageStockQuantity,
                   ],
                   [
                     "Repairing Stock",
                     `৳${totalRepairingStockPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+                    totalRepairingStockQuantity,
                   ],
-                ].map(([label, value]) => (
+                ].map(([label, value, quantity]) => (
                   <div
                     key={label}
                     className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/70 px-4 py-3"
@@ -739,8 +749,16 @@ const OverviewPage = () => {
                     <span className="text-sm font-semibold text-slate-600">
                       {label}
                     </span>
-                    <span className="text-sm font-black text-slate-900">
-                      {isLoading ? "..." : value}
+                    <span className="text-right">
+                      <span className="block text-sm font-black text-slate-900">
+                        {isLoading ? "..." : value}
+                      </span>
+                      <span className="block text-xs font-semibold text-slate-400">
+                        Qty:{" "}
+                        {isLoading
+                          ? "..."
+                          : Number(quantity || 0).toLocaleString()}
+                      </span>
                     </span>
                   </div>
                 ))}

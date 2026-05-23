@@ -38,6 +38,29 @@ const getVariantDisplayRows = (record) => {
   return [];
 };
 
+const formatMoney = (value) => {
+  const amount = Number(value || 0);
+  return `৳${amount.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+};
+
+const getUnitPrice = (amount, quantity) => {
+  const qty = Number(quantity || 0);
+  if (!qty) return 0;
+  return Number(amount || 0) / qty;
+};
+
+const getStockUnitPrice = (record, field) =>
+  getUnitPrice(record?.[field], record?.quantity);
+
+const getVariantUnitPrice = (record, variant, field) => {
+  const directValue = Number(variant?.[field] || 0);
+  if (directValue) return directValue;
+  return getStockUnitPrice(record, field);
+};
+
 const getVariantRowsTotalQuantity = (record) =>
   getVariantDisplayRows(record).reduce(
     (total, variant) => total + (Number(variant.quantity) || 0),
@@ -575,6 +598,9 @@ const DamageRepairingStockTable = () => {
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Variants
               </th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                Financials
+              </th>
 
               {/* <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Status
@@ -608,13 +634,13 @@ const DamageRepairingStockTable = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                     {Number(rp.quantity || 0)}
                   </td>
-                  <td className="px-6 py-4 min-w-[260px]">
+                  <td className="px-6 py-4 min-w-[420px]">
                     {variantDisplayRows.length > 0 ? (
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-nowrap items-start gap-2 overflow-x-auto pb-1">
                         {variantDisplayRows.map((variant, index) => (
                           <div
                             key={`${rp.Id}-variant-${index}`}
-                            className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 px-3 py-2 shadow-sm"
+                            className="min-w-[132px] rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 px-3 py-2 shadow-sm"
                           >
                             <div className="flex items-center gap-2 text-[11px] font-bold text-slate-800">
                               <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] uppercase tracking-wide text-white">
@@ -630,14 +656,77 @@ const DamageRepairingStockTable = () => {
                                 {Number(variant.quantity || 0).toFixed(0)}
                               </span>
                             </div>
+                            <div className="mt-1 text-[10px] font-medium text-slate-500">
+                              Unit Buy{" "}
+                              <span className="font-bold text-slate-700">
+                                {formatMoney(
+                                  getVariantUnitPrice(
+                                    rp,
+                                    variant,
+                                    "purchase_price",
+                                  ),
+                                )}
+                              </span>
+                            </div>
+                            <div className="mt-1 text-[10px] font-medium text-slate-500">
+                              Unit Sell{" "}
+                              <span className="font-bold text-slate-700">
+                                {formatMoney(
+                                  getVariantUnitPrice(
+                                    rp,
+                                    variant,
+                                    "sale_price",
+                                  ),
+                                )}
+                              </span>
+                            </div>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <div className="inline-flex items-center rounded-full border border-dashed border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] font-semibold text-slate-400">
-                        No variants
+                      <div className="inline-flex min-w-[132px] flex-col rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
+                        <span className="font-bold text-slate-800">
+                          {resolveProductName(rp)}
+                        </span>
+                        <span className="mt-2">
+                          Qty{" "}
+                          <span className="font-bold text-slate-900">
+                            {Number(rp.quantity || 0).toFixed(0)}
+                          </span>
+                        </span>
+                        <span className="mt-1">
+                          Unit Buy{" "}
+                          <span className="font-bold text-slate-700">
+                            {formatMoney(getStockUnitPrice(rp, "purchase_price"))}
+                          </span>
+                        </span>
+                        <span className="mt-1">
+                          Unit Sell{" "}
+                          <span className="font-bold text-slate-700">
+                            {formatMoney(getStockUnitPrice(rp, "sale_price"))}
+                          </span>
+                        </span>
+                        <span className="mt-2 text-[10px] text-slate-400">
+                          No variants
+                        </span>
                       </div>
                     )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                    <div className="space-y-1 text-[11px] uppercase tracking-wide">
+                      <div>
+                        <span className="text-slate-400">Total Buy: </span>
+                        <span className="font-bold text-slate-900">
+                          {formatMoney(rp.purchase_price)}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400">Total Sell: </span>
+                        <span className="font-bold text-emerald-600">
+                          {formatMoney(rp.sale_price)}
+                        </span>
+                      </div>
+                    </div>
                   </td>
                   {/* <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                   <span
@@ -733,7 +822,7 @@ const DamageRepairingStockTable = () => {
             {!isLoading && rows.length === 0 && (
               <tr>
                 <td
-                  colSpan={5}
+                  colSpan={6}
                   className="px-6 py-8 text-center text-sm text-slate-600"
                 >
                   No data found

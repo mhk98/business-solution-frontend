@@ -62,6 +62,7 @@ export const cashInOutApi = baseApi.injectEndpoints({
           paymentStatus,
           category,
           lender,
+          loanId,
           bookId,
         } = arg;
 
@@ -76,6 +77,7 @@ export const cashInOutApi = baseApi.injectEndpoints({
           paymentStatus,
           category,
           lender,
+          loanId,
         };
 
         Object.keys(params).forEach((k) => {
@@ -120,7 +122,7 @@ export const cashInOutApi = baseApi.injectEndpoints({
     }),
 
     getLoanHistory: build.query({
-      query: ({ lender, page, limit, searchTerm, startDate, endDate }) => {
+      query: ({ loanId, lender, page, limit, searchTerm, startDate, endDate }) => {
         const params = { page, limit, searchTerm, startDate, endDate };
 
         Object.keys(params).forEach((k) => {
@@ -129,12 +131,12 @@ export const cashInOutApi = baseApi.injectEndpoints({
         });
 
         return {
-          url: `/cash-in-out/loans/${encodeURIComponent(lender)}`,
+          url: `/cash-in-out/loans/${encodeURIComponent(loanId || lender)}`,
           params,
         };
       },
       providesTags: (result, err, arg) => [
-        { type: "CashInOut", id: `LOAN-${arg?.lender || ""}` },
+        { type: "CashInOut", id: `LOAN-${arg?.loanId || arg?.lender || ""}` },
       ],
       refetchOnMountOrArgChange: true,
     }),

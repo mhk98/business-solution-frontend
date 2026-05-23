@@ -5,10 +5,10 @@ import toast from "react-hot-toast";
 import {
   useDeleteCashInOutMutation,
   useGetAllCashInOutQuery,
-  useGetAllCashInOutWithoutQueryQuery,
   useInsertCashInOutMutation,
   useUpdateCashInOutMutation,
 } from "../../features/cashInOut/cashInOut";
+import { useGetAllLoanWithoutQueryQuery } from "../../features/loan/loan";
 import { useParams } from "react-router-dom";
 import Select from "react-select";
 import ReportMenu from "./ReportMenu";
@@ -75,7 +75,7 @@ const CashInOutTable = () => {
   const [isModalOpen3, setIsModalOpen3] = useState(false); // delete/note
   const [currentProduct, setCurrentProduct] = useState(null);
   const [filterCategory, setFilterCategory] = useState("");
-  const [filterLender, setFilterLender] = useState("");
+  const [filterLoanId, setFilterLoanId] = useState("");
 
   const userId = localStorage.getItem("userId");
 
@@ -86,6 +86,7 @@ const CashInOutTable = () => {
     bankAccount: "",
     supplierId: "",
     lender: "",
+    loanId: "",
     note: "",
     status: "",
     category: "",
@@ -177,7 +178,7 @@ const CashInOutTable = () => {
     filterPaymentMode,
     filterPaymentStatus,
     filterCategory,
-    filterLender,
+    filterLoanId,
   ]);
 
   useEffect(() => {
@@ -194,8 +195,11 @@ const CashInOutTable = () => {
   }, [createProduct.paymentMode]);
 
   useEffect(() => {
-    if (!isLoanCategory(createProduct.category) && createProduct.lender) {
-      setCreateProduct((p) => ({ ...p, lender: "" }));
+    if (
+      !isLoanCategory(createProduct.category) &&
+      (createProduct.lender || createProduct.loanId)
+    ) {
+      setCreateProduct((p) => ({ ...p, lender: "", loanId: "" }));
     }
   }, [createProduct.category]);
 
@@ -211,8 +215,11 @@ const CashInOutTable = () => {
 
   useEffect(() => {
     if (!currentProduct) return;
-    if (!isLoanCategory(currentProduct.category) && currentProduct.lender) {
-      setCurrentProduct((p) => ({ ...p, lender: "" }));
+    if (
+      !isLoanCategory(currentProduct.category) &&
+      (currentProduct.lender || currentProduct.loanId)
+    ) {
+      setCurrentProduct((p) => ({ ...p, lender: "", loanId: "" }));
     }
   }, [currentProduct?.category]);
 
@@ -257,7 +264,7 @@ const CashInOutTable = () => {
       endDate: endDate || undefined,
       bookId: id,
       category: filterCategory || undefined,
-      lender: filterLender || undefined,
+      loanId: filterLoanId || undefined,
       paymentMode: filterPaymentMode || undefined,
       paymentStatus: filterPaymentStatus || undefined,
       searchTerm: debouncedSearchTerm || undefined, // ensure it's included in the query
@@ -278,7 +285,7 @@ const CashInOutTable = () => {
     filterPaymentMode,
     filterPaymentStatus,
     filterCategory,
-    filterLender,
+    filterLoanId,
     searchTerm,
   ]);
 
@@ -295,44 +302,16 @@ const CashInOutTable = () => {
     }
   }, [data, isLoading, isError, error, itemsPerPage]);
 
-  const { data: allCashInOutRes } = useGetAllCashInOutWithoutQueryQuery();
-
-  const lenderOptions = useMemo(() => {
-    const rows = Array.isArray(allCashInOutRes?.data)
-      ? allCashInOutRes.data
-      : Array.isArray(products)
-        ? products
-        : [];
-
-    const values = [
-      ...rows.map(
-        (row) =>
-          row?.lender ??
-          row?.loanName ??
-          row?.loan_person_name ??
-          row?.loanPersonName ??
-          "",
+  const { data: allLoanRes } = useGetAllLoanWithoutQueryQuery();
+  const loans = Array.isArray(allLoanRes?.data) ? allLoanRes.data : [];
+  const activeLoans = useMemo(
+    () =>
+      loans.filter(
+        (loan) =>
+          String(loan.status || "Active").trim().toLowerCase() === "active",
       ),
-      createProduct?.lender || "",
-      currentProduct?.lender || "",
-    ];
-
-    const seen = new Set();
-
-    return values.filter((value) => {
-      const normalized = String(value || "").trim();
-      const key = normalized.toLowerCase();
-
-      if (!normalized || seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }, [
-    allCashInOutRes?.data,
-    products,
-    createProduct?.lender,
-    currentProduct?.lender,
-  ]);
+    [loans],
+  );
 
   // book info (name for report header)
   const { data: bookRes } = useGetSingleBookDataByIdQuery(id, { skip: !id });
@@ -509,6 +488,7 @@ const CashInOutTable = () => {
       bankAccount: "",
       supplierId: "",
       lender: "",
+      loanId: "",
       note: "",
       status: "",
       category: "",
@@ -559,7 +539,9 @@ const CashInOutTable = () => {
       bankName: rp.bankName ?? "",
       bankAccount: rp.bankAccount ?? "",
       supplierId: rp.supplierId ?? "",
+      loanId: rp.loanId ?? rp.loan?.Id ?? "",
       lender:
+        rp.loan?.name ??
         rp.lender ??
         rp.loanName ??
         rp.loan_person_name ??
@@ -588,7 +570,9 @@ const CashInOutTable = () => {
       amount: rp.amount ?? "",
       bankName: rp.bankName ?? "",
       supplierId: rp.supplierId ?? "",
+      loanId: rp.loanId ?? rp.loan?.Id ?? "",
       lender:
+        rp.loan?.name ??
         rp.lender ??
         rp.loanName ??
         rp.loan_person_name ??
@@ -621,9 +605,9 @@ const CashInOutTable = () => {
 
       if (
         isLoanCategory(finalCategoryName) &&
-        !String(currentProduct.lender || "").trim()
+        !String(currentProduct.loanId || "").trim()
       ) {
-        return toast.error("Lender name is required!");
+        return toast.error("Loan is required!");
       }
 
       // If the category is new and being added dynamically
@@ -642,7 +626,8 @@ const CashInOutTable = () => {
         (currentProduct.note || currentProduct.remarks || "").trim(),
       );
       formData.append("supplierId", currentProduct?.supplierId || "");
-      formData.append("lender", currentProduct?.lender?.trim() || "");
+      formData.append("loanId", currentProduct?.loanId || "");
+      formData.append("lender", selectedEditLoan?.name || "");
       formData.append("status", currentProduct.status);
       formData.append("date", currentProduct.date);
       formData.append("userId", userId);
@@ -719,9 +704,9 @@ const CashInOutTable = () => {
 
       if (
         isLoanCategory(finalCategoryName) &&
-        !String(createProduct.lender || "").trim()
+        !String(createProduct.loanId || "").trim()
       ) {
-        return toast.error("Lender name is required!");
+        return toast.error("Loan is required!");
       }
 
       // Form data preparation for submission
@@ -752,7 +737,8 @@ const CashInOutTable = () => {
       formData.append("bookId", id);
       formData.append("actorRole", role);
       formData.append("supplierId", createProduct?.supplierId);
-      formData.append("lender", createProduct?.lender?.trim() || "");
+      formData.append("loanId", createProduct?.loanId || "");
+      formData.append("lender", selectedCreateLoan?.name || "");
       if (createProduct.file) formData.append("file", createProduct.file);
 
       const res = await insertCashIn(formData).unwrap();
@@ -768,6 +754,8 @@ const CashInOutTable = () => {
           bankName: "",
           bankAccount: "",
           lender: "",
+          loanId: "",
+          supplierId: "",
           category: "", // Reset the category name
           remarks: "",
           note: "",
@@ -815,9 +803,9 @@ const CashInOutTable = () => {
 
       if (
         isLoanCategory(finalCategoryName) &&
-        !String(createProduct.lender || "").trim()
+        !String(createProduct.loanId || "").trim()
       ) {
-        return toast.error("Lender name is required!");
+        return toast.error("Loan is required!");
       }
 
       // Form data preparation for submission
@@ -848,7 +836,8 @@ const CashInOutTable = () => {
       formData.append("bookId", id);
       formData.append("actorRole", role);
       formData.append("supplierId", createProduct?.supplierId);
-      formData.append("lender", createProduct?.lender?.trim() || "");
+      formData.append("loanId", createProduct?.loanId || "");
+      formData.append("lender", selectedCreateLoan?.name || "");
       if (createProduct.file) formData.append("file", createProduct.file);
 
       const res = await insertCashIn(formData).unwrap();
@@ -864,6 +853,8 @@ const CashInOutTable = () => {
           bankName: "",
           bankAccount: "",
           lender: "",
+          loanId: "",
+          supplierId: "",
           category: "", // Reset the category name
           remarks: "",
           amount: "",
@@ -945,7 +936,7 @@ const CashInOutTable = () => {
     setFilterPaymentMode("");
     setFilterPaymentStatus("");
     setFilterCategory("");
-    setFilterLender("");
+    setFilterLoanId("");
     setSupplier("");
   };
 
@@ -1067,14 +1058,31 @@ const CashInOutTable = () => {
     [suppliers],
   );
 
-  const lenderSelectOptions = useMemo(
+  const loanSelectOptions = useMemo(
     () =>
-      (lenderOptions || []).map((name) => ({
-        value: name,
-        label: name,
+      (activeLoans || []).map((loan) => ({
+        value: loan.Id,
+        label: loan.name,
       })),
-    [lenderOptions],
+    [activeLoans],
   );
+
+  const findLoanById = (loanId) =>
+    activeLoans.find((loan) => String(loan.Id) === String(loanId));
+
+  const selectedCreateLoan = findLoanById(createProduct?.loanId);
+  const selectedEditLoan = findLoanById(currentProduct?.loanId);
+
+  const renderLoanBalance = (loan) => {
+    if (!loan) return null;
+    return (
+      <div className="mt-2 grid grid-cols-1 gap-1 rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 sm:grid-cols-3">
+        <span>নিয়েছি: ৳{Number(loan.totalLoanTaken || 0).toLocaleString()}</span>
+        <span>পরিশোধ: ৳{Number(loan.totalLoanPaid || 0).toLocaleString()}</span>
+        <span>পাবে: ৳{Number(loan.netBalance || 0).toLocaleString()}</span>
+      </div>
+    );
+  };
 
   const [suppliersDue, setSuppliersDue] = useState([]);
   // ✅ Suppliers Due
@@ -1353,16 +1361,16 @@ const CashInOutTable = () => {
         </div>
 
         <div className="flex flex-col">
-          <label className="text-sm text-slate-600 mb-1">Lender</label>
+          <label className="text-sm text-slate-600 mb-1">Loan</label>
           <Select
-            options={lenderSelectOptions}
+            options={loanSelectOptions}
             value={
-              lenderSelectOptions.find(
-                (option) => option.value === filterLender,
+              loanSelectOptions.find(
+                (option) => String(option.value) === String(filterLoanId),
               ) || null
             }
-            onChange={(selected) => setFilterLender(selected?.value || "")}
-            placeholder="Search lender"
+            onChange={(selected) => setFilterLoanId(selected?.value || "")}
+            placeholder="Search loan"
             isClearable
             styles={selectStyles}
             className="text-black"
@@ -1435,12 +1443,6 @@ const CashInOutTable = () => {
           </button>
         </div>
       </div>
-
-      <datalist id="cashinout-lender-options">
-        {lenderOptions.map((lender) => (
-          <option key={lender} value={lender} />
-        ))}
-      </datalist>
 
       {/* Table */}
       <div className="w-full max-w-full overflow-x-auto overscroll-x-contain">
@@ -1543,13 +1545,15 @@ const CashInOutTable = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                     <div className="space-y-1">
                       <div>{rp.category || "---"}</div>
-                      {(rp.lender ||
+                      {(rp.loan?.name ||
+                        rp.lender ||
                         rp.loanName ||
                         rp.loan_person_name ||
                         rp.loanPersonName) && (
                         <div className="text-xs font-medium text-amber-700">
                           {rp.paymentStatus === "CashOut" ? "To: " : "From: "}
-                          {rp.lender ||
+                          {rp.loan?.name ||
+                            rp.lender ||
                             rp.loanName ||
                             rp.loan_person_name ||
                             rp.loanPersonName}
@@ -1989,28 +1993,29 @@ const CashInOutTable = () => {
           {isLoanCategory(currentProduct?.category) && (
             <div>
               <label className="block text-sm text-slate-600 mb-1">
-                {/* {currentProduct?.paymentStatus === "CashOut"
-                  ? "Loan Given To"
-                  : "Loan Taken From"} */}
+                Loan
               </label>
-              <input
-                type="text"
-                value={currentProduct?.lender || ""}
-                onChange={(e) =>
+              <Select
+                options={loanSelectOptions}
+                value={
+                  loanSelectOptions.find(
+                    (option) =>
+                      String(option.value) === String(currentProduct?.loanId),
+                  ) || null
+                }
+                onChange={(selectedOption) =>
                   setCurrentProduct((p) => ({
                     ...p,
-                    lender: e.target.value,
+                    loanId: selectedOption?.value || "",
+                    lender: selectedOption?.label || "",
                   }))
                 }
-                list="cashinout-lender-options"
-                placeholder={
-                  currentProduct?.paymentStatus === "CashOut"
-                    ? "Enter receiver name"
-                    : "Enter provider name"
-                }
-                className="h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 bg-white outline-none
-                           focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
+                placeholder="Select Loan"
+                className="text-sm"
+                styles={selectStyles}
+                isClearable
               />
+              {renderLoanBalance(selectedEditLoan)}
             </div>
           )}
 
@@ -2367,20 +2372,27 @@ const CashInOutTable = () => {
               <label className="block text-sm text-slate-600 mb-1">
                 Loan Taken From
               </label>
-              <input
-                type="text"
-                value={createProduct.lender || ""}
-                onChange={(e) =>
+              <Select
+                options={loanSelectOptions}
+                value={
+                  loanSelectOptions.find(
+                    (option) =>
+                      String(option.value) === String(createProduct?.loanId),
+                  ) || null
+                }
+                onChange={(selectedOption) =>
                   setCreateProduct((p) => ({
                     ...p,
-                    lender: e.target.value,
+                    loanId: selectedOption?.value || "",
+                    lender: selectedOption?.label || "",
                   }))
                 }
-                list="cashinout-lender-options"
-                placeholder="Enter provider name"
-                className="h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 bg-white outline-none
-                           focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
+                placeholder="Select Loan"
+                className="text-sm"
+                styles={selectStyles}
+                isClearable
               />
+              {renderLoanBalance(selectedCreateLoan)}
             </div>
           )}
 
@@ -2677,20 +2689,27 @@ const CashInOutTable = () => {
                 <label className="block text-sm text-slate-600 mb-1">
                   Loan Given To
                 </label>
-                <input
-                  type="text"
-                  value={createProduct.lender || ""}
-                  onChange={(e) =>
+                <Select
+                  options={loanSelectOptions}
+                  value={
+                    loanSelectOptions.find(
+                      (option) =>
+                        String(option.value) === String(createProduct?.loanId),
+                    ) || null
+                  }
+                  onChange={(selectedOption) =>
                     setCreateProduct((p) => ({
                       ...p,
-                      lender: e.target.value,
+                      loanId: selectedOption?.value || "",
+                      lender: selectedOption?.label || "",
                     }))
                   }
-                  list="cashinout-lender-options"
-                  placeholder="Enter receiver name"
-                  className="h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 bg-white outline-none
-                           focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
+                  placeholder="Select Loan"
+                  className="text-sm"
+                  styles={selectStyles}
+                  isClearable
                 />
+                {renderLoanBalance(selectedCreateLoan)}
               </div>
             )}
             {/* <div>

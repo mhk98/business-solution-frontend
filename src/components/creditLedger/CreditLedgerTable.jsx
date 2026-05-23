@@ -17,6 +17,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import Select from "react-select";
+import { useGetAllBankAccountWithoutQueryQuery } from "../../features/bankAccount/bankAccount";
 import { useGetAllBookWithoutQueryQuery } from "../../features/book/book";
 import { useGetAllEmployeeListWithoutQueryQuery } from "../../features/employeeList/employeeList";
 import {
@@ -270,6 +271,9 @@ const getInitialLedgerForm = () => ({
   phone: "",
   extra: "",
   note: "",
+  paymentMode: "",
+  bankName: "",
+  bankAccount: "",
   sendMessage: false,
 });
 
@@ -301,6 +305,9 @@ const getInitialLedgerHistoryForm = () => ({
   date: new Date().toISOString().slice(0, 10),
   amount: "",
   note: "",
+  paymentMode: "",
+  bankName: "",
+  bankAccount: "",
 });
 
 const ENTITY_TABS = [
@@ -503,6 +510,7 @@ const CreditLedgerTable = () => {
   const { data: supplierResponse } = useGetAllSupplierWithoutQueryQuery();
   const { data: employeeResponse } = useGetAllEmployeeListWithoutQueryQuery();
   const { data: allBookRes } = useGetAllBookWithoutQueryQuery();
+  const { data: bankAccountRes } = useGetAllBankAccountWithoutQueryQuery();
 
   const supplierOptions = useMemo(
     () =>
@@ -545,6 +553,49 @@ const CreditLedgerTable = () => {
     [allBookRes],
   );
 
+  const paymentModeOptions = useMemo(
+    () =>
+      ["Cash", "Bkash", "Nagad", "Rocket", "Bank", "Card"].map((mode) => ({
+        value: mode,
+        label: mode,
+      })),
+    [],
+  );
+
+  const bankAccountsFromDB = bankAccountRes?.data || [];
+
+  const bankOptions = useMemo(() => {
+    const seen = new Set();
+    return bankAccountsFromDB
+      .filter((account) => {
+        const key = String(account.bankName || "")
+          .toLowerCase()
+          .trim();
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .map((account) => ({
+        value: account.bankName,
+        label: account.bankName,
+      }));
+  }, [bankAccountsFromDB]);
+
+  const getBankAccountOptions = (bankName = "") =>
+    bankAccountsFromDB
+      .filter(
+        (account) =>
+          String(account.bankName || "") === String(bankName || ""),
+      )
+      .map((account) => ({
+        value: String(account.accountNumber ?? account.bankAccount ?? ""),
+        label: String(account.accountNumber ?? account.bankAccount ?? ""),
+        bankName: account.bankName,
+      }));
+
+  const shouldCreateLedgerCashOut =
+    createLedger.type === "employee" || createLedger.cashType === "Paid";
+
   // Create
   const [insertLedger] = useInsertLedgerMutation();
   const handleCreateLedger = async (e) => {
@@ -552,6 +603,20 @@ const CreditLedgerTable = () => {
 
     if (!createLedger.name.trim()) {
       toast.error(`Please select ${activeEntityConfig.label.toLowerCase()}!`);
+      return;
+    }
+
+    if (shouldCreateLedgerCashOut && !createLedger.paymentMode) {
+      toast.error("Payment mode is required.");
+      return;
+    }
+
+    if (
+      shouldCreateLedgerCashOut &&
+      createLedger.paymentMode === "Bank" &&
+      (!createLedger.bankName || !createLedger.bankAccount)
+    ) {
+      toast.error("Bank name and account are required.");
       return;
     }
 
@@ -574,6 +639,17 @@ const CreditLedgerTable = () => {
         amount: Number(createLedger.amount) || 0,
         date: createLedger.date,
         cashType: createLedger.cashType,
+        paymentMode: shouldCreateLedgerCashOut
+          ? createLedger.paymentMode || ""
+          : "",
+        bankName:
+          shouldCreateLedgerCashOut && createLedger.paymentMode === "Bank"
+            ? createLedger.bankName || ""
+            : "",
+        bankAccount:
+          shouldCreateLedgerCashOut && createLedger.paymentMode === "Bank"
+            ? createLedger.bankAccount || ""
+            : "",
         sendMessage: createLedger.sendMessage,
       };
       const res = await insertLedger(payload).unwrap();
@@ -603,6 +679,9 @@ const CreditLedgerTable = () => {
       date: prev.date,
       cashType: prev.cashType,
       amount: prev.amount,
+      paymentMode: prev.paymentMode,
+      bankName: prev.bankName,
+      bankAccount: prev.bankAccount,
       note: prev.note,
       sendMessage: prev.sendMessage,
     }));
@@ -634,6 +713,26 @@ const CreditLedgerTable = () => {
   const updateLedgerHistoryField = (field, value) => {
     setLedgerHistoryForm((prev) => ({ ...prev, [field]: value }));
   };
+
+  useEffect(() => {
+    if (!shouldCreateLedgerCashOut && createLedger.paymentMode) {
+      setCreateLedger((prev) => ({
+        ...prev,
+        paymentMode: "",
+        bankName: "",
+        bankAccount: "",
+      }));
+      return;
+    }
+
+    if (createLedger.paymentMode !== "Bank" && createLedger.bankName) {
+      setCreateLedger((prev) => ({ ...prev, bankName: "", bankAccount: "" }));
+    }
+  }, [
+    createLedger.bankName,
+    createLedger.paymentMode,
+    shouldCreateLedgerCashOut,
+  ]);
 
   const handleDateIconClick = () => {
     if (!dateInputRef.current) return;
@@ -882,6 +981,36 @@ const CreditLedgerTable = () => {
       selectedEntity?.employeeId ??
       "",
   );
+  const shouldCreateHistoryCashOut =
+    Boolean(selectedEmployeeId) || historyEntryType === "Paid";
+
+  useEffect(() => {
+    if (!shouldCreateHistoryCashOut && ledgerHistoryForm.paymentMode) {
+      setLedgerHistoryForm((prev) => ({
+        ...prev,
+        paymentMode: "",
+        bankName: "",
+        bankAccount: "",
+      }));
+      return;
+    }
+
+    if (
+      ledgerHistoryForm.paymentMode !== "Bank" &&
+      ledgerHistoryForm.bankName
+    ) {
+      setLedgerHistoryForm((prev) => ({
+        ...prev,
+        bankName: "",
+        bankAccount: "",
+      }));
+    }
+  }, [
+    ledgerHistoryForm.bankName,
+    ledgerHistoryForm.paymentMode,
+    shouldCreateHistoryCashOut,
+  ]);
+
   const { data: ledgerHistoryData } = useGetAllLedgerHistoryQuery({
     page: 1,
     limit: 1000,
@@ -950,6 +1079,9 @@ const CreditLedgerTable = () => {
           bookId: entry?.bookId ?? entry?.BookId ?? "",
           supplierHistoryId: entry?.supplierHistoryId ?? "",
           cashInOutId: entry?.cashInOutId ?? "",
+          paymentMode: entry?.paymentMode ?? "",
+          bankName: entry?.bankName ?? "",
+          bankAccount: entry?.bankAccount ?? "",
           status: entry?.status || (paidAmount > 0 ? "Paid" : "Unpaid"),
           note: entry?.note || "",
           rawDate: entry?.date,
@@ -1091,6 +1223,9 @@ const CreditLedgerTable = () => {
           : new Date().toISOString().slice(0, 10),
       amount: String(entry.paidAmount || entry.unpaidAmount || ""),
       note: entry.note || "",
+      paymentMode: entry.paymentMode || "",
+      bankName: entry.bankName || "",
+      bankAccount: entry.bankAccount || "",
     });
     setIsDueHistoryModalOpen(false);
     setIsHistoryDrawerOpen(true);
@@ -1144,6 +1279,20 @@ const CreditLedgerTable = () => {
       return;
     }
 
+    if (shouldCreateHistoryCashOut && !ledgerHistoryForm.paymentMode) {
+      toast.error("Payment mode is required.");
+      return;
+    }
+
+    if (
+      shouldCreateHistoryCashOut &&
+      ledgerHistoryForm.paymentMode === "Bank" &&
+      (!ledgerHistoryForm.bankName || !ledgerHistoryForm.bankAccount)
+    ) {
+      toast.error("Bank name and account are required.");
+      return;
+    }
+
     const payload = {
       ...(ledgerId ? { ledgerId } : {}),
       supplierId: selectedSupplierId || undefined,
@@ -1155,6 +1304,19 @@ const CreditLedgerTable = () => {
       cashType: historyEntryType,
       paidAmount: historyEntryType === "Paid" ? amount : 0,
       unpaidAmount: historyEntryType === "Unpaid" ? amount : 0,
+      paymentMode: shouldCreateHistoryCashOut
+        ? ledgerHistoryForm.paymentMode || ""
+        : "",
+      bankName:
+        shouldCreateHistoryCashOut &&
+        ledgerHistoryForm.paymentMode === "Bank"
+          ? ledgerHistoryForm.bankName || ""
+          : "",
+      bankAccount:
+        shouldCreateHistoryCashOut &&
+        ledgerHistoryForm.paymentMode === "Bank"
+          ? ledgerHistoryForm.bankAccount || ""
+          : "",
     };
 
     try {
@@ -1416,6 +1578,86 @@ const CreditLedgerTable = () => {
     } catch (err) {
       toast.error("PDF download failed.");
     }
+  };
+
+  const renderPaymentFields = ({ values, onFieldChange, show }) => {
+    if (!show) return null;
+
+    const accountOptions = getBankAccountOptions(values.bankName);
+
+    return (
+      <>
+        <div>
+          <label className="block text-sm font-medium text-slate-800 mb-2">
+            Payment Mode <span className="text-red-500">*</span>
+          </label>
+          <Select
+            options={paymentModeOptions}
+            value={
+              paymentModeOptions.find(
+                (option) => option.value === values.paymentMode,
+              ) || null
+            }
+            onChange={(selected) => {
+              onFieldChange("paymentMode", selected?.value || "");
+              onFieldChange("bankName", "");
+              onFieldChange("bankAccount", "");
+            }}
+            placeholder="Select Payment Mode"
+            isClearable
+            styles={ledgerEntitySelectStyles}
+          />
+        </div>
+
+        {values.paymentMode === "Bank" && (
+          <>
+            <div>
+              <label className="block text-sm font-medium text-slate-800 mb-2">
+                Bank Name <span className="text-red-500">*</span>
+              </label>
+              <Select
+                options={bankOptions}
+                value={
+                  bankOptions.find(
+                    (option) => option.value === values.bankName,
+                  ) || null
+                }
+                onChange={(selected) => {
+                  onFieldChange("bankName", selected?.value || "");
+                  onFieldChange("bankAccount", "");
+                }}
+                placeholder="Select Bank"
+                isClearable
+                styles={ledgerEntitySelectStyles}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-800 mb-2">
+                Bank Account <span className="text-red-500">*</span>
+              </label>
+              <Select
+                options={accountOptions}
+                value={
+                  accountOptions.find(
+                    (option) => option.value === values.bankAccount,
+                  ) || null
+                }
+                onChange={(selected) => {
+                  onFieldChange("bankAccount", selected?.value || "");
+                  if (selected?.bankName) {
+                    onFieldChange("bankName", selected.bankName);
+                  }
+                }}
+                placeholder="Select Bank Account"
+                isClearable
+                styles={ledgerEntitySelectStyles}
+              />
+            </div>
+          </>
+        )}
+      </>
+    );
   };
 
   return (
@@ -2336,6 +2578,12 @@ const CreditLedgerTable = () => {
                     />
                   </div>
 
+                  {renderPaymentFields({
+                    values: ledgerHistoryForm,
+                    onFieldChange: updateLedgerHistoryField,
+                    show: shouldCreateHistoryCashOut,
+                  })}
+
                   <div>
                     <label className="block text-sm font-medium text-slate-800 mb-2">
                       {historyEntryType} Amount
@@ -2564,6 +2812,12 @@ const CreditLedgerTable = () => {
                       </button>
                     </div>
                   </div>
+
+                  {renderPaymentFields({
+                    values: createLedger,
+                    onFieldChange: updateCreateLedgerField,
+                    show: shouldCreateLedgerCashOut,
+                  })}
 
                   {/* Amount */}
                   <div>

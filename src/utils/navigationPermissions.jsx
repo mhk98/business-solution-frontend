@@ -51,6 +51,9 @@ export const ROLE_OPTIONS = [
   { value: "leader", label: "Leader" },
   { value: "inventor", label: "Inventor" },
   { value: "accountant", label: "Accountant" },
+  { value: "logistics", label: "Logistics" },
+  { value: "up", label: "UP" },
+  { value: "cs", label: "CS" },
   { value: "staff", label: "Staff" },
   { value: "employee", label: "Employee" },
   { value: "user", label: "User" },
@@ -58,7 +61,6 @@ export const ROLE_OPTIONS = [
 
 const DEFAULT_ROLE_PERMISSION_MAP = {
   superAdmin: [
-    "overview",
     "user_management",
     "assets",
     "assets_stock",
@@ -142,7 +144,6 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "profile",
   ],
   admin: [
-    "overview",
     "user_management",
     "assets",
     "assets_stock",
@@ -221,7 +222,6 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "profile",
   ],
   marketer: [
-    "overview",
     "marketing",
     "dm_expense",
     "ads_campaign_kpi",
@@ -233,7 +233,6 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "profile",
   ],
   leader: [
-    "overview",
     "requisition",
     "purchase",
     "sale",
@@ -244,7 +243,6 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "profile",
   ],
   inventor: [
-    "overview",
     "assets",
     "assets_stock",
     "inventory",
@@ -278,7 +276,6 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "profile",
   ],
   accountant: [
-    "overview",
     "profit_loss",
     "profit_loss_user",
     "accounting",
@@ -324,8 +321,16 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "tasks",
     "profile",
   ],
-  staff: ["overview", "notifications", "tasks", "profile"],
-  user: ["overview", "tasks", "profile"],
+  logistics: [
+    "logistic_work_reports",
+    "notifications",
+    "tasks",
+    "profile",
+  ],
+  up: ["daily_work_reports", "notifications", "tasks", "profile"],
+  cs: ["cs_work_reports", "notifications", "tasks", "profile"],
+  staff: ["notifications", "tasks", "profile"],
+  user: ["tasks", "profile"],
 };
 
 export const SIDEBAR_ITEMS = [
@@ -1023,6 +1028,7 @@ export const SIDEBAR_ITEMS = [
 ];
 
 const STORAGE_KEY = "roleMenuPermissions";
+const OVERVIEW_DEFAULT_REMOVED_STORAGE_KEY = "overview-default-permission-removed";
 const PERMISSION_EVENT = "role-permissions-updated";
 const PERMISSION_KEY_ALIASES = {
   employee_profile: "employee_list",
@@ -1179,10 +1185,38 @@ const normalizeRolePermissionMap = (value) => {
   }, {});
 };
 
+const removeOverviewPermissionFromMap = (permissionMap = {}) =>
+  Object.entries(permissionMap).reduce((acc, [role, keys]) => {
+    acc[role] = Array.isArray(keys)
+      ? keys.filter((key) => getCanonicalPermissionKey(key) !== "overview")
+      : keys;
+    return acc;
+  }, {});
+
+const migrateStoredOverviewDefaultPermission = () => {
+  if (typeof window === "undefined") return;
+  if (localStorage.getItem(OVERVIEW_DEFAULT_REMOVED_STORAGE_KEY)) return;
+
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+    if (parsed && typeof parsed === "object") {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(removeOverviewPermissionFromMap(parsed)),
+      );
+    }
+  } catch (error) {
+    console.error("Failed to migrate overview menu permission", error);
+  } finally {
+    localStorage.setItem(OVERVIEW_DEFAULT_REMOVED_STORAGE_KEY, "true");
+  }
+};
+
 export const getStoredRolePermissions = () => {
   if (typeof window === "undefined") return {};
 
   try {
+    migrateStoredOverviewDefaultPermission();
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
     return normalizeRolePermissionMap(parsed);
   } catch (error) {

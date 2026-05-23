@@ -119,6 +119,8 @@ const getMethodBadgeClass = (method) => {
   return "bg-slate-50 text-slate-700 border-slate-200";
 };
 
+const getTodayDate = () => new Date().toISOString().slice(0, 10);
+
 const LogHistoryTable = () => {
   const [userOptions, setUserOptions] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -127,8 +129,8 @@ const LogHistoryTable = () => {
   const [pageSize, setPageSize] = useState(25);
   const [totalCount, setTotalCount] = useState(0);
   const [userSearch, setUserSearch] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [startDate, setStartDate] = useState(getTodayDate);
+  const [endDate, setEndDate] = useState(getTodayDate);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [loadingLogs, setLoadingLogs] = useState(false);
 
@@ -172,21 +174,15 @@ const LogHistoryTable = () => {
   };
 
   const loadLogs = async (userId, filters = {}) => {
-    if (!userId) {
-      setLogs([]);
-      setTotalCount(0);
-      return;
-    }
-
     try {
       setLoadingLogs(true);
 
       const params = new URLSearchParams({
-        userId: String(userId),
         page: String(filters.page || 1),
         limit: String(filters.limit || pageSize),
       });
 
+      if (userId) params.set("userId", String(userId));
       if (filters.startDate) params.set("startDate", filters.startDate);
       if (filters.endDate) params.set("endDate", filters.endDate);
 
@@ -235,9 +231,7 @@ const LogHistoryTable = () => {
   }, [startDate, endDate]);
 
   useEffect(() => {
-    if (!selectedUser?.value) return;
-
-    loadLogs(selectedUser.value, {
+    loadLogs(selectedUser?.value, {
       startDate,
       endDate,
       page: currentPage,
@@ -397,7 +391,7 @@ const LogHistoryTable = () => {
               if (meta.action === "menu-close" && !value) setUserSearch("");
               return value;
             }}
-            placeholder="Search user..."
+            placeholder="All users"
             isClearable
             styles={selectStyles}
             className="text-black"
@@ -465,11 +459,9 @@ const LogHistoryTable = () => {
           onClick={() => {
             setSelectedUser(null);
             setUserSearch("");
-            setStartDate("");
-            setEndDate("");
+            setStartDate(getTodayDate());
+            setEndDate(getTodayDate());
             setCurrentPage(1);
-            setTotalCount(0);
-            setLogs([]);
             loadUsers("");
           }}
           className="h-11 w-full lg:w-auto px-5 border border-slate-200 rounded-xl bg-white text-slate-700 font-bold text-sm hover:bg-slate-50 transition active:scale-95 flex items-center justify-center gap-2 shadow-sm"
@@ -670,21 +662,7 @@ const LogHistoryTable = () => {
             </div>
           )}
 
-          {!loadingLogs && !selectedUser && (
-            <div className="py-24 text-center text-slate-400 px-6">
-              <div className="mx-auto mb-4 h-14 w-14 rounded-2xl bg-slate-100 text-slate-500 flex items-center justify-center">
-                <Search size={24} />
-              </div>
-              <p className="font-bold text-sm text-slate-600">
-                Select a user to view log history
-              </p>
-              <p className="text-xs mt-2">
-                Search by name or email to load recent activity records
-              </p>
-            </div>
-          )}
-
-          {!loadingLogs && selectedUser && logs.length === 0 && (
+          {!loadingLogs && logs.length === 0 && (
             <div className="py-24 text-center text-slate-400 px-6">
               <div className="mx-auto mb-4 h-14 w-14 rounded-2xl bg-slate-100 text-slate-500 flex items-center justify-center">
                 <History size={24} />
@@ -693,14 +671,14 @@ const LogHistoryTable = () => {
                 No log history found
               </p>
               <p className="text-xs mt-2">
-                This user does not have any recent activity records yet
+                No activity records found for the selected filters
               </p>
             </div>
           )}
         </div>
       </div>
 
-      {!loadingLogs && selectedUser && totalPages > 1 && (
+      {!loadingLogs && totalPages > 1 && (
         <Pagination
           currentPage={currentPage}
           totalPages={totalPages}

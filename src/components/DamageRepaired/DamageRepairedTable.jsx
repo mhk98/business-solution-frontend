@@ -13,7 +13,6 @@ import { useGetAllSupplierWithoutQueryQuery } from "../../features/supplier/supp
 import { useGetAllWirehouseWithoutQueryQuery } from "../../features/wirehouse/wirehouse";
 import Modal from "../common/Modal";
 // import { useGetAllDamageStockWithoutQueryQuery } from "../../features/damageStock/damageStock";
-import { useGetSingleProductByIdQuery } from "../../features/product/product";
 import { useGetAllDamageRepairingStockWithoutQueryQuery } from "../../features/damageRepairingStock/damageRepairingStock";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 
@@ -27,61 +26,6 @@ const initialCreateForm = {
   note: "",
   remarks: "",
   date: new Date().toISOString().slice(0, 10),
-};
-
-const parseVariationValue = (value) => {
-  if (Array.isArray(value)) {
-    return value.map((item) => String(item).trim()).filter(Boolean);
-  }
-
-  if (typeof value === "string") {
-    try {
-      const parsed = JSON.parse(value);
-      if (Array.isArray(parsed)) {
-        return parsed.map((item) => String(item).trim()).filter(Boolean);
-      }
-    } catch {
-      return value
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean);
-    }
-  }
-
-  return [];
-};
-
-const getVariationOptions = (product, key) => {
-  if (!Array.isArray(product?.variations)) return [];
-
-  return [
-    ...new Set(
-      product.variations.flatMap((variation) =>
-        parseVariationValue(variation?.[key]),
-      ),
-    ),
-  ].map((value) => ({
-    value,
-    label: value,
-  }));
-};
-
-const getVariantRowsFromProduct = (product) => {
-  if (!Array.isArray(product?.variations)) return [];
-
-  return product.variations.flatMap((variation) => {
-    const sizes = parseVariationValue(variation?.size);
-    const colors = parseVariationValue(variation?.color);
-
-    if (sizes.length === 0 && colors.length === 0) return [];
-
-    const safeSizes = sizes.length ? sizes : [""];
-    const safeColors = colors.length ? colors : [""];
-
-    return safeSizes.flatMap((size) =>
-      safeColors.map((color) => ({ size, color, quantity: "" })),
-    );
-  });
 };
 
 const createEmptyVariantRow = () => ({
@@ -155,20 +99,6 @@ const getVariantDisplayRows = (record) => {
   return [];
 };
 
-const getVariationColorsForSize = (product, size) => {
-  if (!size || !Array.isArray(product?.variations)) return [];
-
-  return [
-    ...new Set(
-      product.variations.flatMap((variation) => {
-        const sizes = parseVariationValue(variation?.size);
-        if (!sizes.includes(size)) return [];
-        return parseVariationValue(variation?.color);
-      }),
-    ),
-  ].map((value) => ({ value, label: value }));
-};
-
 const getStockVariantOptions = (stockRecord, key) => {
   const variants = getVariantDisplayRows(stockRecord);
   if (variants.length === 0) return [];
@@ -236,6 +166,57 @@ const hasDuplicateVariantCombination = (rows) => {
 
   return false;
 };
+
+const formatMoney = (value) => {
+  const amount = Number(value || 0);
+  return `৳${amount.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+};
+
+const parseMovementItems = (value) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string") return [];
+
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const getMovementRowItems = (row) => {
+  const items = parseMovementItems(row?.items);
+  return items.length ? items : [row];
+};
+
+const getItemsTotalQuantity = (items = []) =>
+  items.reduce((total, item) => total + (Number(item?.quantity) || 0), 0);
+
+const getUnitPrice = (amount, quantity) => {
+  const numericAmount = Number(amount || 0);
+  const numericQuantity = Number(quantity || 0);
+  if (!numericAmount || !numericQuantity) return 0;
+  return numericAmount / numericQuantity;
+};
+
+const getItemUnitPrice = (item, field) => {
+  const variants = getVariantDisplayRows(item);
+  if (variants.length) {
+    const total = variants.reduce(
+      (sum, variant) => sum + Number(variant?.quantity || 0),
+      0,
+    );
+    return getUnitPrice(item?.[field], total || item?.quantity);
+  }
+
+  return getUnitPrice(item?.[field], item?.quantity);
+};
+
+const getVariantUnitPrice = (item, variant, field) =>
+  Number(variant?.[field] || 0) || getItemUnitPrice(item, field);
 
 const getVariantKey = (variant) =>
   `${String(variant?.size || "").trim()}__${String(variant?.color || "").trim()}`;
@@ -361,84 +342,31 @@ const DamageRepairedTable = () => {
   const selectedEditProductId =
     selectedEditDamageStock?.productId || currentItem?.productId || undefined;
 
-  const {
-    data: selectedCreateProductRes,
-    isFetching: isFetchingCreateProduct,
-  } = useGetSingleProductByIdQuery(selectedCreateProductId, {
-    skip: !selectedCreateProductId,
-  });
-  const { data: selectedEditProductRes, isFetching: isFetchingEditProduct } =
-    useGetSingleProductByIdQuery(selectedEditProductId, {
-      skip: !selectedEditProductId,
-    });
-
-  const selectedCreateProductData =
-    selectedCreateProductRes?.data || selectedCreateProductRes;
-  const selectedEditProductData =
-    selectedEditProductRes?.data || selectedEditProductRes;
-
   const createSizeOptions = useMemo(() => {
-    const stockOptions = getStockVariantOptions(
-      selectedCreateDamageStock,
-      "size",
-    );
-    return stockOptions.length > 0
-      ? stockOptions
-      : getVariationOptions(selectedCreateProductData, "size");
-  }, [selectedCreateDamageStock, selectedCreateProductData]);
+    return getStockVariantOptions(selectedCreateDamageStock, "size");
+  }, [selectedCreateDamageStock]);
   const createColorOptions = useMemo(() => {
-    const stockOptions = getStockVariantOptions(
-      selectedCreateDamageStock,
-      "color",
-    );
-    return stockOptions.length > 0
-      ? stockOptions
-      : getVariationOptions(selectedCreateProductData, "color");
-  }, [selectedCreateDamageStock, selectedCreateProductData]);
+    return getStockVariantOptions(selectedCreateDamageStock, "color");
+  }, [selectedCreateDamageStock]);
   const shouldShowCreateVariantOptions = useMemo(
-    () =>
-      createSizeOptions.length > 0 ||
-      createColorOptions.length > 0 ||
-      (!isFetchingCreateProduct &&
-        getVariantRowsFromProduct(selectedCreateProductData).length > 0),
-    [
-      createColorOptions.length,
-      createSizeOptions.length,
-      isFetchingCreateProduct,
-      selectedCreateProductData,
-    ],
+    () => createSizeOptions.length > 0 || createColorOptions.length > 0,
+    [createColorOptions.length, createSizeOptions.length],
   );
   const editSizeOptions = useMemo(() => {
-    const stockOptions = getStockVariantOptions(
-      selectedEditDamageStock,
-      "size",
-    );
-    return stockOptions.length > 0
-      ? stockOptions
-      : getVariationOptions(selectedEditProductData, "size");
-  }, [selectedEditDamageStock, selectedEditProductData]);
+    return getStockVariantOptions(selectedEditDamageStock, "size");
+  }, [selectedEditDamageStock]);
   const editColorOptions = useMemo(() => {
-    const stockOptions = getStockVariantOptions(
-      selectedEditDamageStock,
-      "color",
-    );
-    return stockOptions.length > 0
-      ? stockOptions
-      : getVariationOptions(selectedEditProductData, "color");
-  }, [selectedEditDamageStock, selectedEditProductData]);
+    return getStockVariantOptions(selectedEditDamageStock, "color");
+  }, [selectedEditDamageStock]);
   const shouldShowEditVariantOptions = useMemo(
     () =>
       hasConfiguredVariants(currentItem?.variantRows) ||
       editSizeOptions.length > 0 ||
-      editColorOptions.length > 0 ||
-      (!isFetchingEditProduct &&
-        getVariantRowsFromProduct(selectedEditProductData).length > 0),
+      editColorOptions.length > 0,
     [
       currentItem?.variantRows,
       editColorOptions.length,
       editSizeOptions.length,
-      isFetchingEditProduct,
-      selectedEditProductData,
     ],
   );
 
@@ -590,15 +518,94 @@ const DamageRepairedTable = () => {
     });
   };
 
+  const currentBulkItems = useMemo(
+    () => parseMovementItems(currentItem?.items),
+    [currentItem?.items],
+  );
+  const isEditingBulkMovement = currentBulkItems.length > 0;
+  const currentBulkTotalQuantity = useMemo(
+    () => getItemsTotalQuantity(currentBulkItems),
+    [currentBulkItems],
+  );
+
+  const updateCurrentBulkItem = (index, key, value) => {
+    setCurrentItem((prev) => {
+      const nextItems = parseMovementItems(prev?.items).map(
+        (item, itemIndex) =>
+          itemIndex === index
+            ? {
+                ...item,
+                [key]: value,
+              }
+            : item,
+      );
+
+      return {
+        ...prev,
+        items: nextItems,
+        quantity: String(getItemsTotalQuantity(nextItems)),
+      };
+    });
+  };
+
+  const updateCurrentBulkItemVariantField = (
+    itemIndex,
+    variantIndex,
+    key,
+    value,
+  ) => {
+    setCurrentItem((prev) => {
+      const nextItems = parseMovementItems(prev?.items).map(
+        (item, currentItemIndex) => {
+          if (currentItemIndex !== itemIndex) return item;
+
+          const nextVariants = normalizeVariantRows(item.variants).map(
+            (variant, currentVariantIndex) =>
+              currentVariantIndex === variantIndex
+                ? {
+                    ...variant,
+                    [key]: key === "quantity" ? Number(value) || 0 : value,
+                  }
+                : variant,
+          );
+
+          return {
+            ...item,
+            variants: nextVariants,
+            quantity: getVariantRowsTotalQuantity(nextVariants),
+          };
+        },
+      );
+
+      return {
+        ...prev,
+        items: nextItems,
+        quantity: String(getItemsTotalQuantity(nextItems)),
+      };
+    });
+  };
+
   const openEdit = (rp) => {
-    const variantRows = getInitialVariantRowsFromRecord(rp);
+    const bulkItems = parseMovementItems(rp.items);
+    const firstBulkItem = bulkItems[0] || null;
+    const variantRows = getInitialVariantRowsFromRecord(firstBulkItem || rp);
+    const stockId =
+      firstBulkItem?.receivedId ??
+      rp.receivedId ??
+      rp.productId ??
+      "";
+    const productId = firstBulkItem?.productId ?? rp.productId ?? "";
     setCurrentItem({
       ...rp,
-      productId: String(rp.productId ?? ""),
-      receivedId: String(rp.receivedId ?? rp.productId ?? ""),
+      items: bulkItems,
+      productId: String(productId),
+      receivedId: String(stockId),
+      name: firstBulkItem?.name || rp.name || rp.product?.name || "",
       variantRows,
       quantity: String(
-        getVariantRowsTotalQuantity(variantRows) || Number(rp.quantity) || 0,
+        bulkItems.length
+          ? getItemsTotalQuantity(bulkItems)
+          : getVariantRowsTotalQuantity(variantRows) || Number(rp.quantity) || 0,
       ),
       note: rp.note ?? "",
       status: rp.status ?? "",
@@ -811,7 +818,6 @@ const DamageRepairedTable = () => {
     if (
       !createForm?.receivedId ||
       !selectedCreateDamageStock ||
-      isFetchingCreateProduct ||
       shouldShowCreateVariantOptions
     )
       return;
@@ -845,7 +851,6 @@ const DamageRepairedTable = () => {
     createForm?.productId,
     selectedCreateDamageStock,
     selectedCreateProductId,
-    isFetchingCreateProduct,
     shouldShowCreateVariantOptions,
     receivedDropdownOptions,
   ]);
@@ -877,18 +882,24 @@ const DamageRepairedTable = () => {
   // update
   const handleUpdate = async () => {
     if (!currentItem?.Id) return toast.error("Invalid item");
-    if (!currentItem?.receivedId && !currentItem?.productId)
+    const bulkItems = parseMovementItems(currentItem?.items);
+    if (!bulkItems.length && !currentItem?.receivedId && !currentItem?.productId)
       return toast.error("Please select a product");
-    if (!currentItem.quantity || Number(currentItem.quantity) <= 0)
+    if (
+      bulkItems.length
+        ? bulkItems.some((item) => Number(item.quantity) <= 0)
+        : !currentItem.quantity || Number(currentItem.quantity) <= 0
+    )
       return toast.error("Please enter valid quantity");
 
     const variantsPayload = getNormalizedVariantsPayload(
       currentItem?.variantRows,
     );
-    if (hasDuplicateVariantCombination(variantsPayload)) {
+    if (!bulkItems.length && hasDuplicateVariantCombination(variantsPayload)) {
       return toast.error("Duplicate size and color combination found");
     }
     if (
+      !bulkItems.length &&
       !validateVariantSelection(
         selectedEditDamageStock,
         variantsPayload,
@@ -899,20 +910,33 @@ const DamageRepairedTable = () => {
     }
 
     try {
-      const payload = {
-        note: currentItem.note,
-        remarks: currentItem.remarks,
-        supplierId: Number(currentItem.supplierId),
-        warehouseId: Number(currentItem.warehouseId),
-        date: currentItem.date,
-        status: currentItem.status,
-        quantity: Number(currentItem.quantity),
-        variants: variantsPayload,
-        receivedId: Number(currentItem.receivedId || currentItem.productId),
-        productId: Number(currentItem.productId || selectedEditProductId || 0),
-        userId: userId,
-        actorRole: role,
-      };
+      const payload =
+        bulkItems.length > 0
+          ? {
+              items: bulkItems,
+              note: currentItem.note,
+              remarks: currentItem.remarks,
+              supplierId: Number(currentItem.supplierId),
+              warehouseId: Number(currentItem.warehouseId),
+              date: currentItem.date,
+              status: currentItem.status,
+              userId,
+              actorRole: role,
+            }
+          : {
+              note: currentItem.note,
+              remarks: currentItem.remarks,
+              supplierId: Number(currentItem.supplierId),
+              warehouseId: Number(currentItem.warehouseId),
+              date: currentItem.date,
+              status: currentItem.status,
+              quantity: Number(currentItem.quantity),
+              variants: variantsPayload,
+              receivedId: Number(currentItem.receivedId || currentItem.productId),
+              productId: Number(currentItem.productId || selectedEditProductId || 0),
+              userId: userId,
+              actorRole: role,
+            };
 
       const res = await updateDamageRepaired({
         id: currentItem.Id,
@@ -1221,10 +1245,7 @@ const DamageRepairedTable = () => {
                 Variants
               </th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Purchase Price
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Sale Price
+                Financials
               </th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Remarks
@@ -1240,7 +1261,40 @@ const DamageRepairedTable = () => {
 
           <tbody className="divide-y divide-slate-200 bg-white">
             {rows.map((rp) => {
-              const variantDisplayRows = getVariantDisplayRows(rp);
+              const rowItems = getMovementRowItems(rp);
+              const itemVariantGroups = rowItems.map((item) => ({
+                item,
+                variants: getVariantDisplayRows(item),
+              }));
+              const hasDisplayItems = parseMovementItems(rp.items).length > 0;
+              const rowTotalQuantity = getItemsTotalQuantity(rowItems);
+              const totalBuy =
+                rowItems.reduce((total, item) => {
+                  const variants = getVariantDisplayRows(item);
+                  if (variants.length) {
+                    return (
+                      total +
+                      variants.reduce(
+                        (sum, variant) =>
+                          sum +
+                          getVariantUnitPrice(
+                            item,
+                            variant,
+                            "purchase_price",
+                          ) *
+                            Number(variant.quantity || 0),
+                        0,
+                      )
+                    );
+                  }
+
+                  return (
+                    total +
+                    getItemUnitPrice(item, "purchase_price") *
+                      Number(item.quantity || 0)
+                  );
+                }, 0) || Number(rp.purchase_price || 0);
+              const totalSell = Number(rp.sale_price || 0);
 
               return (
                 <motion.tr
@@ -1259,7 +1313,10 @@ const DamageRepairedTable = () => {
                       : "-"}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
-                    {resolveProductName(rp)}
+                    {rowItems
+                      .map((item) => resolveProductName(item))
+                      .filter(Boolean)
+                      .join(", ") || resolveProductName(rp)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                     {rp?.supplier?.name || "-"}
@@ -1268,32 +1325,92 @@ const DamageRepairedTable = () => {
                     {rp?.warehouse?.name || "-"}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                    {Number(rp.quantity || 0)}
+                    {Number(rowTotalQuantity || rp.quantity || 0).toFixed(2)}
                   </td>
-                  <td className="px-6 py-4 min-w-[260px]">
-                    {variantDisplayRows.length > 0 ? (
-                      <div className="flex flex-wrap gap-2">
-                        {variantDisplayRows.map((variant, index) => (
-                          <div
-                            key={`${rp.Id}-variant-${index}`}
-                            className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 px-3 py-2 shadow-sm"
-                          >
-                            <div className="flex items-center gap-2 text-[11px] font-bold text-slate-800">
-                              <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] uppercase tracking-wide text-white">
-                                {variant.size || "N/A"}
-                              </span>
-                              <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] uppercase tracking-wide text-indigo-700">
-                                {variant.color || "N/A"}
-                              </span>
-                            </div>
-                            <div className="mt-2 text-[11px] font-medium text-slate-500">
-                              Qty{" "}
-                              <span className="font-bold text-slate-900">
-                                {Number(variant.quantity || 0).toFixed(0)}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
+                  <td className="px-6 py-4 min-w-[420px]">
+                    {hasDisplayItems || rowItems.length > 0 ? (
+                      <div className="flex flex-nowrap items-start gap-2 overflow-x-auto pb-1">
+                        {itemVariantGroups.flatMap(
+                          ({ item, variants }, itemIndex) => {
+                            const fallbackUnitPurchase = getItemUnitPrice(
+                              item,
+                              "purchase_price",
+                            );
+                            const fallbackUnitSale = getItemUnitPrice(
+                              item,
+                              "sale_price",
+                            );
+
+                            if (variants.length === 0) {
+                              return [
+                                <div
+                                  key={`${rp.Id}-no-variant-${itemIndex}`}
+                                  className="shrink-0 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-2 shadow-sm min-w-[132px]"
+                                >
+                                  <div className="text-[11px] font-bold text-slate-700">
+                                    {resolveProductName(item)}
+                                  </div>
+                                  <div className="mt-2 text-[11px] font-medium text-slate-500">
+                                    Qty{" "}
+                                    <span className="text-slate-900 font-bold">
+                                      {Number(item.quantity || 0).toFixed(0)}
+                                    </span>
+                                  </div>
+                                  <div className="mt-1 text-[10px] font-semibold text-slate-500">
+                                    Unit Buy {formatMoney(fallbackUnitPurchase)}
+                                  </div>
+                                  <div className="mt-1 text-[10px] font-semibold text-slate-500">
+                                    Unit Sell {formatMoney(fallbackUnitSale)}
+                                  </div>
+                                  <div className="mt-2 text-[10px] font-semibold text-slate-400">
+                                    No variants
+                                  </div>
+                                </div>,
+                              ];
+                            }
+
+                            return variants.map((variant, variantIndex) => {
+                              const unitPurchase = getVariantUnitPrice(
+                                item,
+                                variant,
+                                "purchase_price",
+                              );
+                              const unitSale = getVariantUnitPrice(
+                                item,
+                                variant,
+                                "sale_price",
+                              );
+
+                              return (
+                                <div
+                                  key={`${rp.Id}-variant-${itemIndex}-${variantIndex}`}
+                                  className="shrink-0 rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 px-3 py-2 shadow-sm min-w-[132px]"
+                                >
+                                  <div className="flex items-center gap-2 text-[11px] font-bold text-slate-800">
+                                    <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] uppercase tracking-wide text-white">
+                                      {variant.size || "N/A"}
+                                    </span>
+                                    <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] uppercase tracking-wide text-indigo-700">
+                                      {variant.color || "N/A"}
+                                    </span>
+                                  </div>
+                                  <div className="mt-2 text-[11px] font-medium text-slate-500">
+                                    Qty{" "}
+                                    <span className="text-slate-900 font-bold">
+                                      {Number(variant.quantity || 0).toFixed(0)}
+                                    </span>
+                                  </div>
+                                  <div className="mt-1 text-[10px] font-semibold text-slate-500">
+                                    Unit Buy {formatMoney(unitPurchase)}
+                                  </div>
+                                  <div className="mt-1 text-[10px] font-semibold text-slate-500">
+                                    Unit Sell {formatMoney(unitSale)}
+                                  </div>
+                                </div>
+                              );
+                            });
+                          },
+                        )}
                       </div>
                     ) : (
                       <div className="inline-flex items-center rounded-full border border-dashed border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] font-semibold text-slate-400">
@@ -1301,11 +1418,21 @@ const DamageRepairedTable = () => {
                       </div>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                    {Number(rp.purchase_price || 0).toFixed(2)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                    {Number(rp.sale_price || 0).toFixed(2)}
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex flex-col gap-1">
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                        Total Buy:{" "}
+                        <span className="text-slate-900 border-b border-dotted border-slate-300">
+                          {formatMoney(totalBuy)}
+                        </span>
+                      </div>
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                        Total Sell:{" "}
+                        <span className="text-emerald-600">
+                          {formatMoney(totalSell)}
+                        </span>
+                      </div>
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                     {rp.remarks || ""}
@@ -1449,10 +1576,113 @@ const DamageRepairedTable = () => {
         isOpen={isEditOpen && !!currentItem}
         onClose={closeEdit}
         title="Edit Damage Repaired Product"
-        maxWidth="max-w-2xl"
+        maxWidth="max-w-4xl"
       >
         <div className="space-y-4">
+          {isEditingBulkMovement && (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Product List
+                </p>
+                <div className="rounded-xl border border-indigo-100 bg-white px-4 py-2 text-right">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Total Quantity
+                  </p>
+                  <p className="text-lg font-black text-slate-900">
+                    {currentBulkTotalQuantity}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                <table className="min-w-[680px] w-full text-sm">
+                  <thead className="bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-500">
+                    <tr>
+                      <th className="px-3 py-3 text-left">Product</th>
+                      <th className="px-3 py-3 text-left">Quantity</th>
+                      <th className="px-3 py-3 text-left">Variant Detail</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {currentBulkItems.map((item, index) => {
+                      const variants = getVariantDisplayRows(item);
+
+                      return (
+                        <tr key={`edit-damage-repaired-${item.productId || item.name}-${index}`}>
+                          <td className="px-3 py-3 align-top font-semibold text-slate-800">
+                            {item.name || resolveProductName(item)}
+                          </td>
+                          <td className="px-3 py-3 align-top">
+                            {variants.length ? (
+                              <p className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-black text-slate-900">
+                                {Number(item.quantity || 0)}
+                              </p>
+                            ) : (
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={item.quantity ?? ""}
+                                onChange={(e) =>
+                                  updateCurrentBulkItem(
+                                    index,
+                                    "quantity",
+                                    e.target.value,
+                                  )
+                                }
+                                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
+                              />
+                            )}
+                          </td>
+                          <td className="px-3 py-3 align-top text-xs text-slate-500">
+                            {variants.length
+                              ? variants.map((variant, variantIndex) => (
+                                  <div
+                                    key={`${variant.size}-${variant.color}-${variantIndex}`}
+                                    className="mb-2 grid grid-cols-[1fr_90px] items-end gap-2 last:mb-0"
+                                  >
+                                    <span className="rounded-lg bg-slate-50 px-2 py-1 font-semibold text-slate-600">
+                                      {variant.size || "-"} /{" "}
+                                      {variant.color || "-"}
+                                    </span>
+                                    <div>
+                                      {variantIndex === 0 && (
+                                        <p className="mb-1 text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                                          Qty
+                                        </p>
+                                      )}
+                                      <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={variant.quantity}
+                                        onChange={(e) =>
+                                          updateCurrentBulkItemVariantField(
+                                            index,
+                                            variantIndex,
+                                            "quantity",
+                                            e.target.value,
+                                          )
+                                        }
+                                        className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
+                                      />
+                                    </div>
+                                  </div>
+                                ))
+                              : "No variants"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {!isEditingBulkMovement && (
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Product
@@ -1483,6 +1713,7 @@ const DamageRepairedTable = () => {
                 styles={selectStyles}
               />
             </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Date
@@ -1498,7 +1729,7 @@ const DamageRepairedTable = () => {
             </div>
           </div>
 
-          {shouldShowEditVariantOptions && (
+          {!isEditingBulkMovement && shouldShowEditVariantOptions && (
             <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/50 p-4">
               <div>
                 <div>
@@ -1531,12 +1762,7 @@ const DamageRepairedTable = () => {
                       )
                     : [];
                   const colorOptions = row.size
-                    ? stockColorOptions.length > 0
-                      ? stockColorOptions
-                      : getVariationColorsForSize(
-                          selectedEditProductData,
-                          row.size,
-                        )
+                    ? stockColorOptions
                     : editColorOptions;
 
                   return (
@@ -1708,6 +1934,7 @@ const DamageRepairedTable = () => {
             </div>
           </div>
 
+          {!isEditingBulkMovement && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -1745,6 +1972,7 @@ const DamageRepairedTable = () => {
               />
             </div>
           </div>
+          )}
 
           <div className="space-y-4 pt-2">
             {role === "superAdmin" || role === "admin" ? (
@@ -2063,12 +2291,7 @@ const DamageRepairedTable = () => {
                       )
                     : [];
                   const colorOptions = row.size
-                    ? stockColorOptions.length > 0
-                      ? stockColorOptions
-                      : getVariationColorsForSize(
-                          selectedCreateProductData,
-                          row.size,
-                        )
+                    ? stockColorOptions
                     : createColorOptions;
                   return (
                     <div

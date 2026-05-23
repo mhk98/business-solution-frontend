@@ -3,34 +3,35 @@ import { Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useGetLoanHistoryQuery } from "../../features/cashInOut/cashInOut";
+import { useGetSingleLoanQuery } from "../../features/loan/loan";
 import useDebounce from "../../hooks/useDebounce";
-
 
 const formatAmount = (value) => Number(value || 0).toLocaleString();
 
 const LoanHistoryTable = () => {
-  const { lender: lenderParam } = useParams();
-  const lender = decodeURIComponent(lenderParam || "");
+  const { lender: loanParam } = useParams();
+  const loanId = decodeURIComponent(loanParam || "");
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 400);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  const itemsPerPage = 10;
+  const { data: loanRes } = useGetSingleLoanQuery(loanId, { skip: !loanId });
   const { data, isLoading, isError, error } = useGetLoanHistoryQuery({
-    lender,
+    loanId,
     page: currentPage,
-    limit: itemsPerPage,
+    limit: 10,
     searchTerm: debouncedSearchTerm || undefined,
   });
 
   const rows = data?.data || [];
   const meta = data?.meta || {};
+  const loanName = loanRes?.data?.name || rows?.[0]?.loan?.name || rows?.[0]?.lender || "";
 
   useEffect(() => {
     if (isError) console.error("Error fetching loan history", error);
     if (!isLoading) {
-      setTotalPages(Math.max(1, Math.ceil((meta.count || 0) / itemsPerPage)));
+      setTotalPages(Math.max(1, Math.ceil((meta.count || 0) / 10)));
     }
   }, [error, isError, isLoading, meta.count]);
 
@@ -44,7 +45,7 @@ const LoanHistoryTable = () => {
       <div className="mb-5 flex items-center justify-between gap-3">
         <div>
           <p className="text-sm text-slate-500">Loan History</p>
-          <h2 className="text-xl font-semibold text-slate-900">{lender}</h2>
+          <h2 className="text-xl font-semibold text-slate-900">{loanName || "Loan"}</h2>
         </div>
         <Link to="/loan" className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
           Back
@@ -53,8 +54,8 @@ const LoanHistoryTable = () => {
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full mb-6">
         <Summary label="Total Loan নিয়েছি" value={meta.totalLoanTaken} />
-        <Summary label="Total Loan দিয়েছি" value={meta.totalLoanGiven} />
-        <Summary label="Net Balance" value={meta.netBalance} />
+        <Summary label="Total পরিশোধ" value={meta.totalLoanGiven} />
+        <Summary label="কত পাবে" value={meta.netBalance} />
       </div>
 
       <div className="relative w-full sm:max-w-[520px] mb-6">
@@ -89,7 +90,7 @@ const LoanHistoryTable = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{row.date || "-"}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     <span className={`inline-flex rounded-lg border px-2.5 py-1 text-xs font-semibold ${isTaken ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
-                      {isTaken ? "Loan নিয়েছি" : "Loan দিয়েছি"}
+                      {isTaken ? "Loan নিয়েছি" : "পরিশোধ"}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{row.paymentMode || "-"}</td>

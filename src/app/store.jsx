@@ -115,6 +115,7 @@ import { overviewApi } from "../features/overview/overview";
 import { assetsSaleApi } from "../features/assetsSale/assetsSale";
 import { assetsDamageApi } from "../features/assetsDamage/assetsDamage";
 import { supplierApi } from "../features/supplier/supplier";
+import { loanApi } from "../features/loan/loan";
 import { categoryApi } from "../features/category/category";
 import { bankAccountApi } from "../features/bankAccount/bankAccount";
 import { damageProductApi } from "../features/damageProduct/damageProduct";
@@ -198,6 +199,7 @@ const apis = [
   profitLossApi,
   itemApi,
   supplierApi,
+  loanApi,
   supplierHistoryApi,
   wirehouseApi,
   warrantyroductApi,

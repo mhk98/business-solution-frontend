@@ -228,7 +228,7 @@ const Sidebar = () => {
                       className="flex-1"
                     >
                       <div className="text-slate-900 font-semibold leading-tight">
-                        Business Solution
+                        Kafela Mart
                       </div>
                       <div className="text-xs text-slate-500">
                         {t.control_panel}

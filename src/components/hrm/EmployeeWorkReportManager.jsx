@@ -3,10 +3,14 @@ import {
   BarChart3,
   CalendarDays,
   ClipboardList,
+  Download,
   Edit3,
+  Plus,
+  Printer,
   Save,
   Search,
   Trash2,
+  X,
 } from "lucide-react";
 import Select from "react-select";
 import toast from "react-hot-toast";
@@ -79,8 +83,48 @@ const AUTO_TOTAL_SOURCE_FIELDS = [
   ...TOTAL_ASSIGN_SOURCE_FIELDS,
   ...TOTAL_ORDER_SOURCE_FIELDS,
 ];
+const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50, 100];
+
+const REPORT_EXPORT_COLUMNS = [
+  { key: "reportDate", label: "Date" },
+  { key: "name", label: "Name" },
+  { key: "email", label: "Email" },
+  { key: "saleType", label: "Sale Type" },
+  { key: "failedGiven", label: "Failed Given" },
+  { key: "failedReceived", label: "Failed Received" },
+  { key: "pendingGiven", label: "Pending Given" },
+  { key: "pendingReceived", label: "Pending Received" },
+  { key: "leadGiven", label: "Lead Given" },
+  { key: "leadReceived", label: "Lead Received" },
+  { key: "crossReceived", label: "Cross" },
+  { key: "ideskGiven", label: "Inbox Given" },
+  { key: "ideskReceived", label: "Inbox Received" },
+  { key: "callDone", label: "Call Done" },
+  { key: "callReceived", label: "Call Received" },
+  { key: "whatsappDone", label: "WhatsApp Done" },
+  { key: "whatsappReceived", label: "WhatsApp Received" },
+  { key: "pendingReturnReceived", label: "Pending Return" },
+  { key: "canceledReceived", label: "Canceled" },
+  { key: "holdReceived", label: "Hold" },
+  { key: "totalAssign", label: "Total Assign" },
+  { key: "totalOrder", label: "Total Order" },
+  { key: "totalAmount", label: "Total Amount" },
+];
 
 const toReportNumber = (value) => Number(value) || 0;
+const escapeHtml = (value) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+
+const getReportCellValue = (row, key) => {
+  if (key === "email") return row.user?.Email || "";
+  if (key === "totalAmount") return Number(row.totalAmount || 0);
+  return row[key] ?? "";
+};
 
 const sumReportFields = (values, fields) =>
   fields.reduce((total, field) => total + toReportNumber(values[field]), 0);
@@ -104,7 +148,6 @@ const EmployeeWorkReportManager = () => {
   const role = localStorage.getItem("role") || "user";
   const canManageReports = ["superAdmin", "admin"].includes(role);
   const currentUserId = Number(localStorage.getItem("userId") || 0);
-  const pageSize = 10;
 
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState(null);
@@ -114,6 +157,9 @@ const EmployeeWorkReportManager = () => {
   const [fromDate, setFromDate] = useState(today);
   const [toDate, setToDate] = useState(today);
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [selectedReportIds, setSelectedReportIds] = useState([]);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   const currentReportArgs = useMemo(
     () => ({ page: 1, limit: 1, reportDate: form.reportDate }),
@@ -129,7 +175,7 @@ const EmployeeWorkReportManager = () => {
       startDate: fromDate || undefined,
       endDate: toDate || undefined,
     }),
-    [currentPage, searchTerm, selectedEmployee, fromDate, toDate],
+    [currentPage, pageSize, debouncedSearchTerm, selectedEmployee, fromDate, toDate],
   );
 
   const { data: employeeListRes } = useGetAllEmployeeListWithoutQueryQuery(
@@ -182,6 +228,11 @@ const EmployeeWorkReportManager = () => {
   const totalReports = reportMeta?.count || 0;
   const totalPages = Math.max(1, Math.ceil(totalReports / pageSize));
   const isLoading = myReportsLoading || allReportsLoading;
+  const selectedReports = reports.filter((row) =>
+    selectedReportIds.includes(row.Id),
+  );
+  const allVisibleSelected =
+    reports.length > 0 && reports.every((row) => selectedReportIds.includes(row.Id));
 
   const totals = reports.reduce(
     (acc, row) => ({
@@ -237,6 +288,15 @@ const EmployeeWorkReportManager = () => {
     setForm({ ...EMPTY_FORM, reportDate: today });
   };
 
+  const openReportModal = () => {
+    setIsReportModalOpen(true);
+  };
+
+  const closeReportModal = () => {
+    setIsReportModalOpen(false);
+    if (editingId) resetForm();
+  };
+
   const handleFormChange = (key, value) => {
     setForm((prev) => {
       const next = { ...prev, [key]: value };
@@ -269,6 +329,7 @@ const EmployeeWorkReportManager = () => {
           targetId ? "Work report updated" : "Work report submitted",
         );
         setEditingId(null);
+        setIsReportModalOpen(false);
         refetchReports();
       }
     } catch (err) {
@@ -290,6 +351,7 @@ const EmployeeWorkReportManager = () => {
         ),
       }),
     );
+    setIsReportModalOpen(true);
   };
 
   const handleDelete = async (row) => {
@@ -308,9 +370,121 @@ const EmployeeWorkReportManager = () => {
     }
   };
 
+  const handleToggleReportSelection = (rowId) => {
+    setSelectedReportIds((prev) =>
+      prev.includes(rowId)
+        ? prev.filter((id) => id !== rowId)
+        : [...prev, rowId],
+    );
+  };
+
+  const handleToggleVisibleSelection = () => {
+    if (allVisibleSelected) {
+      setSelectedReportIds((prev) =>
+        prev.filter((id) => !reports.some((row) => row.Id === id)),
+      );
+      return;
+    }
+
+    setSelectedReportIds((prev) => [
+      ...prev,
+      ...reports.map((row) => row.Id).filter((id) => !prev.includes(id)),
+    ]);
+  };
+
+  const requireSelectedReports = () => {
+    if (!selectedReports.length) {
+      toast.error("Please select at least one report.");
+      return false;
+    }
+
+    return true;
+  };
+
+  const handlePrintSelectedReports = () => {
+    if (!requireSelectedReports()) return;
+
+    const headerMarkup = REPORT_EXPORT_COLUMNS.map(
+      (column) => `<th>${escapeHtml(column.label)}</th>`,
+    ).join("");
+    const rowsMarkup = selectedReports
+      .map(
+        (row) => `
+          <tr>
+            ${REPORT_EXPORT_COLUMNS.map(
+              (column) =>
+                `<td>${escapeHtml(getReportCellValue(row, column.key))}</td>`,
+            ).join("")}
+          </tr>`,
+      )
+      .join("");
+    const printWindow = window.open("", "_blank", "width=1200,height=800");
+
+    if (!printWindow) {
+      toast.error("Please allow popups to print reports.");
+      return;
+    }
+
+    printWindow.document.write(`
+      <!doctype html>
+      <html>
+        <head>
+          <title>CS Work Reports</title>
+          <style>
+            body { font-family: Arial, sans-serif; color: #0f172a; padding: 24px; }
+            h1 { font-size: 20px; margin: 0 0 4px; }
+            p { margin: 0 0 16px; color: #475569; }
+            table { width: 100%; border-collapse: collapse; font-size: 11px; }
+            th, td { border: 1px solid #cbd5e1; padding: 6px; text-align: left; }
+            th { background: #f1f5f9; font-weight: 700; }
+            @media print { body { padding: 0; } }
+          </style>
+        </head>
+        <body>
+          <h1>CS Work Reports</h1>
+          <p>Selected reports: ${selectedReports.length}</p>
+          <table>
+            <thead><tr>${headerMarkup}</tr></thead>
+            <tbody>${rowsMarkup}</tbody>
+          </table>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  };
+
+  const handleDownloadSelectedReports = async () => {
+    if (!requireSelectedReports()) return;
+
+    try {
+      const XLSX = await import("xlsx");
+      const rows = selectedReports.map((row) =>
+        REPORT_EXPORT_COLUMNS.reduce(
+          (acc, column) => ({
+            ...acc,
+            [column.label]: getReportCellValue(row, column.key),
+          }),
+          {},
+        ),
+      );
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "CS Work Reports");
+      XLSX.writeFile(workbook, `cs-work-reports-${Date.now()}.xlsx`);
+    } catch (err) {
+      toast.error("Google Sheet download failed.");
+    }
+  };
+
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedEmployee, fromDate, toDate]);
+  }, [searchTerm, selectedEmployee, fromDate, toDate, pageSize]);
+
+  useEffect(() => {
+    setSelectedReportIds([]);
+  }, [currentPage, pageSize, searchTerm, selectedEmployee, fromDate, toDate]);
 
   useEffect(() => {
     if (editingId) return;
@@ -338,75 +512,7 @@ const EmployeeWorkReportManager = () => {
       description="Employees submit daily operation counts, and managers can search, compare, and filter submissions by date range."
       stats={stats}
     >
-      <div className="grid gap-6 xl:grid-cols-[420px_1fr]">
-        <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h3 className="text-lg font-bold text-slate-900">
-                {editingId || currentReport
-                  ? "Edit Work Report"
-                  : "Submit Work Report"}
-              </h3>
-              <p className="mt-1 text-sm text-slate-500">
-                One report can be submitted per employee for a date.
-              </p>
-            </div>
-            {(editingId || currentReport) && (
-              <button
-                type="button"
-                onClick={resetForm}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 sm:w-auto"
-              >
-                New
-              </button>
-            )}
-          </div>
-
-          <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
-            <InputField
-              label="Report Date"
-              type="date"
-              value={form.reportDate}
-              onChange={(value) => handleFormChange("reportDate", value)}
-              required
-            />
-            <SelectField
-              label="Sale Type"
-              value={form.saleType}
-              onChange={(value) => handleFormChange("saleType", value)}
-              options={SALE_TYPE_OPTIONS}
-              placeholder="Select sale type"
-            />
-            <div className="grid gap-3 sm:grid-cols-2">
-              {REPORT_FIELDS.map((field) => (
-                <InputField
-                  key={field.key}
-                  label={field.label}
-                  type="number"
-                  min="0"
-                  step={field.step || "1"}
-                  value={form[field.key]}
-                  onChange={(value) => handleFormChange(field.key, value)}
-                  readOnly={AUTO_TOTAL_FIELDS.includes(field.key)}
-                />
-              ))}
-            </div>
-
-            <button
-              type="submit"
-              disabled={creating || updating}
-              className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
-            >
-              <Save size={16} />
-              {creating || updating
-                ? "Saving..."
-                : editingId || currentReport
-                  ? "Update Report"
-                  : "Submit Report"}
-            </button>
-          </form>
-        </section>
-
+      <div className="grid gap-6">
         <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -417,8 +523,49 @@ const EmployeeWorkReportManager = () => {
                 Search by name and filter with start and end date.
               </p>
             </div>
-            <div className="text-sm font-semibold text-slate-600">
-              Showing {reports.length} of {totalReports}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={openReportModal}
+                className="inline-flex h-10 items-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700"
+              >
+                <Plus size={16} />
+                Add CS Report
+              </button>
+              <button
+                type="button"
+                onClick={handlePrintSelectedReports}
+                disabled={!selectedReports.length}
+                className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Printer size={16} />
+                Print
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadSelectedReports}
+                disabled={!selectedReports.length}
+                className="inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-600 px-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Download size={16} />
+                Google Sheet
+              </button>
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-slate-500">
+                  Per Page
+                </span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => setPageSize(Number(e.target.value))}
+                  className="h-10 min-w-[120px] rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
+                >
+                  {PAGE_SIZE_OPTIONS.map((size) => (
+                    <option key={size} value={size}>
+                      {size}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
           </div>
 
@@ -466,22 +613,25 @@ const EmployeeWorkReportManager = () => {
             />
           </div>
 
-          <div className="mt-5 max-w-full overflow-x-auto rounded-2xl border border-slate-200">
-            <table className="min-w-[1380px] w-full divide-y divide-slate-200 text-left text-sm">
+          <div className="mt-5 max-h-[58vh] max-w-full overflow-auto rounded-2xl border border-slate-200">
+            <table className="min-w-[2200px] w-full divide-y divide-slate-200 text-left text-sm">
               <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
                 <tr>
-                  <th className="px-4 py-3">Date</th>
-                  <th className="px-4 py-3">Name</th>
-                  <th className="px-4 py-3">Failed</th>
-                  <th className="px-4 py-3">Pending</th>
-                  <th className="px-4 py-3">Lead</th>
-                  <th className="px-4 py-3">Cross</th>
-                  <th className="px-4 py-3">Inbox</th>
-                  <th className="px-4 py-3">Call</th>
-                  <th className="px-4 py-3">WhatsApp</th>
-                  <th className="px-4 py-3">Assign</th>
-                  <th className="px-4 py-3">Order</th>
-                  <th className="px-4 py-3">Amount</th>
+                  <th className="sticky left-0 z-20 bg-slate-50 px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      onChange={handleToggleVisibleSelection}
+                      disabled={!reports.length}
+                      className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      aria-label="Select visible reports"
+                    />
+                  </th>
+                  {REPORT_EXPORT_COLUMNS.map((column) => (
+                    <th key={column.key} className="px-4 py-3">
+                      {column.label}
+                    </th>
+                  ))}
                   <th className="sticky right-0 z-10 bg-slate-50 px-4 py-3 text-right shadow-[-10px_0_16px_-16px_rgba(15,23,42,0.65)]">
                     Actions
                   </th>
@@ -491,7 +641,7 @@ const EmployeeWorkReportManager = () => {
                 {isLoading && (
                   <tr>
                     <td
-                      colSpan={13}
+                      colSpan={REPORT_EXPORT_COLUMNS.length + 2}
                       className="px-4 py-10 text-center text-slate-500"
                     >
                       Loading reports...
@@ -501,7 +651,7 @@ const EmployeeWorkReportManager = () => {
                 {!isLoading && reports.length === 0 && (
                   <tr>
                     <td
-                      colSpan={13}
+                      colSpan={REPORT_EXPORT_COLUMNS.length + 2}
                       className="px-4 py-10 text-center text-slate-500"
                     >
                       No cs work report found.
@@ -511,55 +661,55 @@ const EmployeeWorkReportManager = () => {
                 {!isLoading &&
                   reports.map((row) => {
                     const canMutateRow = Number(row.user?.Id) === currentUserId;
+                    const isSelected = selectedReportIds.includes(row.Id);
 
                     return (
                       <tr key={row.Id} className="group hover:bg-slate-50">
-                        <td className="px-4 py-3 font-medium text-slate-900">
-                          {row.reportDate}
+                        <td className="sticky left-0 z-10 bg-white px-4 py-3 group-hover:bg-slate-50">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleReportSelection(row.Id)}
+                            className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                            aria-label={`Select report ${row.Id}`}
+                          />
                         </td>
-                        <td className="sticky right-0 bg-white px-4 py-3 shadow-[-10px_0_16px_-16px_rgba(15,23,42,0.65)] group-hover:bg-slate-50">
-                          <div className="font-semibold text-slate-900">
-                            {row.name}
-                          </div>
-                          <div className="text-xs text-slate-500">
-                            {row.user?.Email || "-"}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          {row.failedGiven || 0} / {row.failedReceived || 0}
-                        </td>
-                        <td className="px-4 py-3">
-                          {row.pendingGiven || 0} / {row.pendingReceived || 0}
-                        </td>
-                        <td className="px-4 py-3">
-                          {row.leadGiven || 0} / {row.leadReceived || 0}
-                        </td>
-                        <td className="px-4 py-3">{row.crossReceived || 0}</td>
-                        <td className="px-4 py-3">
-                          {row.ideskGiven || 0} / {row.ideskReceived || 0}
-                        </td>
-                        <td className="px-4 py-3">
-                          {row.callDone || 0} / {row.callReceived || 0}
-                        </td>
-                        <td className="px-4 py-3">
-                          {row.whatsappDone || 0} / {row.whatsappReceived || 0}
-                        </td>
-                        <td className="px-4 py-3 font-semibold">
-                          {row.totalAssign || 0}
-                        </td>
-                        <td className="px-4 py-3 font-semibold">
-                          {row.totalOrder || 0}
-                        </td>
-                        <td className="px-4 py-3 font-semibold">
-                          {Number(row.totalAmount || 0).toLocaleString(
-                            undefined,
-                            {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
-                            },
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
+                        {REPORT_EXPORT_COLUMNS.map((column) => (
+                          <td
+                            key={column.key}
+                            className={`px-4 py-3 ${
+                              ["totalAssign", "totalOrder", "totalAmount"].includes(
+                                column.key,
+                              )
+                                ? "font-semibold text-slate-900"
+                                : ""
+                            }`}
+                          >
+                            {column.key === "name" ? (
+                              <div>
+                                <div className="font-semibold text-slate-900">
+                                  {row.name || "-"}
+                                </div>
+                                <div className="text-xs text-slate-500">
+                                  {row.employee?.employee_id
+                                    ? `Employee ID: ${row.employee.employee_id}`
+                                    : "-"}
+                                </div>
+                              </div>
+                            ) : column.key === "totalAmount" ? (
+                              Number(row.totalAmount || 0).toLocaleString(
+                                undefined,
+                                {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                },
+                              )
+                            ) : (
+                              getReportCellValue(row, column.key) || "-"
+                            )}
+                          </td>
+                        ))}
+                        <td className="sticky right-0 z-10 bg-white px-4 py-3 shadow-[-10px_0_16px_-16px_rgba(15,23,42,0.65)] group-hover:bg-slate-50">
                           {canMutateRow ? (
                             <div className="flex justify-end gap-2">
                               <button
@@ -620,6 +770,95 @@ const EmployeeWorkReportManager = () => {
           )}
         </section>
       </div>
+
+      {isReportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-6 backdrop-blur-sm">
+          <div className="flex max-h-[92vh] w-full max-w-3xl flex-col rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">
+                  {editingId || currentReport
+                    ? "Edit Work Report"
+                    : "Submit Work Report"}
+                </h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  One report can be submitted per employee for a date.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                {(editingId || currentReport) && (
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+                  >
+                    New
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={closeReportModal}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50"
+                  aria-label="Close report modal"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+
+            <form
+              className="min-h-0 overflow-y-auto px-6 py-5"
+              onSubmit={handleSubmit}
+            >
+              <div className="space-y-4">
+                <InputField
+                  label="Report Date"
+                  type="date"
+                  value={form.reportDate}
+                  onChange={(value) => handleFormChange("reportDate", value)}
+                  required
+                />
+                <SelectField
+                  label="Sale Type"
+                  value={form.saleType}
+                  onChange={(value) => handleFormChange("saleType", value)}
+                  options={SALE_TYPE_OPTIONS}
+                  placeholder="Select sale type"
+                />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {REPORT_FIELDS.map((field) => (
+                    <InputField
+                      key={field.key}
+                      label={field.label}
+                      type="number"
+                      min="0"
+                      step={field.step || "1"}
+                      value={form[field.key]}
+                      onChange={(value) => handleFormChange(field.key, value)}
+                      readOnly={AUTO_TOTAL_FIELDS.includes(field.key)}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <div className="sticky bottom-0 mt-6 flex justify-end border-t border-slate-100 bg-white pt-4">
+                <button
+                  type="submit"
+                  disabled={creating || updating}
+                  className="inline-flex h-11 min-w-[180px] items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
+                >
+                  <Save size={16} />
+                  {creating || updating
+                    ? "Saving..."
+                    : editingId || currentReport
+                      ? "Update Report"
+                      : "Submit Report"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </HrmWorkspace>
   );
 };
