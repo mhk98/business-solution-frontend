@@ -130,7 +130,6 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "attendance_device",
     "attendance",
     "leave_management",
-    "daily_work_reports",
     "cs_work_reports",
     "logistic_work_reports",
     "payroll_management",
@@ -209,7 +208,6 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "attendance_device",
     "attendance",
     "leave_management",
-    "daily_work_reports",
     "cs_work_reports",
     "logistic_work_reports",
     "payroll_management",
@@ -297,7 +295,6 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "attendance_device",
     "attendance",
     "leave_management",
-    "daily_work_reports",
     "cs_work_reports",
     "logistic_work_reports",
     "payroll_management",
@@ -327,7 +324,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "tasks",
     "profile",
   ],
-  up: ["daily_work_reports", "notifications", "tasks", "profile"],
+  up: ["notifications", "tasks", "profile"],
   cs: ["cs_work_reports", "notifications", "tasks", "profile"],
   staff: ["notifications", "tasks", "profile"],
   user: ["tasks", "profile"],
@@ -1029,10 +1026,19 @@ export const SIDEBAR_ITEMS = [
 
 const STORAGE_KEY = "roleMenuPermissions";
 const OVERVIEW_DEFAULT_REMOVED_STORAGE_KEY = "overview-default-permission-removed";
+const DAILY_WORK_REPORTS_DEFAULT_REMOVED_STORAGE_KEY =
+  "daily-work-reports-default-permission-removed";
 const PERMISSION_EVENT = "role-permissions-updated";
 const PERMISSION_KEY_ALIASES = {
   employee_profile: "employee_list",
 };
+
+const ROLES_WITH_LEGACY_DAILY_WORK_REPORTS_DEFAULT = new Set([
+  "superAdmin",
+  "admin",
+  "accountant",
+  "up",
+]);
 
 const LEGACY_PERMISSION_EXPANSIONS = {
   department_designation: ["department_management", "designation_management"],
@@ -1144,10 +1150,6 @@ const normalizeRolePermissionMap = (value) => {
       normalizedKeys.add("stock_alert");
     }
 
-    if (defaultKeys.includes("daily_work_reports")) {
-      normalizedKeys.add("daily_work_reports");
-    }
-
     if (defaultKeys.includes("loan")) {
       normalizedKeys.add("loan");
     }
@@ -1193,6 +1195,17 @@ const removeOverviewPermissionFromMap = (permissionMap = {}) =>
     return acc;
   }, {});
 
+const removeDailyWorkReportsPermissionFromMap = (permissionMap = {}) =>
+  Object.entries(permissionMap).reduce((acc, [role, keys]) => {
+    acc[role] = ROLES_WITH_LEGACY_DAILY_WORK_REPORTS_DEFAULT.has(role) &&
+      Array.isArray(keys)
+      ? keys.filter(
+          (key) => getCanonicalPermissionKey(key) !== "daily_work_reports",
+        )
+      : keys;
+    return acc;
+  }, {});
+
 const migrateStoredOverviewDefaultPermission = () => {
   if (typeof window === "undefined") return;
   if (localStorage.getItem(OVERVIEW_DEFAULT_REMOVED_STORAGE_KEY)) return;
@@ -1212,11 +1225,39 @@ const migrateStoredOverviewDefaultPermission = () => {
   }
 };
 
+const migrateStoredDailyWorkReportsDefaultPermission = () => {
+  if (typeof window === "undefined") return;
+  if (localStorage.getItem(DAILY_WORK_REPORTS_DEFAULT_REMOVED_STORAGE_KEY)) {
+    return;
+  }
+
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+    if (parsed && typeof parsed === "object") {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(removeDailyWorkReportsPermissionFromMap(parsed)),
+      );
+    }
+  } catch (error) {
+    console.error(
+      "Failed to migrate daily work reports menu permission",
+      error,
+    );
+  } finally {
+    localStorage.setItem(
+      DAILY_WORK_REPORTS_DEFAULT_REMOVED_STORAGE_KEY,
+      "true",
+    );
+  }
+};
+
 export const getStoredRolePermissions = () => {
   if (typeof window === "undefined") return {};
 
   try {
     migrateStoredOverviewDefaultPermission();
+    migrateStoredDailyWorkReportsDefaultPermission();
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
     return normalizeRolePermissionMap(parsed);
   } catch (error) {

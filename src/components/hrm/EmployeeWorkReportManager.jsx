@@ -88,22 +88,13 @@ const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50, 100];
 const REPORT_EXPORT_COLUMNS = [
   { key: "reportDate", label: "Date" },
   { key: "name", label: "Name" },
-  { key: "email", label: "Email" },
-  { key: "saleType", label: "Sale Type" },
-  { key: "failedGiven", label: "Failed Given" },
-  { key: "failedReceived", label: "Failed Received" },
-  { key: "pendingGiven", label: "Pending Given" },
-  { key: "pendingReceived", label: "Pending Received" },
-  { key: "leadGiven", label: "Lead Given" },
-  { key: "leadReceived", label: "Lead Received" },
+  { key: "failed", label: "Failed" },
+  { key: "pending", label: "Pending" },
+  { key: "lead", label: "Lead" },
   { key: "crossReceived", label: "Cross" },
-  { key: "ideskGiven", label: "Inbox Given" },
-  { key: "ideskReceived", label: "Inbox Received" },
-  { key: "callDone", label: "Call Done" },
-  { key: "callReceived", label: "Call Received" },
-  { key: "whatsappDone", label: "WhatsApp Done" },
-  { key: "whatsappReceived", label: "WhatsApp Received" },
-  { key: "pendingReturnReceived", label: "Pending Return" },
+  { key: "inbox", label: "Inbox" },
+  { key: "call", label: "Call" },
+  { key: "whatsapp", label: "WhatsApp" },
   { key: "canceledReceived", label: "Canceled" },
   { key: "holdReceived", label: "Hold" },
   { key: "totalAssign", label: "Total Assign" },
@@ -121,8 +112,30 @@ const escapeHtml = (value) =>
     .replace(/'/g, "&#039;");
 
 const getReportCellValue = (row, key) => {
-  if (key === "email") return row.user?.Email || "";
-  if (key === "totalAmount") return Number(row.totalAmount || 0);
+  if (key === "failed") {
+    return `${toReportNumber(row.failedGiven)} / ${toReportNumber(row.failedReceived)}`;
+  }
+  if (key === "pending") {
+    return `${toReportNumber(row.pendingGiven)} / ${toReportNumber(row.pendingReceived)}`;
+  }
+  if (key === "lead") {
+    return `${toReportNumber(row.leadGiven)} / ${toReportNumber(row.leadReceived)}`;
+  }
+  if (key === "inbox") {
+    return `${toReportNumber(row.ideskGiven)} / ${toReportNumber(row.ideskReceived)}`;
+  }
+  if (key === "call") {
+    return `${toReportNumber(row.callDone)} / ${toReportNumber(row.callReceived)}`;
+  }
+  if (key === "whatsapp") {
+    return `${toReportNumber(row.whatsappDone)} / ${toReportNumber(row.whatsappReceived)}`;
+  }
+  if (key === "crossReceived") return toReportNumber(row.crossReceived);
+  if (key === "canceledReceived") return toReportNumber(row.canceledReceived);
+  if (key === "holdReceived") return toReportNumber(row.holdReceived);
+  if (key === "totalAssign") return toReportNumber(row.totalAssign);
+  if (key === "totalOrder") return toReportNumber(row.totalOrder);
+  if (key === "totalAmount") return toReportNumber(row.totalAmount);
   return row[key] ?? "";
 };
 
@@ -175,7 +188,14 @@ const EmployeeWorkReportManager = () => {
       startDate: fromDate || undefined,
       endDate: toDate || undefined,
     }),
-    [currentPage, pageSize, debouncedSearchTerm, selectedEmployee, fromDate, toDate],
+    [
+      currentPage,
+      pageSize,
+      debouncedSearchTerm,
+      selectedEmployee,
+      fromDate,
+      toDate,
+    ],
   );
 
   const { data: employeeListRes } = useGetAllEmployeeListWithoutQueryQuery(
@@ -232,7 +252,8 @@ const EmployeeWorkReportManager = () => {
     selectedReportIds.includes(row.Id),
   );
   const allVisibleSelected =
-    reports.length > 0 && reports.every((row) => selectedReportIds.includes(row.Id));
+    reports.length > 0 &&
+    reports.every((row) => selectedReportIds.includes(row.Id));
 
   const totals = reports.reduce(
     (acc, row) => ({
@@ -614,7 +635,7 @@ const EmployeeWorkReportManager = () => {
           </div>
 
           <div className="mt-5 max-h-[58vh] max-w-full overflow-auto rounded-2xl border border-slate-200">
-            <table className="min-w-[2200px] w-full divide-y divide-slate-200 text-left text-sm">
+            <table className="min-w-[1500px] w-full divide-y divide-slate-200 text-left text-sm">
               <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
                 <tr>
                   <th className="sticky left-0 z-20 bg-slate-50 px-4 py-3">
@@ -678,9 +699,11 @@ const EmployeeWorkReportManager = () => {
                           <td
                             key={column.key}
                             className={`px-4 py-3 ${
-                              ["totalAssign", "totalOrder", "totalAmount"].includes(
-                                column.key,
-                              )
+                              [
+                                "totalAssign",
+                                "totalOrder",
+                                "totalAmount",
+                              ].includes(column.key)
                                 ? "font-semibold text-slate-900"
                                 : ""
                             }`}
@@ -691,9 +714,7 @@ const EmployeeWorkReportManager = () => {
                                   {row.name || "-"}
                                 </div>
                                 <div className="text-xs text-slate-500">
-                                  {row.employee?.employee_id
-                                    ? `Employee ID: ${row.employee.employee_id}`
-                                    : "-"}
+                                  {row.user?.Email || "-"}
                                 </div>
                               </div>
                             ) : column.key === "totalAmount" ? (

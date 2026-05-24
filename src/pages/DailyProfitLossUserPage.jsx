@@ -833,7 +833,7 @@ const DailyProfitLossUserPage = () => {
             </div>
 
             <div className="mt-5 overflow-x-auto rounded-2xl border border-slate-200">
-              <table className="min-w-[1380px] w-full divide-y divide-slate-200 text-left text-sm">
+              <table className="min-w-[1040px] w-full divide-y divide-slate-200 text-left text-sm">
                 <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
                   <tr>
                     <th className="px-4 py-3">Date</th>
@@ -845,9 +845,6 @@ const DailyProfitLossUserPage = () => {
                     <th className="px-4 py-3">Inbox</th>
                     <th className="px-4 py-3">Call</th>
                     <th className="px-4 py-3">WhatsApp</th>
-                    <th className="px-4 py-3">Assign</th>
-                    <th className="px-4 py-3">Order</th>
-                    <th className="px-4 py-3">Amount</th>
                     <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -855,7 +852,7 @@ const DailyProfitLossUserPage = () => {
                   {isLoading && (
                     <tr>
                       <td
-                        colSpan={13}
+                        colSpan={10}
                         className="px-4 py-10 text-center text-slate-500"
                       >
                         Loading reports...
@@ -865,7 +862,7 @@ const DailyProfitLossUserPage = () => {
                   {!isLoading && reports.length === 0 && (
                     <tr>
                       <td
-                        colSpan={13}
+                        colSpan={10}
                         className="px-4 py-10 text-center text-slate-500"
                       >
                         No cs work report found.
@@ -910,21 +907,6 @@ const DailyProfitLossUserPage = () => {
                           <td className="px-4 py-3">
                             {row.whatsappDone || 0} /{" "}
                             {row.whatsappReceived || 0}
-                          </td>
-                          <td className="px-4 py-3 font-semibold">
-                            {row.totalAssign || 0}
-                          </td>
-                          <td className="px-4 py-3 font-semibold">
-                            {row.totalOrder || 0}
-                          </td>
-                          <td className="px-4 py-3 font-semibold">
-                            {Number(row.totalAmount || 0).toLocaleString(
-                              undefined,
-                              {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2,
-                              },
-                            )}
                           </td>
                           <td className="px-4 py-3">
                             {canMutateRow ? (

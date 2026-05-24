@@ -335,6 +335,50 @@ const parseReceivedItems = (value) => {
   }
 };
 
+const resolveEditPrice = (value, fallbackValue = "") => {
+  const fallbackNumber = Number(fallbackValue);
+  const hasFallback =
+    fallbackValue !== undefined &&
+    fallbackValue !== null &&
+    fallbackValue !== "" &&
+    Number.isFinite(fallbackNumber) &&
+    fallbackNumber > 0;
+
+  if (value === undefined || value === null || value === "") {
+    return hasFallback ? fallbackValue : "";
+  }
+
+  const valueNumber = Number(value);
+  if (Number.isFinite(valueNumber) && valueNumber > 0) return value;
+
+  return hasFallback ? fallbackValue : value;
+};
+
+const hydrateReceivedItemsForEdit = (items = [], record = {}) =>
+  items.map((item) => {
+    const purchasePrice = resolveEditPrice(
+      item?.purchase_price,
+      record?.purchase_price,
+    );
+    const salePrice = resolveEditPrice(item?.sale_price, record?.sale_price);
+
+    return {
+      ...item,
+      purchase_price: purchasePrice,
+      sale_price: salePrice,
+      variants: Array.isArray(item?.variants)
+        ? item.variants.map((variant) => ({
+            ...variant,
+            purchase_price: resolveEditPrice(
+              variant?.purchase_price,
+              purchasePrice,
+            ),
+            sale_price: resolveEditPrice(variant?.sale_price, salePrice),
+          }))
+        : item?.variants,
+    };
+  });
+
 const getReceivedRowItems = (row) => {
   const items = parseReceivedItems(row?.items);
   if (items.length > 0) return items;
@@ -951,7 +995,7 @@ const ReceivedProductTable = () => {
     const variantRows = getInitialVariantRowsFromRecord(rp);
     const editItems =
       bulkItems.length > 0
-        ? bulkItems
+        ? hydrateReceivedItemsForEdit(bulkItems, rp)
         : [
             {
               productId: Number(rp.productId) || "",
