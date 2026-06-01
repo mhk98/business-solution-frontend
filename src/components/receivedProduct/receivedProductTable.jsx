@@ -957,7 +957,7 @@ const ReceivedProductTable = () => {
     }
 
     if (!isLoading && data) {
-      setRows(groupReceivedRowsByBatch(data.data || []));
+      setRows(data.data || []);
       setTotalPages(
         Math.max(1, Math.ceil((data?.meta?.count || 0) / itemsPerPage)),
       );
@@ -1018,7 +1018,7 @@ const ReceivedProductTable = () => {
 
     setCurrentProduct({
       ...rp,
-      items: editItems,
+      items: bulkItems.length > 0 ? editItems : [],
       productId: rp.productId ? String(rp.productId) : "",
       supplierId: rp.supplierId ?? "",
       warehouseId: rp.warehouseId ?? "",

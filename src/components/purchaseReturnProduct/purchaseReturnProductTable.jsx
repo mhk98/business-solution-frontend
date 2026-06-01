@@ -1023,7 +1023,7 @@ const PurchaseReturnProductTable = () => {
 
     setCurrentItem({
       ...rp,
-      items: editItems,
+      items: bulkItems.length > 0 ? editItems : [],
       productId: String(productId),
       receivedId: String(receivedId),
       note: rp.note ?? "",

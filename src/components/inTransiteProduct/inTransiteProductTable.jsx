@@ -404,6 +404,10 @@ const IntransiteProductTable = () => {
     () => createItems.reduce((total, item) => total + (Number(item?.payload?.purchase_price) || 0), 0),
     [createItems],
   );
+  const createItemsTotalSale = useMemo(
+    () => createItems.reduce((total, item) => total + (Number(item?.payload?.sale_price) || 0), 0),
+    [createItems],
+  );
   const editSizeOptions = useMemo(
     () => getVariationOptions(selectedEditProductData, "size"),
     [selectedEditProductData],
@@ -1036,6 +1040,7 @@ const IntransiteProductTable = () => {
     if (totalQuantity <= 0) return { error: "Please enter valid quantity" };
 
     const unitPurchasePrice = Number(selectedCreateInventoryItem?.purchase_price) || 0;
+    const unitSalePrice = Number(selectedCreateInventoryItem?.sale_price) || 0;
     const inventoryVariants = getVariantDisplayRows(selectedCreateInventoryItem);
     const totalPurchasePrice =
       variantsPayload.length > 0 && inventoryVariants.length > 0
@@ -1049,6 +1054,18 @@ const IntransiteProductTable = () => {
             return sum + vUnitPrice * Number(v.quantity || 0);
           }, 0)
         : unitPurchasePrice * totalQuantity;
+    const totalSalePrice =
+      variantsPayload.length > 0 && inventoryVariants.length > 0
+        ? variantsPayload.reduce((sum, v) => {
+            const invVariant = inventoryVariants.find(
+              (iv) =>
+                String(iv.size || "") === String(v.size || "") &&
+                String(iv.color || "") === String(v.color || ""),
+            );
+            const vUnitPrice = Number(invVariant?.sale_price) || unitSalePrice;
+            return sum + vUnitPrice * Number(v.quantity || 0);
+          }, 0)
+        : unitSalePrice * totalQuantity;
 
     const productId = String(createForm.productId || createForm.receivedId);
     const selectedProduct = receivedDropdownOptions.find(
@@ -1061,13 +1078,14 @@ const IntransiteProductTable = () => {
         productId: Number(createForm.productId || createForm.receivedId),
         warehouseId: Number(createForm.warehouseId),
         quantity: totalQuantity,
-        sale_price: Number(createForm.sale_price) || 0,
+        sale_price: totalSalePrice,
         purchase_price: totalPurchasePrice,
         variants: variantsPayload,
         note: createForm.note,
         date: createForm.date,
       },
       unit_purchase_price: unitPurchasePrice,
+      unit_sale_price: unitSalePrice,
       label: selectedProduct?.label || `Product #${productId}`,
     };
   };
@@ -1109,15 +1127,19 @@ const IntransiteProductTable = () => {
           (Number(incomingItem.payload?.quantity) || 0);
         const unitPrice =
           incomingItem.unit_purchase_price ?? item.unit_purchase_price ?? 0;
+        const unitSalePrice =
+          incomingItem.unit_sale_price ?? item.unit_sale_price ?? 0;
 
         return {
           ...item,
           unit_purchase_price: unitPrice,
+          unit_sale_price: unitSalePrice,
           payload: {
             ...item.payload,
             ...incomingItem.payload,
             quantity: newQuantity,
             purchase_price: unitPrice * newQuantity,
+            sale_price: unitSalePrice * newQuantity,
             variants,
           },
         };
@@ -1163,9 +1185,11 @@ const IntransiteProductTable = () => {
       (option) => option.value === productId,
     );
     const unitPurchasePrice = Number(selectedCreateInventoryItem?.purchase_price) || 0;
+    const unitSalePrice = Number(selectedCreateInventoryItem?.sale_price) || 0;
 
     mergeCreateItem({
       unit_purchase_price: unitPurchasePrice,
+      unit_sale_price: unitSalePrice,
       payload: {
         receivedId: Number(createForm.receivedId || createForm.productId),
         productId: Number(createForm.productId || createForm.receivedId),
@@ -1197,7 +1221,9 @@ const IntransiteProductTable = () => {
         const updatedPayload = { ...item.payload, [key]: value };
         if (key === "quantity") {
           const unitPrice = Number(item.unit_purchase_price) || 0;
+          const unitSalePrice = Number(item.unit_sale_price) || 0;
           updatedPayload.purchase_price = unitPrice * (Number(value) || 0);
+          updatedPayload.sale_price = unitSalePrice * (Number(value) || 0);
         }
         return { ...item, payload: updatedPayload };
       }),
@@ -1240,6 +1266,21 @@ const IntransiteProductTable = () => {
                 return sum + vUnitPrice * (Number(v.quantity) || 0);
               }, 0)
             : (Number(item.unit_purchase_price) || 0) * quantity;
+        const computedSalePrice =
+          invVariants.length > 0
+            ? variants.reduce((sum, v) => {
+                const invVariant = invVariants.find(
+                  (iv) =>
+                    String(iv.size || "") === String(v.size || "") &&
+                    String(iv.color || "") === String(v.color || ""),
+                );
+                const vUnitPrice =
+                  Number(invVariant?.sale_price) ||
+                  Number(item.unit_sale_price) ||
+                  0;
+                return sum + vUnitPrice * (Number(v.quantity) || 0);
+              }, 0)
+            : (Number(item.unit_sale_price) || 0) * quantity;
 
         return {
           ...item,
@@ -1248,6 +1289,7 @@ const IntransiteProductTable = () => {
             variants,
             quantity,
             purchase_price: computedPurchasePrice,
+            sale_price: computedSalePrice,
           },
         };
       }),
@@ -1303,8 +1345,6 @@ const IntransiteProductTable = () => {
       if (item.error) return toast.error(item.error);
       items = [{ ...applyCreateGlobalFields(item.payload), batchId }];
     }
-    items = applyCreateTotalSaleToItems(items);
-
     try {
       const payload = items.length === 1 ? items[0] : { items };
       const res = await insertInTransitProduct(payload).unwrap();
@@ -2718,33 +2758,6 @@ const IntransiteProductTable = () => {
                   </p>
                   <p className="text-lg font-black text-slate-900">
                     {createItemsTotalQuantity || ""}
-                  </p>
-                </div>
-                <div>
-                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Total Sale
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={createForm.sale_price}
-                    onChange={(event) =>
-                      setCreateForm((prev) => ({
-                        ...prev,
-                        sale_price: event.target.value,
-                      }))
-                    }
-                    className="h-10 w-32 rounded-xl border border-slate-200 bg-white px-3 text-right text-sm font-bold text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
-                    placeholder=""
-                  />
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Total Purchase
-                  </p>
-                  <p className="text-lg font-black text-slate-900">
-                    {createItemsTotalPurchase > 0 ? createItemsTotalPurchase.toFixed(2) : ""}
                   </p>
                 </div>
               </div>
