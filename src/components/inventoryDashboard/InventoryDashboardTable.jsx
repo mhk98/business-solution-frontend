@@ -3,7 +3,15 @@ import { useGetInventoryListQuery } from "../../features/inventoryDashboard/inve
 import { useGetAllProductWithoutQueryQuery } from "../../features/product/product";
 import Select from "react-select";
 import { motion } from "framer-motion";
-import { ShoppingBasket } from "lucide-react";
+import { ShoppingBasket, TrendingUp, TrendingDown } from "lucide-react";
+
+const formatMoney = (value) => {
+  const amount = Number(value || 0);
+  return `৳${amount.toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+};
 
 const getNumberValue = (...values) => {
   for (const value of values) {
@@ -220,6 +228,34 @@ const InventoryOverviewTable = () => {
                 {isLoading
                   ? "..."
                   : (data?.meta?.totalQuantity ?? 0).toLocaleString()}
+              </div>
+            </div>
+          </div>
+
+          <div className="inline-flex items-center gap-3 bg-emerald-50 border border-emerald-100 px-5 py-2.5 rounded-2xl shadow-sm shadow-emerald-50">
+            <div className="h-8 w-8 bg-white rounded-xl flex items-center justify-center text-emerald-600 shadow-sm">
+              <TrendingDown size={18} />
+            </div>
+            <div>
+              <div className="text-[9px] font-black text-emerald-500 uppercase tracking-[0.2em]">
+                Total Purchase
+              </div>
+              <div className="text-base font-black text-emerald-900 tabular-nums leading-none">
+                {isLoading ? "..." : formatMoney(data?.meta?.totalPurchaseValue ?? 0)}
+              </div>
+            </div>
+          </div>
+
+          <div className="inline-flex items-center gap-3 bg-sky-50 border border-sky-100 px-5 py-2.5 rounded-2xl shadow-sm shadow-sky-50">
+            <div className="h-8 w-8 bg-white rounded-xl flex items-center justify-center text-sky-600 shadow-sm">
+              <TrendingUp size={18} />
+            </div>
+            <div>
+              <div className="text-[9px] font-black text-sky-500 uppercase tracking-[0.2em]">
+                Total Sale
+              </div>
+              <div className="text-base font-black text-sky-900 tabular-nums leading-none">
+                {isLoading ? "..." : formatMoney(data?.meta?.totalSaleValue ?? 0)}
               </div>
             </div>
           </div>
