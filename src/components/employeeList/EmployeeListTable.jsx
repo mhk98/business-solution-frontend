@@ -27,6 +27,7 @@ const EmployeeListTable = () => {
   const [createProduct, setCreateProduct] = useState({
     name: "",
     employee_id: "",
+    phone: "",
     salary: "",
     note: "",
     date: new Date().toISOString().slice(0, 10),
@@ -165,6 +166,7 @@ const EmployeeListTable = () => {
     setCreateProduct({
       name: "",
       employee_id: "",
+      phone: "",
       salary: "",
       note: "",
       date: new Date().toISOString().slice(0, 10),
@@ -242,6 +244,7 @@ const EmployeeListTable = () => {
       ...product,
       salary: product.salary ?? product.price ?? "",
       employee_id: product.employee_id ?? "",
+      phone: product.phone ?? "",
       name: product.name ?? "",
       note: product.note ?? "",
       status: product.status ?? "",
@@ -267,6 +270,7 @@ const EmployeeListTable = () => {
       const payload = {
         name: currentProduct.name.trim(),
         employee_id: Number(currentProduct.employee_id),
+        phone: currentProduct.phone || null,
         salary: Number(currentProduct.salary),
         price: Number(currentProduct.salary),
         note: currentProduct.note,
@@ -311,6 +315,7 @@ const EmployeeListTable = () => {
       const payload = {
         name: createProduct.name.trim(),
         employee_id: Number(createProduct.employee_id),
+        phone: createProduct.phone || null,
         salary: Number(createProduct.salary),
         date: createProduct.date,
         joiningDate: createProduct.joiningDate,
@@ -327,6 +332,7 @@ const EmployeeListTable = () => {
         setCreateProduct({
           name: "",
           employee_id: "",
+          phone: "",
           salary: "",
           note: "",
           date: new Date().toISOString().slice(0, 10),
@@ -640,6 +646,7 @@ const EmployeeListTable = () => {
             <tr>
               {[
                 "Name",
+                "Phone",
                 "Department",
                 "Designation",
                 "Joining Date",
@@ -668,6 +675,10 @@ const EmployeeListTable = () => {
               >
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-900">
                   {product.name}
+                </td>
+
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                  {product.phone || "-"}
                 </td>
 
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
@@ -774,7 +785,7 @@ const EmployeeListTable = () => {
             {!isLoading && products.length === 0 && (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={8}
                   className="px-6 py-6 text-center text-sm text-slate-600"
                 >
                   No data found
@@ -863,6 +874,14 @@ const EmployeeListTable = () => {
             }
             required
             placeholder="Enter employee id"
+          />
+
+          <Field
+            label="Phone Number"
+            type="tel"
+            value={currentProduct?.phone || ""}
+            onChange={(v) => setCurrentProduct({ ...currentProduct, phone: v })}
+            placeholder="Enter phone number"
           />
 
           <Field
@@ -1062,6 +1081,14 @@ const EmployeeListTable = () => {
             }
             required
             placeholder="Enter employee id"
+          />
+
+          <Field
+            label="Phone Number"
+            type="tel"
+            value={createProduct.phone}
+            onChange={(v) => setCreateProduct({ ...createProduct, phone: v })}
+            placeholder="Enter phone number"
           />
 
           <Field

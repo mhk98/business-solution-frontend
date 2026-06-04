@@ -102,6 +102,7 @@ const EmployeeTable = () => {
   const [selectedDepartment, setSelectedDepartment] = useState(null);
   const [selectedDesignation, setSelectedDesignation] = useState(null);
   const [selectedStatus, setSelectedStatus] = useState("All");
+  const [phoneFilter, setPhoneFilter] = useState("");
 
   // ✅ Per-page user selectable
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -270,15 +271,28 @@ const EmployeeTable = () => {
     selectedDepartment,
     selectedDesignation,
     selectedStatus,
+    phoneFilter,
     itemsPerPage,
   ]);
+
+  const { data: employeeList } = useGetAllEmployeeListWithoutQueryQuery();
+
+  const phoneMatchedEmployeeListId = useMemo(() => {
+    const trimmed = phoneFilter.trim();
+    if (!trimmed) return undefined;
+    const matched = (employeeList?.data || []).find(
+      (e) => e.phone && e.phone.includes(trimmed),
+    );
+    return matched ? String(matched.Id) : "0";
+  }, [phoneFilter, employeeList]);
 
   const queryArgs = {
     page: currentPage,
     limit: itemsPerPage,
     startDate: startDate || undefined,
     endDate: endDate || undefined,
-    employeeListId: selectedEmployee?.value || undefined,
+    employeeListId:
+      selectedEmployee?.value || phoneMatchedEmployeeListId || undefined,
     departmentId: selectedDepartment?.value || undefined,
     designationId: selectedDesignation?.value || undefined,
     status: selectedStatus === "All" ? undefined : selectedStatus,
@@ -297,8 +311,6 @@ const EmployeeTable = () => {
       setTotalPages(Math.ceil((data?.meta?.count || 0) / itemsPerPage) || 1);
     }
   }, [data, isLoading, isError, error, currentPage, itemsPerPage]);
-
-  const { data: employeeList } = useGetAllEmployeeListWithoutQueryQuery();
   const { data: allBookRes } = useGetAllBookWithoutQueryQuery();
   const { data: departmentsData, isLoading: isDepartmentsLoading } =
     useGetAllDepartmentsQuery({ page: 1, limit: 500 });
@@ -861,6 +873,7 @@ const EmployeeTable = () => {
     setSelectedDepartment(null);
     setSelectedDesignation(null);
     setSelectedStatus("All");
+    setPhoneFilter("");
 
     setCurrentPage(1);
     setStartPage(1);
@@ -1186,6 +1199,14 @@ const EmployeeTable = () => {
               <p class="label">Employee ID</p>
               <p class="value">${escapeHtml(emp?.employee_id || "-")}</p>
             </div>
+            <div>
+              <p class="label">Department</p>
+              <p class="value">${escapeHtml(emp?.department?.name || "-")}</p>
+            </div>
+            <div>
+              <p class="label">Designation</p>
+              <p class="value">${escapeHtml(emp?.designation?.name || "-")}</p>
+            </div>
           </div>
 
           <table class="invoice-table">
@@ -1335,7 +1356,7 @@ const EmployeeTable = () => {
           .employee-box {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 32px;
+            gap: 20px 32px;
             margin-bottom: 28px;
             padding: 20px 24px;
             background: #f8fafc;
@@ -1610,7 +1631,7 @@ const EmployeeTable = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-7 gap-4 items-end mb-6 w-full justify-center mx-auto">
+      <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-8 gap-4 items-end mb-6 w-full justify-center mx-auto">
         <div className="flex flex-col">
           <label className="text-sm text-slate-600 mb-1">{t.from}</label>
           <input
@@ -1696,6 +1717,17 @@ const EmployeeTable = () => {
             <option value="Pending">Pending</option>
             <option value="Completed">Completed</option>
           </select>
+        </div>
+
+        <div className="flex flex-col">
+          <label className="text-sm text-slate-600 mb-1">Phone Number</label>
+          <input
+            type="tel"
+            value={phoneFilter}
+            onChange={(e) => setPhoneFilter(e.target.value)}
+            placeholder="Search by phone..."
+            className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
+          />
         </div>
 
         <div className="flex flex-col">
@@ -2664,7 +2696,7 @@ const EmployeeTable = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-8 mb-8 p-6 bg-slate-50 rounded-2xl border border-slate-100">
+            <div className="grid grid-cols-2 gap-6 mb-8 p-6 bg-slate-50 rounded-2xl border border-slate-100">
               <div>
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
                   {t.employee_name || "Employee Name"}
@@ -2679,6 +2711,29 @@ const EmployeeTable = () => {
                 </p>
                 <p className="text-sm font-bold text-slate-900">
                   {invoiceEmployee?.employee_id}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                  Department
+                </p>
+                <p className="text-sm font-bold text-slate-900">
+                  {invoiceEmployee?.department?.name ||
+                    findDepartmentOption(invoiceEmployee?.departmentId)?.label ||
+                    "-"}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                  Designation
+                </p>
+                <p className="text-sm font-bold text-slate-900">
+                  {invoiceEmployee?.designation?.name ||
+                    findDesignationOption(
+                      invoiceEmployee?.designationId,
+                      invoiceEmployee?.departmentId,
+                    )?.label ||
+                    "-"}
                 </p>
               </div>
             </div>
