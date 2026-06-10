@@ -14,6 +14,7 @@ import {
 import { useGetAllDepartmentsQuery } from "../../features/department/department";
 import { useGetAllTeamsQuery } from "../../features/team/team";
 import { useGetAllDesignationsQuery } from "../../features/designation/designation";
+import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 
 const EmployeeListTable = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -228,7 +229,7 @@ const EmployeeListTable = () => {
       }).unwrap();
 
       if (res?.success) {
-        toast.success("Successfully updated product!");
+        toast.success("Successfully updated employee!");
         setIsModalOpen2(false);
         refetch?.();
       } else {
@@ -290,7 +291,7 @@ const EmployeeListTable = () => {
       }).unwrap();
 
       if (res?.success) {
-        toast.success("Successfully updated product!");
+        toast.success("Successfully updated employee!");
         setIsModalOpen(false);
         refetch?.();
       } else {
@@ -327,7 +328,7 @@ const EmployeeListTable = () => {
 
       const res = await insertEmployeeList(payload).unwrap();
       if (res?.success) {
-        toast.success("Successfully created product");
+        toast.success("Successfully created employee");
         setIsModalOpen1(false);
         setCreateProduct({
           name: "",
@@ -354,14 +355,14 @@ const EmployeeListTable = () => {
   const [deleteEmployeeList] = useDeleteEmployeeListMutation();
   const handleDeleteProduct = async (id) => {
     const confirmDelete = await requestDeleteConfirmation({
-      message: "Do you want to delete this product?",
+      message: "Do you want to delete this employee?",
     });
     if (!confirmDelete) return toast.info("Delete action was cancelled.");
 
     try {
       const res = await deleteEmployeeList({ id }).unwrap();
       if (res?.success) {
-        toast.success("Product deleted successfully!");
+        toast.success("Employee deleted successfully!");
         refetch?.();
       } else {
         toast.error(res?.message || "Delete failed!");

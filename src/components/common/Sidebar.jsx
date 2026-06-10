@@ -11,9 +11,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Link, useLocation } from "react-router-dom";
 import { useGetAllLogoQuery } from "../../features/logo/logo";
+import { useGetMyRolePermissionsQuery } from "../../features/auth/auth";
 import { translations } from "../../utils/translations";
 import {
   filterSidebarItemsByRole,
+  saveRolePermissionsForRole,
   subscribeToPermissionChanges,
 } from "../../utils/navigationPermissions";
 const Tooltip = ({ show, text }) => {
@@ -56,6 +58,26 @@ const Sidebar = () => {
 
   const userRole = localStorage.getItem("role") || "user";
   const { pathname } = useLocation();
+
+  const PRIVILEGED_ROLES = [
+    "superAdmin",
+    "admin",
+    "accountant",
+    "inventor",
+    "marketer",
+  ];
+
+  const { data: myPermissionsData } = useGetMyRolePermissionsQuery(undefined, {
+    skip: !localStorage.getItem("token") || PRIVILEGED_ROLES.includes(userRole),
+  });
+
+  useEffect(() => {
+    if (!myPermissionsData?.data?.menuPermissions) return;
+    saveRolePermissionsForRole(
+      myPermissionsData.data.role,
+      myPermissionsData.data.menuPermissions,
+    );
+  }, [myPermissionsData]);
 
   const toggleMenu = (name) => setOpenMenu((p) => (p === name ? null : name));
   const pathMatches = useCallback(

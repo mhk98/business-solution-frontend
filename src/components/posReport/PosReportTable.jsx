@@ -1002,7 +1002,11 @@ const getReportItems = (report) => {
   return parseMaybeJsonArray(itemsRaw).map((item, index) => {
     const qty = Number(item?.qty ?? item?.quantity ?? item?.Quantity ?? 0);
     const price = Number(
-      item?.price ?? item?.unitPrice ?? item?.sale_price ?? item?.salePrice ?? 0,
+      item?.price ??
+        item?.unitPrice ??
+        item?.sale_price ??
+        item?.salePrice ??
+        0,
     );
 
     return {
@@ -1017,7 +1021,9 @@ const getReportItems = (report) => {
         `Item ${index + 1}`,
       qty,
       price,
-      total: Number(item?.total ?? item?.amount ?? item?.lineTotal ?? 0) || qty * price,
+      total:
+        Number(item?.total ?? item?.amount ?? item?.lineTotal ?? 0) ||
+        qty * price,
     };
   });
 };
@@ -1223,8 +1229,9 @@ const PosReportTable = () => {
   // ----------------------------
   const openInvoice = (report) => {
     const fullReport =
-      (reportsAll || []).find((item) => String(item?.Id) === String(report?.Id)) ||
-      report;
+      (reportsAll || []).find(
+        (item) => String(item?.Id) === String(report?.Id),
+      ) || report;
 
     setInvoiceReport({ ...fullReport, items: getReportItems(fullReport) });
     setIsInvoiceOpen(true);
@@ -1506,7 +1513,9 @@ const PosReportTable = () => {
   // Delete
   // ----------------------------
   const handleDelete = async (id) => {
-    const ok = await requestDeleteConfirmation({ message: "Do you want to delete this POS report?" });
+    const ok = await requestDeleteConfirmation({
+      message: "Do you want to delete this POS report?",
+    });
     if (!ok) return toast.info("Delete cancelled.");
 
     try {
@@ -1807,7 +1816,12 @@ const PosReportTable = () => {
       </div>
 
       {/* -------------------- Edit Modal -------------------- */}
-      <Modal isOpen={isEditModalOpen && !!currentReport} onClose={closeEdit} title="Edit POS Report" maxWidth="max-w-5xl">
+      <Modal
+        isOpen={isEditModalOpen && !!currentReport}
+        onClose={closeEdit}
+        title="Edit POS Report"
+        maxWidth="max-w-5xl"
+      >
         {currentReport && (
           <>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -1911,9 +1925,7 @@ const PosReportTable = () => {
 
               {(role === "superAdmin" || role === "admin") && (
                 <div className="md:col-span-3">
-                  <label className="block text-sm text-slate-700">
-                    Status
-                  </label>
+                  <label className="block text-sm text-slate-700">Status</label>
                   <select
                     value={currentReport.status || ""}
                     onChange={(e) =>

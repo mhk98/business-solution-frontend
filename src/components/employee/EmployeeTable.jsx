@@ -72,6 +72,9 @@ const EmployeeTable = () => {
     designationId: "",
     employeeListId: "",
     employee_id: "",
+    joining_date: "",
+    pre_joining_days: "",
+    payable_days: "",
     bookId: "",
     basic_salary: "",
     incentive: "",
@@ -161,6 +164,12 @@ const EmployeeTable = () => {
     const incentive = Number(p.incentive) || 0;
     const holiday_days = Number(p.holiday_payment) || 0;
     const advance = Number(p.advance) || 0;
+    const payable_days =
+      p.payable_days === "" ||
+      p.payable_days === null ||
+      p.payable_days === undefined
+        ? 30
+        : Math.max(Math.min(Number(p.payable_days) || 0, 30), 0);
 
     const late = Number(p.late) || 0;
     const early_leave = Number(p.early_leave) || 0;
@@ -170,8 +179,9 @@ const EmployeeTable = () => {
 
     const perDayBasicSalary = basic_salary / 30;
 
+    const basic_payable_salary = perDayBasicSalary * payable_days;
     const holiday_salary = perDayBasicSalary * holiday_days;
-    const total_salary = basic_salary + holiday_salary + incentive;
+    const total_salary = basic_payable_salary + incentive;
 
     const perDay = total_salary / 30;
 
@@ -194,7 +204,7 @@ const EmployeeTable = () => {
       fridayAbsentCut +
       unapprovalAbsentCut;
 
-    const net_salary = total_salary - totalCutAmount - advance;
+    const net_salary = total_salary - totalCutAmount - advance + holiday_salary;
 
     const safe = (n) => (Number.isFinite(n) ? n : 0);
 
@@ -206,9 +216,22 @@ const EmployeeTable = () => {
     };
   };
 
+  const applyPreJoiningDays = (employee, value) => {
+    const preJoiningDays = Math.max(Math.min(Number(value) || 0, 30), 0);
+
+    return {
+      ...employee,
+      pre_joining_days: value,
+      payable_days: Math.max(30 - preJoiningDays, 0),
+    };
+  };
+
   const updateCreateField = (key, value) => {
     setCreateEmployee((prev) => {
-      const next = { ...prev, [key]: value };
+      const next =
+        key === "pre_joining_days"
+          ? applyPreJoiningDays(prev, value)
+          : { ...prev, [key]: value };
       const s = calcSalary(next);
       return {
         ...next,
@@ -220,7 +243,10 @@ const EmployeeTable = () => {
 
   const updateCurrentField = (key, value) => {
     setCurrentEmployee((prev) => {
-      const next = { ...prev, [key]: value };
+      const next =
+        key === "pre_joining_days"
+          ? applyPreJoiningDays(prev, value)
+          : { ...prev, [key]: value };
       const s = calcSalary(next);
       return {
         ...next,
@@ -292,7 +318,11 @@ const EmployeeTable = () => {
     startDate: startDate || undefined,
     endDate: endDate || undefined,
     employeeListId:
-      selectedEmployee?.value || phoneMatchedEmployeeListId || undefined,
+      selectedEmployee?.employeeListId ||
+      selectedEmployee?.id ||
+      selectedEmployee?.value ||
+      phoneMatchedEmployeeListId ||
+      undefined,
     departmentId: selectedDepartment?.value || undefined,
     designationId: selectedDesignation?.value || undefined,
     status: selectedStatus === "All" ? undefined : selectedStatus,
@@ -320,27 +350,44 @@ const EmployeeTable = () => {
   // ----------------------------
   // Options
   // ----------------------------
+  const buildEmployeeOption = (employee) => {
+    const id = employee?.Id ?? employee?.id ?? "";
+    const name = employee?.name || "";
+    const employeeNo = employee?.employee_id || "";
+
+    if (!id || !name) return null;
+
+    return {
+      value: String(id),
+      label: name,
+      id: String(id),
+      employeeListId: String(id),
+      employee_id: employeeNo,
+      phone: employee?.phone || "",
+      status: employee?.status || "",
+      employee,
+    };
+  };
+
   const employeeOptions = useMemo(() => {
     const seen = new Set();
 
     return (employeeList?.data || [])
-      .filter(isActiveEmployee)
       .map((employee) => {
         const id = employee.Id ?? employee.id ?? "";
-        const name = employee.name || "";
         const employeeNo = employee.employee_id || "";
-        const key = employeeNo
-          ? `employee-${employeeNo}`
-          : name.trim().toLowerCase();
+        const key = id
+          ? `employee-list-${id}`
+          : employeeNo
+            ? `employee-${employeeNo}`
+            : String(employee.name || "")
+                .trim()
+                .toLowerCase();
 
         if (!key || seen.has(String(key))) return null;
         seen.add(String(key));
 
-        return {
-          value: String(id),
-          label: name,
-          employee_id: employeeNo,
-        };
+        return buildEmployeeOption(employee);
       })
       .filter(Boolean);
   }, [employeeList]);
@@ -368,6 +415,7 @@ const EmployeeTable = () => {
           employee_id: employeeNo,
           salary:
             employee.salary ?? employee.basic_salary ?? employee.price ?? "",
+          joiningDate: employee.joiningDate || "",
           departmentId: employee.departmentId
             ? String(employee.departmentId)
             : "",
@@ -378,6 +426,85 @@ const EmployeeTable = () => {
       })
       .filter(Boolean);
   }, [employeeList]);
+
+  const getEmployeeListById = (id) =>
+    (employeeList?.data || []).find(
+      (employee) =>
+        String(employee?.Id ?? employee?.id ?? "") === String(id || ""),
+    );
+
+  const getEmployeeListByEmployeeNo = (employeeNo) =>
+    (employeeList?.data || []).find(
+      (employee) =>
+        String(employee?.employee_id ?? "") === String(employeeNo || ""),
+    );
+
+  const buildPayrollPlaceholder = (employee) => {
+    if (!employee) return null;
+
+    const salary = Number(employee.salary ?? employee.basic_salary ?? 0) || 0;
+
+    return {
+      Id: `employee-list-${employee.Id ?? employee.id}`,
+      __isPayrollPlaceholder: true,
+      name: employee.name || "",
+      employee_id: employee.employee_id || "",
+      employeeListId: employee.Id ?? employee.id ?? "",
+      departmentId: employee.departmentId || "",
+      designationId: employee.designationId || "",
+      department: employee.department || null,
+      designation: employee.designation || null,
+      employeeProfile: employee,
+      joining_date: employee.joiningDate || "",
+      basic_salary: salary,
+      incentive: 0,
+      holiday_payment: 0,
+      advance: employee.advance || 0,
+      total_salary: salary,
+      net_salary: salary,
+      status: "Not Created",
+    };
+  };
+
+  const selectedEmployeeListRecord = useMemo(() => {
+    const id =
+      selectedEmployee?.employeeListId ||
+      selectedEmployee?.id ||
+      selectedEmployee?.value ||
+      phoneMatchedEmployeeListId;
+    if (!id || id === "0") return null;
+
+    return (
+      getEmployeeListById(id) ||
+      selectedEmployee?.employee ||
+      getEmployeeListByEmployeeNo(selectedEmployee?.employee_id)
+    );
+  }, [employeeList, phoneMatchedEmployeeListId, selectedEmployee]);
+
+  const displayEmployees = useMemo(() => {
+    const rows = employees || [];
+    if (!selectedEmployeeListRecord) return rows;
+
+    const selectedId = String(
+      selectedEmployeeListRecord.Id ?? selectedEmployeeListRecord.id ?? "",
+    );
+    const selectedEmployeeNo = String(
+      selectedEmployeeListRecord.employee_id ?? "",
+    );
+    const hasPayrollRow = rows.some((row) => {
+      const rowListId = String(row.employeeListId ?? "");
+      const rowEmployeeNo = String(row.employee_id ?? "");
+      return (
+        (selectedId && rowListId === selectedId) ||
+        (selectedEmployeeNo && rowEmployeeNo === selectedEmployeeNo)
+      );
+    });
+
+    if (hasPayrollRow) return rows;
+
+    const placeholder = buildPayrollPlaceholder(selectedEmployeeListRecord);
+    return placeholder ? [placeholder] : rows;
+  }, [employees, selectedEmployeeListRecord]);
 
   const departmentOptions = useMemo(() => {
     return (departmentsData?.data || []).map((department) => ({
@@ -515,6 +642,9 @@ const EmployeeTable = () => {
       designationId: selected?.designationId || "",
       employeeListId: selected?.id || "",
       employee_id: selected?.employee_id || "",
+      joining_date: selected?.joiningDate || "",
+      pre_joining_days: "",
+      payable_days: "",
       basic_salary:
         selected?.salary !== undefined && selected?.salary !== null
           ? String(selected.salary)
@@ -596,6 +726,10 @@ const EmployeeTable = () => {
         getEmployeeInternalId(String(employee.employee_id ?? "").trim()) ??
         "",
       employee_id: employee.employee_id ?? "",
+      joining_date:
+        employee.joining_date ?? employee.employeeProfile?.joiningDate ?? "",
+      pre_joining_days: employee.pre_joining_days ?? "",
+      payable_days: employee.payable_days ?? "",
       bookId: employee.bookId ?? employee.book?.Id ?? employee.book?.id ?? "",
       basic_salary: employee.basic_salary ?? "",
       incentive: employee.incentive ?? "",
@@ -641,6 +775,18 @@ const EmployeeTable = () => {
   const closeEditModal1 = () => setIsEditModalOpen1(false);
   const openAddModal = () => setIsAddModalOpen(true);
   const closeAddModal = () => setIsAddModalOpen(false);
+  const openAddModalForEmployee = (employee) => {
+    const option = employeeSalaryOptions.find(
+      (item) =>
+        String(item.value) === String(employee?.employeeListId || "") ||
+        String(item.employee_id || "") === String(employee?.employee_id || ""),
+    );
+
+    setCreateEmployee((prev) =>
+      option ? applyEmployeeSalaryDefaults(prev, option) : prev,
+    );
+    setIsAddModalOpen(true);
+  };
 
   // ----------------------------
   // Mutations
@@ -671,6 +817,12 @@ const EmployeeTable = () => {
         designationId: normalizeOptionalId(createEmployee.designationId),
         employee_id: createEmployee.employee_id || "",
         employeeListId: normalizeOptionalId(createEmployee.employeeListId),
+        joining_date: createEmployee.joining_date || null,
+        pre_joining_days: Number(createEmployee.pre_joining_days) || 0,
+        payable_days:
+          createEmployee.payable_days === ""
+            ? 30
+            : Number(createEmployee.payable_days) || 0,
         bookId: normalizeOptionalId(createEmployee.bookId),
         note: createEmployee.note || "",
         remarks: createEmployee.remarks || "",
@@ -724,6 +876,12 @@ const EmployeeTable = () => {
         designationId: normalizeOptionalId(currentEmployee.designationId),
         employee_id: currentEmployee.employee_id || "",
         employeeListId: normalizeOptionalId(currentEmployee.employeeListId),
+        joining_date: currentEmployee.joining_date || null,
+        pre_joining_days: Number(currentEmployee.pre_joining_days) || 0,
+        payable_days:
+          currentEmployee.payable_days === ""
+            ? 30
+            : Number(currentEmployee.payable_days) || 0,
         bookId: normalizeOptionalId(currentEmployee.bookId),
         note: currentEmployee.note || "",
         remarks: currentEmployee.remarks || "",
@@ -802,6 +960,11 @@ const EmployeeTable = () => {
       designationId: normalizeOptionalId(employee.designationId),
       employee_id: employee.employee_id || "",
       employeeListId: normalizeOptionalId(employee.employeeListId),
+      joining_date:
+        employee.joining_date || employee.employeeProfile?.joiningDate || null,
+      pre_joining_days: Number(employee.pre_joining_days) || 0,
+      payable_days:
+        employee.payable_days === "" ? 30 : Number(employee.payable_days) || 0,
       bookId: normalizeOptionalId(employee.bookId),
       note: employee.note || "",
       remarks: employee.remarks || "",
@@ -1053,14 +1216,18 @@ const EmployeeTable = () => {
   };
 
   const isAllSelectedOnPage = useMemo(() => {
-    const idsOnPage = (employees || []).map((e) => e.Id);
+    const idsOnPage = (displayEmployees || [])
+      .filter((e) => !e.__isPayrollPlaceholder)
+      .map((e) => e.Id);
     return (
       idsOnPage.length > 0 && idsOnPage.every((id) => selectedIds.includes(id))
     );
-  }, [employees, selectedIds]);
+  }, [displayEmployees, selectedIds]);
 
   const toggleSelectAllOnPage = () => {
-    const idsOnPage = (employees || []).map((e) => e.Id);
+    const idsOnPage = (displayEmployees || [])
+      .filter((e) => !e.__isPayrollPlaceholder)
+      .map((e) => e.Id);
     setSelectedIds((prev) => {
       const allSelected = idsOnPage.every((id) => prev.includes(id));
       if (allSelected) return prev.filter((id) => !idsOnPage.includes(id));
@@ -1073,7 +1240,11 @@ const EmployeeTable = () => {
       Array.isArray(employeesAll) && employeesAll.length
         ? employeesAll
         : employees;
-    const map = new Map((all || []).map((e) => [e.Id, e]));
+    const map = new Map(
+      (all || [])
+        .filter((e) => !e.__isPayrollPlaceholder)
+        .map((e) => [e.Id, e]),
+    );
     return selectedIds.map((id) => map.get(id)).filter(Boolean);
   }, [selectedIds, employeesAll, employees]);
 
@@ -1662,6 +1833,7 @@ const EmployeeTable = () => {
             onChange={setSelectedEmployee}
             placeholder={t.select_employee || "Select Employee"}
             isClearable
+            hideSelectedOptions={false}
             styles={selectStyles}
             className="w-full"
           />
@@ -1807,7 +1979,7 @@ const EmployeeTable = () => {
           </thead>
 
           <tbody className="divide-y divide-slate-200 bg-white">
-            {(employees || []).map((emp) => (
+            {(displayEmployees || []).map((emp) => (
               <motion.tr
                 key={emp.Id}
                 initial={{ opacity: 0 }}
@@ -1820,6 +1992,7 @@ const EmployeeTable = () => {
                     type="checkbox"
                     checked={selectedIds.includes(emp.Id)}
                     onChange={() => toggleSelect(emp.Id)}
+                    disabled={emp.__isPayrollPlaceholder}
                   />
                 </td>
 
@@ -1830,6 +2003,11 @@ const EmployeeTable = () => {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-900">
                   {emp.name}
+                  {emp.__isPayrollPlaceholder ? (
+                    <div className="mt-1 text-xs font-medium text-amber-600">
+                      Payroll not created yet
+                    </div>
+                  ) : null}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                   {emp.department?.name ||
@@ -1881,19 +2059,25 @@ const EmployeeTable = () => {
                   {Number(emp.net_salary || 0).toFixed(2)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                  <select
-                    value={normalizePayrollStatus(emp.status)}
-                    onChange={(e) =>
-                      handleInlineStatusUpdate(emp, e.target.value)
-                    }
-                    disabled={updatingStatusId === emp.Id}
-                    className={`h-8 min-w-[118px] rounded-full border px-3 text-xs font-semibold outline-none transition focus:ring-2 focus:ring-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-60 ${getPayrollStatusClass(
-                      emp.status,
-                    )}`}
-                  >
-                    <option value="Pending">Pending</option>
-                    <option value="Completed">Completed</option>
-                  </select>
+                  {emp.__isPayrollPlaceholder ? (
+                    <span className="inline-flex h-8 min-w-[118px] items-center justify-center rounded-full border border-amber-200 bg-amber-50 px-3 text-xs font-semibold text-amber-700">
+                      Not Created
+                    </span>
+                  ) : (
+                    <select
+                      value={normalizePayrollStatus(emp.status)}
+                      onChange={(e) =>
+                        handleInlineStatusUpdate(emp, e.target.value)
+                      }
+                      disabled={updatingStatusId === emp.Id}
+                      className={`h-8 min-w-[118px] rounded-full border px-3 text-xs font-semibold outline-none transition focus:ring-2 focus:ring-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-60 ${getPayrollStatusClass(
+                        emp.status,
+                      )}`}
+                    >
+                      <option value="Pending">Pending</option>
+                      <option value="Completed">Completed</option>
+                    </select>
+                  )}
                 </td>
 
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -1922,38 +2106,50 @@ const EmployeeTable = () => {
                         <Notebook size={18} className="text-slate-700" />
                       </button>
                     )}
-                    <button
-                      onClick={() => openInvoice(emp)}
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg hover:bg-emerald-50 transition"
-                      title="Invoice"
-                    >
-                      <FileText size={18} className="text-emerald-600" />
-                    </button>
-
-                    <button
-                      onClick={() => handleEditClick(emp)}
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg hover:bg-indigo-50 transition"
-                      title="Edit"
-                    >
-                      <Edit size={18} className="text-indigo-600" />
-                    </button>
-
-                    {role === "superAdmin" || role === "admin" ? (
+                    {emp.__isPayrollPlaceholder ? (
                       <button
-                        onClick={() => handleDeleteEmployee(emp.Id)}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg hover:bg-rose-50 transition"
-                        title="Delete"
+                        onClick={() => openAddModalForEmployee(emp)}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg hover:bg-indigo-50 transition"
+                        title="Create Payroll"
                       >
-                        <Trash2 size={18} className="text-rose-600" />
+                        <Plus size={18} className="text-indigo-600" />
                       </button>
                     ) : (
-                      <button
-                        onClick={() => handleEditClick1(emp)}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg hover:bg-rose-50 transition"
-                        title="Delete Request / Note"
-                      >
-                        <Trash2 size={18} className="text-rose-600" />
-                      </button>
+                      <>
+                        <button
+                          onClick={() => openInvoice(emp)}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg hover:bg-emerald-50 transition"
+                          title="Invoice"
+                        >
+                          <FileText size={18} className="text-emerald-600" />
+                        </button>
+
+                        <button
+                          onClick={() => handleEditClick(emp)}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg hover:bg-indigo-50 transition"
+                          title="Edit"
+                        >
+                          <Edit size={18} className="text-indigo-600" />
+                        </button>
+
+                        {role === "superAdmin" || role === "admin" ? (
+                          <button
+                            onClick={() => handleDeleteEmployee(emp.Id)}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg hover:bg-rose-50 transition"
+                            title="Delete"
+                          >
+                            <Trash2 size={18} className="text-rose-600" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleEditClick1(emp)}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg hover:bg-rose-50 transition"
+                            title="Delete Request / Note"
+                          >
+                            <Trash2 size={18} className="text-rose-600" />
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
                 </td>
@@ -2013,9 +2209,7 @@ const EmployeeTable = () => {
               label="Date:"
               type="date"
               value={currentEmployee?.date}
-              onChange={(v) =>
-                setCurrentEmployee({ ...currentEmployee, date: v })
-              }
+              onChange={(v) => updateCurrentField("date", v)}
             />
 
             <div>
@@ -2035,6 +2229,7 @@ const EmployeeTable = () => {
                 onChange={handleCurrentEmployeeSelect}
                 placeholder={t.select_employee || "Select Employee"}
                 isClearable
+                hideSelectedOptions={false}
                 styles={selectStyles}
                 className="w-full"
               />
@@ -2101,6 +2296,27 @@ const EmployeeTable = () => {
               onChange={(v) =>
                 setCurrentEmployee({ ...currentEmployee, employee_id: v })
               }
+            />
+
+            <Field
+              label="Joining Date:"
+              type="date"
+              value={currentEmployee?.joining_date || ""}
+              onChange={(v) => updateCurrentField("joining_date", v)}
+            />
+
+            <Field
+              label="Pre Joining Days:"
+              type="number"
+              value={currentEmployee?.pre_joining_days}
+              onChange={(v) => updateCurrentField("pre_joining_days", v)}
+            />
+
+            <Field
+              label="Payable Days:"
+              type="number"
+              value={currentEmployee?.payable_days}
+              onChange={(v) => updateCurrentField("payable_days", v)}
             />
 
             <Field
@@ -2380,9 +2596,7 @@ const EmployeeTable = () => {
               label="Date:"
               type="date"
               value={createEmployee.date}
-              onChange={(v) =>
-                setCreateEmployee({ ...createEmployee, date: v })
-              }
+              onChange={(v) => updateCreateField("date", v)}
             />
 
             <div>
@@ -2402,6 +2616,7 @@ const EmployeeTable = () => {
                 onChange={handleCreateEmployeeSelect}
                 placeholder={t.select_employee || "Select Employee"}
                 isClearable
+                hideSelectedOptions={false}
                 styles={selectStyles}
                 className="w-full"
               />
@@ -2469,6 +2684,27 @@ const EmployeeTable = () => {
                 setCreateEmployee({ ...createEmployee, employee_id: v })
               }
               required
+            />
+
+            <Field
+              label="Joining Date:"
+              type="date"
+              value={createEmployee.joining_date || ""}
+              onChange={(v) => updateCreateField("joining_date", v)}
+            />
+
+            <Field
+              label="Pre Joining Days:"
+              type="number"
+              value={createEmployee.pre_joining_days}
+              onChange={(v) => updateCreateField("pre_joining_days", v)}
+            />
+
+            <Field
+              label="Payable Days:"
+              type="number"
+              value={createEmployee.payable_days}
+              onChange={(v) => updateCreateField("payable_days", v)}
             />
 
             <Field
@@ -2719,7 +2955,8 @@ const EmployeeTable = () => {
                 </p>
                 <p className="text-sm font-bold text-slate-900">
                   {invoiceEmployee?.department?.name ||
-                    findDepartmentOption(invoiceEmployee?.departmentId)?.label ||
+                    findDepartmentOption(invoiceEmployee?.departmentId)
+                      ?.label ||
                     "-"}
                 </p>
               </div>

@@ -13,7 +13,6 @@ import {
 
 import { useGetAllSupplierWithoutQueryQuery } from "../../features/supplier/supplier";
 import { useGetAllWirehouseWithoutQueryQuery } from "../../features/wirehouse/wirehouse";
-import { useGetSingleProductByIdQuery } from "../../features/product/product";
 import { translations } from "../../utils/translations";
 import { useLayout } from "../../context/LayoutContext";
 import Modal from "../common/Modal";
@@ -220,20 +219,6 @@ const getReturnItemsTotalPurchasePrice = (items = []) =>
 const getReturnItemsTotalSalePrice = (items = []) =>
   items.reduce((total, item) => total + (Number(item?.sale_price) || 0), 0);
 
-const getVariationColorsForSize = (product, size) => {
-  if (!size || !Array.isArray(product?.variations)) return [];
-
-  return [
-    ...new Set(
-      product.variations.flatMap((variation) => {
-        const sizes = parseVariationValue(variation?.size);
-        if (!sizes.includes(size)) return [];
-        return parseVariationValue(variation?.color);
-      }),
-    ),
-  ].map((value) => ({ value, label: value }));
-};
-
 const makeSelectValue = (options, value, fallbackLabel) => {
   if (value === undefined || value === null || value === "") return null;
 
@@ -304,6 +289,32 @@ const hasConfiguredVariants = (rows) =>
         String(row.quantity || "").trim()),
   );
 
+const getInventoryVariantSizeOptions = (inventoryItem) => {
+  const variants = getVariantDisplayRows(inventoryItem);
+  return [...new Set(variants.map((v) => v.size).filter(Boolean))].map((v) => ({
+    value: v,
+    label: v,
+  }));
+};
+
+const getInventoryVariantColorOptions = (inventoryItem) => {
+  const variants = getVariantDisplayRows(inventoryItem);
+  return [...new Set(variants.map((v) => v.color).filter(Boolean))].map((v) => ({
+    value: v,
+    label: v,
+  }));
+};
+
+const getInventoryVariantColorsForSize = (inventoryItem, size) => {
+  if (!size) return [];
+  return getVariantDisplayRows(inventoryItem)
+    .filter((v) => String(v.size || "") === String(size))
+    .map((v) => v.color)
+    .filter(Boolean)
+    .filter((v, i, arr) => arr.indexOf(v) === i)
+    .map((v) => ({ value: v, label: v }));
+};
+
 const hasDuplicateVariantCombination = (rows) => {
   const seen = new Set();
 
@@ -365,6 +376,15 @@ const PurchaseReturnProductTable = () => {
     }));
   }, [receivedData]);
 
+  const selectedCreateInventoryItem = useMemo(
+    () =>
+      receivedData.find(
+        (r) =>
+          String(r.Id) ===
+          String(createForm?.receivedId || createForm?.productId || ""),
+      ),
+    [receivedData, createForm?.receivedId, createForm?.productId],
+  );
   const selectedEditInventoryItem = useMemo(
     () =>
       receivedData.find(
@@ -639,79 +659,43 @@ const PurchaseReturnProductTable = () => {
     return match ? Number(match.quantity || 0) : 0;
   };
 
-  const selectedCreateProductId =
-    createForm?.productId || createForm?.receivedId || undefined;
-  const selectedEditProductId =
-    currentItem?.productId || currentItem?.receivedId || undefined;
-  const selectedBulkAddProductId =
-    bulkAddForm?.productId || bulkAddForm?.receivedId || undefined;
-
-  const {
-    data: selectedCreateProductRes,
-    isFetching: isFetchingCreateProduct,
-  } = useGetSingleProductByIdQuery(selectedCreateProductId, {
-    skip: !selectedCreateProductId,
-  });
-  const { data: selectedEditProductRes, isFetching: isFetchingEditProduct } =
-    useGetSingleProductByIdQuery(selectedEditProductId, {
-      skip: !selectedEditProductId,
-    });
-  const {
-    data: selectedBulkAddProductRes,
-    isFetching: isFetchingBulkAddProduct,
-  } = useGetSingleProductByIdQuery(selectedBulkAddProductId, {
-    skip: !selectedBulkAddProductId,
-  });
-
-  const selectedCreateProductData =
-    selectedCreateProductRes?.data || selectedCreateProductRes;
-  const selectedEditProductData =
-    selectedEditProductRes?.data || selectedEditProductRes;
-  const selectedBulkAddProductData =
-    selectedBulkAddProductRes?.data || selectedBulkAddProductRes;
-
   const createSizeOptions = useMemo(
-    () => getVariationOptions(selectedCreateProductData, "size"),
-    [selectedCreateProductData],
+    () => getInventoryVariantSizeOptions(selectedCreateInventoryItem),
+    [selectedCreateInventoryItem],
   );
   const createColorOptions = useMemo(
-    () => getVariationOptions(selectedCreateProductData, "color"),
-    [selectedCreateProductData],
+    () => getInventoryVariantColorOptions(selectedCreateInventoryItem),
+    [selectedCreateInventoryItem],
   );
   const shouldShowCreateVariantOptions = useMemo(
-    () =>
-      !isFetchingCreateProduct &&
-      getVariantRowsFromProduct(selectedCreateProductData).length > 0,
-    [isFetchingCreateProduct, selectedCreateProductData],
+    () => getVariantDisplayRows(selectedCreateInventoryItem).length > 0,
+    [selectedCreateInventoryItem],
   );
   const editSizeOptions = useMemo(
-    () => getVariationOptions(selectedEditProductData, "size"),
-    [selectedEditProductData],
+    () => getInventoryVariantSizeOptions(selectedEditInventoryItem),
+    [selectedEditInventoryItem],
   );
   const editColorOptions = useMemo(
-    () => getVariationOptions(selectedEditProductData, "color"),
-    [selectedEditProductData],
+    () => getInventoryVariantColorOptions(selectedEditInventoryItem),
+    [selectedEditInventoryItem],
   );
   const bulkAddSizeOptions = useMemo(
-    () => getVariationOptions(selectedBulkAddProductData, "size"),
-    [selectedBulkAddProductData],
+    () => getInventoryVariantSizeOptions(selectedBulkAddInventoryItem),
+    [selectedBulkAddInventoryItem],
   );
   const bulkAddColorOptions = useMemo(
-    () => getVariationOptions(selectedBulkAddProductData, "color"),
-    [selectedBulkAddProductData],
+    () => getInventoryVariantColorOptions(selectedBulkAddInventoryItem),
+    [selectedBulkAddInventoryItem],
   );
   const shouldShowEditVariantOptions = useMemo(
     () =>
       hasConfiguredVariants(currentItem?.variantRows) ||
-      (!isFetchingEditProduct &&
-        getVariantRowsFromProduct(selectedEditProductData).length > 0),
-    [currentItem?.variantRows, isFetchingEditProduct, selectedEditProductData],
+      getVariantDisplayRows(selectedEditInventoryItem).length > 0,
+    [currentItem?.variantRows, selectedEditInventoryItem],
   );
   const shouldShowBulkAddVariantOptions = useMemo(
-    () =>
-      !isFetchingBulkAddProduct &&
-      getVariantRowsFromProduct(selectedBulkAddProductData).length > 0,
-    [isFetchingBulkAddProduct, selectedBulkAddProductData],
+    () => getVariantDisplayRows(selectedBulkAddInventoryItem).length > 0,
+    [selectedBulkAddInventoryItem],
   );
   const currentBulkItems = useMemo(
     () => parseReturnItems(currentItem?.items),
@@ -1221,17 +1205,16 @@ const PurchaseReturnProductTable = () => {
   };
 
   useEffect(() => {
-    if (!createForm.receivedId || isFetchingCreateProduct) return;
-    if (!selectedCreateProductData) return;
+    if (!createForm.receivedId) return;
     if (shouldShowCreateVariantOptions) return;
+    if (!selectedCreateInventoryItem) return;
 
     const item = buildEmptyCreateItem();
     setCreateItems((prev) => [...prev, item]);
     resetCreateProductFields();
   }, [
     createForm.receivedId,
-    isFetchingCreateProduct,
-    selectedCreateProductData,
+    selectedCreateInventoryItem,
     shouldShowCreateVariantOptions,
   ]);
 
@@ -2249,9 +2232,7 @@ const PurchaseReturnProductTable = () => {
                     <button
                       type="button"
                       onClick={handleAddBulkProduct}
-                      disabled={
-                        !bulkAddForm.receivedId || isFetchingBulkAddProduct
-                      }
+                      disabled={!bulkAddForm.receivedId}
                       className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Plus size={16} />
@@ -2275,8 +2256,8 @@ const PurchaseReturnProductTable = () => {
                       {normalizeVariantRows(bulkAddForm.variantRows).map(
                         (row, index) => {
                           const colorOptions = row.size
-                            ? getVariationColorsForSize(
-                                selectedBulkAddProductData,
+                            ? getInventoryVariantColorsForSize(
+                                selectedBulkAddInventoryItem,
                                 row.size,
                               )
                             : bulkAddColorOptions;
@@ -2426,8 +2407,8 @@ const PurchaseReturnProductTable = () => {
                 {normalizeVariantRows(currentItem?.variantRows).map(
                   (row, index) => {
                     const colorOptions = row.size
-                      ? getVariationColorsForSize(
-                          selectedEditProductData,
+                      ? getInventoryVariantColorsForSize(
+                          selectedEditInventoryItem,
                           row.size,
                         )
                       : editColorOptions;
@@ -2948,8 +2929,8 @@ const PurchaseReturnProductTable = () => {
               {normalizeVariantRows(createForm?.variantRows).map(
                 (row, index) => {
                   const colorOptions = row.size
-                    ? getVariationColorsForSize(
-                        selectedCreateProductData,
+                    ? getInventoryVariantColorsForSize(
+                        selectedCreateInventoryItem,
                         row.size,
                       )
                     : createColorOptions;

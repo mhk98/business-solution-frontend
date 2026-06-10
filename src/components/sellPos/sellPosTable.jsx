@@ -19,7 +19,6 @@ export default function SellPosTable() {
   const [productName, setProductName] = useState("");
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
 
-
   // ✅ Drawer state
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
 

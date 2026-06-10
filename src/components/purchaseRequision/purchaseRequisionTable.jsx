@@ -36,7 +36,7 @@ import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 import { translations } from "../../utils/translations";
 import { useLayout } from "../../context/LayoutContext";
 
-const blankIfZero = (value) => (Number(value) === 0 ? "" : value ?? "");
+const blankIfZero = (value) => (Number(value) === 0 ? "" : (value ?? ""));
 
 const formatMoney = (value) => {
   const amount = Number(value || 0);
@@ -462,13 +462,18 @@ const PurchaseRequisionTable = () => {
 
     return normalizedName
       ? receivedData.find(
-          (r) => String(r.name || "").trim().toLowerCase() === normalizedName,
+          (r) =>
+            String(r.name || "")
+              .trim()
+              .toLowerCase() === normalizedName,
         ) || null
       : null;
   };
 
   const getInventoryQuantityForProduct = (productId, fallbackName = "") =>
-    Number(getInventoryRecordForProduct(productId, fallbackName)?.quantity || 0);
+    Number(
+      getInventoryRecordForProduct(productId, fallbackName)?.quantity || 0,
+    );
 
   const getInventoryQuantityForVariant = (
     productId,
@@ -528,8 +533,8 @@ const PurchaseRequisionTable = () => {
     : "";
   const isSelectedCreateProductDataCurrent = Boolean(
     createProduct.productId &&
-      selectedCreateProductDataId &&
-      selectedCreateProductDataId === String(createProduct.productId),
+    selectedCreateProductDataId &&
+    selectedCreateProductDataId === String(createProduct.productId),
   );
   const selectedCreateProductVariants = useMemo(
     () =>
@@ -555,8 +560,8 @@ const PurchaseRequisionTable = () => {
   );
   const shouldShowCreateVariantOptions = Boolean(
     !isFetchingCreateProduct &&
-      isSelectedCreateProductDataCurrent &&
-      selectedCreateProductVariants.length > 0,
+    isSelectedCreateProductDataCurrent &&
+    selectedCreateProductVariants.length > 0,
   );
   const editSizeOptions = useMemo(
     () => getVariationOptions(selectedEditProductData, "size"),
@@ -797,7 +802,8 @@ const PurchaseRequisionTable = () => {
   const handleEditClick = (rp) => {
     const bulkItems = parsePurchaseRequisitionItems(rp.items);
     const firstBulkItem = bulkItems[0] || null;
-    const productName = firstBulkItem?.name || rp.name || rp.product?.name || "";
+    const productName =
+      firstBulkItem?.name || rp.name || rp.product?.name || "";
     const pidFromRow =
       firstBulkItem?.productId ??
       rp.productId ??
@@ -811,7 +817,8 @@ const PurchaseRequisionTable = () => {
           .toLowerCase(),
       ) || "";
     const variantRows = getInitialVariantRowsFromRecord(firstBulkItem || rp);
-    const supplierId = rp.supplierId ?? rp.supplier?.Id ?? rp.supplier?.id ?? "";
+    const supplierId =
+      rp.supplierId ?? rp.supplier?.Id ?? rp.supplier?.id ?? "";
     const warehouseId =
       rp.warehouseId ?? rp.warehouse?.Id ?? rp.warehouse?.id ?? "";
     const resolvedProductId = String(pidFromRow || pidFromName);
@@ -821,7 +828,10 @@ const PurchaseRequisionTable = () => {
         : [
             {
               productId: Number(resolvedProductId) || "",
-              name: productName || rp.name || `Product #${resolvedProductId || "-"}`,
+              name:
+                productName ||
+                rp.name ||
+                `Product #${resolvedProductId || "-"}`,
               quantity:
                 getVariantRowsTotalQuantity(variantRows) ||
                 Number(rp.quantity) ||
@@ -873,7 +883,8 @@ const PurchaseRequisionTable = () => {
   const handleEditClick1 = (rp) => {
     const bulkItems = parsePurchaseRequisitionItems(rp.items);
     const firstBulkItem = bulkItems[0] || null;
-    const productName = firstBulkItem?.name || rp.name || rp.product?.name || "";
+    const productName =
+      firstBulkItem?.name || rp.name || rp.product?.name || "";
     const pidFromRow =
       firstBulkItem?.productId ??
       rp.productId ??
@@ -887,7 +898,8 @@ const PurchaseRequisionTable = () => {
           .toLowerCase(),
       ) || "";
     const variantRows = getInitialVariantRowsFromRecord(firstBulkItem || rp);
-    const supplierId = rp.supplierId ?? rp.supplier?.Id ?? rp.supplier?.id ?? "";
+    const supplierId =
+      rp.supplierId ?? rp.supplier?.Id ?? rp.supplier?.id ?? "";
     const warehouseId =
       rp.warehouseId ?? rp.warehouse?.Id ?? rp.warehouse?.id ?? "";
 
@@ -923,7 +935,10 @@ const PurchaseRequisionTable = () => {
       const variantsPayload = getNormalizedVariantsPayload(
         currentProduct?.variantRows,
       );
-      if (!bulkItems.length && hasDuplicateVariantCombination(variantsPayload)) {
+      if (
+        !bulkItems.length &&
+        hasDuplicateVariantCombination(variantsPayload)
+      ) {
         return toast.error("Duplicate size and color combination found");
       }
       if (bulkItems.some((item) => Number(item.quantity) <= 0)) {
@@ -999,7 +1014,10 @@ const PurchaseRequisionTable = () => {
       const variantsPayload = getNormalizedVariantsPayload(
         currentProduct?.variantRows,
       );
-      if (!bulkItems.length && hasDuplicateVariantCombination(variantsPayload)) {
+      if (
+        !bulkItems.length &&
+        hasDuplicateVariantCombination(variantsPayload)
+      ) {
         return toast.error("Duplicate size and color combination found");
       }
       if (
@@ -1387,10 +1405,14 @@ const PurchaseRequisionTable = () => {
         const existingItem = currentItems[existingIndex];
         const existingVariants = normalizeVariantRows(
           existingItem.variants,
-        ).filter((variant) => variant.size || variant.color || variant.quantity);
+        ).filter(
+          (variant) => variant.size || variant.color || variant.quantity,
+        );
         const incomingVariants = normalizeVariantRows(
           result.item.variants,
-        ).filter((variant) => variant.size || variant.color || variant.quantity);
+        ).filter(
+          (variant) => variant.size || variant.color || variant.quantity,
+        );
 
         if (!incomingVariants.length || !existingVariants.length) {
           toast.error("This product already exists in the list");
@@ -1417,7 +1439,8 @@ const PurchaseRequisionTable = () => {
                 variants: mergedVariants,
                 quantity: getVariantRowsTotalQuantity(mergedVariants),
                 amount:
-                  (Number(item.amount) || 0) + (Number(result.item.amount) || 0),
+                  (Number(item.amount) || 0) +
+                  (Number(result.item.amount) || 0),
               }
             : item,
         );
@@ -1485,7 +1508,8 @@ const PurchaseRequisionTable = () => {
       }
 
       const commonFields = {
-        procurement: `${user?.FirstName || ""} ${user?.LastName || ""}`.trim() || "N/A",
+        procurement:
+          `${user?.FirstName || ""} ${user?.LastName || ""}`.trim() || "N/A",
         bookId: Number(createProduct.bookId) || "",
         paymentMode: createProduct.paymentMode || "",
         bankName:
@@ -1954,247 +1978,255 @@ const PurchaseRequisionTable = () => {
       {/* Table */}
       <div className="mt-6 rounded-2xl border border-slate-200 overflow-hidden">
         <div className="four-row-table-scroll custom-scrollbar">
-        <table className="min-w-[1100px] w-full divide-y divide-slate-200">
-          <thead className="bg-slate-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Date
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Procurement
-              </th>{" "}
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Supplier
-              </th>{" "}
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Warehouse
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Book
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Product
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Quantity
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Amount
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Variants
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Status
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Actions
-              </th>
-            </tr>
-          </thead>
+          <table className="min-w-[1100px] w-full divide-y divide-slate-200">
+            <thead className="bg-slate-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                  Date
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                  Procurement
+                </th>{" "}
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                  Supplier
+                </th>{" "}
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                  Warehouse
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                  Book
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                  Product
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                  Quantity
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                  Amount
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                  Variants
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
 
-          <tbody className="divide-y divide-slate-200 bg-white">
-            {rows.map((rp) => {
-              const rowItems = getPurchaseRequisitionRowItems(rp);
-              const rowTotalQuantity =
-                getPurchaseRequisitionItemsTotalQuantity(rowItems);
-              const rowTotalAmount =
-                getPurchaseRequisitionItemsTotalAmount(rowItems);
+            <tbody className="divide-y divide-slate-200 bg-white">
+              {rows.map((rp) => {
+                const rowItems = getPurchaseRequisitionRowItems(rp);
+                const rowTotalQuantity =
+                  getPurchaseRequisitionItemsTotalQuantity(rowItems);
+                const rowTotalAmount =
+                  getPurchaseRequisitionItemsTotalAmount(rowItems);
 
-              return (
-                <motion.tr
-                  key={rp.Id}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.2 }}
-                  className="hover:bg-slate-50"
-                >
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
-                    {rp.date}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                    {rp?.procurement || "-"}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                    {rp?.supplier?.name || "-"}
-                  </td>{" "}
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                    {rp?.warehouse?.name || "-"}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                    {rp?.book?.name || "-"}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-900">
-                    {rowItems
-                      .map((item) => item.name || `Product #${item.productId || "-"}`)
-                      .filter(Boolean)
-                      .join(", ") ||
-                      rp.name ||
-                      resolveProductName(rp)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                    {Number(rowTotalQuantity || rp.quantity || 0)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                    {Number(rowTotalAmount || rp.amount || 0).toFixed(2)}
-                  </td>
-                  <td className="px-6 py-4 min-w-[340px]">
-                    {rowItems.length > 0 ? (
-                      <div className="flex flex-col gap-2">
-                        {rowItems.map((item, itemIndex) => {
-                          const itemVariants = getVariantDisplayRows(item);
-                          if (itemVariants.length === 0) {
-                            return (
-                              <div
-                                key={`${rp.Id}-no-variant-${itemIndex}`}
-                                className="w-fit min-w-[132px] rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-2 shadow-sm"
-                              >
-                                <div className="text-[11px] font-bold text-slate-700">
-                                  {item.name ||
-                                    `Product #${item.productId || "-"}`}
-                                </div>
-                                <div className="mt-2 text-[11px] font-medium text-slate-500">
-                                  Qty{" "}
-                                  <span className="font-bold text-slate-900">
-                                    {Number(item.quantity || 0).toFixed(0)}
-                                  </span>
-                                </div>
-                                <div className="mt-2 text-[10px] font-semibold text-slate-400">
-                                  No variants
-                                </div>
-                              </div>
-                            );
-                          }
-
-                          return (
-                            <div key={`${rp.Id}-variant-item-${itemIndex}`} className="flex flex-wrap gap-2">
-                              {itemVariants.map((variant, index) => (
+                return (
+                  <motion.tr
+                    key={rp.Id}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ duration: 0.2 }}
+                    className="hover:bg-slate-50"
+                  >
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
+                      {rp.date}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                      {rp?.procurement || "-"}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                      {rp?.supplier?.name || "-"}
+                    </td>{" "}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                      {rp?.warehouse?.name || "-"}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                      {rp?.book?.name || "-"}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-900">
+                      {rowItems
+                        .map(
+                          (item) =>
+                            item.name || `Product #${item.productId || "-"}`,
+                        )
+                        .filter(Boolean)
+                        .join(", ") ||
+                        rp.name ||
+                        resolveProductName(rp)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                      {Number(rowTotalQuantity || rp.quantity || 0)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                      {Number(rowTotalAmount || rp.amount || 0).toFixed(2)}
+                    </td>
+                    <td className="px-6 py-4 min-w-[340px]">
+                      {rowItems.length > 0 ? (
+                        <div className="flex flex-col gap-2">
+                          {rowItems.map((item, itemIndex) => {
+                            const itemVariants = getVariantDisplayRows(item);
+                            if (itemVariants.length === 0) {
+                              return (
                                 <div
-                                  key={`${rp.Id}-variant-${itemIndex}-${index}`}
-                                  className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2"
+                                  key={`${rp.Id}-no-variant-${itemIndex}`}
+                                  className="w-fit min-w-[132px] rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-2 shadow-sm"
                                 >
-                                  <div className="flex items-center gap-2 text-[11px] font-bold text-slate-800">
-                                    <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] uppercase tracking-wide text-white">
-                                      {variant.size || "N/A"}
-                                    </span>
-                                    <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] uppercase tracking-wide text-indigo-700">
-                                      {variant.color || "N/A"}
-                                    </span>
+                                  <div className="text-[11px] font-bold text-slate-700">
+                                    {item.name ||
+                                      `Product #${item.productId || "-"}`}
                                   </div>
                                   <div className="mt-2 text-[11px] font-medium text-slate-500">
                                     Qty{" "}
                                     <span className="font-bold text-slate-900">
-                                      {Number(variant.quantity || 0).toFixed(0)}
+                                      {Number(item.quantity || 0).toFixed(0)}
                                     </span>
                                   </div>
+                                  <div className="mt-2 text-[10px] font-semibold text-slate-400">
+                                    No variants
+                                  </div>
                                 </div>
-                              ))}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <span className="inline-flex items-center rounded-full border border-dashed border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-400">
-                        No variants
-                      </span>
-                    )}
-                  </td>
-                  {/* <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                              );
+                            }
+
+                            return (
+                              <div
+                                key={`${rp.Id}-variant-item-${itemIndex}`}
+                                className="flex flex-wrap gap-2"
+                              >
+                                {itemVariants.map((variant, index) => (
+                                  <div
+                                    key={`${rp.Id}-variant-${itemIndex}-${index}`}
+                                    className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2"
+                                  >
+                                    <div className="flex items-center gap-2 text-[11px] font-bold text-slate-800">
+                                      <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] uppercase tracking-wide text-white">
+                                        {variant.size || "N/A"}
+                                      </span>
+                                      <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] uppercase tracking-wide text-indigo-700">
+                                        {variant.color || "N/A"}
+                                      </span>
+                                    </div>
+                                    <div className="mt-2 text-[11px] font-medium text-slate-500">
+                                      Qty{" "}
+                                      <span className="font-bold text-slate-900">
+                                        {Number(variant.quantity || 0).toFixed(
+                                          0,
+                                        )}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <span className="inline-flex items-center rounded-full border border-dashed border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-400">
+                          No variants
+                        </span>
+                      )}
+                    </td>
+                    {/* <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                   {Number(rp.sale_price || 0).toFixed(2)}
                 </td> */}
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                    <span
-                      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border ${getPurchaseRequisitionStatusClass(
-                        rp.status,
-                      )}`}
-                    >
-                      {rp.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex items-center gap-2">
-                      {rp.status === "Approved" && (
-                        <button
-                          type="button"
-                          onClick={() => handleInvoiceClick(rp)}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 hover:bg-white transition"
-                          title="Print Invoice"
-                        >
-                          <Printer size={18} className="text-emerald-600" />
-                        </button>
-                      )}
-
-                      {rp.note ? (
-                        <div className="relative">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                      <span
+                        className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border ${getPurchaseRequisitionStatusClass(
+                          rp.status,
+                        )}`}
+                      >
+                        {rp.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex items-center gap-2">
+                        {rp.status === "Approved" && (
                           <button
-                            className="relative h-10 w-10 rounded-md flex items-center justify-center"
+                            type="button"
+                            onClick={() => handleInvoiceClick(rp)}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 hover:bg-white transition"
+                            title="Print Invoice"
+                          >
+                            <Printer size={18} className="text-emerald-600" />
+                          </button>
+                        )}
+
+                        {rp.note ? (
+                          <div className="relative">
+                            <button
+                              className="relative h-10 w-10 rounded-md flex items-center justify-center"
+                              title={rp.note}
+                              type="button"
+                              onClick={() => handleNoteClick(rp.note)} // Open modal on click
+                            >
+                              <Notebook size={18} className="text-slate-700" />
+                            </button>
+
+                            <span className="absolute top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[11px] font-semibold flex items-center justify-center">
+                              {rp.note ? 1 : null}
+                            </span>
+                          </div>
+                        ) : (
+                          <button
+                            className="h-10 w-10 rounded-md flex items-center justify-center"
                             title={rp.note}
                             type="button"
-                            onClick={() => handleNoteClick(rp.note)} // Open modal on click
                           >
                             <Notebook size={18} className="text-slate-700" />
                           </button>
+                        )}
 
-                          <span className="absolute top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[11px] font-semibold flex items-center justify-center">
-                            {rp.note ? 1 : null}
-                          </span>
-                        </div>
-                      ) : (
-                        <button
-                          className="h-10 w-10 rounded-md flex items-center justify-center"
-                          title={rp.note}
-                          type="button"
-                        >
-                          <Notebook size={18} className="text-slate-700" />
-                        </button>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => handleEditClick(rp)}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 hover:bg-white transition"
-                        title="Edit"
-                      >
-                        <Edit size={18} className="text-indigo-600" />
-                      </button>
-
-                      {role === "superAdmin" || role === "admin" ? (
                         <button
                           type="button"
-                          onClick={() => handleDeleteProduct(rp.Id)}
+                          onClick={() => handleEditClick(rp)}
                           className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 hover:bg-white transition"
-                          title="Delete"
+                          title="Edit"
                         >
-                          <Trash2 size={18} className="text-red-600" />
+                          <Edit size={18} className="text-indigo-600" />
                         </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleEditClick1(rp)}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 hover:bg-white transition"
-                          title="Request Delete"
-                        >
-                          <Trash2 size={18} className="text-amber-600" />
-                        </button>
-                      )}
-                    </div>
+
+                        {role === "superAdmin" || role === "admin" ? (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteProduct(rp.Id)}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 hover:bg-white transition"
+                            title="Delete"
+                          >
+                            <Trash2 size={18} className="text-red-600" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleEditClick1(rp)}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 hover:bg-white transition"
+                            title="Request Delete"
+                          >
+                            <Trash2 size={18} className="text-amber-600" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </motion.tr>
+                );
+              })}
+
+              {!isLoading && rows.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={8}
+                    className="px-6 py-10 text-center text-sm text-slate-500"
+                  >
+                    No data found
                   </td>
-                </motion.tr>
-              );
-            })}
-
-            {!isLoading && rows.length === 0 && (
-              <tr>
-                <td
-                  colSpan={8}
-                  className="px-6 py-10 text-center text-sm text-slate-500"
-                >
-                  No data found
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -2282,7 +2314,9 @@ const PurchaseRequisionTable = () => {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {currentProductBulkItems.map((item, index) => (
-                      <tr key={`edit-bulk-${item.productId || item.name}-${index}`}>
+                      <tr
+                        key={`edit-bulk-${item.productId || item.name}-${index}`}
+                      >
                         <td className="px-3 py-3 align-top font-semibold text-slate-800">
                           {item.name || `Product #${item.productId || "-"}`}
                         </td>
@@ -2478,118 +2512,119 @@ const PurchaseRequisionTable = () => {
                   </button>
                 </div>
 
-                {bulkAddProduct.productId && shouldShowBulkAddVariantOptions && (
-                  <div className="mt-3 space-y-3 rounded-xl bg-slate-50 p-3">
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        onClick={addBulkAddProductVariantRow}
-                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
-                      >
-                        <Plus size={14} />
-                        Add Variant
-                      </button>
-                    </div>
+                {bulkAddProduct.productId &&
+                  shouldShowBulkAddVariantOptions && (
+                    <div className="mt-3 space-y-3 rounded-xl bg-slate-50 p-3">
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={addBulkAddProductVariantRow}
+                          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                        >
+                          <Plus size={14} />
+                          Add Variant
+                        </button>
+                      </div>
 
-                    {normalizeVariantRows(bulkAddProduct.variantRows).map(
-                      (row, index) => {
-                        const colorOptions = row.size
-                          ? getVariationColorsForSize(
-                              selectedBulkAddProductData,
-                              row.size,
-                            )
-                          : bulkAddColorOptions;
+                      {normalizeVariantRows(bulkAddProduct.variantRows).map(
+                        (row, index) => {
+                          const colorOptions = row.size
+                            ? getVariationColorsForSize(
+                                selectedBulkAddProductData,
+                                row.size,
+                              )
+                            : bulkAddColorOptions;
 
-                        return (
-                          <div
-                            key={`bulk-purchase-requisition-add-variant-${index}`}
-                            className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_120px_auto] sm:items-end"
-                          >
-                            <Select
-                              options={bulkAddSizeOptions}
-                              value={makeSelectValue(
-                                bulkAddSizeOptions,
-                                row.size,
-                                row.size,
-                              )}
-                              onChange={(selected) =>
-                                updateBulkAddProductVariantRow(
-                                  index,
-                                  "size",
-                                  selected?.value || "",
-                                )
-                              }
-                              placeholder="Select size..."
-                              isClearable
-                              styles={selectStyles}
-                              className="text-sm font-medium"
-                            />
-                            <Select
-                              options={colorOptions}
-                              value={makeSelectValue(
-                                colorOptions,
-                                row.color,
-                                row.color,
-                              )}
-                              onChange={(selected) =>
-                                updateBulkAddProductVariantRow(
-                                  index,
-                                  "color",
-                                  selected?.value || "",
-                                )
-                              }
-                              placeholder="Select color..."
-                              isClearable
-                              styles={selectStyles}
-                              className="text-sm font-medium"
-                              isDisabled={!row.size}
-                            />
-                            <div>
-                              <input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={row.quantity}
-                                onChange={(e) =>
+                          return (
+                            <div
+                              key={`bulk-purchase-requisition-add-variant-${index}`}
+                              className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_120px_auto] sm:items-end"
+                            >
+                              <Select
+                                options={bulkAddSizeOptions}
+                                value={makeSelectValue(
+                                  bulkAddSizeOptions,
+                                  row.size,
+                                  row.size,
+                                )}
+                                onChange={(selected) =>
                                   updateBulkAddProductVariantRow(
                                     index,
-                                    "quantity",
-                                    e.target.value,
+                                    "size",
+                                    selected?.value || "",
                                   )
                                 }
-                                className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
-                                placeholder="Qty"
+                                placeholder="Select size..."
+                                isClearable
+                                styles={selectStyles}
+                                className="text-sm font-medium"
                               />
-                              {(row.size || row.color) && (
-                                <p className="mt-1 text-[10px] text-slate-400">
-                                  Stock:{" "}
-                                  {getInventoryQuantityForVariant(
-                                    bulkAddProduct.productId,
-                                    row,
-                                  ) ?? 0}
-                                </p>
-                              )}
+                              <Select
+                                options={colorOptions}
+                                value={makeSelectValue(
+                                  colorOptions,
+                                  row.color,
+                                  row.color,
+                                )}
+                                onChange={(selected) =>
+                                  updateBulkAddProductVariantRow(
+                                    index,
+                                    "color",
+                                    selected?.value || "",
+                                  )
+                                }
+                                placeholder="Select color..."
+                                isClearable
+                                styles={selectStyles}
+                                className="text-sm font-medium"
+                                isDisabled={!row.size}
+                              />
+                              <div>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={row.quantity}
+                                  onChange={(e) =>
+                                    updateBulkAddProductVariantRow(
+                                      index,
+                                      "quantity",
+                                      e.target.value,
+                                    )
+                                  }
+                                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
+                                  placeholder="Qty"
+                                />
+                                {(row.size || row.color) && (
+                                  <p className="mt-1 text-[10px] text-slate-400">
+                                    Stock:{" "}
+                                    {getInventoryQuantityForVariant(
+                                      bulkAddProduct.productId,
+                                      row,
+                                    ) ?? 0}
+                                  </p>
+                                )}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  removeBulkAddProductVariantRow(index)
+                                }
+                                disabled={
+                                  normalizeVariantRows(
+                                    bulkAddProduct.variantRows,
+                                  ).length === 1
+                                }
+                                className="h-11 w-11 rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
+                              >
+                                x
+                              </button>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                removeBulkAddProductVariantRow(index)
-                              }
-                              disabled={
-                                normalizeVariantRows(
-                                  bulkAddProduct.variantRows,
-                                ).length === 1
-                              }
-                              className="h-11 w-11 rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
-                            >
-                              x
-                            </button>
-                          </div>
-                        );
-                      },
-                    )}
-                  </div>
-                )}
+                          );
+                        },
+                      )}
+                    </div>
+                  )}
               </div>
             </div>
           )}
@@ -2626,152 +2661,155 @@ const PurchaseRequisionTable = () => {
               />
             </div>
 
-            {!isEditingBulkPurchaseRequisition && shouldShowEditVariantOptions && (
-              <div className="md:col-span-2 space-y-3 rounded-2xl border border-slate-200 bg-slate-50/50 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Product Variants
-                  </p>
-                  <p className="text-[11px] text-slate-400">
-                    Add size, color and quantity combinations
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => addVariantRow("edit")}
-                  className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-bold text-slate-700 border border-slate-200 hover:bg-slate-50 transition"
-                  disabled={!currentProduct?.productId}
-                >
-                  <Plus size={14} />
-                  Add Variant
-                </button>
-              </div>
-
-              {normalizeVariantRows(currentProduct?.variantRows).map(
-                (row, index) => {
-                  const colorOptions = row.size
-                    ? getVariationColorsForSize(
-                        selectedEditProductData,
-                        row.size,
-                      )
-                    : editColorOptions;
-
-                  return (
-                    <div
-                      key={`edit-variant-${index}`}
-                      className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_140px_auto] gap-3 items-end"
-                    >
-                      <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
-                          Size / Code
-                        </label>
-                        <Select
-                          options={editSizeOptions}
-                          value={makeSelectValue(
-                            editSizeOptions,
-                            row.size,
-                            row.size,
-                          )}
-                          onChange={(selected) =>
-                            updateVariantRow(
-                              "edit",
-                              index,
-                              "size",
-                              selected?.value || "",
-                            )
-                          }
-                          placeholder="Select size..."
-                          isClearable
-                          styles={selectStyles}
-                          className="text-black"
-                          isDisabled={
-                            !currentProduct?.productId ||
-                            editSizeOptions.length === 0
-                          }
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
-                          Color
-                        </label>
-                        <Select
-                          options={colorOptions}
-                          value={makeSelectValue(
-                            colorOptions,
-                            row.color,
-                            row.color,
-                          )}
-                          onChange={(selected) =>
-                            updateVariantRow(
-                              "edit",
-                              index,
-                              "color",
-                              selected?.value || "",
-                            )
-                          }
-                          placeholder="Select color..."
-                          isClearable
-                          styles={selectStyles}
-                          className="text-black"
-                          isDisabled={!row.size || colorOptions.length === 0}
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
-                          Quantity
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={row.quantity}
-                          onChange={(e) =>
-                            updateVariantRow(
-                              "edit",
-                              index,
-                              "quantity",
-                              e.target.value,
-                            )
-                          }
-                          disabled={
-                            !currentProduct?.productId ||
-                            editSizeOptions.length === 0
-                          }
-                          className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
-                          placeholder=""
-                        />
-                        {(row.size || row.color) && (
-                          <p className="mt-1 text-[10px] text-slate-400">
-                            Stock:{" "}
-                            {getInventoryQuantityForVariant(
-                              currentProduct?.productId,
-                              row,
-                              currentProduct?.name,
-                            ) ?? 0}
-                          </p>
-                        )}
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => removeVariantRow("edit", index)}
-                        className="h-12 w-11 rounded-2xl border border-slate-200 bg-white text-slate-500 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition disabled:opacity-50"
-                        disabled={
-                          normalizeVariantRows(currentProduct?.variantRows)
-                            .length === 1
-                        }
-                      >
-                        <X size={16} className="mx-auto" />
-                      </button>
+            {!isEditingBulkPurchaseRequisition &&
+              shouldShowEditVariantOptions && (
+                <div className="md:col-span-2 space-y-3 rounded-2xl border border-slate-200 bg-slate-50/50 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                        Product Variants
+                      </p>
+                      <p className="text-[11px] text-slate-400">
+                        Add size, color and quantity combinations
+                      </p>
                     </div>
-                  );
-                },
+                    <button
+                      type="button"
+                      onClick={() => addVariantRow("edit")}
+                      className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-bold text-slate-700 border border-slate-200 hover:bg-slate-50 transition"
+                      disabled={!currentProduct?.productId}
+                    >
+                      <Plus size={14} />
+                      Add Variant
+                    </button>
+                  </div>
+
+                  {normalizeVariantRows(currentProduct?.variantRows).map(
+                    (row, index) => {
+                      const colorOptions = row.size
+                        ? getVariationColorsForSize(
+                            selectedEditProductData,
+                            row.size,
+                          )
+                        : editColorOptions;
+
+                      return (
+                        <div
+                          key={`edit-variant-${index}`}
+                          className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_140px_auto] gap-3 items-end"
+                        >
+                          <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                              Size / Code
+                            </label>
+                            <Select
+                              options={editSizeOptions}
+                              value={makeSelectValue(
+                                editSizeOptions,
+                                row.size,
+                                row.size,
+                              )}
+                              onChange={(selected) =>
+                                updateVariantRow(
+                                  "edit",
+                                  index,
+                                  "size",
+                                  selected?.value || "",
+                                )
+                              }
+                              placeholder="Select size..."
+                              isClearable
+                              styles={selectStyles}
+                              className="text-black"
+                              isDisabled={
+                                !currentProduct?.productId ||
+                                editSizeOptions.length === 0
+                              }
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                              Color
+                            </label>
+                            <Select
+                              options={colorOptions}
+                              value={makeSelectValue(
+                                colorOptions,
+                                row.color,
+                                row.color,
+                              )}
+                              onChange={(selected) =>
+                                updateVariantRow(
+                                  "edit",
+                                  index,
+                                  "color",
+                                  selected?.value || "",
+                                )
+                              }
+                              placeholder="Select color..."
+                              isClearable
+                              styles={selectStyles}
+                              className="text-black"
+                              isDisabled={
+                                !row.size || colorOptions.length === 0
+                              }
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                              Quantity
+                            </label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={row.quantity}
+                              onChange={(e) =>
+                                updateVariantRow(
+                                  "edit",
+                                  index,
+                                  "quantity",
+                                  e.target.value,
+                                )
+                              }
+                              disabled={
+                                !currentProduct?.productId ||
+                                editSizeOptions.length === 0
+                              }
+                              className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                              placeholder=""
+                            />
+                            {(row.size || row.color) && (
+                              <p className="mt-1 text-[10px] text-slate-400">
+                                Stock:{" "}
+                                {getInventoryQuantityForVariant(
+                                  currentProduct?.productId,
+                                  row,
+                                  currentProduct?.name,
+                                ) ?? 0}
+                              </p>
+                            )}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => removeVariantRow("edit", index)}
+                            className="h-12 w-11 rounded-2xl border border-slate-200 bg-white text-slate-500 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition disabled:opacity-50"
+                            disabled={
+                              normalizeVariantRows(currentProduct?.variantRows)
+                                .length === 1
+                            }
+                          >
+                            <X size={16} className="mx-auto" />
+                          </button>
+                        </div>
+                      );
+                    },
+                  )}
+                </div>
               )}
-              </div>
-            )}
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
                 Warehouse
@@ -2933,52 +2971,55 @@ const PurchaseRequisionTable = () => {
               />
             </div>
             {!isEditingBulkPurchaseRequisition && (
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
-                Quantity
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                value={currentProduct?.quantity || ""}
-                onChange={(e) =>
-                  setCurrentProduct((p) => ({ ...p, quantity: e.target.value }))
-                }
-                readOnly={hasConfiguredVariants(currentProduct?.variantRows)}
-                className={`w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 outline-none ${
-                  hasConfiguredVariants(currentProduct?.variantRows)
-                    ? "bg-slate-50"
-                    : "bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-                }`}
-              />
-              {!hasConfiguredVariants(currentProduct?.variantRows) && (
-                <p className="mt-1 text-[10px] text-slate-400">
-                  Stock:{" "}
-                  {getInventoryQuantityForProduct(
-                    currentProduct?.productId,
-                    currentProduct?.name,
-                  )}
-                </p>
-              )}
-            </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                  Quantity
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={currentProduct?.quantity || ""}
+                  onChange={(e) =>
+                    setCurrentProduct((p) => ({
+                      ...p,
+                      quantity: e.target.value,
+                    }))
+                  }
+                  readOnly={hasConfiguredVariants(currentProduct?.variantRows)}
+                  className={`w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 outline-none ${
+                    hasConfiguredVariants(currentProduct?.variantRows)
+                      ? "bg-slate-50"
+                      : "bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+                  }`}
+                />
+                {!hasConfiguredVariants(currentProduct?.variantRows) && (
+                  <p className="mt-1 text-[10px] text-slate-400">
+                    Stock:{" "}
+                    {getInventoryQuantityForProduct(
+                      currentProduct?.productId,
+                      currentProduct?.name,
+                    )}
+                  </p>
+                )}
+              </div>
             )}
             {!isEditingBulkPurchaseRequisition && (
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
-                Amount
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={currentProduct?.amount || ""}
-                onChange={(e) =>
-                  setCurrentProduct((p) => ({ ...p, amount: e.target.value }))
-                }
-                className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-                placeholder="0.00"
-              />
-            </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                  Amount
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={currentProduct?.amount || ""}
+                  onChange={(e) =>
+                    setCurrentProduct((p) => ({ ...p, amount: e.target.value }))
+                  }
+                  className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+                  placeholder="0.00"
+                />
+              </div>
             )}
           </div>
 
@@ -3109,148 +3150,160 @@ const PurchaseRequisionTable = () => {
 
             {shouldShowCreateVariantOptions && (
               <div className="md:col-span-2 space-y-3 rounded-2xl border border-slate-200 bg-slate-50/50 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Product Variants
-                  </p>
-                  <p className="text-[11px] text-slate-400">
-                    Add size, color and quantity combinations
-                  </p>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                      Product Variants
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      Add size, color and quantity combinations
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => addVariantRow("create")}
+                    className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-bold text-slate-700 border border-slate-200 hover:bg-slate-50 transition"
+                    disabled={!createProduct?.productId}
+                  >
+                    <Plus size={14} />
+                    Add Variant
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => addVariantRow("create")}
-                  className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-bold text-slate-700 border border-slate-200 hover:bg-slate-50 transition"
-                  disabled={!createProduct?.productId}
-                >
-                  <Plus size={14} />
-                  Add Variant
-                </button>
-              </div>
 
-              {normalizeVariantRows(createProduct?.variantRows).map(
-                (row, index) => {
-                  const colorOptions = row.size
-                    ? getVariationColorsForSize(
-                        selectedCreateProductData,
-                        row.size,
-                      )
-                    : createColorOptions;
+                {normalizeVariantRows(createProduct?.variantRows).map(
+                  (row, index) => {
+                    const colorOptions = row.size
+                      ? getVariationColorsForSize(
+                          selectedCreateProductData,
+                          row.size,
+                        )
+                      : createColorOptions;
 
-                  return (
-                    <div
-                      key={`create-variant-${index}`}
-                      className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_140px_auto] gap-3 items-end"
-                    >
-                      <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
-                          Size / Code
-                        </label>
-                        <Select
-                          options={createSizeOptions}
-                          value={
-                            createSizeOptions.find(
-                              (option) => option.value === row.size,
-                            ) || null
-                          }
-                          onChange={(selected) =>
-                            updateVariantRow(
-                              "create",
-                              index,
-                              "size",
-                              selected?.value || "",
-                            )
-                          }
-                          placeholder="Select size..."
-                          isClearable
-                          styles={selectStyles}
-                          className="text-black"
-                          isDisabled={
-                            !createProduct?.productId ||
-                            createSizeOptions.length === 0
-                          }
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
-                          Color
-                        </label>
-                        <Select
-                          options={colorOptions}
-                          value={
-                            colorOptions.find(
-                              (option) => option.value === row.color,
-                            ) || null
-                          }
-                          onChange={(selected) =>
-                            updateVariantRow(
-                              "create",
-                              index,
-                              "color",
-                              selected?.value || "",
-                            )
-                          }
-                          placeholder="Select color..."
-                          isClearable
-                          styles={selectStyles}
-                          className="text-black"
-                          isDisabled={!row.size || colorOptions.length === 0}
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
-                          Quantity
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={row.quantity}
-                          onChange={(e) =>
-                            updateVariantRow(
-                              "create",
-                              index,
-                              "quantity",
-                              e.target.value,
-                            )
-                          }
-                          disabled={
-                            !createProduct?.productId ||
-                            createSizeOptions.length === 0
-                          }
-                          className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
-                          placeholder=""
-                        />
-                        {createProduct?.productId && row.size && (() => {
-                          const invItem = receivedData.find((r) => Number(r.productId) === Number(createProduct.productId));
-                          if (!invItem) return null;
-                          const match = getVariantDisplayRows(invItem).find(
-                            (v) => String(v.size || "") === String(row.size || "") && String(v.color || "") === String(row.color || ""),
-                          );
-                          return match !== undefined ? (
-                            <p className="mt-1 text-[10px] text-slate-400">Stock: {Number(match.quantity || 0)}</p>
-                          ) : null;
-                        })()}
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => removeVariantRow("create", index)}
-                        className="h-12 w-11 rounded-2xl border border-slate-200 bg-white text-slate-500 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition disabled:opacity-50"
-                        disabled={
-                          normalizeVariantRows(createProduct?.variantRows)
-                            .length === 1
-                        }
+                    return (
+                      <div
+                        key={`create-variant-${index}`}
+                        className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_140px_auto] gap-3 items-end"
                       >
-                        <X size={16} className="mx-auto" />
-                      </button>
-                    </div>
-                  );
-                },
-              )}
+                        <div>
+                          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                            Size / Code
+                          </label>
+                          <Select
+                            options={createSizeOptions}
+                            value={
+                              createSizeOptions.find(
+                                (option) => option.value === row.size,
+                              ) || null
+                            }
+                            onChange={(selected) =>
+                              updateVariantRow(
+                                "create",
+                                index,
+                                "size",
+                                selected?.value || "",
+                              )
+                            }
+                            placeholder="Select size..."
+                            isClearable
+                            styles={selectStyles}
+                            className="text-black"
+                            isDisabled={
+                              !createProduct?.productId ||
+                              createSizeOptions.length === 0
+                            }
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                            Color
+                          </label>
+                          <Select
+                            options={colorOptions}
+                            value={
+                              colorOptions.find(
+                                (option) => option.value === row.color,
+                              ) || null
+                            }
+                            onChange={(selected) =>
+                              updateVariantRow(
+                                "create",
+                                index,
+                                "color",
+                                selected?.value || "",
+                              )
+                            }
+                            placeholder="Select color..."
+                            isClearable
+                            styles={selectStyles}
+                            className="text-black"
+                            isDisabled={!row.size || colorOptions.length === 0}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                            Quantity
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={row.quantity}
+                            onChange={(e) =>
+                              updateVariantRow(
+                                "create",
+                                index,
+                                "quantity",
+                                e.target.value,
+                              )
+                            }
+                            disabled={
+                              !createProduct?.productId ||
+                              createSizeOptions.length === 0
+                            }
+                            className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                            placeholder=""
+                          />
+                          {createProduct?.productId &&
+                            row.size &&
+                            (() => {
+                              const invItem = receivedData.find(
+                                (r) =>
+                                  Number(r.productId) ===
+                                  Number(createProduct.productId),
+                              );
+                              if (!invItem) return null;
+                              const match = getVariantDisplayRows(invItem).find(
+                                (v) =>
+                                  String(v.size || "") ===
+                                    String(row.size || "") &&
+                                  String(v.color || "") ===
+                                    String(row.color || ""),
+                              );
+                              return match !== undefined ? (
+                                <p className="mt-1 text-[10px] text-slate-400">
+                                  Stock: {Number(match.quantity || 0)}
+                                </p>
+                              ) : null;
+                            })()}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => removeVariantRow("create", index)}
+                          className="h-12 w-11 rounded-2xl border border-slate-200 bg-white text-slate-500 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition disabled:opacity-50"
+                          disabled={
+                            normalizeVariantRows(createProduct?.variantRows)
+                              .length === 1
+                          }
+                        >
+                          <X size={16} className="mx-auto" />
+                        </button>
+                      </div>
+                    );
+                  },
+                )}
                 <div className="flex justify-end border-t border-slate-200 pt-3">
                   <button
                     type="button"
@@ -3289,7 +3342,9 @@ const PurchaseRequisionTable = () => {
                       Total Amount
                     </p>
                     <p className="text-lg font-black text-slate-900">
-                      {createProductItemsTotalAmount ? Number(createProductItemsTotalAmount).toFixed(2) : ""}
+                      {createProductItemsTotalAmount
+                        ? Number(createProductItemsTotalAmount).toFixed(2)
+                        : ""}
                     </p>
                   </div>
                 </div>
@@ -3713,7 +3768,9 @@ const PurchaseRequisionTable = () => {
         isOpen={isModalOpen2 && !!currentProduct}
         onClose={handleModalClose2}
         title={
-          canUpdatePurchaseRequisitionStatus ? "Update Status" : "Request Delete"
+          canUpdatePurchaseRequisitionStatus
+            ? "Update Status"
+            : "Request Delete"
         }
       >
         <div className="space-y-6">

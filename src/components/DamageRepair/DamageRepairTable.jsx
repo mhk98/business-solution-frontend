@@ -13,7 +13,6 @@ import {
 import { useGetAllSupplierWithoutQueryQuery } from "../../features/supplier/supplier";
 import { useGetAllWirehouseWithoutQueryQuery } from "../../features/wirehouse/wirehouse";
 import { useGetAllDamageStockWithoutQueryQuery } from "../../features/damageStock/damageStock";
-import { useGetSingleReceivedProductByIdQuery } from "../../features/product/product";
 import Modal from "../common/Modal";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 
@@ -155,18 +154,24 @@ const getVariantDisplayRows = (record) => {
   return [];
 };
 
-const getVariationColorsForSize = (product, size) => {
-  if (!size || !Array.isArray(product?.variations)) return [];
+const getInventoryVariantSizeOptions = (inventoryItem) => {
+  const variants = getVariantDisplayRows(inventoryItem);
+  return [...new Set(variants.map((v) => v.size).filter(Boolean))].map((v) => ({ value: v, label: v }));
+};
 
-  return [
-    ...new Set(
-      product.variations.flatMap((variation) => {
-        const sizes = parseVariationValue(variation?.size);
-        if (!sizes.includes(size)) return [];
-        return parseVariationValue(variation?.color);
-      }),
-    ),
-  ].map((value) => ({ value, label: value }));
+const getInventoryVariantColorOptions = (inventoryItem) => {
+  const variants = getVariantDisplayRows(inventoryItem);
+  return [...new Set(variants.map((v) => v.color).filter(Boolean))].map((v) => ({ value: v, label: v }));
+};
+
+const getInventoryVariantColorsForSize = (inventoryItem, size) => {
+  if (!size) return [];
+  return getVariantDisplayRows(inventoryItem)
+    .filter((v) => String(v.size || "") === String(size))
+    .map((v) => v.color)
+    .filter(Boolean)
+    .filter((v, i, arr) => arr.indexOf(v) === i)
+    .map((v) => ({ value: v, label: v }));
 };
 
 const getNormalizedVariantsPayload = (rows) =>
@@ -374,71 +379,37 @@ const DamageRepairTable = () => {
     [receivedData, currentItem?.receivedId],
   );
 
-  const selectedCreateProductId =
-    selectedCreateDamageStock?.productId || createForm?.productId || undefined;
-  const selectedEditProductId =
-    selectedEditDamageStock?.productId || currentItem?.productId || undefined;
-
-  const {
-    data: selectedCreateProductRes,
-    isFetching: isFetchingCreateProduct,
-  } = useGetSingleReceivedProductByIdQuery(selectedCreateProductId, {
-    skip: !selectedCreateProductId,
-  });
-  const { data: selectedEditProductRes, isFetching: isFetchingEditProduct } =
-    useGetSingleReceivedProductByIdQuery(selectedEditProductId, {
-      skip: !selectedEditProductId,
-    });
-
-  const rawSelectedCreateProductData =
-    selectedCreateProductRes?.data || selectedCreateProductRes;
-  const rawSelectedEditProductData =
-    selectedEditProductRes?.data || selectedEditProductRes;
-  const selectedCreateProductData =
-    String(rawSelectedCreateProductData?.Id || "") ===
-    String(selectedCreateProductId || "")
-      ? rawSelectedCreateProductData
-      : null;
-  const selectedEditProductData =
-    String(rawSelectedEditProductData?.Id || "") ===
-    String(selectedEditProductId || "")
-      ? rawSelectedEditProductData
-      : null;
-
   const createSizeOptions = useMemo(
-    () => getVariationOptions(selectedCreateProductData, "size"),
-    [selectedCreateProductData],
+    () => getInventoryVariantSizeOptions(selectedCreateDamageStock),
+    [selectedCreateDamageStock],
   );
   const createColorOptions = useMemo(
-    () => getVariationOptions(selectedCreateProductData, "color"),
-    [selectedCreateProductData],
+    () => getInventoryVariantColorOptions(selectedCreateDamageStock),
+    [selectedCreateDamageStock],
   );
   const shouldShowCreateVariantOptions = useMemo(
-    () =>
-      !isFetchingCreateProduct &&
-      getVariantRowsFromProduct(selectedCreateProductData).length > 0,
-    [isFetchingCreateProduct, selectedCreateProductData],
+    () => getVariantDisplayRows(selectedCreateDamageStock).length > 0,
+    [selectedCreateDamageStock],
   );
   const editSizeOptions = useMemo(
-    () => getVariationOptions(selectedEditProductData, "size"),
-    [selectedEditProductData],
+    () => getInventoryVariantSizeOptions(selectedEditDamageStock),
+    [selectedEditDamageStock],
   );
   const editColorOptions = useMemo(
-    () => getVariationOptions(selectedEditProductData, "color"),
-    [selectedEditProductData],
+    () => getInventoryVariantColorOptions(selectedEditDamageStock),
+    [selectedEditDamageStock],
   );
   const shouldShowEditVariantOptions = useMemo(
     () =>
       hasConfiguredVariants(currentItem?.variantRows) ||
-      (!isFetchingEditProduct &&
-        getVariantRowsFromProduct(selectedEditProductData).length > 0),
-    [currentItem?.variantRows, isFetchingEditProduct, selectedEditProductData],
+      getVariantDisplayRows(selectedEditDamageStock).length > 0,
+    [currentItem?.variantRows, selectedEditDamageStock],
   );
 
   useEffect(() => {
     if (
       !createForm?.receivedId ||
-      !selectedCreateProductData ||
+      !selectedCreateDamageStock ||
       createSizeOptions.length > 0
     )
       return;
@@ -450,12 +421,12 @@ const DamageRepairTable = () => {
         quantity: "",
       }));
     }
-  }, [createForm?.receivedId, selectedCreateProductData, createSizeOptions.length]);
+  }, [createForm?.receivedId, selectedCreateDamageStock, createSizeOptions.length]);
 
   useEffect(() => {
     if (
       !currentItem?.receivedId ||
-      !selectedEditProductData ||
+      !selectedEditDamageStock ||
       editSizeOptions.length > 0
     )
       return;
@@ -467,7 +438,7 @@ const DamageRepairTable = () => {
         quantity: "",
       }));
     }
-  }, [currentItem?.receivedId, selectedEditProductData, editSizeOptions.length]);
+  }, [currentItem?.receivedId, selectedEditDamageStock, editSizeOptions.length]);
 
   // ✅ react-select light styles
   const selectStyles = {
@@ -771,7 +742,7 @@ const DamageRepairTable = () => {
     return {
       payload: {
         receivedId: Number(createForm.receivedId || createForm.productId),
-        productId: Number(createForm.productId || selectedCreateProductId || 0),
+        productId: Number(createForm.productId || selectedCreateDamageStock?.productId || 0),
         supplierId: Number(createForm.supplierId),
         warehouseId: Number(createForm.warehouseId),
         quantity: Number(createForm.quantity),
@@ -903,12 +874,11 @@ const DamageRepairTable = () => {
     if (
       !createForm?.receivedId ||
       !selectedCreateDamageStock ||
-      isFetchingCreateProduct ||
       shouldShowCreateVariantOptions
     )
       return;
 
-    const productId = String(createForm.productId || selectedCreateProductId || "");
+    const productId = String(createForm.productId || createForm.receivedId || "");
     const stockId = String(createForm.receivedId);
     const selectedProduct = receivedDropdownOptions.find(
       (option) => option.value === stockId,
@@ -917,7 +887,7 @@ const DamageRepairTable = () => {
     mergeCreateItem({
       payload: {
         receivedId: Number(createForm.receivedId),
-        productId: Number(createForm.productId || selectedCreateProductId || 0),
+        productId: Number(createForm.productId || 0),
         supplierId: Number(createForm.supplierId),
         warehouseId: Number(createForm.warehouseId),
         quantity: "",
@@ -936,8 +906,6 @@ const DamageRepairTable = () => {
     createForm?.receivedId,
     createForm?.productId,
     selectedCreateDamageStock,
-    selectedCreateProductId,
-    isFetchingCreateProduct,
     shouldShowCreateVariantOptions,
     receivedDropdownOptions,
   ]);
@@ -1023,7 +991,7 @@ const DamageRepairTable = () => {
               quantity: Number(currentItem.quantity),
               variants: variantsPayload,
               receivedId: Number(currentItem.receivedId || currentItem.productId),
-              productId: Number(currentItem.productId || selectedEditProductId || 0),
+              productId: Number(currentItem.productId || selectedEditDamageStock?.productId || 0),
               userId: userId,
               actorRole: role,
             };
@@ -1056,7 +1024,7 @@ const DamageRepairTable = () => {
         remarks: currentItem.remarks,
         quantity: Number(currentItem.quantity || 0),
         receivedId: Number(currentItem.receivedId || currentItem.productId),
-        productId: Number(currentItem.productId || selectedEditProductId || 0),
+        productId: Number(currentItem.productId || selectedEditDamageStock?.productId || 0),
         userId: userId,
         actorRole: role,
       };
@@ -1824,8 +1792,8 @@ const DamageRepairTable = () => {
                 {normalizeVariantRows(currentItem?.variantRows).map(
                   (row, index) => {
                     const colorOptions = row.size
-                      ? getVariationColorsForSize(
-                          selectedEditProductData,
+                      ? getInventoryVariantColorsForSize(
+                          selectedEditDamageStock,
                           row.size,
                         )
                       : editColorOptions;
@@ -2241,8 +2209,8 @@ const DamageRepairTable = () => {
                   {normalizeVariantRows(createForm?.variantRows).map(
                     (row, index) => {
                       const colorOptions = row.size
-                        ? getVariationColorsForSize(
-                            selectedCreateProductData,
+                        ? getInventoryVariantColorsForSize(
+                            selectedCreateDamageStock,
                             row.size,
                           )
                         : createColorOptions;
@@ -2649,7 +2617,7 @@ const DamageRepairTable = () => {
               </div>
               {normalizeVariantRows(createForm?.variantRows).map((row, index) => {
                 const colorOptions = row.size
-                  ? getVariationColorsForSize(selectedCreateProductData, row.size)
+                  ? getInventoryVariantColorsForSize(selectedCreateDamageStock, row.size)
                   : createColorOptions;
                 return (
                   <div key={`create-variant-${index}`} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_140px_auto] gap-3 items-end rounded-2xl border border-slate-200 bg-white p-3">

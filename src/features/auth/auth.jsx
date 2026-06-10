@@ -215,6 +215,14 @@ export const authApi = createApi({
       refetchOnMountOrArgChange: true,
     }),
 
+    getMyRolePermissions: build.query({
+      query: () => ({
+        url: "/role-permissions/self",
+      }),
+      providesTags: [{ type: "auth", id: "MY_PERMISSIONS" }],
+      refetchOnMountOrArgChange: true,
+    }),
+
     getRolePermissionByRole: build.query({
       query: (role) => ({
         url: `/role-permissions/${role}`,
@@ -244,6 +252,7 @@ export const {
   useUserImpersonateMutation,
   useUserUpdateMutation,
   useSingleUserQuery,
+  useGetMyRolePermissionsQuery,
   useGetRolePermissionsQuery,
   useGetRolePermissionByRoleQuery,
   useUpdateRolePermissionsMutation,
