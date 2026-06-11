@@ -1086,7 +1086,7 @@ const ReceivedProductTable = () => {
       const bulkItems = parseReceivedItems(currentProduct.items);
       if (
         bulkItems.length > 0 &&
-        bulkItems.some((item) => Number(item.quantity) <= 0)
+        bulkItems.some((item) => item.quantity === "" || item.quantity === null || Number(item.quantity) < 0)
       ) {
         return toast.error("Please enter quantity for every product");
       }
@@ -1268,7 +1268,7 @@ const ReceivedProductTable = () => {
 
   const buildCreateProductPayload = () => {
     if (!createProduct.productId) return { error: "Please select a product" };
-    if (!createProduct.quantity || Number(createProduct.quantity) <= 0) {
+    if (createProduct.quantity === "" || createProduct.quantity === null || Number(createProduct.quantity) < 0) {
       return { error: "Please enter a valid quantity" };
     }
 
@@ -1548,7 +1548,8 @@ const ReceivedProductTable = () => {
       variantsPayload.length > 0
         ? getVariantRowsTotalQuantity(variantsPayload)
         : Number(bulkAddProduct.quantity) || 0;
-    if (totalQuantity <= 0) return { error: "Please enter a valid quantity" };
+    if (bulkAddProduct.quantity === "" && variantsPayload.length === 0) return { error: "Please enter a valid quantity" };
+    if (totalQuantity < 0) return { error: "Please enter a valid quantity" };
 
     const productId = String(bulkAddProduct.productId);
     const selectedProduct = productDropdownOptions.find(
@@ -1770,7 +1771,7 @@ const ReceivedProductTable = () => {
       return toast.error("Please add at least one product");
     }
 
-    if (items.some((item) => Number(item.quantity) <= 0)) {
+    if (items.some((item) => item.quantity === "" || item.quantity === null || Number(item.quantity) < 0)) {
       return toast.error("Please enter quantity for every product");
     }
 
@@ -2511,7 +2512,7 @@ const ReceivedProductTable = () => {
                                 <input
                                   type="number"
                                   step="0.01"
-                                  value={item.quantity || ""}
+                                  value={item.quantity ?? ""}
                                   onChange={(e) =>
                                     updateCurrentProductBulkItem(
                                       index,
@@ -3317,7 +3318,7 @@ const ReceivedProductTable = () => {
               <input
                 type="number"
                 step="0.01"
-                value={currentProduct?.quantity || ""}
+                value={currentProduct?.quantity ?? ""}
                 onChange={(e) =>
                   setCurrentProduct((p) => ({ ...p, quantity: e.target.value }))
                 }
@@ -3888,7 +3889,7 @@ const ReceivedProductTable = () => {
                                 Total Quantity
                               </p>
                               <p className="text-base font-black text-slate-900">
-                                {blankIfZero(item.payload.quantity)}
+                                {item.payload.quantity ?? ""}
                               </p>
                             </div>
                           ) : (
@@ -3900,7 +3901,7 @@ const ReceivedProductTable = () => {
                                 <input
                                   type="number"
                                   step="0.01"
-                                  value={blankIfZero(item.payload.quantity)}
+                                  value={item.payload.quantity ?? ""}
                                   onChange={(e) =>
                                     updateCreateProductItem(
                                       index,
