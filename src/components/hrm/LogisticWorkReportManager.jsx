@@ -20,10 +20,12 @@ import {
   useGetMyLogisticWorkReportsQuery,
   useUpdateLogisticWorkReportMutation,
 } from "../../features/logisticWorkReport/logisticWorkReport";
-import { useGetAllEmployeeListWithoutQueryQuery } from "../../features/employeeList/employeeList";
 import useDebounce from "../../hooks/useDebounce";
 
 const today = new Date().toISOString().slice(0, 10);
+const thirtyDaysAgo = new Date(Date.now() - 29 * 24 * 60 * 60 * 1000)
+  .toISOString()
+  .slice(0, 10);
 
 const REPORT_FIELDS = [
   { key: "pending", label: "Pending" },
@@ -49,8 +51,8 @@ const LogisticWorkReportManager = () => {
   const [editingId, setEditingId] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 400);
-  const [selectedEmployee, setSelectedEmployee] = useState(null);
-  const [fromDate, setFromDate] = useState(today);
+  const [selectedReportName, setSelectedReportName] = useState(null);
+  const [fromDate, setFromDate] = useState(thirtyDaysAgo);
   const [toDate, setToDate] = useState(today);
   const [currentPage, setCurrentPage] = useState(1);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -65,16 +67,21 @@ const LogisticWorkReportManager = () => {
       page: currentPage,
       limit: pageSize,
       searchTerm: debouncedSearchTerm || undefined,
-      employeeId: selectedEmployee?.value || undefined,
+      name: selectedReportName?.value || undefined,
       startDate: fromDate || undefined,
       endDate: toDate || undefined,
     }),
-    [currentPage, debouncedSearchTerm, selectedEmployee, fromDate, toDate],
+    [currentPage, debouncedSearchTerm, selectedReportName, fromDate, toDate],
   );
 
-  const { data: employeeListRes } = useGetAllEmployeeListWithoutQueryQuery(
-    undefined,
-    { skip: !canManageReports },
+  const reportNameOptionArgs = useMemo(
+    () => ({
+      page: 1,
+      limit: 1000,
+      startDate: fromDate || undefined,
+      endDate: toDate || undefined,
+    }),
+    [fromDate, toDate],
   );
   const { data: currentReportRes, refetch: refetchCurrent } =
     useGetMyLogisticWorkReportsQuery(currentReportArgs);
@@ -92,6 +99,14 @@ const LogisticWorkReportManager = () => {
   } = useGetAllLogisticWorkReportsQuery(listQueryArgs, {
     skip: !canManageReports,
   });
+  const { data: myReportNameOptionsRes } = useGetMyLogisticWorkReportsQuery(
+    reportNameOptionArgs,
+    { skip: canManageReports },
+  );
+  const { data: allReportNameOptionsRes } = useGetAllLogisticWorkReportsQuery(
+    reportNameOptionArgs,
+    { skip: !canManageReports },
+  );
 
   const [createReport, { isLoading: creating }] =
     useCreateLogisticWorkReportMutation();
@@ -100,17 +115,17 @@ const LogisticWorkReportManager = () => {
   const [deleteReport, { isLoading: deleting }] =
     useDeleteLogisticWorkReportMutation();
 
-  const employeeOptions = useMemo(
-    () =>
-      (employeeListRes?.data || [])
-        .filter((employee) => employee?.Id)
-        .map((employee) => ({
-          value: employee.Id,
-          label: `${employee.name || "Unnamed Employee"}${
-            employee.employeeCode ? ` (${employee.employeeCode})` : ""
-          }`,
-        })),
-    [employeeListRes],
+  const reportNameOptions = useMemo(
+    () => {
+      const optionRes = canManageReports
+        ? allReportNameOptionsRes
+        : myReportNameOptionsRes;
+
+      return Array.from(
+        new Set((optionRes?.data || []).map((row) => row?.name).filter(Boolean)),
+      ).map((name) => ({ value: name, label: name }));
+    },
+    [allReportNameOptionsRes, canManageReports, myReportNameOptionsRes],
   );
 
   const currentReport = currentReportRes?.data?.[0];
@@ -256,7 +271,7 @@ const LogisticWorkReportManager = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedEmployee, fromDate, toDate]);
+  }, [searchTerm, selectedReportName, fromDate, toDate]);
 
   useEffect(() => {
     if (editingId) return;
@@ -316,9 +331,9 @@ const LogisticWorkReportManager = () => {
           >
             {canManageReports && (
               <Select
-                value={selectedEmployee}
-                onChange={setSelectedEmployee}
-                options={employeeOptions}
+                value={selectedReportName}
+                onChange={setSelectedReportName}
+                options={reportNameOptions}
                 isClearable
                 placeholder="Select employee"
                 className="text-sm text-slate-900"

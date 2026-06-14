@@ -25,7 +25,19 @@ import {
 import { useGetAllEmployeeListWithoutQueryQuery } from "../../features/employeeList/employeeList";
 import useDebounce from "../../hooks/useDebounce";
 
-const today = new Date().toISOString().slice(0, 10);
+const formatDateInput = (date) => {
+  const timezoneOffset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 10);
+};
+
+const getRelativeDate = (daysAgo) => {
+  const date = new Date();
+  date.setDate(date.getDate() - daysAgo);
+  return formatDateInput(date);
+};
+
+const today = formatDateInput(new Date());
+const defaultFromDate = getRelativeDate(29);
 
 const SALE_TYPE_OPTIONS = [
   "Regular Sale",
@@ -52,6 +64,17 @@ const REPORT_FIELDS = [
   { key: "crossReceived", label: "Cross থেকে আসছে" },
   { key: "canceledReceived", label: "Canceled থেকে আসছে" },
   { key: "holdReceived", label: "Hold থেকে আসছে" },
+  { key: "entryUpdate", label: "Entry Update" },
+  { key: "returnSheetReceived", label: "Return sheet received" },
+  { key: "exchangePrint", label: "Exchange Print" },
+  {
+    key: "missingProblemParcelFollowup",
+    label: "Missing parcel and Problem parcel followup",
+  },
+  { key: "holdParcelReceived", label: "Hold parcel received" },
+  { key: "csProblemSolve", label: "CS Problem solve" },
+  { key: "pendingAssign", label: "Pending Assign" },
+  { key: "completedPendingAssign", label: "Completed Pending assign" },
 
   { key: "totalAssign", label: "Total Assign" },
   { key: "totalOrder", label: "Total Order" },
@@ -97,6 +120,17 @@ const REPORT_EXPORT_COLUMNS = [
   { key: "whatsapp", label: "WhatsApp" },
   { key: "canceledReceived", label: "Canceled" },
   { key: "holdReceived", label: "Hold" },
+  { key: "entryUpdate", label: "Entry Update" },
+  { key: "returnSheetReceived", label: "Return Sheet Received" },
+  { key: "exchangePrint", label: "Exchange Print" },
+  {
+    key: "missingProblemParcelFollowup",
+    label: "Missing/Problem Followup",
+  },
+  { key: "holdParcelReceived", label: "Hold Parcel Received" },
+  { key: "csProblemSolve", label: "CS Problem Solve" },
+  { key: "pendingAssign", label: "Pending Assign" },
+  { key: "completedPendingAssign", label: "Completed Pending Assign" },
   { key: "totalAssign", label: "Total Assign" },
   { key: "totalOrder", label: "Total Order" },
   { key: "totalAmount", label: "Total Amount" },
@@ -167,9 +201,10 @@ const EmployeeWorkReportManager = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 400);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
-  const [fromDate, setFromDate] = useState(today);
+  const [fromDate, setFromDate] = useState(defaultFromDate);
   const [toDate, setToDate] = useState(today);
   const [currentPage, setCurrentPage] = useState(1);
+  const [startPage, setStartPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [selectedReportIds, setSelectedReportIds] = useState([]);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -247,6 +282,12 @@ const EmployeeWorkReportManager = () => {
   const reportMeta = reportRes?.meta || {};
   const totalReports = reportMeta?.count || 0;
   const totalPages = Math.max(1, Math.ceil(totalReports / pageSize));
+  const pagesPerSet = 10;
+  const endPage = Math.min(startPage + pagesPerSet - 1, totalPages);
+  const visiblePages = Array.from(
+    { length: Math.max(0, endPage - startPage + 1) },
+    (_, index) => startPage + index,
+  );
   const isLoading = myReportsLoading || allReportsLoading;
   const selectedReports = reports.filter((row) =>
     selectedReportIds.includes(row.Id),
@@ -501,6 +542,7 @@ const EmployeeWorkReportManager = () => {
 
   useEffect(() => {
     setCurrentPage(1);
+    setStartPage(1);
   }, [searchTerm, selectedEmployee, fromDate, toDate, pageSize]);
 
   useEffect(() => {
@@ -635,7 +677,7 @@ const EmployeeWorkReportManager = () => {
           </div>
 
           <div className="mt-5 max-h-[58vh] max-w-full overflow-auto rounded-2xl border border-slate-200">
-            <table className="min-w-[1500px] w-full divide-y divide-slate-200 text-left text-sm">
+            <table className="min-w-[2400px] w-full divide-y divide-slate-200 text-left text-sm">
               <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
                 <tr>
                   <th className="sticky left-0 z-20 bg-slate-50 px-4 py-3">
@@ -768,22 +810,46 @@ const EmployeeWorkReportManager = () => {
             <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
               <button
                 type="button"
-                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                disabled={currentPage === 1}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
+                onClick={() => {
+                  const nextStartPage = Math.max(startPage - pagesPerSet, 1);
+                  setStartPage(nextStartPage);
+                  setCurrentPage(nextStartPage);
+                }}
+                disabled={startPage === 1}
+                className="inline-flex h-10 min-w-[66px] items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-500 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Prev
               </button>
-              <span className="px-3 text-sm font-semibold text-slate-600">
-                Page {currentPage} of {totalPages}
-              </span>
+              {visiblePages.map((pageNumber) => {
+                const active = pageNumber === currentPage;
+
+                return (
+                  <button
+                    key={pageNumber}
+                    type="button"
+                    onClick={() => setCurrentPage(pageNumber)}
+                    className={`inline-flex h-10 min-w-10 items-center justify-center rounded-xl border px-3 text-sm font-medium transition ${
+                      active
+                        ? "border-indigo-600 bg-indigo-600 text-white shadow-sm"
+                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    {pageNumber}
+                  </button>
+                );
+              })}
               <button
                 type="button"
-                onClick={() =>
-                  setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-                }
-                disabled={currentPage === totalPages}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
+                onClick={() => {
+                  const nextStartPage = Math.min(
+                    startPage + pagesPerSet,
+                    Math.max(1, totalPages - pagesPerSet + 1),
+                  );
+                  setStartPage(nextStartPage);
+                  setCurrentPage(nextStartPage);
+                }}
+                disabled={endPage === totalPages}
+                className="inline-flex h-10 min-w-[66px] items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Next
               </button>

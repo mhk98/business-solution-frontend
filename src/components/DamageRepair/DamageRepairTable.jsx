@@ -174,9 +174,24 @@ const getInventoryVariantColorsForSize = (inventoryItem, size) => {
     .map((v) => ({ value: v, label: v }));
 };
 
+const getInventoryStockQuantity = (inventoryItem) =>
+  inventoryItem ? Number(inventoryItem.quantity || 0) : null;
+
+const getInventoryVariantStockQuantity = (inventoryItem, variant) => {
+  if (!inventoryItem || !variant?.size) return null;
+
+  const match = getVariantDisplayRows(inventoryItem).find(
+    (row) =>
+      String(row.size || "") === String(variant.size || "") &&
+      String(row.color || "") === String(variant.color || ""),
+  );
+
+  return Number(match?.quantity || 0);
+};
+
 const getNormalizedVariantsPayload = (rows) =>
   normalizeVariantRows(rows)
-    .filter((row) => row.size || row.color || row.quantity)
+    .filter((row) => (row.size || row.color) && Number(row.quantity) > 0)
     .map((row) => ({
       size: row.size || "",
       color: row.color || "",
@@ -1797,6 +1812,12 @@ const DamageRepairTable = () => {
                           row.size,
                         )
                       : editColorOptions;
+                    const stockQuantity = getInventoryVariantStockQuantity(
+                      selectedEditDamageStock,
+                      row,
+                    );
+                    const isOutOfStockVariant =
+                      row.size && stockQuantity !== null && stockQuantity <= 0;
 
                     return (
                       <div
@@ -1879,19 +1900,17 @@ const DamageRepairTable = () => {
                             }
                             disabled={
                               !currentItem?.receivedId ||
-                              editSizeOptions.length === 0
+                              editSizeOptions.length === 0 ||
+                              isOutOfStockVariant
                             }
                             className="h-11 border bg-white border-slate-200 rounded-xl px-3 w-full text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                             placeholder=""
                           />
-                          {selectedEditDamageStock && row.size && (() => {
-                            const match = getVariantDisplayRows(selectedEditDamageStock).find(
-                              (v) => String(v.size || "") === String(row.size || "") && String(v.color || "") === String(row.color || ""),
-                            );
-                            return match !== undefined ? (
-                              <p className="mt-1 text-[10px] text-slate-400">Stock: {Number(match.quantity || 0)}</p>
-                            ) : null;
-                          })()}
+                          {selectedEditDamageStock && row.size && stockQuantity !== null && (
+                            <p className="mt-1 text-[10px] text-slate-400">
+                              Stock: {Number(stockQuantity || 0)}
+                            </p>
+                          )}
                         </div>
 
                         <button
@@ -1983,6 +2002,17 @@ const DamageRepairTable = () => {
 
             {!isEditingBulkMovement && (
             <div className="mt-4">
+              {(() => {
+                const stockQuantity = getInventoryStockQuantity(
+                  selectedEditDamageStock,
+                );
+                const isOutOfStock =
+                  !hasConfiguredVariants(currentItem?.variantRows) &&
+                  stockQuantity !== null &&
+                  stockQuantity <= 0;
+
+                return (
+                  <>
               <label className="block text-sm text-slate-600 mb-1">
                 Quantity
               </label>
@@ -1993,16 +2023,27 @@ const DamageRepairTable = () => {
                 onChange={(e) =>
                   setCurrentItem((p) => ({ ...p, quantity: e.target.value }))
                 }
-                readOnly={hasConfiguredVariants(currentItem?.variantRows)}
+                readOnly={
+                  hasConfiguredVariants(currentItem?.variantRows) ||
+                  isOutOfStock
+                }
                 className={`h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 outline-none ${
-                  hasConfiguredVariants(currentItem?.variantRows)
+                  hasConfiguredVariants(currentItem?.variantRows) ||
+                  isOutOfStock
                     ? "bg-slate-50"
                     : "bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
                 }`}
               />
-              {selectedEditDamageStock && !hasConfiguredVariants(currentItem?.variantRows) && (
-                <p className="mt-1 text-[10px] text-slate-400">Stock: {Number(selectedEditDamageStock.quantity || 0)}</p>
+              {selectedEditDamageStock &&
+                !hasConfiguredVariants(currentItem?.variantRows) &&
+                stockQuantity !== null && (
+                <p className="mt-1 text-[10px] text-slate-400">
+                  Stock: {Number(stockQuantity || 0)}
+                </p>
               )}
+                  </>
+                );
+              })()}
             </div>
             )}
 
@@ -2214,6 +2255,12 @@ const DamageRepairTable = () => {
                             row.size,
                           )
                         : createColorOptions;
+                      const stockQuantity = getInventoryVariantStockQuantity(
+                        selectedCreateDamageStock,
+                        row,
+                      );
+                      const isOutOfStockVariant =
+                        row.size && stockQuantity !== null && stockQuantity <= 0;
 
                       return (
                         <div
@@ -2298,19 +2345,17 @@ const DamageRepairTable = () => {
                               }
                               disabled={
                                 !createForm?.receivedId ||
-                                createSizeOptions.length === 0
+                                createSizeOptions.length === 0 ||
+                                isOutOfStockVariant
                               }
                               className="h-11 border bg-white border-slate-200 rounded-xl px-3 w-full text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                               placeholder=""
                             />
-                            {selectedCreateDamageStock && row.size && (() => {
-                              const match = getVariantDisplayRows(selectedCreateDamageStock).find(
-                                (v) => String(v.size || "") === String(row.size || "") && String(v.color || "") === String(row.color || ""),
-                              );
-                              return match !== undefined ? (
-                                <p className="mt-1 text-[10px] text-slate-400">Stock: {Number(match.quantity || 0)}</p>
-                              ) : null;
-                            })()}
+                            {selectedCreateDamageStock && row.size && stockQuantity !== null && (
+                              <p className="mt-1 text-[10px] text-slate-400">
+                                Stock: {Number(stockQuantity || 0)}
+                              </p>
+                            )}
                           </div>
 
                           <button
@@ -2391,6 +2436,17 @@ const DamageRepairTable = () => {
               </div>
 
               <div className="mt-4">
+                {(() => {
+                  const stockQuantity = getInventoryStockQuantity(
+                    selectedCreateDamageStock,
+                  );
+                  const isOutOfStock =
+                    !hasConfiguredVariants(createForm?.variantRows) &&
+                    stockQuantity !== null &&
+                    stockQuantity <= 0;
+
+                  return (
+                    <>
                 <label className="block text-sm text-slate-600 mb-1">
                   Quantity
                 </label>
@@ -2401,14 +2457,28 @@ const DamageRepairTable = () => {
                   onChange={(e) =>
                     setCreateForm((p) => ({ ...p, quantity: e.target.value }))
                   }
-                  readOnly={hasConfiguredVariants(createForm?.variantRows)}
+                  readOnly={
+                    hasConfiguredVariants(createForm?.variantRows) ||
+                    isOutOfStock
+                  }
                   className={`h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 outline-none ${
-                    hasConfiguredVariants(createForm?.variantRows)
+                    hasConfiguredVariants(createForm?.variantRows) ||
+                    isOutOfStock
                       ? "bg-slate-50"
                       : "bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
                   }`}
                   required
                 />
+                {selectedCreateDamageStock &&
+                  !hasConfiguredVariants(createForm?.variantRows) &&
+                  stockQuantity !== null && (
+                  <p className="mt-1 text-[10px] text-slate-400">
+                    Stock: {Number(stockQuantity || 0)}
+                  </p>
+                )}
+                    </>
+                  );
+                })()}
               </div>
 
               <div className="mt-4">
@@ -2526,6 +2596,13 @@ const DamageRepairTable = () => {
                               {Number(item.payload.quantity) || ""}
                             </p>
                           ) : (
+                            (() => {
+                              const invItem = receivedData.find((r) => Number(r.Id) === Number(item.payload?.receivedId || item.payload?.productId));
+                              const stockQuantity = getInventoryStockQuantity(invItem);
+                              const isOutOfStock =
+                                stockQuantity !== null && stockQuantity <= 0;
+
+                              return (
                             <>
                               <input
                                 type="number"
@@ -2537,15 +2614,17 @@ const DamageRepairTable = () => {
                                     : item.payload.quantity
                                 }
                                 onChange={(e) => updateCreateItem(index, "quantity", e.target.value)}
-                                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
+                                disabled={isOutOfStock}
+                                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                               />
-                              {(() => {
-                                const invItem = receivedData.find((r) => Number(r.Id) === Number(item.payload?.receivedId || item.payload?.productId));
-                                return invItem ? (
-                                  <p className="mt-1 text-[10px] text-slate-400">Stock: {Number(invItem.quantity || 0)}</p>
-                                ) : null;
-                              })()}
+                              {stockQuantity !== null && (
+                                <p className="mt-1 text-[10px] text-slate-400">
+                                  Stock: {Number(stockQuantity || 0)}
+                                </p>
+                              )}
                             </>
+                              );
+                            })()
                           )}
                         </td>
                         <td className="px-3 py-3 align-top text-xs text-slate-500">
@@ -2563,16 +2642,20 @@ const DamageRepairTable = () => {
                                     min="0"
                                     value={variant.quantity}
                                     onChange={(e) => updateCreateItemVariantField(index, variantIndex, "quantity", e.target.value)}
-                                    className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
+                                    disabled={(() => {
+                                      const invItem = receivedData.find((r) => Number(r.Id) === Number(item.payload?.receivedId || item.payload?.productId));
+                                      const stockQuantity = getInventoryVariantStockQuantity(invItem, variant);
+                                      return stockQuantity !== null && stockQuantity <= 0;
+                                    })()}
+                                    className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                                   />
                                   {(() => {
                                     const invItem = receivedData.find((r) => Number(r.Id) === Number(item.payload?.receivedId || item.payload?.productId));
-                                    if (!invItem) return null;
-                                    const match = getVariantDisplayRows(invItem).find(
-                                      (v) => String(v.size || "") === String(variant.size || "") && String(v.color || "") === String(variant.color || ""),
-                                    );
-                                    return match !== undefined ? (
-                                      <p className="mt-0.5 text-[10px] text-slate-400">Stock: {Number(match.quantity || 0)}</p>
+                                    const stockQuantity = getInventoryVariantStockQuantity(invItem, variant);
+                                    return stockQuantity !== null ? (
+                                      <p className="mt-0.5 text-[10px] text-slate-400">
+                                        Stock: {Number(stockQuantity || 0)}
+                                      </p>
                                     ) : null;
                                   })()}
                                 </div>

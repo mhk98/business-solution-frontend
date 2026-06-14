@@ -156,6 +156,24 @@ export default function SellPosTable() {
   const getReceivedId = (rp) => String(rp.Id);
   const getReceivedPrice = (rp) => Number(rp.sale_price);
   const getReceivedStock = (rp) => Number(rp.quantity);
+  const getVariantRows = (record) => {
+    if (Array.isArray(record?.variants)) return record.variants;
+    if (typeof record?.variants === "string") {
+      try {
+        const parsed = JSON.parse(record.variants);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+  const getVariantKey = (variant) =>
+    `${String(variant?.size || "").trim()}__${String(variant?.color || "").trim()}`;
+  const getVariantLabel = (variant) =>
+    [variant?.size || "N/A", variant?.color || "N/A"].join(" / ");
+  const getCartKey = (id, variant) =>
+    variant ? `${id}__${getVariantKey(variant)}` : String(id);
 
   const resolveProductName = (rp) => {
     const pid = rp.product?.Id;
@@ -190,21 +208,41 @@ export default function SellPosTable() {
   // Cart
   const addToCart = (p) => {
     setCart((prev) => {
-      const exists = prev.find((x) => x.Id === p.Id);
+      const itemKey = p.cartKey || getCartKey(p.Id, p.variant);
+      const exists = prev.find((x) => x.cartKey === itemKey);
       if (exists) {
-        return prev.map((x) => (x.Id === p.Id ? { ...x, qty: x.qty + 1 } : x));
+        return prev.map((x) =>
+          x.cartKey === itemKey
+            ? { ...x, qty: Math.min(Number(x.maxQty || Infinity), x.qty + 1) }
+            : x,
+        );
       }
-      return [...prev, { Id: p.Id, name: p.name, price: p.price, qty: 1 }];
+      return [
+        ...prev,
+        {
+          Id: p.Id,
+          cartKey: itemKey,
+          name: p.name,
+          price: p.price,
+          qty: 1,
+          maxQty: p.maxQty || 0,
+          variant: p.variant || null,
+        },
+      ];
     });
   };
 
-  const removeFromCart = (Id) =>
-    setCart((prev) => prev.filter((x) => x.Id !== Id));
+  const removeFromCart = (cartKey) =>
+    setCart((prev) => prev.filter((x) => x.cartKey !== cartKey));
 
-  const updateQty = (Id, qty) => {
+  const updateQty = (cartKey, qty) => {
     const n = Number(qty) || 0;
     setCart((prev) =>
-      prev.map((x) => (x.Id === Id ? { ...x, qty: Math.max(1, n) } : x)),
+      prev.map((x) =>
+        x.cartKey === cartKey
+          ? { ...x, qty: Math.min(Number(x.maxQty || Infinity), Math.max(1, n)) }
+          : x,
+      ),
     );
   };
 
@@ -236,6 +274,14 @@ export default function SellPosTable() {
       price: Number(x.price) || 0,
       total: (Number(x.price) || 0) * (Number(x.qty) || 0),
       name: x.name,
+      variants: x.variant
+        ? [
+            {
+              ...x.variant,
+              quantity: Number(x.qty) || 0,
+            },
+          ]
+        : [],
     }));
 
     return {
@@ -454,6 +500,10 @@ export default function SellPosTable() {
                   const name = resolveProductName(p);
                   const price = getReceivedPrice(p);
                   const stock = getReceivedStock(p);
+                  const variantRows = getVariantRows(p).filter(
+                    (variant) => Number(variant?.quantity || 0) > 0,
+                  );
+                  const hasVariants = variantRows.length > 0;
 
                   return (
                     <div
@@ -477,17 +527,68 @@ export default function SellPosTable() {
                             <span className="h-1 w-1 rounded-full bg-slate-300" />
                             <span>Stock: {stock}</span>
                           </div>
+                          {hasVariants ? (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {variantRows.map((variant, index) => {
+                                const variantPrice = Number(
+                                  variant?.sale_price || price,
+                                );
+                                const variantStock = Number(
+                                  variant?.quantity || 0,
+                                );
+                                return (
+                                  <button
+                                    key={`${rid}-${getVariantKey(variant)}-${index}`}
+                                    onClick={() =>
+                                      addToCart({
+                                        Id: rid,
+                                        name: `${name} (${getVariantLabel(variant)})`,
+                                        price: variantPrice,
+                                        maxQty: variantStock,
+                                        variant: {
+                                          size: variant?.size || "",
+                                          color: variant?.color || "",
+                                          purchase_price:
+                                            Number(variant?.purchase_price) || 0,
+                                          sale_price: variantPrice,
+                                          sku: variant?.sku || "",
+                                        },
+                                      })
+                                    }
+                                    type="button"
+                                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-left text-[11px] font-bold text-slate-700 hover:border-indigo-300 hover:bg-indigo-50 disabled:opacity-50"
+                                    disabled={variantStock <= 0}
+                                  >
+                                    <span className="block text-slate-900">
+                                      {getVariantLabel(variant)}
+                                    </span>
+                                    <span className="block text-slate-500">
+                                      Qty {variantStock} · ৳
+                                      {variantPrice.toLocaleString()}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ) : null}
                         </div>
                       </div>
 
                       <div className="flex items-center self-end sm:self-center">
                         <button
-                          onClick={() => addToCart({ Id: rid, name, price })}
+                          onClick={() =>
+                            addToCart({
+                              Id: rid,
+                              name,
+                              price,
+                              maxQty: stock,
+                            })
+                          }
                           className="h-9 px-5 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 transition shadow-sm shadow-indigo-100 disabled:opacity-50 active:scale-95"
                           type="button"
-                          disabled={!rid || stock <= 0}
+                          disabled={!rid || stock <= 0 || hasVariants}
                         >
-                          Add to Cart
+                          {hasVariants ? "Select Variant" : "Add to Cart"}
                         </button>
                       </div>
                     </div>
@@ -554,7 +655,7 @@ export default function SellPosTable() {
                   <div className="space-y-3">
                     {cart.map((x) => (
                       <div
-                        key={x.Id}
+                        key={x.cartKey}
                         className="bg-slate-50 border border-slate-100 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-4 transition hover:border-indigo-200 group"
                       >
                         <div className="flex-1 min-w-0">
@@ -570,7 +671,10 @@ export default function SellPosTable() {
                           <div className="flex items-center bg-white border border-slate-200 rounded-lg overflow-hidden h-9 shadow-sm">
                             <button
                               onClick={() =>
-                                updateQty(x.Id, Math.max(1, (x.qty || 1) - 1))
+                                updateQty(
+                                  x.cartKey,
+                                  Math.max(1, (x.qty || 1) - 1),
+                                )
                               }
                               className="w-8 h-full flex items-center justify-center hover:bg-slate-50 text-slate-500 transition border-r border-slate-100"
                             >
@@ -578,13 +682,17 @@ export default function SellPosTable() {
                             </button>
                             <input
                               value={x.qty}
-                              onChange={(e) => updateQty(x.Id, e.target.value)}
+                              onChange={(e) =>
+                                updateQty(x.cartKey, e.target.value)
+                              }
                               className="w-12 h-full text-center text-slate-900 text-xs font-bold outline-none bg-transparent"
                               type="number"
                               min={1}
                             />
                             <button
-                              onClick={() => updateQty(x.Id, (x.qty || 1) + 1)}
+                              onClick={() =>
+                                updateQty(x.cartKey, (x.qty || 1) + 1)
+                              }
                               className="w-8 h-full flex items-center justify-center hover:bg-slate-50 text-slate-500 transition border-l border-slate-100"
                             >
                               +
@@ -599,7 +707,7 @@ export default function SellPosTable() {
                           </div>
 
                           <button
-                            onClick={() => removeFromCart(x.Id)}
+                            onClick={() => removeFromCart(x.cartKey)}
                             className="h-9 w-9 flex items-center justify-center rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-100 transition active:scale-95"
                             type="button"
                           >

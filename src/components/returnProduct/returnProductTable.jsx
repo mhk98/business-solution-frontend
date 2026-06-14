@@ -174,19 +174,41 @@ const getVariantDisplayRows = (record) => {
   return [];
 };
 
+const getSelectableVariantRows = (record) => {
+  const stockVariants = getVariantDisplayRows(record);
+  const productVariants = getVariantRowsFromProduct(
+    record?.product || record?.Product,
+  );
+  const variantMap = new Map();
+
+  [...stockVariants, ...productVariants].forEach((variant) => {
+    const size = String(variant?.size || "").trim();
+    const color = String(variant?.color || "").trim();
+    if (!size && !color) return;
+
+    variantMap.set(`${size}::${color}`, {
+      ...variant,
+      size,
+      color,
+    });
+  });
+
+  return [...variantMap.values()];
+};
+
 const getInventoryVariantSizeOptions = (inventoryItem) => {
-  const variants = getVariantDisplayRows(inventoryItem);
+  const variants = getSelectableVariantRows(inventoryItem);
   return [...new Set(variants.map((v) => v.size).filter(Boolean))].map((v) => ({ value: v, label: v }));
 };
 
 const getInventoryVariantColorOptions = (inventoryItem) => {
-  const variants = getVariantDisplayRows(inventoryItem);
+  const variants = getSelectableVariantRows(inventoryItem);
   return [...new Set(variants.map((v) => v.color).filter(Boolean))].map((v) => ({ value: v, label: v }));
 };
 
 const getInventoryVariantColorsForSize = (inventoryItem, size) => {
   if (!size) return [];
-  return getVariantDisplayRows(inventoryItem)
+  return getSelectableVariantRows(inventoryItem)
     .filter((v) => String(v.size || "") === String(size))
     .map((v) => v.color)
     .filter(Boolean)

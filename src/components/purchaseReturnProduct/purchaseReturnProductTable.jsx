@@ -265,7 +265,7 @@ const getVariantSku = (record, variant, index, fallbackSku = "") => {
 
 const getNormalizedVariantsPayload = (rows) =>
   normalizeVariantRows(rows)
-    .filter((row) => row.size || row.color || row.quantity)
+    .filter((row) => (row.size || row.color) && Number(row.quantity) > 0)
     .map((row) => ({
       size: row.size || "",
       color: row.color || "",
@@ -290,7 +290,7 @@ const hasConfiguredVariants = (rows) =>
   );
 
 const getInventoryVariantSizeOptions = (inventoryItem) => {
-  const variants = getVariantDisplayRows(inventoryItem);
+  const variants = getSelectableVariantRows(inventoryItem);
   return [...new Set(variants.map((v) => v.size).filter(Boolean))].map((v) => ({
     value: v,
     label: v,
@@ -298,7 +298,7 @@ const getInventoryVariantSizeOptions = (inventoryItem) => {
 };
 
 const getInventoryVariantColorOptions = (inventoryItem) => {
-  const variants = getVariantDisplayRows(inventoryItem);
+  const variants = getSelectableVariantRows(inventoryItem);
   return [...new Set(variants.map((v) => v.color).filter(Boolean))].map((v) => ({
     value: v,
     label: v,
@@ -307,12 +307,46 @@ const getInventoryVariantColorOptions = (inventoryItem) => {
 
 const getInventoryVariantColorsForSize = (inventoryItem, size) => {
   if (!size) return [];
-  return getVariantDisplayRows(inventoryItem)
+  return getSelectableVariantRows(inventoryItem)
     .filter((v) => String(v.size || "") === String(size))
     .map((v) => v.color)
     .filter(Boolean)
     .filter((v, i, arr) => arr.indexOf(v) === i)
     .map((v) => ({ value: v, label: v }));
+};
+
+const getSelectableVariantRows = (record) => {
+  const stockVariants = getVariantDisplayRows(record);
+  const productVariants = getVariantRowsFromProduct(
+    record?.product || record?.Product,
+  );
+  const variantMap = new Map();
+
+  [...stockVariants, ...productVariants].forEach((variant) => {
+    const size = String(variant?.size || "").trim();
+    const color = String(variant?.color || "").trim();
+    if (!size && !color) return;
+
+    variantMap.set(`${size}::${color}`, {
+      ...variant,
+      size,
+      color,
+    });
+  });
+
+  return [...variantMap.values()];
+};
+
+const getInventoryVariantStockQuantity = (inventoryItem, variant) => {
+  if (!inventoryItem || !variant?.size) return null;
+
+  const match = getVariantDisplayRows(inventoryItem).find(
+    (row) =>
+      String(row.size || "") === String(variant.size || "") &&
+      String(row.color || "") === String(variant.color || ""),
+  );
+
+  return Number(match?.quantity || 0);
 };
 
 const hasDuplicateVariantCombination = (rows) => {
@@ -668,7 +702,7 @@ const PurchaseReturnProductTable = () => {
     [selectedCreateInventoryItem],
   );
   const shouldShowCreateVariantOptions = useMemo(
-    () => getVariantDisplayRows(selectedCreateInventoryItem).length > 0,
+    () => getSelectableVariantRows(selectedCreateInventoryItem).length > 0,
     [selectedCreateInventoryItem],
   );
   const editSizeOptions = useMemo(
@@ -690,11 +724,11 @@ const PurchaseReturnProductTable = () => {
   const shouldShowEditVariantOptions = useMemo(
     () =>
       hasConfiguredVariants(currentItem?.variantRows) ||
-      getVariantDisplayRows(selectedEditInventoryItem).length > 0,
+      getSelectableVariantRows(selectedEditInventoryItem).length > 0,
     [currentItem?.variantRows, selectedEditInventoryItem],
   );
   const shouldShowBulkAddVariantOptions = useMemo(
-    () => getVariantDisplayRows(selectedBulkAddInventoryItem).length > 0,
+    () => getSelectableVariantRows(selectedBulkAddInventoryItem).length > 0,
     [selectedBulkAddInventoryItem],
   );
   const currentBulkItems = useMemo(
@@ -2201,6 +2235,14 @@ const PurchaseReturnProductTable = () => {
 
                     {!shouldShowBulkAddVariantOptions && (
                       <div className="lg:w-36">
+                        {(() => {
+                          const stockQuantity = getStockQuantityForSelectedReceivedId(
+                            bulkAddForm.receivedId,
+                          );
+                          const isOutOfStock =
+                            bulkAddForm.receivedId && stockQuantity <= 0;
+                          return (
+                            <>
                         <label className="mb-1.5 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
                           Quantity
                         </label>
@@ -2215,17 +2257,17 @@ const PurchaseReturnProductTable = () => {
                               quantity: e.target.value,
                             }))
                           }
-                          disabled={!bulkAddForm.receivedId}
+                          disabled={!bulkAddForm.receivedId || isOutOfStock}
                           className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10 disabled:bg-slate-100 disabled:text-slate-400"
                         />
                         {bulkAddForm.receivedId && (
                           <p className="mt-1 text-[10px] text-slate-400">
-                            Stock:{" "}
-                            {getStockQuantityForSelectedReceivedId(
-                              bulkAddForm.receivedId,
-                            )}
+                            Stock: {Number(stockQuantity || 0)}
                           </p>
                         )}
+                            </>
+                          );
+                        })()}
                       </div>
                     )}
 
@@ -2261,6 +2303,12 @@ const PurchaseReturnProductTable = () => {
                                 row.size,
                               )
                             : bulkAddColorOptions;
+                          const stockQuantity = getInventoryVariantStockQuantity(
+                            selectedBulkAddInventoryItem,
+                            row,
+                          );
+                          const isOutOfStockVariant =
+                            row.size && stockQuantity !== null && stockQuantity <= 0;
 
                           return (
                             <div
@@ -2319,15 +2367,12 @@ const PurchaseReturnProductTable = () => {
                                       e.target.value,
                                     )
                                   }
-                                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
+                                  disabled={isOutOfStockVariant}
+                                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                                 />
-                                {(row.size || row.color) && (
+                                {row.size && stockQuantity !== null && (
                                   <p className="mt-1 text-[10px] text-slate-400">
-                                    Stock:{" "}
-                                    {getStockQuantityForSelectedVariant(
-                                      bulkAddForm.receivedId,
-                                      row,
-                                    ) ?? 0}
+                                    Stock: {Number(stockQuantity || 0)}
                                   </p>
                                 )}
                               </div>
@@ -2412,6 +2457,12 @@ const PurchaseReturnProductTable = () => {
                           row.size,
                         )
                       : editColorOptions;
+                    const stockQuantity = getInventoryVariantStockQuantity(
+                      selectedEditInventoryItem,
+                      row,
+                    );
+                    const isOutOfStockVariant =
+                      row.size && stockQuantity !== null && stockQuantity <= 0;
 
                     return (
                       <div
@@ -2494,19 +2545,17 @@ const PurchaseReturnProductTable = () => {
                             }
                             disabled={
                               !currentItem?.receivedId ||
-                              editSizeOptions.length === 0
+                              editSizeOptions.length === 0 ||
+                              isOutOfStockVariant
                             }
                             className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                             placeholder=""
                           />
-                          {selectedEditInventoryItem && row.size && (() => {
-                            const match = getVariantDisplayRows(selectedEditInventoryItem).find(
-                              (v) => String(v.size || "") === String(row.size || "") && String(v.color || "") === String(row.color || ""),
-                            );
-                            return match !== undefined ? (
-                              <p className="mt-1 text-[10px] text-slate-400">Stock: {Number(match.quantity || 0)}</p>
-                            ) : null;
-                          })()}
+                          {selectedEditInventoryItem && row.size && stockQuantity !== null && (
+                            <p className="mt-1 text-[10px] text-slate-400">
+                              Stock: {Number(stockQuantity || 0)}
+                            </p>
+                          )}
                         </div>
 
                         <button
@@ -2596,6 +2645,17 @@ const PurchaseReturnProductTable = () => {
 
             {!isEditingBulkReturn && (
               <div className="mt-4">
+                {(() => {
+                  const stockQuantity = getStockQuantityForSelectedReceivedId(
+                    currentItem?.receivedId,
+                  );
+                  const isOutOfStock =
+                    currentItem?.receivedId &&
+                    !hasConfiguredVariants(currentItem?.variantRows) &&
+                    stockQuantity <= 0;
+
+                  return (
+                    <>
                 <label className="block text-sm text-slate-700">Quantity</label>
                 <input
                   type="number"
@@ -2604,9 +2664,13 @@ const PurchaseReturnProductTable = () => {
                   onChange={(e) =>
                     setCurrentItem((p) => ({ ...p, quantity: e.target.value }))
                   }
-                  readOnly={hasConfiguredVariants(currentItem?.variantRows)}
+                  readOnly={
+                    hasConfiguredVariants(currentItem?.variantRows) ||
+                    isOutOfStock
+                  }
                   className={`h-11 border border-slate-200 rounded-xl px-3 w-full mt-1 text-slate-900 outline-none ${
-                    hasConfiguredVariants(currentItem?.variantRows)
+                    hasConfiguredVariants(currentItem?.variantRows) ||
+                    isOutOfStock
                       ? "bg-slate-50"
                       : "bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
                   }`}
@@ -2619,6 +2683,9 @@ const PurchaseReturnProductTable = () => {
                     )}
                   </p>
                 )}
+                    </>
+                  );
+                })()}
               </div>
             )}
 
@@ -2806,6 +2873,13 @@ const PurchaseReturnProductTable = () => {
                               {blankIfZero(item.payload.quantity)}
                             </p>
                           ) : (
+                            (() => {
+                              const invItem = receivedData.find((r) => Number(r.Id) === Number(item.payload?.receivedId || item.payload?.productId));
+                              const stockQuantity = Number(invItem?.quantity || 0);
+                              const isOutOfStock =
+                                Boolean(invItem) && stockQuantity <= 0;
+
+                              return (
                             <>
                               <input
                                 type="number"
@@ -2819,15 +2893,17 @@ const PurchaseReturnProductTable = () => {
                                     e.target.value,
                                   )
                                 }
-                                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
+                                disabled={isOutOfStock}
+                                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                               />
-                              {(() => {
-                                const invItem = receivedData.find((r) => Number(r.Id) === Number(item.payload?.receivedId || item.payload?.productId));
-                                return invItem ? (
-                                  <p className="mt-1 text-[10px] text-slate-400">Stock: {Number(invItem.quantity || 0)}</p>
-                                ) : null;
-                              })()}
+                              {invItem ? (
+                                <p className="mt-1 text-[10px] text-slate-400">
+                                  Stock: {Number(stockQuantity || 0)}
+                                </p>
+                              ) : null}
                             </>
+                              );
+                            })()
                           )}
                         </td>
                         <td className="px-3 py-3 align-top text-xs text-slate-500">
@@ -2934,6 +3010,12 @@ const PurchaseReturnProductTable = () => {
                         row.size,
                       )
                     : createColorOptions;
+                  const stockQuantity = getInventoryVariantStockQuantity(
+                    selectedCreateInventoryItem,
+                    row,
+                  );
+                  const isOutOfStockVariant =
+                    row.size && stockQuantity !== null && stockQuantity <= 0;
 
                   return (
                     <div
@@ -3016,18 +3098,15 @@ const PurchaseReturnProductTable = () => {
                           }
                           disabled={
                             !createForm?.receivedId ||
-                            createSizeOptions.length === 0
+                            createSizeOptions.length === 0 ||
+                            isOutOfStockVariant
                           }
                           className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                           placeholder=""
                         />
-                        {(row.size || row.color) && (
+                        {row.size && stockQuantity !== null && (
                           <p className="mt-1 text-[10px] text-slate-400">
-                            Stock:{" "}
-                            {getStockQuantityForSelectedVariant(
-                              createForm.receivedId,
-                              row,
-                            ) ?? 0}
+                            Stock: {Number(stockQuantity || 0)}
                           </p>
                         )}
                       </div>

@@ -6,9 +6,27 @@ export const receivedProductApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
     getAllReceivedProduct: build.query({
       query: (arg = {}) => {
-        const { page, limit, startDate, endDate, searchTerm, name } = arg;
+        const {
+          page,
+          limit,
+          startDate,
+          endDate,
+          searchTerm,
+          name,
+          supplierId,
+          warehouseId,
+        } = arg;
 
-        const params = { page, limit, startDate, endDate, searchTerm, name };
+        const params = {
+          page,
+          limit,
+          startDate,
+          endDate,
+          searchTerm,
+          name,
+          supplierId,
+          warehouseId,
+        };
         Object.keys(params).forEach((k) => {
           if (params[k] === undefined || params[k] === null || params[k] === "")
             delete params[k];

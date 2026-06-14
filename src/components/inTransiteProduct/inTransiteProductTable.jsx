@@ -175,18 +175,23 @@ const getVariantDisplayRows = (record) => {
 };
 
 const getInventoryVariantSizeOptions = (inventoryItem) => {
-  const variants = getVariantDisplayRows(inventoryItem);
-  return [...new Set(variants.map((v) => v.size).filter(Boolean))].map((v) => ({ value: v, label: v }));
+  const variants = getSelectableVariantRows(inventoryItem);
+  return [...new Set(variants.map((v) => v.size).filter(Boolean))].map((v) => ({
+    value: v,
+    label: v,
+  }));
 };
 
 const getInventoryVariantColorOptions = (inventoryItem) => {
-  const variants = getVariantDisplayRows(inventoryItem);
-  return [...new Set(variants.map((v) => v.color).filter(Boolean))].map((v) => ({ value: v, label: v }));
+  const variants = getSelectableVariantRows(inventoryItem);
+  return [...new Set(variants.map((v) => v.color).filter(Boolean))].map(
+    (v) => ({ value: v, label: v }),
+  );
 };
 
 const getInventoryVariantColorsForSize = (inventoryItem, size) => {
   if (!size) return [];
-  return getVariantDisplayRows(inventoryItem)
+  return getSelectableVariantRows(inventoryItem)
     .filter((v) => String(v.size || "") === String(size))
     .map((v) => v.color)
     .filter(Boolean)
@@ -194,9 +199,43 @@ const getInventoryVariantColorsForSize = (inventoryItem, size) => {
     .map((v) => ({ value: v, label: v }));
 };
 
+const getSelectableVariantRows = (record) => {
+  const stockVariants = getVariantDisplayRows(record);
+  const productVariants = getVariantRowsFromProduct(
+    record?.product || record?.Product,
+  );
+  const variantMap = new Map();
+
+  [...stockVariants, ...productVariants].forEach((variant) => {
+    const size = String(variant?.size || "").trim();
+    const color = String(variant?.color || "").trim();
+    if (!size && !color) return;
+
+    variantMap.set(`${size}::${color}`, {
+      ...variant,
+      size,
+      color,
+    });
+  });
+
+  return [...variantMap.values()];
+};
+
+const getInventoryVariantStockQuantity = (inventoryItem, variant) => {
+  if (!inventoryItem || !variant?.size) return null;
+
+  const match = getVariantDisplayRows(inventoryItem).find(
+    (row) =>
+      String(row.size || "") === String(variant.size || "") &&
+      String(row.color || "") === String(variant.color || ""),
+  );
+
+  return Number(match?.quantity || 0);
+};
+
 const getNormalizedVariantsPayload = (rows) =>
   normalizeVariantRows(rows)
-    .filter((row) => row.size || row.color || row.quantity)
+    .filter((row) => (row.size || row.color) && Number(row.quantity) > 0)
     .map((row) => ({
       size: row.size || "",
       color: row.color || "",
@@ -342,17 +381,25 @@ const IntransiteProductTable = () => {
   }, [receivedData]);
 
   const selectedCreateInventoryItem = useMemo(
-    () => receivedData.find((r) => String(r.Id) === String(createForm?.receivedId)),
+    () =>
+      receivedData.find((r) => String(r.Id) === String(createForm?.receivedId)),
     [receivedData, createForm?.receivedId],
   );
   const selectedBulkAddInventoryItem = useMemo(
     () =>
-      receivedData.find((r) => String(r.Id) === String(bulkAddForm?.receivedId)),
+      receivedData.find(
+        (r) => String(r.Id) === String(bulkAddForm?.receivedId),
+      ),
     [receivedData, bulkAddForm?.receivedId],
   );
 
   const selectedEditInventoryItem = useMemo(
-    () => receivedData.find((r) => String(r.Id) === String(currentItem?.receivedId || currentItem?.productId || "")),
+    () =>
+      receivedData.find(
+        (r) =>
+          String(r.Id) ===
+          String(currentItem?.receivedId || currentItem?.productId || ""),
+      ),
     [receivedData, currentItem?.receivedId, currentItem?.productId],
   );
 
@@ -365,7 +412,7 @@ const IntransiteProductTable = () => {
     [selectedCreateInventoryItem],
   );
   const shouldShowCreateVariantOptions = useMemo(
-    () => getVariantDisplayRows(selectedCreateInventoryItem).length > 0,
+    () => getSelectableVariantRows(selectedCreateInventoryItem).length > 0,
     [selectedCreateInventoryItem],
   );
   const createItemsTotalQuantity = useMemo(
@@ -378,11 +425,19 @@ const IntransiteProductTable = () => {
   );
 
   const createItemsTotalPurchase = useMemo(
-    () => createItems.reduce((total, item) => total + (Number(item?.payload?.purchase_price) || 0), 0),
+    () =>
+      createItems.reduce(
+        (total, item) => total + (Number(item?.payload?.purchase_price) || 0),
+        0,
+      ),
     [createItems],
   );
   const createItemsTotalSale = useMemo(
-    () => createItems.reduce((total, item) => total + (Number(item?.payload?.sale_price) || 0), 0),
+    () =>
+      createItems.reduce(
+        (total, item) => total + (Number(item?.payload?.sale_price) || 0),
+        0,
+      ),
     [createItems],
   );
   const editSizeOptions = useMemo(
@@ -404,11 +459,11 @@ const IntransiteProductTable = () => {
   const shouldShowEditVariantOptions = useMemo(
     () =>
       hasConfiguredVariants(currentItem?.variantRows) ||
-      getVariantDisplayRows(selectedEditInventoryItem).length > 0,
+      getSelectableVariantRows(selectedEditInventoryItem).length > 0,
     [currentItem?.variantRows, selectedEditInventoryItem],
   );
   const shouldShowBulkAddVariantOptions = useMemo(
-    () => getVariantDisplayRows(selectedBulkAddInventoryItem).length > 0,
+    () => getSelectableVariantRows(selectedBulkAddInventoryItem).length > 0,
     [selectedBulkAddInventoryItem],
   );
 
@@ -507,7 +562,10 @@ const IntransiteProductTable = () => {
 
     const nameMatch = normalizedName
       ? receivedData.find(
-          (r) => String(r?.name || "").trim().toLowerCase() === normalizedName,
+          (r) =>
+            String(r?.name || "")
+              .trim()
+              .toLowerCase() === normalizedName,
         )
       : null;
 
@@ -783,7 +841,9 @@ const IntransiteProductTable = () => {
     const selectedProduct = receivedDropdownOptions.find(
       (option) => option.value === productId,
     );
-    const inventoryVariants = getVariantDisplayRows(selectedBulkAddInventoryItem);
+    const inventoryVariants = getVariantDisplayRows(
+      selectedBulkAddInventoryItem,
+    );
     const unitPurchasePrice =
       Number(selectedBulkAddInventoryItem?.purchase_price) || 0;
     const unitSalePrice = Number(selectedBulkAddInventoryItem?.sale_price) || 0;
@@ -841,10 +901,14 @@ const IntransiteProductTable = () => {
         const existingItem = currentItems[existingIndex];
         const existingVariants = normalizeVariantRows(
           existingItem.variants,
-        ).filter((variant) => variant.size || variant.color || variant.quantity);
+        ).filter(
+          (variant) => variant.size || variant.color || variant.quantity,
+        );
         const incomingVariants = normalizeVariantRows(
           result.item.variants,
-        ).filter((variant) => variant.size || variant.color || variant.quantity);
+        ).filter(
+          (variant) => variant.size || variant.color || variant.quantity,
+        );
 
         if (!incomingVariants.length || !existingVariants.length) {
           toast.error("This product already exists in the list");
@@ -1013,9 +1077,12 @@ const IntransiteProductTable = () => {
 
     if (totalQuantity <= 0) return { error: "Please enter valid quantity" };
 
-    const unitPurchasePrice = Number(selectedCreateInventoryItem?.purchase_price) || 0;
+    const unitPurchasePrice =
+      Number(selectedCreateInventoryItem?.purchase_price) || 0;
     const unitSalePrice = Number(selectedCreateInventoryItem?.sale_price) || 0;
-    const inventoryVariants = getVariantDisplayRows(selectedCreateInventoryItem);
+    const inventoryVariants = getVariantDisplayRows(
+      selectedCreateInventoryItem,
+    );
     const totalPurchasePrice =
       variantsPayload.length > 0 && inventoryVariants.length > 0
         ? variantsPayload.reduce((sum, v) => {
@@ -1024,7 +1091,8 @@ const IntransiteProductTable = () => {
                 String(iv.size || "") === String(v.size || "") &&
                 String(iv.color || "") === String(v.color || ""),
             );
-            const vUnitPrice = Number(invVariant?.purchase_price) || unitPurchasePrice;
+            const vUnitPrice =
+              Number(invVariant?.purchase_price) || unitPurchasePrice;
             return sum + vUnitPrice * Number(v.quantity || 0);
           }, 0)
         : unitPurchasePrice * totalQuantity;
@@ -1157,7 +1225,8 @@ const IntransiteProductTable = () => {
     const selectedProduct = receivedDropdownOptions.find(
       (option) => option.value === productId,
     );
-    const unitPurchasePrice = Number(selectedCreateInventoryItem?.purchase_price) || 0;
+    const unitPurchasePrice =
+      Number(selectedCreateInventoryItem?.purchase_price) || 0;
     const unitSalePrice = Number(selectedCreateInventoryItem?.sale_price) || 0;
 
     mergeCreateItem({
@@ -1219,7 +1288,9 @@ const IntransiteProductTable = () => {
         );
         const quantity = getVariantRowsTotalQuantity(variants);
         const invItem = receivedData.find(
-          (r) => Number(r.Id) === Number(item.payload?.receivedId || item.payload?.productId),
+          (r) =>
+            Number(r.Id) ===
+            Number(item.payload?.receivedId || item.payload?.productId),
         );
         const invVariants = getVariantDisplayRows(invItem);
         const computedPurchasePrice =
@@ -1336,7 +1407,11 @@ const IntransiteProductTable = () => {
       ...item,
       quantity: getTransitItemQuantity(item),
     }));
-    if (!bulkItems.length && !currentItem?.receivedId && !currentItem?.productId)
+    if (
+      !bulkItems.length &&
+      !currentItem?.receivedId &&
+      !currentItem?.productId
+    )
       return toast.error("Please select a product");
     if (
       bulkItems.length
@@ -1373,8 +1448,12 @@ const IntransiteProductTable = () => {
               sale_price: Number(currentItem.sale_price) || 0,
               purchase_price: Number(currentItem.purchase_price) || 0,
               variants: variantsPayload,
-              receivedId: Number(currentItem.receivedId || currentItem.productId),
-              productId: Number(currentItem.productId || currentItem.receivedId),
+              receivedId: Number(
+                currentItem.receivedId || currentItem.productId,
+              ),
+              productId: Number(
+                currentItem.productId || currentItem.receivedId,
+              ),
               userId: userId,
               actorRole: role,
             };
@@ -1658,9 +1737,9 @@ const IntransiteProductTable = () => {
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider min-w-[420px] max-w-[420px]">
                 Product
               </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+              {/* <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Supplier
-              </th>{" "}
+              </th>{" "} */}
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Warehouse
               </th>
@@ -1701,11 +1780,7 @@ const IntransiteProductTable = () => {
                       variants.reduce(
                         (variantTotal, variant) =>
                           variantTotal +
-                          getVariantUnitPrice(
-                            item,
-                            variant,
-                            "purchase_price",
-                          ) *
+                          getVariantUnitPrice(item, variant, "purchase_price") *
                             Number(variant.quantity || 0),
                         0,
                       )
@@ -1720,7 +1795,8 @@ const IntransiteProductTable = () => {
                 },
                 0,
               );
-              const totalBuy = computedTotalBuy || Number(rp.purchase_price || 0);
+              const totalBuy =
+                computedTotalBuy || Number(rp.purchase_price || 0);
               const totalSell = Number(rp.sale_price || 0);
 
               return (
@@ -1740,9 +1816,9 @@ const IntransiteProductTable = () => {
                       .filter(Boolean)
                       .join(", ") || resolveProductName(rp)}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                  {/* <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                     {rp?.supplier?.name || "-"}
-                  </td>{" "}
+                  </td>{" "} */}
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                     {rp?.warehouse?.name || "-"}
                   </td>
@@ -2172,6 +2248,14 @@ const IntransiteProductTable = () => {
 
                     {!shouldShowBulkAddVariantOptions && (
                       <div className="lg:w-36">
+                        {(() => {
+                          const stockQuantity = Number(
+                            selectedBulkAddInventoryItem?.quantity || 0,
+                          );
+                          const isOutOfStock =
+                            bulkAddForm.receivedId && stockQuantity <= 0;
+                          return (
+                            <>
                         <label className="mb-1.5 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
                           Quantity
                         </label>
@@ -2186,18 +2270,24 @@ const IntransiteProductTable = () => {
                               quantity: e.target.value,
                             }))
                           }
-                          disabled={!bulkAddForm.receivedId}
+                          disabled={!bulkAddForm.receivedId || isOutOfStock}
                           className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10 disabled:bg-slate-100 disabled:text-slate-400"
                         />
+                        {bulkAddForm.receivedId && (
+                          <p className="mt-1 text-[10px] text-slate-400">
+                            Stock: {Number(stockQuantity || 0)}
+                          </p>
+                        )}
+                            </>
+                          );
+                        })()}
                       </div>
                     )}
 
                     <button
                       type="button"
                       onClick={handleAddBulkProduct}
-                      disabled={
-                        !bulkAddForm.receivedId
-                      }
+                      disabled={!bulkAddForm.receivedId}
                       className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Plus size={16} />
@@ -2205,124 +2295,138 @@ const IntransiteProductTable = () => {
                     </button>
                   </div>
 
-                  {bulkAddForm.receivedId && shouldShowBulkAddVariantOptions && (
-                    <div className="mt-3 space-y-3 rounded-xl bg-slate-50 p-3">
-                      <div className="flex justify-end">
-                        <button
-                          type="button"
-                          onClick={addBulkAddVariantRow}
-                          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
-                        >
-                          <Plus size={14} />
-                          Add Variant
-                        </button>
-                      </div>
+                  {bulkAddForm.receivedId &&
+                    shouldShowBulkAddVariantOptions && (
+                      <div className="mt-3 space-y-3 rounded-xl bg-slate-50 p-3">
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            onClick={addBulkAddVariantRow}
+                            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                          >
+                            <Plus size={14} />
+                            Add Variant
+                          </button>
+                        </div>
 
-                      {normalizeVariantRows(bulkAddForm.variantRows).map(
-                        (row, index) => {
-                          const colorOptions = row.size
-                            ? getInventoryVariantColorsForSize(
-                                selectedBulkAddInventoryItem,
-                                row.size,
-                              )
-                            : bulkAddColorOptions;
+                        {normalizeVariantRows(bulkAddForm.variantRows).map(
+                          (row, index) => {
+                            const colorOptions = row.size
+                              ? getInventoryVariantColorsForSize(
+                                  selectedBulkAddInventoryItem,
+                                  row.size,
+                                )
+                              : bulkAddColorOptions;
+                            const stockQuantity = getInventoryVariantStockQuantity(
+                              selectedBulkAddInventoryItem,
+                              row,
+                            );
+                            const isOutOfStockVariant =
+                              row.size && stockQuantity !== null && stockQuantity <= 0;
 
-                          return (
-                            <div
-                              key={`bulk-add-variant-${index}`}
-                              className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_120px_auto] sm:items-end"
-                            >
-                              <div>
-                                <label className="mb-1.5 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
-                                  Size
-                                </label>
-                                <Select
-                                  options={bulkAddSizeOptions}
-                                  value={makeSelectValue(
-                                    bulkAddSizeOptions,
-                                    row.size,
-                                    row.size,
-                                  )}
-                                  onChange={(selected) =>
-                                    updateBulkAddVariantRow(
-                                      index,
-                                      "size",
-                                      selected?.value || "",
-                                    )
-                                  }
-                                  placeholder="Select size..."
-                                  isClearable
-                                  styles={selectStyles}
-                                  className="text-sm font-medium"
-                                  isDisabled={bulkAddSizeOptions.length === 0}
-                                />
-                              </div>
-
-                              <div>
-                                <label className="mb-1.5 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
-                                  Color
-                                </label>
-                                <Select
-                                  options={colorOptions}
-                                  value={makeSelectValue(
-                                    colorOptions,
-                                    row.color,
-                                    row.color,
-                                  )}
-                                  onChange={(selected) =>
-                                    updateBulkAddVariantRow(
-                                      index,
-                                      "color",
-                                      selected?.value || "",
-                                    )
-                                  }
-                                  placeholder="Select color..."
-                                  isClearable
-                                  styles={selectStyles}
-                                  className="text-sm font-medium"
-                                  isDisabled={
-                                    !row.size || colorOptions.length === 0
-                                  }
-                                />
-                              </div>
-
-                              <div>
-                                <label className="mb-1.5 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
-                                  Quantity
-                                </label>
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  value={row.quantity}
-                                  onChange={(e) =>
-                                    updateBulkAddVariantRow(
-                                      index,
-                                      "quantity",
-                                      e.target.value,
-                                    )
-                                  }
-                                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
-                                />
-                              </div>
-
-                              <button
-                                type="button"
-                                onClick={() => removeBulkAddVariantRow(index)}
-                                disabled={
-                                  normalizeVariantRows(bulkAddForm.variantRows)
-                                    .length === 1
-                                }
-                                className="h-11 w-11 rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
+                            return (
+                              <div
+                                key={`bulk-add-variant-${index}`}
+                                className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_120px_auto] sm:items-end"
                               >
-                                x
-                              </button>
-                            </div>
-                          );
-                        },
-                      )}
-                    </div>
-                  )}
+                                <div>
+                                  <label className="mb-1.5 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
+                                    Size
+                                  </label>
+                                  <Select
+                                    options={bulkAddSizeOptions}
+                                    value={makeSelectValue(
+                                      bulkAddSizeOptions,
+                                      row.size,
+                                      row.size,
+                                    )}
+                                    onChange={(selected) =>
+                                      updateBulkAddVariantRow(
+                                        index,
+                                        "size",
+                                        selected?.value || "",
+                                      )
+                                    }
+                                    placeholder="Select size..."
+                                    isClearable
+                                    styles={selectStyles}
+                                    className="text-sm font-medium"
+                                    isDisabled={bulkAddSizeOptions.length === 0}
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="mb-1.5 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
+                                    Color
+                                  </label>
+                                  <Select
+                                    options={colorOptions}
+                                    value={makeSelectValue(
+                                      colorOptions,
+                                      row.color,
+                                      row.color,
+                                    )}
+                                    onChange={(selected) =>
+                                      updateBulkAddVariantRow(
+                                        index,
+                                        "color",
+                                        selected?.value || "",
+                                      )
+                                    }
+                                    placeholder="Select color..."
+                                    isClearable
+                                    styles={selectStyles}
+                                    className="text-sm font-medium"
+                                    isDisabled={
+                                      !row.size || colorOptions.length === 0
+                                    }
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="mb-1.5 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
+                                    Quantity
+                                  </label>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={row.quantity}
+                                    onChange={(e) =>
+                                      updateBulkAddVariantRow(
+                                        index,
+                                        "quantity",
+                                        e.target.value,
+                                      )
+                                    }
+                                    disabled={isOutOfStockVariant}
+                                    className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                                  />
+                                  {row.size && stockQuantity !== null && (
+                                    <p className="mt-1 text-[10px] text-slate-400">
+                                      Stock: {Number(stockQuantity || 0)}
+                                    </p>
+                                  )}
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => removeBulkAddVariantRow(index)}
+                                  disabled={
+                                    normalizeVariantRows(
+                                      bulkAddForm.variantRows,
+                                    ).length === 1
+                                  }
+                                  className="h-11 w-11 rounded-xl border border-slate-200 bg-white text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
+                                >
+                                  x
+                                </button>
+                              </div>
+                            );
+                          },
+                        )}
+                      </div>
+                    )}
                 </div>
               </div>
             )}
@@ -2385,6 +2489,12 @@ const IntransiteProductTable = () => {
                           row.size,
                         )
                       : editColorOptions;
+                    const stockQuantity = getInventoryVariantStockQuantity(
+                      selectedEditInventoryItem,
+                      row,
+                    );
+                    const isOutOfStockVariant =
+                      row.size && stockQuantity !== null && stockQuantity <= 0;
 
                     return (
                       <div
@@ -2467,11 +2577,17 @@ const IntransiteProductTable = () => {
                             }
                             disabled={
                               !currentItem?.receivedId ||
-                              editSizeOptions.length === 0
+                              editSizeOptions.length === 0 ||
+                              isOutOfStockVariant
                             }
                             className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                             placeholder=""
                           />
+                          {currentItem?.receivedId && row.size && stockQuantity !== null && (
+                            <p className="mt-1 text-[10px] text-slate-400">
+                              Stock: {Number(stockQuantity || 0)}
+                            </p>
+                          )}
                         </div>
 
                         <button
@@ -2533,6 +2649,17 @@ const IntransiteProductTable = () => {
             </div>
 
             <div className="mt-4">
+              {(() => {
+                const stockQuantity = Number(
+                  selectedEditInventoryItem?.quantity || 0,
+                );
+                const isOutOfStock =
+                  currentItem?.receivedId &&
+                  !hasConfiguredVariants(currentItem?.variantRows) &&
+                  stockQuantity <= 0;
+
+                return (
+                  <>
               <label className="block text-sm text-slate-700">Quantity</label>
               <input
                 type="number"
@@ -2541,8 +2668,18 @@ const IntransiteProductTable = () => {
                 onChange={(e) =>
                   setCurrentItem((p) => ({ ...p, quantity: e.target.value }))
                 }
-                className="h-11 border border-slate-200 rounded-xl px-3 w-full mt-1 text-slate-900 bg-white outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
+                disabled={isOutOfStock}
+                className="h-11 border border-slate-200 rounded-xl px-3 w-full mt-1 text-slate-900 bg-white outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
               />
+              {currentItem?.receivedId &&
+                !hasConfiguredVariants(currentItem?.variantRows) && (
+                  <p className="mt-1 text-[10px] text-slate-400">
+                    Stock: {Number(stockQuantity || 0)}
+                  </p>
+                )}
+                  </>
+                );
+              })()}
             </div>
 
             <div className="mt-4">
@@ -2719,7 +2856,8 @@ const IntransiteProductTable = () => {
                   Product Line Items
                 </p>
                 <p className="text-[11px] text-slate-400">
-                  Select a product above to add a new row; then set quantity here
+                  Select a product above to add a new row; then set quantity
+                  here
                 </p>
               </div>
               <div className="grid gap-3 rounded-xl border border-indigo-100 bg-white p-4 text-right">
@@ -2780,6 +2918,23 @@ const IntransiteProductTable = () => {
                               </div>
                             ) : (
                               <div className="grid max-w-[260px] grid-cols-1 gap-3">
+                                {(() => {
+                                  const invItem = receivedData.find(
+                                    (r) =>
+                                      Number(r.Id) ===
+                                      Number(
+                                        item.payload?.receivedId ||
+                                          item.payload?.productId,
+                                      ),
+                                  );
+                                  const stockQuantity = Number(
+                                    invItem?.quantity || 0,
+                                  );
+                                  const isOutOfStock =
+                                    Boolean(invItem) && stockQuantity <= 0;
+
+                                  return (
+                                    <>
                                 <div>
                                   <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-400">
                                     Qty
@@ -2790,18 +2945,25 @@ const IntransiteProductTable = () => {
                                     min="0"
                                     value={item.payload?.quantity ?? ""}
                                     onChange={(event) =>
-                                      updateCreateItem(itemIndex, "quantity", event.target.value)
+                                      updateCreateItem(
+                                        itemIndex,
+                                        "quantity",
+                                        event.target.value,
+                                      )
                                     }
-                                    className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
+                                    disabled={isOutOfStock}
+                                    className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                                     placeholder=""
                                   />
-                                  {(() => {
-                                    const invItem = receivedData.find((r) => Number(r.Id) === Number(item.payload?.receivedId || item.payload?.productId));
-                                    return invItem ? (
-                                      <p className="mt-1 text-[10px] text-slate-400">Stock: {Number(invItem.quantity || 0)}</p>
-                                    ) : null;
-                                  })()}
+                                  {invItem ? (
+                                      <p className="mt-1 text-[10px] text-slate-400">
+                                        Stock: {Number(stockQuantity || 0)}
+                                      </p>
+                                    ) : null}
                                 </div>
+                                    </>
+                                  );
+                                })()}
                               </div>
                             )}
                           </td>
@@ -2839,13 +3001,28 @@ const IntransiteProductTable = () => {
                                         className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm font-medium text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
                                       />
                                       {(() => {
-                                        const invItem = receivedData.find((r) => Number(r.Id) === Number(item.payload?.receivedId || item.payload?.productId));
+                                        const invItem = receivedData.find(
+                                          (r) =>
+                                            Number(r.Id) ===
+                                            Number(
+                                              item.payload?.receivedId ||
+                                                item.payload?.productId,
+                                            ),
+                                        );
                                         if (!invItem) return null;
-                                        const match = getVariantDisplayRows(invItem).find(
-                                          (v) => String(v.size || "") === String(variant.size || "") && String(v.color || "") === String(variant.color || ""),
+                                        const match = getVariantDisplayRows(
+                                          invItem,
+                                        ).find(
+                                          (v) =>
+                                            String(v.size || "") ===
+                                              String(variant.size || "") &&
+                                            String(v.color || "") ===
+                                              String(variant.color || ""),
                                         );
                                         return match !== undefined ? (
-                                          <p className="mt-0.5 text-[10px] text-slate-400">Stock: {Number(match.quantity || 0)}</p>
+                                          <p className="mt-0.5 text-[10px] text-slate-400">
+                                            Stock: {Number(match.quantity || 0)}
+                                          </p>
                                         ) : null;
                                       })()}
                                     </div>
@@ -2880,8 +3057,12 @@ const IntransiteProductTable = () => {
           {shouldShowCreateVariantOptions && (
             <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/50 p-4">
               <div>
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Product Variants</p>
-                <p className="text-[11px] text-slate-400">Add size, color and quantity combinations</p>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Product Variants
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  Add size, color and quantity combinations
+                </p>
               </div>
               <div className="sticky top-0 z-20 -mx-4 flex justify-end bg-slate-50/95 px-4 py-2 backdrop-blur-sm">
                 <button
@@ -2894,70 +3075,126 @@ const IntransiteProductTable = () => {
                   Add Variant
                 </button>
               </div>
-              {normalizeVariantRows(createForm?.variantRows).map((row, index) => {
-                const colorOptions = row.size
-                  ? getInventoryVariantColorsForSize(selectedCreateInventoryItem, row.size)
-                  : createColorOptions;
-                return (
-                  <div key={`create-variant-${index}`} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_140px_auto] gap-3 items-end rounded-2xl border border-slate-200 bg-white p-3">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Size</label>
-                      <Select
-                        options={createSizeOptions}
-                        value={createSizeOptions.find((option) => option.value === row.size) || null}
-                        onChange={(selected) => updateVariantRow("create", index, "size", selected?.value || "")}
-                        placeholder="Select size..."
-                        isClearable
-                        styles={selectStyles}
-                        className="text-sm text-black font-medium"
-                        isDisabled={!createForm?.receivedId || createSizeOptions.length === 0}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Color</label>
-                      <Select
-                        options={colorOptions}
-                        value={colorOptions.find((option) => option.value === row.color) || null}
-                        onChange={(selected) => updateVariantRow("create", index, "color", selected?.value || "")}
-                        placeholder="Select color..."
-                        isClearable
-                        styles={selectStyles}
-                        className="text-sm text-black font-medium"
-                        isDisabled={!row.size || colorOptions.length === 0}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Quantity</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={row.quantity}
-                        onChange={(e) => updateVariantRow("create", index, "quantity", e.target.value)}
-                        disabled={!createForm?.receivedId || createSizeOptions.length === 0}
-                        className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
-                        placeholder=""
-                      />
-                      {selectedCreateInventoryItem && row.size && (() => {
-                        const match = getVariantDisplayRows(selectedCreateInventoryItem).find(
-                          (v) => String(v.size || "") === String(row.size || "") && String(v.color || "") === String(row.color || ""),
-                        );
-                        return match !== undefined ? (
-                          <p className="mt-1 text-[10px] text-slate-400">Stock: {Number(match.quantity || 0)}</p>
-                        ) : null;
-                      })()}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeVariantRow("create", index)}
-                      className="h-11 w-11 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition disabled:opacity-50"
-                      disabled={normalizeVariantRows(createForm?.variantRows).length === 1}
+              {normalizeVariantRows(createForm?.variantRows).map(
+                (row, index) => {
+                  const colorOptions = row.size
+                    ? getInventoryVariantColorsForSize(
+                        selectedCreateInventoryItem,
+                        row.size,
+                      )
+                    : createColorOptions;
+                  const stockQuantity = getInventoryVariantStockQuantity(
+                    selectedCreateInventoryItem,
+                    row,
+                  );
+                  const isOutOfStockVariant =
+                    row.size && stockQuantity !== null && stockQuantity <= 0;
+                  return (
+                    <div
+                      key={`create-variant-${index}`}
+                      className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_140px_auto] gap-3 items-end rounded-2xl border border-slate-200 bg-white p-3"
                     >
-                      <X size={16} className="mx-auto" />
-                    </button>
-                  </div>
-                );
-              })}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+                          Size
+                        </label>
+                        <Select
+                          options={createSizeOptions}
+                          value={
+                            createSizeOptions.find(
+                              (option) => option.value === row.size,
+                            ) || null
+                          }
+                          onChange={(selected) =>
+                            updateVariantRow(
+                              "create",
+                              index,
+                              "size",
+                              selected?.value || "",
+                            )
+                          }
+                          placeholder="Select size..."
+                          isClearable
+                          styles={selectStyles}
+                          className="text-sm text-black font-medium"
+                          isDisabled={
+                            !createForm?.receivedId ||
+                            createSizeOptions.length === 0
+                          }
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+                          Color
+                        </label>
+                        <Select
+                          options={colorOptions}
+                          value={
+                            colorOptions.find(
+                              (option) => option.value === row.color,
+                            ) || null
+                          }
+                          onChange={(selected) =>
+                            updateVariantRow(
+                              "create",
+                              index,
+                              "color",
+                              selected?.value || "",
+                            )
+                          }
+                          placeholder="Select color..."
+                          isClearable
+                          styles={selectStyles}
+                          className="text-sm text-black font-medium"
+                          isDisabled={!row.size || colorOptions.length === 0}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+                          Quantity
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={row.quantity}
+                          onChange={(e) =>
+                            updateVariantRow(
+                              "create",
+                              index,
+                              "quantity",
+                              e.target.value,
+                            )
+                          }
+                          disabled={
+                            !createForm?.receivedId ||
+                            createSizeOptions.length === 0 ||
+                            isOutOfStockVariant
+                          }
+                          className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                          placeholder=""
+                        />
+                        {selectedCreateInventoryItem && row.size && stockQuantity !== null && (
+                          <p className="mt-1 text-[10px] text-slate-400">
+                            Stock: {Number(stockQuantity || 0)}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeVariantRow("create", index)}
+                        className="h-11 w-11 rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition disabled:opacity-50"
+                        disabled={
+                          normalizeVariantRows(createForm?.variantRows)
+                            .length === 1
+                        }
+                      >
+                        <X size={16} className="mx-auto" />
+                      </button>
+                    </div>
+                  );
+                },
+              )}
               <div className="flex justify-end border-t border-slate-200 pt-3">
                 <button
                   type="button"

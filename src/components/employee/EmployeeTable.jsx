@@ -1125,21 +1125,17 @@ const EmployeeTable = () => {
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
 
-      const imgWidth = pdfWidth;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const pageMargin = 8;
+      const maxImgWidth = pdfWidth - pageMargin * 2;
+      const maxImgHeight = pdfHeight - pageMargin * 2;
+      const naturalImgHeight = (canvas.height * maxImgWidth) / canvas.width;
+      const fitRatio = Math.min(1, maxImgHeight / naturalImgHeight);
+      const imgWidth = maxImgWidth * fitRatio;
+      const imgHeight = naturalImgHeight * fitRatio;
+      const positionX = (pdfWidth - imgWidth) / 2;
+      const positionY = pageMargin;
 
-      let heightLeft = imgHeight;
-      let position = 0;
-
-      pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
-      heightLeft -= pdfHeight;
-
-      while (heightLeft > 0) {
-        position -= pdfHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
-        heightLeft -= pdfHeight;
-      }
+      pdf.addImage(imgData, "JPEG", positionX, positionY, imgWidth, imgHeight);
 
       const fileName = `Invoice_${invoiceEmployee?.employee_id || "EMP"}_${Date.now()}.pdf`;
       pdf.save(fileName);
@@ -1181,13 +1177,18 @@ const EmployeeTable = () => {
               print-color-adjust: exact;
             }
             #invoiceCapture {
+              width: 100%;
               max-width: 760px;
               margin: 0 auto;
               box-shadow: none !important;
+              page-break-inside: avoid;
+              break-inside: avoid;
             }
+            #invoiceCapture table { page-break-inside: avoid; break-inside: avoid; }
+            #invoiceCapture tr { page-break-inside: avoid; break-inside: avoid; }
             @media print {
               body { background: #ffffff; }
-              #invoiceCapture { border: 0 !important; }
+              #invoiceCapture { border: 0 !important; border-radius: 0 !important; }
             }
           </style>
         </head>
@@ -1458,6 +1459,7 @@ const EmployeeTable = () => {
         <title>Print Invoices</title>
         <style>
           * { box-sizing: border-box; }
+          @page { size: A4; margin: 10mm; }
           body {
             font-family: Arial, sans-serif;
             margin: 0;
@@ -1469,13 +1471,20 @@ const EmployeeTable = () => {
           .invoice-page {
             page-break-after: always;
             break-after: page;
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+
+          .invoice-page:last-child {
+            page-break-after: auto;
+            break-after: auto;
           }
 
           .invoice-container {
             width: 100%;
-            max-width: 900px;
+            max-width: 760px;
             margin: 0 auto;
-            padding: 32px;
+            padding: 24px;
             background: #fff;
           }
 
@@ -1483,26 +1492,26 @@ const EmployeeTable = () => {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            margin-bottom: 28px;
+            margin-bottom: 20px;
           }
 
           .left-header h1 {
             margin: 0;
-            font-size: 30px;
+            font-size: 22px;
             font-weight: 800;
             color: #4f46e5;
           }
 
           .sub {
-            margin: 6px 0 0;
-            font-size: 14px;
+            margin: 4px 0 0;
+            font-size: 12px;
             font-weight: 700;
             color: #64748b;
           }
 
           .phone {
-            margin: 10px 0 0;
-            font-size: 12px;
+            margin: 6px 0 0;
+            font-size: 11px;
             color: #94a3b8;
           }
 
@@ -1512,14 +1521,14 @@ const EmployeeTable = () => {
 
           .right-header h2 {
             margin: 0;
-            font-size: 24px;
+            font-size: 18px;
             font-weight: 800;
             color: #0f172a;
           }
 
           .right-header p {
-            margin: 6px 0 0;
-            font-size: 12px;
+            margin: 4px 0 0;
+            font-size: 11px;
             font-weight: 700;
             color: #64748b;
           }
@@ -1527,12 +1536,12 @@ const EmployeeTable = () => {
           .employee-box {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 20px 32px;
-            margin-bottom: 28px;
-            padding: 20px 24px;
+            gap: 14px 24px;
+            margin-bottom: 20px;
+            padding: 16px 18px;
             background: #f8fafc;
             border: 1px solid #e2e8f0;
-            border-radius: 16px;
+            border-radius: 12px;
           }
 
           .label {
@@ -1554,12 +1563,14 @@ const EmployeeTable = () => {
           .invoice-table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 8px;
+            margin-top: 4px;
+            page-break-inside: avoid;
+            break-inside: avoid;
           }
 
           .invoice-table th {
             text-align: left;
-            padding: 12px 0;
+            padding: 8px 0;
             font-size: 11px;
             font-weight: 800;
             text-transform: uppercase;
@@ -1569,7 +1580,7 @@ const EmployeeTable = () => {
           }
 
           .invoice-table td {
-            padding: 16px 0;
+            padding: 10px 0;
             font-size: 14px;
             font-weight: 700;
             color: #334155;
@@ -1604,7 +1615,7 @@ const EmployeeTable = () => {
             // background: #4f46e5;
             color: #333;
             font-weight: 800;
-            padding: 18px 14px;
+            padding: 12px 14px;
             font-size: 16px;
           }
 
@@ -1617,18 +1628,18 @@ const EmployeeTable = () => {
           }
 
           .remarks-box {
-            margin-top: 24px;
+            margin-top: 18px;
             border: 1px solid #e2e8f0;
             border-radius: 12px;
             background: #f8fafc;
-            padding: 16px;
+            padding: 12px;
             page-break-inside: avoid;
             break-inside: avoid;
           }
 
           .remarks-title {
-            margin: 0 0 8px;
-            font-size: 12px;
+            margin: 0 0 6px;
+            font-size: 11px;
             font-weight: 600;
             color: #64748b;
             text-transform: uppercase;
@@ -1637,8 +1648,8 @@ const EmployeeTable = () => {
 
           .remarks-text {
             margin: 0;
-            font-size: 14px;
-            line-height: 1.5rem;
+            font-size: 13px;
+            line-height: 1.25rem;
             color: #334155;
             white-space: pre-wrap;
           }
@@ -1646,13 +1657,15 @@ const EmployeeTable = () => {
           .signature-section {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 80px;
-            margin-top: 64px;
+            gap: 64px;
+            margin-top: 40px;
+            page-break-inside: avoid;
+            break-inside: avoid;
           }
 
           .signature-box {
             text-align: center;
-            padding-top: 14px;
+            padding-top: 12px;
             border-top: 1px solid #cbd5e1;
           }
 
@@ -1675,6 +1688,7 @@ const EmployeeTable = () => {
           @media print {
             body { background: #fff; }
             .invoice-container { max-width: 100%; }
+            .invoice-table tr { page-break-inside: avoid; break-inside: avoid; }
           }
         </style>
       </head>
@@ -2893,17 +2907,17 @@ const EmployeeTable = () => {
           <div
             id="invoiceCapture"
             ref={invoiceRef}
-            className="bg-white text-slate-900 rounded-3xl p-8 border border-slate-100 shadow-sm"
+            className="bg-white text-slate-900 rounded-2xl p-6 border border-slate-100 shadow-sm"
           >
-            <div className="flex justify-between items-start mb-8">
+            <div className="flex justify-between items-start mb-5">
               <div>
-                <h3 className="text-2xl font-black text-indigo-600 mb-1">
+                <h3 className="text-xl font-black text-indigo-600 mb-1">
                   Kafela Mart
                 </h3>
-                <p className="text-sm font-bold text-slate-500">
+                <p className="text-xs font-bold text-slate-500">
                   Official Salary Statement
                 </p>
-                <p className="text-xs text-slate-400 mt-2">
+                <p className="text-[11px] text-slate-400 mt-1">
                   Phone: +880 9647-555333
                 </p>
               </div>
@@ -2919,20 +2933,20 @@ const EmployeeTable = () => {
               </div> */}
 
               <div className="text-right">
-                <h3 className="text-xl font-black text-slate-900 mb-1 tracking-tight">
+                <h3 className="text-lg font-black text-slate-900 mb-1 tracking-tight">
                   {t.salary_statement || "INVOICE"}
                 </h3>
-                <p className="text-xs font-bold text-slate-500">
+                <p className="text-[11px] font-bold text-slate-500">
                   Date: {new Date().toLocaleDateString()}
                 </p>
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">
+                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mt-1">
                   ID: {invoiceEmployee?.employee_id}-
                   {String(Date.now()).slice(-6)}
                 </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-6 mb-8 p-6 bg-slate-50 rounded-2xl border border-slate-100">
+            <div className="grid grid-cols-2 gap-4 mb-5 p-4 bg-slate-50 rounded-xl border border-slate-100">
               <div>
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
                   {t.employee_name || "Employee Name"}
@@ -2978,73 +2992,73 @@ const EmployeeTable = () => {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-200">
-                  <th className="text-left py-3 text-xs font-black text-slate-500 uppercase tracking-widest">
+                  <th className="text-left py-2 text-[11px] font-black text-slate-500 uppercase tracking-widest">
                     {t.description || "Description"}
                   </th>
-                  <th className="text-right py-3 text-xs font-black text-slate-500 uppercase tracking-widest">
+                  <th className="text-right py-2 text-[11px] font-black text-slate-500 uppercase tracking-widest">
                     {t.amount || "Amount"}
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 <tr>
-                  <td className="py-4 font-bold text-slate-700">
+                  <td className="py-2.5 font-bold text-slate-700">
                     {t.basic_salary || "Basic Salary"}
                   </td>
-                  <td className="py-4 text-right font-black text-slate-900">
+                  <td className="py-2.5 text-right font-black text-slate-900">
                     {Number(
                       invoiceEmployee?.basic_salary || 0,
                     ).toLocaleString()}
                   </td>
                 </tr>
                 <tr>
-                  <td className="py-4 font-bold text-slate-700">
+                  <td className="py-2.5 font-bold text-slate-700">
                     {t.incentive || "Incentive"}
                   </td>
-                  <td className="py-4 text-right font-black text-slate-900">
+                  <td className="py-2.5 text-right font-black text-slate-900">
                     {Number(invoiceEmployee?.incentive || 0).toLocaleString()}
                   </td>
                 </tr>
                 <tr>
-                  <td className="py-4 font-bold text-slate-700">
+                  <td className="py-2.5 font-bold text-slate-700">
                     {t.holiday_days || "Holiday Days"}
                   </td>
-                  <td className="py-4 text-right font-black text-slate-900">
+                  <td className="py-2.5 text-right font-black text-slate-900">
                     {Number(invoiceEmployee?.holiday_payment || 0)}
                   </td>
                 </tr>
                 <tr>
-                  <td className="py-4 font-bold text-slate-500">
+                  <td className="py-2.5 font-bold text-slate-500">
                     {t.advance || "Advance (Deduction)"}
                   </td>
-                  <td className="py-4 text-right font-black text-red-600">
+                  <td className="py-2.5 text-right font-black text-red-600">
                     -{Number(invoiceEmployee?.advance || 0).toLocaleString()}
                   </td>
                 </tr>
                 <tr>
-                  <td className="py-4 font-bold text-slate-700">
+                  <td className="py-2.5 font-bold text-slate-700">
                     {t.attendance_penalty || "Attendance Penalty"}
                   </td>
-                  <td className="py-4 text-right font-medium text-slate-400">
+                  <td className="py-2.5 text-right font-medium text-slate-400">
                     L:{invoiceEmployee?.late} | E:{invoiceEmployee?.early_leave}{" "}
                     | A:{invoiceEmployee?.absent}
                   </td>
                 </tr>
                 <tr className="bg-slate-50/50">
-                  <td className="py-4 font-black text-slate-900">
+                  <td className="py-2.5 font-black text-slate-900">
                     {t.total_calculation || "Total Calculation"}
                   </td>
-                  <td className="py-4 text-right font-black text-slate-900 border-t-2 border-slate-900">
+                  <td className="py-2.5 text-right font-black text-slate-900 border-t-2 border-slate-900">
                     {Number(
                       invoiceEmployee?.total_salary || 0,
                     ).toLocaleString()}
                   </td>
                 </tr>
                 <tr className="bg-white">
-                  <td className="py-5 px-4 font-black text-black rounded-l-2xl">
+                  <td className="py-3 px-4 font-black text-black rounded-l-xl">
                     {t.net_salary_payable || "NET SALARY PAYABLE"}
                   </td>
-                  <td className="py-5 px-4 text-right font-black text-black rounded-r-2xl text-xl">
+                  <td className="py-3 px-4 text-right font-black text-black rounded-r-xl text-lg">
                     ৳{" "}
                     {Number(invoiceEmployee?.net_salary || 0).toLocaleString()}
                   </td>
@@ -3053,18 +3067,18 @@ const EmployeeTable = () => {
             </table>
 
             {invoiceEmployee?.remarks && (
-              <div className="relative mt-8 overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50 to-white p-5 shadow-sm">
+              <div className="relative mt-5 overflow-hidden rounded-xl border border-slate-200/80 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
                 {/* Accent Line */}
                 <div className="absolute left-0 top-0 h-full w-1.5 bg-indigo-500" />
 
                 <div className="pl-3">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
                       📝
                     </div>
 
                     <div>
-                      <h4 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">
+                      <h4 className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">
                         Important Note
                       </h4>
 
@@ -3074,15 +3088,15 @@ const EmployeeTable = () => {
                     </div>
                   </div>
 
-                  <p className="whitespace-pre-wrap text-[15px] leading-7 text-slate-700 font-medium">
+                  <p className="whitespace-pre-wrap text-[13px] leading-5 text-slate-700 font-medium">
                     {invoiceEmployee.remarks}
                   </p>
                 </div>
               </div>
             )}
 
-            <div className="mt-16 grid grid-cols-2 gap-20">
-              <div className="text-center pt-4 border-t border-slate-200">
+            <div className="mt-10 grid grid-cols-2 gap-16">
+              <div className="text-center pt-3 border-t border-slate-200">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
                   {t.received_by || "Received By"}
                 </p>
@@ -3090,7 +3104,7 @@ const EmployeeTable = () => {
                   {invoiceEmployee?.name}
                 </p>
               </div>
-              <div className="text-center pt-4 border-t border-slate-200">
+              <div className="text-center pt-3 border-t border-slate-200">
                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
                   {t.authorized_by || "Authorized By"}
                 </p>
@@ -3193,38 +3207,38 @@ const EmployeeTable = () => {
               {selectedEmployees.map((emp, idx) => (
                 <div
                   key={emp.Id}
-                  className={`invoice-page bg-white text-slate-900 rounded-3xl p-8 border border-slate-100 shadow-sm ${
+                  className={`invoice-page bg-white text-slate-900 rounded-2xl p-6 border border-slate-100 shadow-sm ${
                     idx !== selectedEmployees.length - 1 ? "mb-8" : ""
                   }`}
                 >
-                  <div className="flex justify-between items-start mb-8">
+                  <div className="flex justify-between items-start mb-5">
                     <div>
-                      <h3 className="text-2xl font-black text-indigo-600 mb-1">
+                      <h3 className="text-xl font-black text-indigo-600 mb-1">
                         Kafela Mart
                       </h3>
-                      <p className="text-sm font-bold text-slate-500">
+                      <p className="text-xs font-bold text-slate-500">
                         {t.official_salary_statement ||
                           "Official Salary Statement"}
                       </p>
-                      <p className="text-xs text-slate-400 mt-2">
+                      <p className="text-[11px] text-slate-400 mt-1">
                         Phone: +880 9647-555333
                       </p>
                     </div>
 
                     <div className="text-right">
-                      <h3 className="text-xl font-black text-slate-900 mb-1 tracking-tight">
+                      <h3 className="text-lg font-black text-slate-900 mb-1 tracking-tight">
                         {t.salary_statement || "INVOICE"}
                       </h3>
-                      <p className="text-xs font-bold text-slate-500">
+                      <p className="text-[11px] font-bold text-slate-500">
                         {t.date}: {new Date().toLocaleDateString()}
                       </p>
-                      <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">
+                      <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mt-1">
                         ID: {emp?.employee_id}-{String(Date.now()).slice(-6)}
                       </p>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-8 mb-8 p-6 bg-slate-50 rounded-2xl border border-slate-100">
+                  <div className="grid grid-cols-2 gap-4 mb-5 p-4 bg-slate-50 rounded-xl border border-slate-100">
                     <div>
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
                         {t.employee_name || "Employee Name"}
@@ -3246,10 +3260,10 @@ const EmployeeTable = () => {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-slate-200">
-                        <th className="text-left py-3 text-xs font-black text-slate-500 uppercase tracking-widest">
+                        <th className="text-left py-2 text-[11px] font-black text-slate-500 uppercase tracking-widest">
                           {t.description || "Description"}
                         </th>
-                        <th className="text-right py-3 text-xs font-black text-slate-500 uppercase tracking-widest">
+                        <th className="text-right py-2 text-[11px] font-black text-slate-500 uppercase tracking-widest">
                           {t.amount || "Amount"}
                         </th>
                       </tr>
@@ -3257,46 +3271,46 @@ const EmployeeTable = () => {
 
                     <tbody className="divide-y divide-slate-100">
                       <tr>
-                        <td className="py-4 font-bold text-slate-700">
+                        <td className="py-2.5 font-bold text-slate-700">
                           {t.basic_salary || "Basic Salary"}
                         </td>
-                        <td className="py-4 text-right font-black text-slate-900">
+                        <td className="py-2.5 text-right font-black text-slate-900">
                           {Number(emp?.basic_salary || 0).toLocaleString()}
                         </td>
                       </tr>
 
                       <tr>
-                        <td className="py-4 font-bold text-slate-700">
+                        <td className="py-2.5 font-bold text-slate-700">
                           {t.incentive || "Incentive"}
                         </td>
-                        <td className="py-4 text-right font-black text-slate-900">
+                        <td className="py-2.5 text-right font-black text-slate-900">
                           {Number(emp?.incentive || 0).toLocaleString()}
                         </td>
                       </tr>
 
                       <tr>
-                        <td className="py-4 font-bold text-slate-700">
+                        <td className="py-2.5 font-bold text-slate-700">
                           {t.holiday_days || "Holiday Days"}
                         </td>
-                        <td className="py-4 text-right font-black text-slate-900">
+                        <td className="py-2.5 text-right font-black text-slate-900">
                           {Number(emp?.holiday_payment || 0)}
                         </td>
                       </tr>
 
                       <tr>
-                        <td className="py-4 font-bold text-slate-500">
+                        <td className="py-2.5 font-bold text-slate-500">
                           {t.advance || "Advance (Deduction)"}
                         </td>
-                        <td className="py-4 text-right font-black text-red-600">
+                        <td className="py-2.5 text-right font-black text-red-600">
                           -{Number(emp?.advance || 0).toLocaleString()}
                         </td>
                       </tr>
 
                       <tr>
-                        <td className="py-4 font-bold text-slate-700">
+                        <td className="py-2.5 font-bold text-slate-700">
                           {t.attendance_penalty || "Attendance Penalty"}
                         </td>
-                        <td className="py-4 text-right font-medium text-slate-400">
+                        <td className="py-2.5 text-right font-medium text-slate-400">
                           L:{emp?.late || 0} | E:{emp?.early_leave || 0} | A:
                           {emp?.absent || 0} | F:{emp?.friday_absent || 0} | U:
                           {emp?.unapproval_absent || 0}
@@ -3304,38 +3318,38 @@ const EmployeeTable = () => {
                       </tr>
 
                       <tr className="bg-slate-50/50">
-                        <td className="py-4 font-black text-slate-900">
+                        <td className="py-2.5 font-black text-slate-900">
                           {t.total_calculation || "Total Calculation"}
                         </td>
-                        <td className="py-4 text-right font-black text-slate-900 border-t-2 border-slate-900">
+                        <td className="py-2.5 text-right font-black text-slate-900 border-t-2 border-slate-900">
                           {Number(emp?.total_salary || 0).toLocaleString()}
                         </td>
                       </tr>
 
                       <tr className="bg-white">
-                        <td className="py-5 px-4 font-black text-black rounded-l-2xl">
+                        <td className="py-3 px-4 font-black text-black rounded-l-xl">
                           {t.net_salary_payable || "NET SALARY PAYABLE"}
                         </td>
-                        <td className="py-5 px-4 text-right font-black text-white rounded-r-2xl text-xl">
+                        <td className="py-3 px-4 text-right font-black text-black rounded-r-xl text-lg">
                           ৳ {Number(emp?.net_salary || 0).toLocaleString()}
                         </td>
                       </tr>
                     </tbody>
                   </table>
 
-                  {invoiceEmployee?.remarks && (
-                    <div className="relative mt-8 overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-br from-slate-50 to-white p-5 shadow-sm">
+                  {emp?.remarks && (
+                    <div className="relative mt-5 overflow-hidden rounded-xl border border-slate-200/80 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
                       {/* Accent Line */}
                       <div className="absolute left-0 top-0 h-full w-1.5 bg-indigo-500" />
 
                       <div className="pl-3">
-                        <div className="flex items-center gap-2 mb-3">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
                             📝
                           </div>
 
                           <div>
-                            <h4 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">
+                            <h4 className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">
                               Important Note
                             </h4>
 
@@ -3345,15 +3359,15 @@ const EmployeeTable = () => {
                           </div>
                         </div>
 
-                        <p className="whitespace-pre-wrap text-[15px] leading-7 text-slate-700 font-medium">
-                          {invoiceEmployee.remarks}
+                        <p className="whitespace-pre-wrap text-[13px] leading-5 text-slate-700 font-medium">
+                          {emp.remarks}
                         </p>
                       </div>
                     </div>
                   )}
 
-                  <div className="mt-16 grid grid-cols-2 gap-20">
-                    <div className="text-center pt-4 border-t border-slate-200">
+                  <div className="mt-10 grid grid-cols-2 gap-16">
+                    <div className="text-center pt-3 border-t border-slate-200">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
                         {t.received_by || "Received By"}
                       </p>
@@ -3362,7 +3376,7 @@ const EmployeeTable = () => {
                       </p>
                     </div>
 
-                    <div className="text-center pt-4 border-t border-slate-200">
+                    <div className="text-center pt-3 border-t border-slate-200">
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
                         {t.authorized_by || "Authorized By"}
                       </p>

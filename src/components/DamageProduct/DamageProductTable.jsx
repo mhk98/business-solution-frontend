@@ -152,19 +152,41 @@ const getVariantDisplayRows = (record) => {
   return [];
 };
 
+const getSelectableVariantRows = (record) => {
+  const stockVariants = getVariantDisplayRows(record);
+  const productVariants = getVariantRowsFromProduct(
+    record?.product || record?.Product,
+  );
+  const variantMap = new Map();
+
+  [...stockVariants, ...productVariants].forEach((variant) => {
+    const size = String(variant?.size || "").trim();
+    const color = String(variant?.color || "").trim();
+    if (!size && !color) return;
+
+    variantMap.set(`${size}::${color}`, {
+      ...variant,
+      size,
+      color,
+    });
+  });
+
+  return [...variantMap.values()];
+};
+
 const getInventoryVariantSizeOptions = (inventoryItem) => {
-  const variants = getVariantDisplayRows(inventoryItem);
+  const variants = getSelectableVariantRows(inventoryItem);
   return [...new Set(variants.map((v) => v.size).filter(Boolean))].map((v) => ({ value: v, label: v }));
 };
 
 const getInventoryVariantColorOptions = (inventoryItem) => {
-  const variants = getVariantDisplayRows(inventoryItem);
+  const variants = getSelectableVariantRows(inventoryItem);
   return [...new Set(variants.map((v) => v.color).filter(Boolean))].map((v) => ({ value: v, label: v }));
 };
 
 const getInventoryVariantColorsForSize = (inventoryItem, size) => {
   if (!size) return [];
-  return getVariantDisplayRows(inventoryItem)
+  return getSelectableVariantRows(inventoryItem)
     .filter((v) => String(v.size || "") === String(size))
     .map((v) => v.color)
     .filter(Boolean)
@@ -172,9 +194,24 @@ const getInventoryVariantColorsForSize = (inventoryItem, size) => {
     .map((v) => ({ value: v, label: v }));
 };
 
+const getInventoryVariantStockQuantity = (inventoryItem, variant) => {
+  if (!inventoryItem || !variant?.size) return null;
+
+  const match = getVariantDisplayRows(inventoryItem).find(
+    (row) =>
+      String(row.size || "") === String(variant.size || "") &&
+      String(row.color || "") === String(variant.color || ""),
+  );
+
+  return Number(match?.quantity || 0);
+};
+
+const getInventoryStockQuantity = (inventoryItem) =>
+  inventoryItem ? Number(inventoryItem.quantity || 0) : null;
+
 const getNormalizedVariantsPayload = (rows) =>
   normalizeVariantRows(rows)
-    .filter((row) => row.size || row.color || row.quantity)
+    .filter((row) => (row.size || row.color) && Number(row.quantity) > 0)
     .map((row) => ({
       size: row.size || "",
       color: row.color || "",
@@ -1686,6 +1723,12 @@ const DamageProductTable = () => {
                 const colorOptions = row.size
                   ? getInventoryVariantColorsForSize(selectedEditInventoryItem, row.size)
                   : editColorOptions;
+                const stockQuantity = getInventoryVariantStockQuantity(
+                  selectedEditInventoryItem,
+                  row,
+                );
+                const isOutOfStockVariant =
+                  row.size && stockQuantity !== null && stockQuantity <= 0;
 
                 return (
                   <div
@@ -1768,21 +1811,17 @@ const DamageProductTable = () => {
                         }
                         disabled={
                           !currentItem?.receivedId ||
-                          editSizeOptions.length === 0
+                          editSizeOptions.length === 0 ||
+                          isOutOfStockVariant
                         }
                         className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                         placeholder=""
                       />
-                      {currentItem?.receivedId && row.size && (() => {
-                        const invItem = receivedData.find((r) => String(r.Id) === String(currentItem?.receivedId));
-                        if (!invItem) return null;
-                        const match = getVariantDisplayRows(invItem).find(
-                          (v) => String(v.size || "") === String(row.size || "") && String(v.color || "") === String(row.color || ""),
-                        );
-                        return match !== undefined ? (
-                          <p className="mt-1 text-[10px] text-slate-400">Stock: {Number(match.quantity || 0)}</p>
-                        ) : null;
-                      })()}
+                      {currentItem?.receivedId && row.size && stockQuantity !== null && (
+                        <p className="mt-1 text-[10px] text-slate-400">
+                          Stock: {Number(stockQuantity || 0)}
+                        </p>
+                      )}
                     </div>
 
                     <button
@@ -1860,6 +1899,17 @@ const DamageProductTable = () => {
 
           {!isEditingBulkMovement && (
           <div>
+            {(() => {
+              const invItem = receivedData.find(
+                (r) => String(r.Id) === String(currentItem?.receivedId),
+              );
+              const stockQuantity = getInventoryStockQuantity(invItem);
+              const isOutOfStock =
+                !hasConfiguredVariants(currentItem?.variantRows) &&
+                stockQuantity !== null &&
+                stockQuantity <= 0;
+              return (
+                <>
             <label className="block text-sm font-medium text-slate-700 mb-1">
               Quantity
             </label>
@@ -1870,18 +1920,25 @@ const DamageProductTable = () => {
               onChange={(e) =>
                 setCurrentItem((p) => ({ ...p, quantity: e.target.value }))
               }
-              readOnly={hasConfiguredVariants(currentItem?.variantRows)}
+              readOnly={
+                hasConfiguredVariants(currentItem?.variantRows) ||
+                isOutOfStock
+              }
               className={`h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 outline-none ${
-                hasConfiguredVariants(currentItem?.variantRows)
+                hasConfiguredVariants(currentItem?.variantRows) || isOutOfStock
                   ? "bg-slate-50"
                   : "bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
               }`}
             />
-            {currentItem?.receivedId && !hasConfiguredVariants(currentItem?.variantRows) && (() => {
-              const invItem = receivedData.find((r) => String(r.Id) === String(currentItem?.receivedId));
-              return invItem ? (
-                <p className="mt-1 text-[10px] text-slate-400">Stock: {Number(invItem.quantity || 0)}</p>
-              ) : null;
+            {currentItem?.receivedId &&
+              !hasConfiguredVariants(currentItem?.variantRows) &&
+              stockQuantity !== null && (
+                <p className="mt-1 text-[10px] text-slate-400">
+                  Stock: {Number(stockQuantity || 0)}
+                </p>
+              )}
+                </>
+              );
             })()}
           </div>
           )}
@@ -2054,6 +2111,13 @@ const DamageProductTable = () => {
                               {Number(item.payload.quantity) || ""}
                             </p>
                           ) : (
+                            (() => {
+                              const invItem = receivedData.find((r) => Number(r.Id) === Number(item.payload?.receivedId || item.payload?.productId));
+                              const stockQuantity = getInventoryStockQuantity(invItem);
+                              const isOutOfStock =
+                                stockQuantity !== null && stockQuantity <= 0;
+
+                              return (
                             <>
                               <input
                                 type="number"
@@ -2065,15 +2129,17 @@ const DamageProductTable = () => {
                                     : item.payload.quantity
                                 }
                                 onChange={(e) => updateCreateItem(index, "quantity", e.target.value)}
-                                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
+                                disabled={isOutOfStock}
+                                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                               />
-                              {(() => {
-                                const invItem = receivedData.find((r) => Number(r.Id) === Number(item.payload?.receivedId || item.payload?.productId));
-                                return invItem ? (
-                                  <p className="mt-1 text-[10px] text-slate-400">Stock: {Number(invItem.quantity || 0)}</p>
-                                ) : null;
-                              })()}
+                              {stockQuantity !== null && (
+                                <p className="mt-1 text-[10px] text-slate-400">
+                                  Stock: {Number(stockQuantity || 0)}
+                                </p>
+                              )}
                             </>
+                              );
+                            })()
                           )}
                         </td>
                         <td className="px-3 py-3 align-top text-xs text-slate-500">
@@ -2147,6 +2213,12 @@ const DamageProductTable = () => {
                 const colorOptions = row.size
                   ? getInventoryVariantColorsForSize(selectedCreateInventoryItem, row.size)
                   : createColorOptions;
+                const stockQuantity = getInventoryVariantStockQuantity(
+                  selectedCreateInventoryItem,
+                  row,
+                );
+                const isOutOfStockVariant =
+                  row.size && stockQuantity !== null && stockQuantity <= 0;
                 return (
                   <div key={`create-variant-${index}`} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_140px_auto] gap-3 items-end rounded-2xl border border-slate-200 bg-white p-3">
                     <div>
@@ -2183,18 +2255,19 @@ const DamageProductTable = () => {
                         min="0"
                         value={row.quantity}
                         onChange={(e) => updateVariantRow("create", index, "quantity", e.target.value)}
-                        disabled={!createForm?.receivedId || createSizeOptions.length === 0}
+                        disabled={
+                          !createForm?.receivedId ||
+                          createSizeOptions.length === 0 ||
+                          isOutOfStockVariant
+                        }
                         className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                         placeholder=""
                       />
-                      {selectedCreateInventoryItem && row.size && (() => {
-                        const match = getVariantDisplayRows(selectedCreateInventoryItem).find(
-                          (v) => String(v.size || "") === String(row.size || "") && String(v.color || "") === String(row.color || ""),
-                        );
-                        return match !== undefined ? (
-                          <p className="mt-1 text-[10px] text-slate-400">Stock: {Number(match.quantity || 0)}</p>
-                        ) : null;
-                      })()}
+                      {selectedCreateInventoryItem && row.size && stockQuantity !== null && (
+                        <p className="mt-1 text-[10px] text-slate-400">
+                          Stock: {Number(stockQuantity || 0)}
+                        </p>
+                      )}
                     </div>
                     <button
                       type="button"
