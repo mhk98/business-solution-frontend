@@ -407,7 +407,10 @@ const DailyProfitLossUserPage = () => {
         reportDate: editForm.reportDate,
         saleType: editForm.saleType || null,
         ...REPORT_FIELDS.reduce(
-          (acc, field) => ({ ...acc, [field.key]: reportValues[field.key] || 0 }),
+          (acc, field) => ({
+            ...acc,
+            [field.key]: reportValues[field.key] || 0,
+          }),
           {},
         ),
       };
@@ -695,7 +698,7 @@ const DailyProfitLossUserPage = () => {
     const payload = {
       clientEmail: clientEmail.trim(),
       invoiceNumber: `PL-${selectedInvoiceRow?.Id || Date.now()}`,
-      companyName: "Kafelamart Accounts",
+      companyName: "Kafela Mart Accounts",
       reportTitle: "Profit & Loss Invoice (By User)",
       reportDate: selectedInvoiceRow?.createdAt,
       profitLossId: selectedInvoiceRow?.Id,

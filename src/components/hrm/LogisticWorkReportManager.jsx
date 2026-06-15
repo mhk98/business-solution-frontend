@@ -34,6 +34,17 @@ const REPORT_FIELDS = [
   { key: "cancelResend", label: "Cancel Resend" },
   { key: "incomingReceive", label: "Incoming Receive" },
   { key: "incomingSolve", label: "Incoming Solve" },
+  { key: "entryUpdate", label: "Entry Update" },
+  { key: "returnSheetReceived", label: "Return sheet received" },
+  { key: "exchangePrint", label: "Exchange Print" },
+  {
+    key: "missingProblemParcelFollowup",
+    label: "Missing parcel and Problem parcel followup",
+  },
+  { key: "holdParcelReceived", label: "Hold parcel received" },
+  { key: "csProblemSolve", label: "CS Problem solve" },
+  { key: "pendingAssign", label: "Pending Assign" },
+  { key: "completedPendingAssign", label: "Completed Pending assign" },
 ];
 
 const EMPTY_FORM = REPORT_FIELDS.reduce(
@@ -367,7 +378,7 @@ const LogisticWorkReportManager = () => {
           </div>
 
           <div className="mt-5 max-w-full overflow-x-auto rounded-2xl border border-slate-200">
-            <table className="min-w-[1100px] w-full divide-y divide-slate-200 text-left text-sm">
+            <table className="min-w-[2200px] w-full divide-y divide-slate-200 text-left text-sm">
               <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
                 <tr>
                   <th className="px-4 py-3">Date</th>

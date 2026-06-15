@@ -64,18 +64,6 @@ const REPORT_FIELDS = [
   { key: "crossReceived", label: "Cross থেকে আসছে" },
   { key: "canceledReceived", label: "Canceled থেকে আসছে" },
   { key: "holdReceived", label: "Hold থেকে আসছে" },
-  { key: "entryUpdate", label: "Entry Update" },
-  { key: "returnSheetReceived", label: "Return sheet received" },
-  { key: "exchangePrint", label: "Exchange Print" },
-  {
-    key: "missingProblemParcelFollowup",
-    label: "Missing parcel and Problem parcel followup",
-  },
-  { key: "holdParcelReceived", label: "Hold parcel received" },
-  { key: "csProblemSolve", label: "CS Problem solve" },
-  { key: "pendingAssign", label: "Pending Assign" },
-  { key: "completedPendingAssign", label: "Completed Pending assign" },
-
   { key: "totalAssign", label: "Total Assign" },
   { key: "totalOrder", label: "Total Order" },
   { key: "totalAmount", label: "Total Amount", step: "0.01" },
@@ -120,17 +108,6 @@ const REPORT_EXPORT_COLUMNS = [
   { key: "whatsapp", label: "WhatsApp" },
   { key: "canceledReceived", label: "Canceled" },
   { key: "holdReceived", label: "Hold" },
-  { key: "entryUpdate", label: "Entry Update" },
-  { key: "returnSheetReceived", label: "Return Sheet Received" },
-  { key: "exchangePrint", label: "Exchange Print" },
-  {
-    key: "missingProblemParcelFollowup",
-    label: "Missing/Problem Followup",
-  },
-  { key: "holdParcelReceived", label: "Hold Parcel Received" },
-  { key: "csProblemSolve", label: "CS Problem Solve" },
-  { key: "pendingAssign", label: "Pending Assign" },
-  { key: "completedPendingAssign", label: "Completed Pending Assign" },
   { key: "totalAssign", label: "Total Assign" },
   { key: "totalOrder", label: "Total Order" },
   { key: "totalAmount", label: "Total Amount" },
@@ -677,7 +654,7 @@ const EmployeeWorkReportManager = () => {
           </div>
 
           <div className="mt-5 max-h-[58vh] max-w-full overflow-auto rounded-2xl border border-slate-200">
-            <table className="min-w-[2400px] w-full divide-y divide-slate-200 text-left text-sm">
+            <table className="min-w-[1500px] w-full divide-y divide-slate-200 text-left text-sm">
               <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
                 <tr>
                   <th className="sticky left-0 z-20 bg-slate-50 px-4 py-3">

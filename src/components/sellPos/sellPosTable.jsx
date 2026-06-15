@@ -221,6 +221,8 @@ export default function SellPosTable() {
         ...prev,
         {
           Id: p.Id,
+          inventoryId: p.inventoryId || p.Id,
+          productId: p.productId || "",
           cartKey: itemKey,
           name: p.name,
           price: p.price,
@@ -270,6 +272,8 @@ export default function SellPosTable() {
   const buildPosPayload = () => {
     const items = cart.map((x) => ({
       Id: x.Id,
+      inventoryId: x.inventoryId || x.Id,
+      productId: x.productId || "",
       qty: Number(x.qty) || 0,
       price: Number(x.price) || 0,
       total: (Number(x.price) || 0) * (Number(x.qty) || 0),
@@ -542,6 +546,8 @@ export default function SellPosTable() {
                                     onClick={() =>
                                       addToCart({
                                         Id: rid,
+                                        inventoryId: rid,
+                                        productId: p.productId || "",
                                         name: `${name} (${getVariantLabel(variant)})`,
                                         price: variantPrice,
                                         maxQty: variantStock,
@@ -579,6 +585,8 @@ export default function SellPosTable() {
                           onClick={() =>
                             addToCart({
                               Id: rid,
+                              inventoryId: rid,
+                              productId: p.productId || "",
                               name,
                               price,
                               maxQty: stock,

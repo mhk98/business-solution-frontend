@@ -667,7 +667,7 @@ const DailyProfitLossTable = () => {
     const payload = {
       clientEmail: clientEmail.trim(),
       invoiceNumber: `PL-${selectedInvoiceRow?.Id || selectedInvoiceRow?.id || Date.now()}`,
-      companyName: "Kafelamart Accounts",
+      companyName: "Kafela Mart Accounts",
       reportTitle: "Profit & Loss Invoice",
       reportDate: selectedInvoiceRow?.createdAt || selectedInvoiceRow?.date,
       profitLossId: selectedInvoiceRow?.Id || selectedInvoiceRow?.id,

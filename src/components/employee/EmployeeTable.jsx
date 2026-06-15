@@ -78,6 +78,7 @@ const EmployeeTable = () => {
     bookId: "",
     basic_salary: "",
     incentive: "",
+    festival_bonus: "",
     holiday_payment: "",
     total_salary: "",
     advance: "",
@@ -162,6 +163,7 @@ const EmployeeTable = () => {
   const calcSalary = (p) => {
     const basic_salary = Number(p.basic_salary) || 0;
     const incentive = Number(p.incentive) || 0;
+    const festival_bonus = Number(p.festival_bonus) || 0;
     const holiday_days = Number(p.holiday_payment) || 0;
     const advance = Number(p.advance) || 0;
     const payable_days =
@@ -204,7 +206,8 @@ const EmployeeTable = () => {
       fridayAbsentCut +
       unapprovalAbsentCut;
 
-    const net_salary = total_salary - totalCutAmount - advance + holiday_salary;
+    const net_salary =
+      total_salary - totalCutAmount - advance + holiday_salary + festival_bonus;
 
     const safe = (n) => (Number.isFinite(n) ? n : 0);
 
@@ -458,6 +461,7 @@ const EmployeeTable = () => {
       joining_date: employee.joiningDate || "",
       basic_salary: salary,
       incentive: 0,
+      festival_bonus: 0,
       holiday_payment: 0,
       advance: employee.advance || 0,
       total_salary: salary,
@@ -649,6 +653,7 @@ const EmployeeTable = () => {
         selected?.salary !== undefined && selected?.salary !== null
           ? String(selected.salary)
           : "",
+      festival_bonus: prev?.festival_bonus ?? "",
     };
 
     const s = calcSalary(next);
@@ -733,6 +738,7 @@ const EmployeeTable = () => {
       bookId: employee.bookId ?? employee.book?.Id ?? employee.book?.id ?? "",
       basic_salary: employee.basic_salary ?? "",
       incentive: employee.incentive ?? "",
+      festival_bonus: employee.festival_bonus ?? "",
       holiday_payment: employee.holiday_payment ?? "",
       total_salary: employee.total_salary ?? "",
       advance: employee.advance ?? "",
@@ -829,6 +835,7 @@ const EmployeeTable = () => {
 
         basic_salary: Number(createEmployee.basic_salary) || 0,
         incentive: Number(createEmployee.incentive) || 0,
+        festival_bonus: Number(createEmployee.festival_bonus) || 0,
         holiday_payment: Number(createEmployee.holiday_payment) || 0,
 
         advance: Number(createEmployee.advance) || 0,
@@ -888,6 +895,7 @@ const EmployeeTable = () => {
 
         basic_salary: Number(currentEmployee.basic_salary) || 0,
         incentive: Number(currentEmployee.incentive) || 0,
+        festival_bonus: Number(currentEmployee.festival_bonus) || 0,
         holiday_payment: Number(currentEmployee.holiday_payment) || 0,
 
         advance: Number(currentEmployee.advance) || 0,
@@ -1269,6 +1277,7 @@ const EmployeeTable = () => {
       "Employee ID": emp.employee_id || "-",
       "Basic Salary": Number(emp.basic_salary || 0),
       Incentive: Number(emp.incentive || 0),
+      "Festival Bonus": Number(emp.festival_bonus || 0),
       "Holiday Days": Number(emp.holiday_payment || 0),
       Advance: Number(emp.advance || 0),
       Late: Number(emp.late || 0),
@@ -1292,6 +1301,7 @@ const EmployeeTable = () => {
       { wch: 14 },
       { wch: 12 },
       { wch: 13 },
+      { wch: 14 },
       { wch: 12 },
       { wch: 8 },
       { wch: 12 },
@@ -1973,6 +1983,10 @@ const EmployeeTable = () => {
                 },
                 { key: "Incentive", label: t.incentive || "Incentive" },
                 {
+                  key: "Festival Bonus",
+                  label: t.festival_bonus || "Festival Bonus",
+                },
+                {
                   key: "Holiday Days",
                   label: t.holiday_days || "Holiday Days",
                 },
@@ -2044,6 +2058,9 @@ const EmployeeTable = () => {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                   {Number(emp.incentive || 0).toFixed(2)}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                  {Number(emp.festival_bonus || 0).toFixed(2)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                   {Number(emp.holiday_payment || 0)}
@@ -2347,6 +2364,14 @@ const EmployeeTable = () => {
               step="0.01"
               value={currentEmployee?.incentive}
               onChange={(v) => updateCurrentField("incentive", v)}
+            />
+
+            <Field
+              label={`${t.festival_bonus || "Festival Bonus"}:`}
+              type="number"
+              step="0.01"
+              value={currentEmployee?.festival_bonus}
+              onChange={(v) => updateCurrentField("festival_bonus", v)}
             />
 
             <Field
@@ -2735,6 +2760,14 @@ const EmployeeTable = () => {
               step="0.01"
               value={createEmployee.incentive}
               onChange={(v) => updateCreateField("incentive", v)}
+            />
+
+            <Field
+              label={`${t.festival_bonus || "Festival Bonus"}:`}
+              type="number"
+              step="0.01"
+              value={createEmployee.festival_bonus}
+              onChange={(v) => updateCreateField("festival_bonus", v)}
             />
 
             <Field
