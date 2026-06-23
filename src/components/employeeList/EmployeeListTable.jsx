@@ -47,7 +47,10 @@ const EmployeeListTable = () => {
   // store selected name
   const [name, setName] = useState("");
   const [selectedDepartment, setSelectedDepartment] = useState(null);
+  const [selectedTeam, setSelectedTeam] = useState(null);
   const [selectedDesignation, setSelectedDesignation] = useState(null);
+  const [selectedStatus, setSelectedStatus] = useState(null);
+  const [updatingStatusId, setUpdatingStatusId] = useState(null);
 
   // ✅ Per-page user selectable (EmployeeTable like)
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -105,7 +108,9 @@ const EmployeeListTable = () => {
     endDate,
     name,
     selectedDepartment,
+    selectedTeam,
     selectedDesignation,
+    selectedStatus,
     itemsPerPage,
   ]);
 
@@ -125,7 +130,9 @@ const EmployeeListTable = () => {
       endDate: endDate || undefined,
       name: name || undefined,
       departmentId: selectedDepartment?.value || undefined,
+      teamId: selectedTeam?.value || undefined,
       designationId: selectedDesignation?.value || undefined,
+      status: selectedStatus?.value || undefined,
     };
 
     Object.keys(args).forEach((k) => {
@@ -141,7 +148,9 @@ const EmployeeListTable = () => {
     endDate,
     name,
     selectedDepartment,
+    selectedTeam,
     selectedDesignation,
+    selectedStatus,
   ]);
 
   const { data, isLoading, isError, error, refetch } =
@@ -179,6 +188,49 @@ const EmployeeListTable = () => {
   };
 
   const [updateEmployeeList] = useUpdateEmployeeListMutation();
+
+  const handleStatusChange = async (product, status) => {
+    if (!product?.Id || !status || product.status === status) return;
+
+    setUpdatingStatusId(product.Id);
+    try {
+      const res = await updateEmployeeList({
+        id: product.Id,
+        data: {
+          name: product.name,
+          employee_id: product.employee_id,
+          employeeCode: product.employeeCode,
+          userId: product.userId,
+          email: product.email,
+          phone: product.phone,
+          departmentId: product.departmentId,
+          teamId: product.teamId,
+          designationId: product.designationId,
+          shiftId: product.shiftId,
+          reportingManagerId: product.reportingManagerId,
+          employmentType: product.employmentType,
+          joiningDate: product.joiningDate,
+          salary: product.salary ?? product.price,
+          date: product.date,
+          note: product.note,
+          status,
+          actorRole: role,
+        },
+      }).unwrap();
+
+      if (!res?.success) {
+        throw new Error(res?.message || "Status update failed!");
+      }
+
+      toast.success(`Employee status changed to ${status}.`);
+      refetch?.();
+    } catch (err) {
+      toast.error(err?.data?.message || err?.message || "Status update failed!");
+    } finally {
+      setUpdatingStatusId(null);
+    }
+  };
+
   const [isModalOpen2, setIsModalOpen2] = useState(false);
   const handleModalClose2 = () => {
     setIsModalOpen2(false);
@@ -378,7 +430,9 @@ const EmployeeListTable = () => {
     setEndDate("");
     setName("");
     setSelectedDepartment(null);
+    setSelectedTeam(null);
     setSelectedDesignation(null);
+    setSelectedStatus(null);
   };
 
   // Pagination calculations
@@ -422,6 +476,7 @@ const EmployeeListTable = () => {
       (teamsData?.data || []).map((t) => ({
         value: String(t.Id ?? t.id ?? ""),
         label: t.name || "Unnamed Team",
+        departmentId: t.departmentId ? String(t.departmentId) : "",
       })),
     [teamsData],
   );
@@ -446,10 +501,27 @@ const EmployeeListTable = () => {
     );
   };
 
+  const getTeamOptions = (departmentId) => {
+    const normalizedDepartmentId = departmentId ? String(departmentId) : "";
+    if (!normalizedDepartmentId) return teamOptions;
+
+    return teamOptions.filter(
+      (option) =>
+        !option.departmentId || option.departmentId === normalizedDepartmentId,
+    );
+  };
+
   const getDepartmentLabel = (product) =>
     product?.department?.name ||
     departmentOptions.find(
       (option) => option.value === String(product?.departmentId || ""),
+    )?.label ||
+    "-";
+
+  const getTeamLabel = (product) =>
+    product?.team?.name ||
+    teamOptions.find(
+      (option) => option.value === String(product?.teamId || ""),
     )?.label ||
     "-";
 
@@ -546,7 +618,7 @@ const EmployeeListTable = () => {
       </div>
 
       {/* Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-7 gap-4 items-end mb-6 w-full justify-center mx-auto">
+      <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-9 gap-4 items-end mb-6 w-full justify-center mx-auto">
         <div className="flex flex-col">
           <label className="text-sm text-slate-600 mb-1">From</label>
           <input
@@ -588,11 +660,26 @@ const EmployeeListTable = () => {
             value={selectedDepartment}
             onChange={(selected) => {
               setSelectedDepartment(selected || null);
+              setSelectedTeam(null);
               setSelectedDesignation(null);
             }}
             placeholder={isDepartmentsLoading ? "Loading..." : "Select Department"}
             isClearable
             isLoading={isDepartmentsLoading}
+            styles={selectStyles}
+            className="w-full"
+          />
+        </div>
+
+        <div className="flex flex-col">
+          <label className="text-sm text-slate-600 mb-1">Team</label>
+          <Select
+            options={getTeamOptions(selectedDepartment?.value)}
+            value={selectedTeam}
+            onChange={(selected) => setSelectedTeam(selected || null)}
+            placeholder={isTeamsLoading ? "Loading..." : "Select Team"}
+            isClearable
+            isLoading={isTeamsLoading}
             styles={selectStyles}
             className="w-full"
           />
@@ -609,6 +696,22 @@ const EmployeeListTable = () => {
             }
             isClearable
             isLoading={isDesignationsLoading}
+            styles={selectStyles}
+            className="w-full"
+          />
+        </div>
+
+        <div className="flex flex-col">
+          <label className="text-sm text-slate-600 mb-1">Status</label>
+          <Select
+            options={[
+              { value: "Active", label: "Active" },
+              { value: "Deactive", label: "Deactive" },
+            ]}
+            value={selectedStatus}
+            onChange={(selected) => setSelectedStatus(selected || null)}
+            placeholder="Select Status"
+            isClearable
             styles={selectStyles}
             className="w-full"
           />
@@ -646,9 +749,11 @@ const EmployeeListTable = () => {
           <thead className="bg-slate-50">
             <tr>
               {[
+                "Serial",
                 "Name",
                 "Phone",
                 "Department",
+                "Team",
                 "Designation",
                 "Joining Date",
                 "Salary",
@@ -666,7 +771,7 @@ const EmployeeListTable = () => {
           </thead>
 
           <tbody className="divide-y divide-slate-200 bg-white">
-            {(products || []).map((product) => (
+            {(products || []).map((product, index) => (
               <motion.tr
                 key={product.Id}
                 initial={{ opacity: 0 }}
@@ -674,6 +779,10 @@ const EmployeeListTable = () => {
                 transition={{ duration: 0.25 }}
                 className="hover:bg-slate-50"
               >
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 tabular-nums">
+                  {(currentPage - 1) * itemsPerPage + index + 1}
+                </td>
+
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-900">
                   {product.name}
                 </td>
@@ -684,6 +793,10 @@ const EmployeeListTable = () => {
 
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                   {getDepartmentLabel(product)}
+                </td>
+
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                  {getTeamLabel(product)}
                 </td>
 
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
@@ -699,8 +812,12 @@ const EmployeeListTable = () => {
                 </td>
 
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                  <span
-                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border ${
+                  <select
+                    value={product.status || "Active"}
+                    onChange={(e) => handleStatusChange(product, e.target.value)}
+                    disabled={updatingStatusId === product.Id}
+                    aria-label={`Change status for ${product.name}`}
+                    className={`rounded-full px-3 py-1.5 text-xs font-semibold border outline-none cursor-pointer disabled:cursor-wait disabled:opacity-60 ${
                       product.status === "Approved"
                         ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                         : product.status === "Active"
@@ -710,8 +827,13 @@ const EmployeeListTable = () => {
                           : "bg-amber-50 text-amber-700 border-amber-200"
                     }`}
                   >
-                    {product.status}
-                  </span>
+                    <option value="Active">Active</option>
+                    <option value="Deactive">Deactive</option>
+                    {!["Active", "Deactive"].includes(product.status) &&
+                      product.status && (
+                        <option value={product.status}>{product.status}</option>
+                      )}
+                  </select>
                 </td>
 
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -786,7 +908,7 @@ const EmployeeListTable = () => {
             {!isLoading && products.length === 0 && (
               <tr>
                 <td
-                  colSpan={8}
+                  colSpan={10}
                   className="px-6 py-6 text-center text-sm text-slate-600"
                 >
                   No data found

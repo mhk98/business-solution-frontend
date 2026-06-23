@@ -44,6 +44,21 @@ export const inventoryOverviewApi = baseApi.injectEndpoints({
       refetchOnMountOrArgChange: true,
     }),
 
+    getInventoryMismatchAudit: build.query({
+      query: (arg = {}) => {
+        const { productId, mismatchOnly = true } = arg;
+        const params = { productId, mismatchOnly };
+        Object.keys(params).forEach((k) => {
+          if (params[k] === undefined || params[k] === null || params[k] === "")
+            delete params[k];
+        });
+
+        return { url: "/inventory-master/audit/mismatches", params };
+      },
+      providesTags: [{ type: "InventoryOverview", id: "AUDIT" }],
+      refetchOnMountOrArgChange: true,
+    }),
+
     insertInventoryOverview: build.mutation({
       query: (data) => ({
         url: "/inventory-master/create",
@@ -75,6 +90,17 @@ export const inventoryOverviewApi = baseApi.injectEndpoints({
         { type: "InventoryOverview", id: "LIST" },
       ],
     }),
+
+    fixInventoryMismatch: build.mutation({
+      query: (productId) => ({
+        url: `/inventory-master/audit/fix/${productId}`,
+        method: "POST",
+      }),
+      invalidatesTags: [
+        { type: "InventoryOverview", id: "LIST" },
+        { type: "InventoryOverview", id: "AUDIT" },
+      ],
+    }),
   }),
 
   overrideExisting: false,
@@ -87,4 +113,6 @@ export const {
   useUpdateInventoryOverviewMutation,
   useDeleteInventoryOverviewMutation,
   useGetInventoryOverviewLowStockQuery,
+  useGetInventoryMismatchAuditQuery,
+  useFixInventoryMismatchMutation,
 } = inventoryOverviewApi;

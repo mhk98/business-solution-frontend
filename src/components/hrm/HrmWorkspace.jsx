@@ -1,15 +1,11 @@
 import {
   Building2,
-  CalendarDays,
   CircleDollarSign,
   ClipboardCheck,
   ClipboardList,
-  Fingerprint,
   Layers3,
-  ReceiptText,
   RefreshCcw,
   ShieldCheck,
-  TimerReset,
   Users2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -153,6 +149,13 @@ const SECTION_ITEMS = [
     href: "/hrm/logistic-work-reports",
     match: ["/hrm/logistic-work-reports"],
     icon: ClipboardList,
+  },
+  {
+    group: "HRM",
+    label: "Logistic Update",
+    href: "/hrm/logistic-updates",
+    match: ["/hrm/logistic-updates"],
+    icon: RefreshCcw,
   },
   {
     group: "Payroll",

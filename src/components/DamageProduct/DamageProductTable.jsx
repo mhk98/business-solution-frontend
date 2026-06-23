@@ -209,6 +209,9 @@ const getInventoryVariantStockQuantity = (inventoryItem, variant) => {
 const getInventoryStockQuantity = (inventoryItem) =>
   inventoryItem ? Number(inventoryItem.quantity || 0) : null;
 
+const getInventoryItemByReference = (items, referenceId) =>
+  (items || []).find((item) => Number(item.Id) === Number(referenceId));
+
 const getNormalizedVariantsPayload = (rows) =>
   normalizeVariantRows(rows)
     .filter((row) => (row.size || row.color) && Number(row.quantity) > 0)
@@ -1900,8 +1903,9 @@ const DamageProductTable = () => {
           {!isEditingBulkMovement && (
           <div>
             {(() => {
-              const invItem = receivedData.find(
-                (r) => String(r.Id) === String(currentItem?.receivedId),
+              const invItem = getInventoryItemByReference(
+                receivedData,
+                currentItem?.receivedId,
               );
               const stockQuantity = getInventoryStockQuantity(invItem);
               const isOutOfStock =
@@ -1920,13 +1924,13 @@ const DamageProductTable = () => {
               onChange={(e) =>
                 setCurrentItem((p) => ({ ...p, quantity: e.target.value }))
               }
-              readOnly={
+              disabled={
                 hasConfiguredVariants(currentItem?.variantRows) ||
                 isOutOfStock
               }
               className={`h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 outline-none ${
                 hasConfiguredVariants(currentItem?.variantRows) || isOutOfStock
-                  ? "bg-slate-50"
+                  ? "bg-slate-100 text-slate-400 cursor-not-allowed"
                   : "bg-white focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
               }`}
             />
@@ -2112,7 +2116,10 @@ const DamageProductTable = () => {
                             </p>
                           ) : (
                             (() => {
-                              const invItem = receivedData.find((r) => Number(r.Id) === Number(item.payload?.receivedId || item.payload?.productId));
+                              const invItem = getInventoryItemByReference(
+                                receivedData,
+                                item.payload?.receivedId || item.payload?.productId,
+                              );
                               const stockQuantity = getInventoryStockQuantity(invItem);
                               const isOutOfStock =
                                 stockQuantity !== null && stockQuantity <= 0;
@@ -2144,7 +2151,26 @@ const DamageProductTable = () => {
                         </td>
                         <td className="px-3 py-3 align-top text-xs text-slate-500">
                           {item.payload.variants?.length ? (
-                            item.payload.variants.map((variant, variantIndex) => (
+                            item.payload.variants.map((variant, variantIndex) => {
+                              const invItem = getInventoryItemByReference(
+                                receivedData,
+                                item.payload?.receivedId || item.payload?.productId,
+                              );
+                              const stockMatch = invItem
+                                ? getVariantDisplayRows(invItem).find(
+                                    (v) =>
+                                      String(v.size || "") === String(variant.size || "") &&
+                                      String(v.color || "") === String(variant.color || ""),
+                                  )
+                                : null;
+                              const stockQuantity =
+                                stockMatch !== null && stockMatch !== undefined
+                                  ? Number(stockMatch.quantity || 0)
+                                  : null;
+                              const isOutOfStockVariant =
+                                stockQuantity !== null && stockQuantity <= 0;
+
+                              return (
                               <div key={`${variant.size}-${variant.color}-${variantIndex}`} className="mb-2 grid grid-cols-[1fr_90px] items-end gap-2 last:mb-0">
                                 <span className="rounded-lg bg-slate-50 px-2 py-1 font-semibold text-slate-600">
                                   {variant.size || "-"} / {variant.color || "-"}
@@ -2157,21 +2183,18 @@ const DamageProductTable = () => {
                                     min="0"
                                     value={variant.quantity}
                                     onChange={(e) => updateCreateItemVariantField(index, variantIndex, "quantity", e.target.value)}
-                                    className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10"
+                                    disabled={isOutOfStockVariant}
+                                    className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold text-slate-900 outline-none focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                                   />
-                                  {(() => {
-                                    const invItem = receivedData.find((r) => Number(r.Id) === Number(item.payload?.receivedId || item.payload?.productId));
-                                    if (!invItem) return null;
-                                    const match = getVariantDisplayRows(invItem).find(
-                                      (v) => String(v.size || "") === String(variant.size || "") && String(v.color || "") === String(variant.color || ""),
-                                    );
-                                    return match !== undefined ? (
-                                      <p className="mt-0.5 text-[10px] text-slate-400">Stock: {Number(match.quantity || 0)}</p>
-                                    ) : null;
-                                  })()}
+                                  {stockQuantity !== null && (
+                                    <p className="mt-0.5 text-[10px] text-slate-400">
+                                      Stock: {Number(stockQuantity || 0)}
+                                    </p>
+                                  )}
                                 </div>
                               </div>
-                            ))
+                              );
+                            })
                           ) : "No variants"}
                         </td>
                         <td className="px-3 py-3 text-right align-top">

@@ -13,6 +13,7 @@ import {
 import { useGetAllSupplierWithoutQueryQuery } from "../../features/supplier/supplier";
 import { useGetAllWirehouseWithoutQueryQuery } from "../../features/wirehouse/wirehouse";
 import { useGetAllDamageStockWithoutQueryQuery } from "../../features/damageStock/damageStock";
+import { useGetAllDamageRepairingStockRawWithoutQueryQuery } from "../../features/damageRepairingStock/damageRepairingStock";
 import Modal from "../common/Modal";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 
@@ -164,6 +165,26 @@ const getInventoryVariantColorOptions = (inventoryItem) => {
   return [...new Set(variants.map((v) => v.color).filter(Boolean))].map((v) => ({ value: v, label: v }));
 };
 
+const getVariantOptionsFromRows = (rows, key) => [
+  ...new Set(
+    normalizeVariantRows(rows)
+      .map((variant) => String(variant?.[key] || "").trim())
+      .filter(Boolean),
+  ),
+].map((value) => ({ value, label: value }));
+
+const mergeSelectOptions = (...optionGroups) => {
+  const optionsByValue = new Map();
+
+  optionGroups.flat().forEach((option) => {
+    const value = String(option?.value || "").trim();
+    if (!value || optionsByValue.has(value)) return;
+    optionsByValue.set(value, { value, label: option?.label || value });
+  });
+
+  return [...optionsByValue.values()];
+};
+
 const getInventoryVariantColorsForSize = (inventoryItem, size) => {
   if (!size) return [];
   return getVariantDisplayRows(inventoryItem)
@@ -282,7 +303,12 @@ const getVariantUnitPrice = (item, variant, field) =>
 const getVariantKey = (variant) =>
   `${String(variant?.size || "").trim()}__${String(variant?.color || "").trim()}`;
 
-const validateVariantSelection = (stockRecord, variantsPayload, quantity) => {
+const validateVariantSelection = (
+  stockRecord,
+  variantsPayload,
+  quantity,
+  extraAvailableVariants = [],
+) => {
   const availableVariants = getVariantDisplayRows(stockRecord);
   if (availableVariants.length === 0) return true;
 
@@ -301,11 +327,17 @@ const validateVariantSelection = (stockRecord, variantsPayload, quantity) => {
     return false;
   }
 
-  const availableByVariant = new Map(
-    availableVariants.map((variant) => [
-      getVariantKey(variant),
-      Number(variant.quantity || 0),
-    ]),
+  const availableByVariant = new Map();
+  [...availableVariants, ...normalizeVariantRows(extraAvailableVariants)].forEach(
+    (variant) => {
+      const key = getVariantKey(variant);
+      if (key === "__") return;
+      availableByVariant.set(
+        key,
+        Number(availableByVariant.get(key) || 0) +
+          Number(variant.quantity || 0),
+      );
+    },
   );
 
   for (const variant of variantsPayload) {
@@ -363,8 +395,25 @@ const DamageRepairTable = () => {
     isError: receivedError,
     error: receivedErrObj,
   } = useGetAllDamageStockWithoutQueryQuery();
+  const { data: repairingStockRes } =
+    useGetAllDamageRepairingStockRawWithoutQueryQuery();
 
   const receivedData = receivedRes?.data || [];
+  const repairingStockData = repairingStockRes?.data || [];
+
+  const getRepairingStockByProductId = (productId) =>
+    repairingStockData.find(
+      (item) => String(item.productId || "") === String(productId || ""),
+    );
+  const getRepairingStockForDamageStock = (damageStockRecord) =>
+    getRepairingStockByProductId(damageStockRecord?.productId);
+  const getRepairingStockForPayload = (payload = {}) =>
+    getRepairingStockByProductId(
+      payload.productId ||
+        receivedData.find(
+          (item) => String(item.Id) === String(payload.receivedId),
+        )?.productId,
+    );
 
   useEffect(() => {
     if (receivedError)
@@ -407,12 +456,20 @@ const DamageRepairTable = () => {
     [selectedCreateDamageStock],
   );
   const editSizeOptions = useMemo(
-    () => getInventoryVariantSizeOptions(selectedEditDamageStock),
-    [selectedEditDamageStock],
+    () =>
+      mergeSelectOptions(
+        getInventoryVariantSizeOptions(selectedEditDamageStock),
+        getVariantOptionsFromRows(currentItem?.variantRows, "size"),
+      ),
+    [selectedEditDamageStock, currentItem?.variantRows],
   );
   const editColorOptions = useMemo(
-    () => getInventoryVariantColorOptions(selectedEditDamageStock),
-    [selectedEditDamageStock],
+    () =>
+      mergeSelectOptions(
+        getInventoryVariantColorOptions(selectedEditDamageStock),
+        getVariantOptionsFromRows(currentItem?.variantRows, "color"),
+      ),
+    [selectedEditDamageStock, currentItem?.variantRows],
   );
   const shouldShowEditVariantOptions = useMemo(
     () =>
@@ -680,18 +737,22 @@ const DamageRepairTable = () => {
       rp.productId ??
       "";
     const productId = firstBulkItem?.productId ?? rp.productId ?? "";
+    const quantity = String(
+      bulkItems.length
+        ? getItemsTotalQuantity(bulkItems)
+        : getVariantRowsTotalQuantity(variantRows) || Number(rp.quantity) || 0,
+    );
     setCurrentItem({
       ...rp,
       items: bulkItems,
       productId: String(productId),
       receivedId: String(stockId),
+      originalReceivedId: String(stockId),
+      originalVariantRows: variantRows,
+      originalQuantity: quantity,
       name: firstBulkItem?.name || rp.name || rp.product?.name || "",
       variantRows,
-      quantity: String(
-        bulkItems.length
-          ? getItemsTotalQuantity(bulkItems)
-          : getVariantRowsTotalQuantity(variantRows) || Number(rp.quantity) || 0,
-      ),
+      quantity,
       note: rp.note ?? "",
       status: rp.status ?? "",
       remarks: rp.remarks ?? "",
@@ -977,6 +1038,10 @@ const DamageRepairTable = () => {
         selectedEditDamageStock,
         variantsPayload,
         currentItem.quantity,
+        String(currentItem?.originalReceivedId || "") ===
+          String(currentItem?.receivedId || "")
+          ? currentItem?.originalVariantRows
+          : [],
       )
     ) {
       return;
@@ -1807,15 +1872,25 @@ const DamageRepairTable = () => {
                 {normalizeVariantRows(currentItem?.variantRows).map(
                   (row, index) => {
                     const colorOptions = row.size
-                      ? getInventoryVariantColorsForSize(
-                          selectedEditDamageStock,
-                          row.size,
+                      ? mergeSelectOptions(
+                          getInventoryVariantColorsForSize(
+                            selectedEditDamageStock,
+                            row.size,
+                          ),
+                          getVariantOptionsFromRows([row], "color"),
                         )
                       : editColorOptions;
                     const stockQuantity = getInventoryVariantStockQuantity(
                       selectedEditDamageStock,
                       row,
                     );
+                    const repairingStockRecord =
+                      getRepairingStockForDamageStock(selectedEditDamageStock);
+                    const repairingStockQuantity =
+                      getInventoryVariantStockQuantity(
+                        repairingStockRecord,
+                        row,
+                      );
                     const isOutOfStockVariant =
                       row.size && stockQuantity !== null && stockQuantity <= 0;
 
@@ -1833,7 +1908,10 @@ const DamageRepairTable = () => {
                             value={
                               editSizeOptions.find(
                                 (option) => option.value === row.size,
-                              ) || null
+                              ) ||
+                              (row.size
+                                ? { value: row.size, label: row.size }
+                                : null)
                             }
                             onChange={(selected) =>
                               updateVariantRow(
@@ -1863,7 +1941,10 @@ const DamageRepairTable = () => {
                             value={
                               colorOptions.find(
                                 (option) => option.value === row.color,
-                              ) || null
+                              ) ||
+                              (row.color
+                                ? { value: row.color, label: row.color }
+                                : null)
                             }
                             onChange={(selected) =>
                               updateVariantRow(
@@ -1906,9 +1987,9 @@ const DamageRepairTable = () => {
                             className="h-11 border bg-white border-slate-200 rounded-xl px-3 w-full text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                             placeholder=""
                           />
-                          {selectedEditDamageStock && row.size && stockQuantity !== null && (
+                          {selectedEditDamageStock && row.size && (
                             <p className="mt-1 text-[10px] text-slate-400">
-                              Stock: {Number(stockQuantity || 0)}
+                              Stock: {Number(repairingStockQuantity || 0)}
                             </p>
                           )}
                         </div>
@@ -2006,6 +2087,9 @@ const DamageRepairTable = () => {
                 const stockQuantity = getInventoryStockQuantity(
                   selectedEditDamageStock,
                 );
+                const repairingStockQuantity = getInventoryStockQuantity(
+                  getRepairingStockForDamageStock(selectedEditDamageStock),
+                );
                 const isOutOfStock =
                   !hasConfiguredVariants(currentItem?.variantRows) &&
                   stockQuantity !== null &&
@@ -2038,7 +2122,7 @@ const DamageRepairTable = () => {
                 !hasConfiguredVariants(currentItem?.variantRows) &&
                 stockQuantity !== null && (
                 <p className="mt-1 text-[10px] text-slate-400">
-                  Stock: {Number(stockQuantity || 0)}
+                  Stock: {Number(repairingStockQuantity || 0)}
                 </p>
               )}
                   </>
@@ -2259,6 +2343,13 @@ const DamageRepairTable = () => {
                         selectedCreateDamageStock,
                         row,
                       );
+                      const repairingStockRecord =
+                        getRepairingStockForDamageStock(selectedCreateDamageStock);
+                      const repairingStockQuantity =
+                        getInventoryVariantStockQuantity(
+                          repairingStockRecord,
+                          row,
+                        );
                       const isOutOfStockVariant =
                         row.size && stockQuantity !== null && stockQuantity <= 0;
 
@@ -2351,9 +2442,9 @@ const DamageRepairTable = () => {
                               className="h-11 border bg-white border-slate-200 rounded-xl px-3 w-full text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                               placeholder=""
                             />
-                            {selectedCreateDamageStock && row.size && stockQuantity !== null && (
+                            {selectedCreateDamageStock && row.size && (
                               <p className="mt-1 text-[10px] text-slate-400">
-                                Stock: {Number(stockQuantity || 0)}
+                                Stock: {Number(repairingStockQuantity || 0)}
                               </p>
                             )}
                           </div>
@@ -2440,6 +2531,9 @@ const DamageRepairTable = () => {
                   const stockQuantity = getInventoryStockQuantity(
                     selectedCreateDamageStock,
                   );
+                  const repairingStockQuantity = getInventoryStockQuantity(
+                    getRepairingStockForDamageStock(selectedCreateDamageStock),
+                  );
                   const isOutOfStock =
                     !hasConfiguredVariants(createForm?.variantRows) &&
                     stockQuantity !== null &&
@@ -2473,7 +2567,7 @@ const DamageRepairTable = () => {
                   !hasConfiguredVariants(createForm?.variantRows) &&
                   stockQuantity !== null && (
                   <p className="mt-1 text-[10px] text-slate-400">
-                    Stock: {Number(stockQuantity || 0)}
+                    Stock: {Number(repairingStockQuantity || 0)}
                   </p>
                 )}
                     </>
@@ -2599,6 +2693,10 @@ const DamageRepairTable = () => {
                             (() => {
                               const invItem = receivedData.find((r) => Number(r.Id) === Number(item.payload?.receivedId || item.payload?.productId));
                               const stockQuantity = getInventoryStockQuantity(invItem);
+                              const repairingStockQuantity =
+                                getInventoryStockQuantity(
+                                  getRepairingStockForPayload(item.payload),
+                                );
                               const isOutOfStock =
                                 stockQuantity !== null && stockQuantity <= 0;
 
@@ -2619,7 +2717,7 @@ const DamageRepairTable = () => {
                               />
                               {stockQuantity !== null && (
                                 <p className="mt-1 text-[10px] text-slate-400">
-                                  Stock: {Number(stockQuantity || 0)}
+                                  Stock: {Number(repairingStockQuantity || 0)}
                                 </p>
                               )}
                             </>
@@ -2651,8 +2749,11 @@ const DamageRepairTable = () => {
                                   />
                                   {(() => {
                                     const invItem = receivedData.find((r) => Number(r.Id) === Number(item.payload?.receivedId || item.payload?.productId));
-                                    const stockQuantity = getInventoryVariantStockQuantity(invItem, variant);
-                                    return stockQuantity !== null ? (
+                                    const stockQuantity = getInventoryVariantStockQuantity(
+                                      getRepairingStockForPayload(item.payload),
+                                      variant,
+                                    );
+                                    return invItem ? (
                                       <p className="mt-0.5 text-[10px] text-slate-400">
                                         Stock: {Number(stockQuantity || 0)}
                                       </p>
@@ -2743,12 +2844,16 @@ const DamageRepairTable = () => {
                         placeholder=""
                       />
                       {selectedCreateDamageStock && row.size && (() => {
-                        const match = getVariantDisplayRows(selectedCreateDamageStock).find(
+                        const repairingStockRecord =
+                          getRepairingStockForDamageStock(selectedCreateDamageStock);
+                        const match = getVariantDisplayRows(repairingStockRecord).find(
                           (v) => String(v.size || "") === String(row.size || "") && String(v.color || "") === String(row.color || ""),
                         );
-                        return match !== undefined ? (
-                          <p className="mt-1 text-[10px] text-slate-400">Stock: {Number(match.quantity || 0)}</p>
-                        ) : null;
+                        return (
+                          <p className="mt-1 text-[10px] text-slate-400">
+                            Stock: {Number(match?.quantity || 0)}
+                          </p>
+                        );
                       })()}
                     </div>
                     <button

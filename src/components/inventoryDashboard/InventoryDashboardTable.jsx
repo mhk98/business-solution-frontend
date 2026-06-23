@@ -22,6 +22,17 @@ const getNumberValue = (...values) => {
   return 0;
 };
 
+const inventorySourceLabels = {
+  "Purchase Return Product": "Purchase Return",
+  "In Transit Product": "Intransit Product",
+  "Sales Return Product": "Sales Return",
+  "Confirm Order": "POS",
+  "Received Product": "Purchase Product",
+};
+
+const getInventorySourceLabel = (source) =>
+  inventorySourceLabels[source] || source || "-";
+
 const getInventoryTotalPages = ({ meta, rows, page, limit }) => {
   const explicitTotalPages = getNumberValue(
     meta?.totalPages,
@@ -136,9 +147,10 @@ const InventoryOverviewTable = () => {
   const categoryDropdownOptions = useMemo(
     () => [
       { value: "Purchase Product", label: "Purchase Product" },
-      { value: "Purchase Return Product", label: "Purchase Return Product" },
-      { value: "In Transit Product", label: "In Transit Product" },
-      { value: "Sales Return Product", label: "Sales Return Product" },
+      { value: "Purchase Return", label: "Purchase Return" },
+      { value: "Intransit Product", label: "Intransit Product" },
+      { value: "Sales Return", label: "Sales Return" },
+      { value: "POS", label: "POS" },
       { value: "Damage Product", label: "Damage Product" },
       { value: "Damage Repair", label: "Damage Repair" },
       { value: "Damage Repaired", label: "Damage Repaired" },
@@ -241,7 +253,9 @@ const InventoryOverviewTable = () => {
                 Total Purchase
               </div>
               <div className="text-base font-black text-emerald-900 tabular-nums leading-none">
-                {isLoading ? "..." : formatMoney(data?.meta?.totalPurchaseValue ?? 0)}
+                {isLoading
+                  ? "..."
+                  : formatMoney(data?.meta?.totalPurchaseValue ?? 0)}
               </div>
             </div>
           </div>
@@ -255,7 +269,9 @@ const InventoryOverviewTable = () => {
                 Total Sale
               </div>
               <div className="text-base font-black text-sky-900 tabular-nums leading-none">
-                {isLoading ? "..." : formatMoney(data?.meta?.totalSaleValue ?? 0)}
+                {isLoading
+                  ? "..."
+                  : formatMoney(data?.meta?.totalSaleValue ?? 0)}
               </div>
             </div>
           </div>
@@ -398,7 +414,7 @@ const InventoryOverviewTable = () => {
                       {rp.name || "-"}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-900">
-                      {rp.source || "-"}
+                      {getInventorySourceLabel(rp.source)}
                     </td>
 
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">

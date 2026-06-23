@@ -1,16 +1,25 @@
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import Select from "react-select";
+import toast from "react-hot-toast";
 import {
   ShoppingBasket,
   ChevronLeft,
   ChevronRight,
   X,
   Calendar,
+  AlertTriangle,
+  RefreshCw,
+  Wrench,
+  CheckCircle2,
 } from "lucide-react";
 
 import { useGetAllProductWithoutQueryQuery } from "../../features/product/product";
-import { useGetAllInventoryOverviewQuery } from "../../features/inventoryOverview/inventoryOverview";
+import {
+  useFixInventoryMismatchMutation,
+  useGetAllInventoryOverviewQuery,
+  useGetInventoryMismatchAuditQuery,
+} from "../../features/inventoryOverview/inventoryOverview";
 import { useLayout } from "../../context/LayoutContext";
 import { translations } from "../../utils/translations";
 
@@ -91,6 +100,12 @@ const formatMoney = (value) => {
 };
 
 const getUnitPrice = (value) => Number(value || 0);
+
+const formatVariantLabel = (variant = {}) => {
+  const size = variant.size || "N/A";
+  const color = variant.color || "N/A";
+  return `${size} / ${color}`;
+};
 
 const InventoryOverviewTable = () => {
   const { language } = useLayout();
@@ -177,6 +192,29 @@ const InventoryOverviewTable = () => {
   }, [currentPage, itemsPerPage, startDate, endDate, productName]);
 
   const { data, isLoading } = useGetAllInventoryOverviewQuery(queryArgs);
+  const {
+    data: auditRes,
+    isFetching: isAuditFetching,
+    refetch: refetchAudit,
+  } = useGetInventoryMismatchAuditQuery({ mismatchOnly: true });
+  const [fixInventoryMismatch, { isLoading: isFixingMismatch }] =
+    useFixInventoryMismatchMutation();
+
+  const auditData = auditRes?.data;
+  const mismatchRows = auditData?.data || [];
+
+  const handleFixMismatch = async (productId) => {
+    try {
+      const res = await fixInventoryMismatch(productId).unwrap();
+      if (res?.success === false) {
+        toast.error(res?.message || "Stock fix failed");
+        return;
+      }
+      toast.success("Stock fixed from movement ledger");
+    } catch (error) {
+      toast.error(error?.data?.message || "Stock fix failed");
+    }
+  };
 
   useEffect(() => {
     if (!isLoading && data) {
@@ -313,6 +351,108 @@ const InventoryOverviewTable = () => {
         >
           <X size={16} /> {t.clear_filters}
         </button>
+      </div>
+
+      <div className="mb-6 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-3">
+            <div
+              className={`flex h-10 w-10 items-center justify-center rounded-xl ${
+                mismatchRows.length
+                  ? "bg-amber-50 text-amber-600"
+                  : "bg-emerald-50 text-emerald-600"
+              }`}
+            >
+              {mismatchRows.length ? (
+                <AlertTriangle size={20} />
+              ) : (
+                <CheckCircle2 size={20} />
+              )}
+            </div>
+            <div>
+              <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">
+                Stock Audit
+              </div>
+              <div className="text-sm font-bold text-slate-900">
+                {isAuditFetching
+                  ? "Checking movement ledger..."
+                  : mismatchRows.length
+                    ? `${mismatchRows.length} mismatch found`
+                    : "No mismatch found"}
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={refetchAudit}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-bold text-slate-700 transition hover:bg-slate-100 active:scale-95"
+          >
+            <RefreshCw
+              size={16}
+              className={isAuditFetching ? "animate-spin" : ""}
+            />
+            Refresh Audit
+          </button>
+        </div>
+
+        {mismatchRows.length > 0 ? (
+          <div className="mt-4 space-y-3">
+            {mismatchRows.slice(0, 5).map((item) => (
+              <div
+                key={item.productId}
+                className="rounded-xl border border-amber-100 bg-amber-50/50 p-3"
+              >
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                  <div>
+                    <div className="text-sm font-black text-slate-900">
+                      {item.name}
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-2 text-xs font-bold text-slate-600">
+                      <span>Current: {Number(item.currentQuantity || 0)}</span>
+                      <span>Expected: {Number(item.expectedQuantity || 0)}</span>
+                      <span
+                        className={
+                          Number(item.diff || 0) > 0
+                            ? "text-rose-600"
+                            : "text-emerald-600"
+                        }
+                      >
+                        Diff: {Number(item.diff || 0)}
+                      </span>
+                    </div>
+                    {item.variantDiffs?.length ? (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {item.variantDiffs
+                          .filter((variant) => Number(variant.diff || 0) !== 0)
+                          .map((variant, index) => (
+                            <span
+                              key={`${item.productId}-${index}`}
+                              className="rounded-lg bg-white px-2.5 py-1 text-[11px] font-bold text-slate-700 shadow-sm"
+                            >
+                              {formatVariantLabel(variant)}:{" "}
+                              {Number(variant.currentQuantity || 0)} →{" "}
+                              {Number(variant.expectedQuantity || 0)}
+                            </span>
+                          ))}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={isFixingMismatch}
+                    onClick={() => handleFixMismatch(item.productId)}
+                    className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white shadow-sm shadow-indigo-100 transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60 active:scale-95"
+                  >
+                    <Wrench size={16} />
+                    Fix Stock
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <div className="relative rounded-3xl border border-slate-100 bg-white shadow-sm">

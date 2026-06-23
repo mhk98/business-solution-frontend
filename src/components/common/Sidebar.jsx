@@ -59,16 +59,8 @@ const Sidebar = () => {
   const userRole = localStorage.getItem("role") || "user";
   const { pathname } = useLocation();
 
-  const PRIVILEGED_ROLES = [
-    "superAdmin",
-    "admin",
-    "accountant",
-    "inventor",
-    "marketer",
-  ];
-
   const { data: myPermissionsData } = useGetMyRolePermissionsQuery(undefined, {
-    skip: !localStorage.getItem("token") || PRIVILEGED_ROLES.includes(userRole),
+    skip: !localStorage.getItem("token"),
   });
 
   useEffect(() => {

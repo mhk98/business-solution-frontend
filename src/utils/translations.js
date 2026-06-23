@@ -326,6 +326,7 @@ export const translations = {
     role_permissions: "Role Permissions",
     cs_work_reports: "CS Work Reports",
     logistic_work_reports: "Logistic Work Reports",
+    logistic_update: "Logistic Update",
     expired_product: "Expired Product",
     profile: "Profile",
     control_panel: "Control Panel",
@@ -401,6 +402,7 @@ export const translations = {
     role_permissions: "রোল পারমিশন",
     cs_work_reports: "CS Work Reports",
     logistic_work_reports: "Logistic Work Reports",
+    logistic_update: "Logistic Update",
     loading: "লোড হচ্ছে...",
     // Common UI (BN)
     add: "যোগ করুন",

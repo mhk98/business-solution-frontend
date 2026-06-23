@@ -79,6 +79,7 @@ const DailyProfitLossUserPage = lazy(() => import("./pages/DailyProfitLossUserPa
 const DailyWorkReportPage = lazy(() => import("./pages/DailyWorkReportPage"));
 const EmployeeWorkReportPage = lazy(() => import("./pages/EmployeeWorkReportPage"));
 const LogisticWorkReportPage = lazy(() => import("./pages/LogisticWorkReportPage"));
+const LogisticUpdatePage = lazy(() => import("./pages/LogisticUpdatePage"));
 const EmployeeMasterPage = lazy(() => import("./pages/EmployeeMasterPage"));
 const EmployeeProfilePage = lazy(() => import("./pages/EmployeeProfilePage"));
 const DepartmentPage = lazy(() => import("./pages/DepartmentPage"));
@@ -153,6 +154,7 @@ function App() {
                 <Route path="/hrm/daily-work-reports" element={<AuthedRoute><DailyWorkReportPage /></AuthedRoute>} />
                 <Route path="/hrm/employee-work-reports" element={<AuthedRoute><EmployeeWorkReportPage /></AuthedRoute>} />
                 <Route path="/hrm/logistic-work-reports" element={<AuthedRoute><LogisticWorkReportPage /></AuthedRoute>} />
+                <Route path="/hrm/logistic-updates" element={<AuthedRoute><LogisticUpdatePage /></AuthedRoute>} />
                 <Route path="/employee-kpi" element={<AuthedRoute><EmployeeKPIPage /></AuthedRoute>} />
                 <Route path="/employee" element={<AuthedRoute><EmployeePage /></AuthedRoute>} />
                 <Route path="/pos-sell" element={<AuthedRoute><POSPage /></AuthedRoute>} />

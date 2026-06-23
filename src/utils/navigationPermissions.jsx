@@ -38,9 +38,7 @@ import {
   CircleDollarSign,
   Factory,
   History,
-  CalendarDays,
   CreditCard,
-  Fingerprint,
   WalletCards,
 } from "lucide-react";
 
@@ -329,6 +327,14 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
   staff: ["notifications", "tasks", "profile"],
   user: ["tasks", "profile"],
 };
+
+const DEFAULT_PERMISSION_ROLES = new Set(["superAdmin", "admin"]);
+
+ROLE_OPTIONS.forEach((role) => {
+  if (!DEFAULT_PERMISSION_ROLES.has(role.value)) {
+    DEFAULT_ROLE_PERMISSION_MAP[role.value] = [];
+  }
+});
 
 export const SIDEBAR_ITEMS = [
   {
@@ -942,6 +948,13 @@ export const SIDEBAR_ITEMS = [
         href: "/hrm/logistic-work-reports",
         roles: ["superAdmin", "admin", "accountant", "employee"],
       },
+      {
+        name: "Logistic Update",
+        key: "logistic_update",
+        icon: ClipboardCheck,
+        href: "/hrm/logistic-updates",
+        roles: ["superAdmin", "admin", "accountant", "employee"],
+      },
     ],
   },
   {
@@ -1028,6 +1041,8 @@ const STORAGE_KEY = "roleMenuPermissions";
 const OVERVIEW_DEFAULT_REMOVED_STORAGE_KEY = "overview-default-permission-removed";
 const DAILY_WORK_REPORTS_DEFAULT_REMOVED_STORAGE_KEY =
   "daily-work-reports-default-permission-removed";
+const NON_ADMIN_DEFAULT_PERMISSIONS_REMOVED_STORAGE_KEY =
+  "non-admin-default-permissions-removed";
 const PERMISSION_EVENT = "role-permissions-updated";
 const PERMISSION_KEY_ALIASES = {
   employee_profile: "employee_list",
@@ -1162,6 +1177,10 @@ const normalizeRolePermissionMap = (value) => {
       normalizedKeys.add("logistic_work_reports");
     }
 
+    if (normalizedKeys.has("logistic_work_reports")) {
+      normalizedKeys.add("logistic_update");
+    }
+
     if (normalizedKeys.has("department_designation")) {
       normalizedKeys.add("department_management");
       normalizedKeys.add("designation_management");
@@ -1203,6 +1222,14 @@ const removeDailyWorkReportsPermissionFromMap = (permissionMap = {}) =>
           (key) => getCanonicalPermissionKey(key) !== "daily_work_reports",
         )
       : keys;
+    return acc;
+  }, {});
+
+const removeNonAdminPermissionsFromMap = (permissionMap = {}) =>
+  Object.entries(permissionMap).reduce((acc, [role, keys]) => {
+    acc[role] = DEFAULT_PERMISSION_ROLES.has(role) && Array.isArray(keys)
+      ? keys
+      : [];
     return acc;
   }, {});
 
@@ -1252,12 +1279,37 @@ const migrateStoredDailyWorkReportsDefaultPermission = () => {
   }
 };
 
+const migrateStoredNonAdminDefaultPermissions = () => {
+  if (typeof window === "undefined") return;
+  if (localStorage.getItem(NON_ADMIN_DEFAULT_PERMISSIONS_REMOVED_STORAGE_KEY)) {
+    return;
+  }
+
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+    if (parsed && typeof parsed === "object") {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(removeNonAdminPermissionsFromMap(parsed)),
+      );
+    }
+  } catch (error) {
+    console.error("Failed to migrate non-admin menu permissions", error);
+  } finally {
+    localStorage.setItem(
+      NON_ADMIN_DEFAULT_PERMISSIONS_REMOVED_STORAGE_KEY,
+      "true",
+    );
+  }
+};
+
 export const getStoredRolePermissions = () => {
   if (typeof window === "undefined") return {};
 
   try {
     migrateStoredOverviewDefaultPermission();
     migrateStoredDailyWorkReportsDefaultPermission();
+    migrateStoredNonAdminDefaultPermissions();
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
     return normalizeRolePermissionMap(parsed);
   } catch (error) {

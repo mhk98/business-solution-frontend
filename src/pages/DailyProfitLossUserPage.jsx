@@ -37,6 +37,8 @@ const REPORT_FIELDS = [
   { key: "failedReceived", label: "Failed থেকে আসছে" },
   { key: "pendingGiven", label: "Pending দেওয়া হয়েছে" },
   { key: "pendingReceived", label: "Pending থেকে আসছে" },
+  { key: "notResponseGiven", label: "Not Response দেওয়া হয়েছে" },
+  { key: "notResponseReceived", label: "Not Response থেকে আসছে" },
   { key: "pendingReturnReceived", label: "Pending Return থেকে আসছে" },
   { key: "leadGiven", label: "Lead দেওয়া হয়েছে" },
   { key: "leadReceived", label: "Lead থেকে আসছে" },
@@ -54,9 +56,41 @@ const REPORT_FIELDS = [
   { key: "totalAmount", label: "Total Amount", step: "0.01" },
 ];
 
+const REPORT_FIELD_MAP = new Map(
+  REPORT_FIELDS.map((field) => [field.key, field]),
+);
+const getReportFields = (keys) =>
+  keys.map((key) => REPORT_FIELD_MAP.get(key)).filter(Boolean);
+const GIVEN_REPORT_FIELDS = getReportFields([
+  "failedGiven",
+  "pendingGiven",
+  "leadGiven",
+  "ideskGiven",
+  "callDone",
+  "whatsappDone",
+  "notResponseGiven",
+  "totalAssign",
+  "totalAmount",
+]);
+const RECEIVED_REPORT_FIELDS = getReportFields([
+  "failedReceived",
+  "pendingReceived",
+  "leadReceived",
+  "ideskReceived",
+  "callReceived",
+  "whatsappReceived",
+  "pendingReturnReceived",
+  "crossReceived",
+  "canceledReceived",
+  "holdReceived",
+  "notResponseReceived",
+  "totalOrder",
+]);
+
 const TOTAL_ASSIGN_SOURCE_FIELDS = [
   "failedGiven",
   "pendingGiven",
+  "notResponseGiven",
   "leadGiven",
   "ideskGiven",
   "callDone",
@@ -65,6 +99,7 @@ const TOTAL_ASSIGN_SOURCE_FIELDS = [
 const TOTAL_ORDER_SOURCE_FIELDS = [
   "failedReceived",
   "pendingReceived",
+  "notResponseReceived",
   "pendingReturnReceived",
   "leadReceived",
   "crossReceived",
@@ -1322,34 +1357,45 @@ const DailyProfitLossUserPage = () => {
                   ))}
                 </select>
               </label>
-              <div className="grid max-h-[50vh] gap-3 overflow-y-auto sm:grid-cols-2">
-                {REPORT_FIELDS.map((field) => (
-                  <label key={field.key} className="block">
-                    <div className="mb-2 text-sm font-semibold text-slate-700">
-                      {field.label}
+              <div className="grid max-h-[50vh] items-start gap-3 overflow-y-auto sm:grid-cols-2">
+                {[GIVEN_REPORT_FIELDS, RECEIVED_REPORT_FIELDS].map(
+                  (fields, columnIndex) => (
+                    <div
+                      key={columnIndex === 0 ? "given" : "received"}
+                      className="space-y-3"
+                    >
+                      {fields.map((field) => (
+                        <label key={field.key} className="block">
+                          <div className="mb-2 text-sm font-semibold text-slate-700">
+                            {field.label}
+                          </div>
+                          <input
+                            type="number"
+                            min="0"
+                            step={field.step || "1"}
+                            value={editForm[field.key]}
+                            onChange={(e) =>
+                              setEditForm((prev) => {
+                                const next = {
+                                  ...prev,
+                                  [field.key]: e.target.value,
+                                };
+                                if (
+                                  !AUTO_TOTAL_SOURCE_FIELDS.includes(field.key)
+                                ) {
+                                  return next;
+                                }
+                                return withAutoReportTotals(next);
+                              })
+                            }
+                            readOnly={AUTO_TOTAL_FIELDS.includes(field.key)}
+                            className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
+                          />
+                        </label>
+                      ))}
                     </div>
-                    <input
-                      type="number"
-                      min="0"
-                      step={field.step || "1"}
-                      value={editForm[field.key]}
-                      onChange={(e) =>
-                        setEditForm((prev) => {
-                          const next = {
-                            ...prev,
-                            [field.key]: e.target.value,
-                          };
-                          if (!AUTO_TOTAL_SOURCE_FIELDS.includes(field.key)) {
-                            return next;
-                          }
-                          return withAutoReportTotals(next);
-                        })
-                      }
-                      readOnly={AUTO_TOTAL_FIELDS.includes(field.key)}
-                      className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
-                    />
-                  </label>
-                ))}
+                  ),
+                )}
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button

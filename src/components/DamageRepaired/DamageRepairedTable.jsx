@@ -13,7 +13,7 @@ import { useGetAllSupplierWithoutQueryQuery } from "../../features/supplier/supp
 import { useGetAllWirehouseWithoutQueryQuery } from "../../features/wirehouse/wirehouse";
 import Modal from "../common/Modal";
 // import { useGetAllDamageStockWithoutQueryQuery } from "../../features/damageStock/damageStock";
-import { useGetAllDamageRepairingStockWithoutQueryQuery } from "../../features/damageRepairingStock/damageRepairingStock";
+import { useGetAllDamageRepairingStockRawWithoutQueryQuery } from "../../features/damageRepairingStock/damageRepairingStock";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 
 const initialCreateForm = {
@@ -110,6 +110,26 @@ const getStockVariantOptions = (stockRecord, key) => {
         .filter(Boolean),
     ),
   ].map((value) => ({ value, label: value }));
+};
+
+const getVariantOptionsFromRows = (rows, key) => [
+  ...new Set(
+    normalizeVariantRows(rows)
+      .map((variant) => String(variant?.[key] || "").trim())
+      .filter(Boolean),
+  ),
+].map((value) => ({ value, label: value }));
+
+const mergeSelectOptions = (...optionGroups) => {
+  const optionsByValue = new Map();
+
+  optionGroups.flat().forEach((option) => {
+    const value = String(option?.value || "").trim();
+    if (!value || optionsByValue.has(value)) return;
+    optionsByValue.set(value, { value, label: option?.label || value });
+  });
+
+  return [...optionsByValue.values()];
 };
 
 const getStockVariantColorsForSize = (stockRecord, size) => {
@@ -320,7 +340,7 @@ const DamageRepairedTable = () => {
     isLoading: receivedLoading,
     isError: receivedError,
     error: receivedErrObj,
-  } = useGetAllDamageRepairingStockWithoutQueryQuery();
+  } = useGetAllDamageRepairingStockRawWithoutQueryQuery();
 
   const receivedData = receivedRes?.data || [];
 
@@ -368,11 +388,17 @@ const DamageRepairedTable = () => {
     [createColorOptions.length, createSizeOptions.length],
   );
   const editSizeOptions = useMemo(() => {
-    return getStockVariantOptions(selectedEditDamageStock, "size");
-  }, [selectedEditDamageStock]);
+    return mergeSelectOptions(
+      getStockVariantOptions(selectedEditDamageStock, "size"),
+      getVariantOptionsFromRows(currentItem?.variantRows, "size"),
+    );
+  }, [selectedEditDamageStock, currentItem?.variantRows]);
   const editColorOptions = useMemo(() => {
-    return getStockVariantOptions(selectedEditDamageStock, "color");
-  }, [selectedEditDamageStock]);
+    return mergeSelectOptions(
+      getStockVariantOptions(selectedEditDamageStock, "color"),
+      getVariantOptionsFromRows(currentItem?.variantRows, "color"),
+    );
+  }, [selectedEditDamageStock, currentItem?.variantRows]);
   const shouldShowEditVariantOptions = useMemo(
     () =>
       hasConfiguredVariants(currentItem?.variantRows) ||
@@ -1776,8 +1802,11 @@ const DamageRepairedTable = () => {
                         row.size,
                       )
                     : [];
+                  const currentRowColorOptions = row.size
+                    ? getVariantOptionsFromRows([row], "color")
+                    : [];
                   const colorOptions = row.size
-                    ? stockColorOptions
+                    ? mergeSelectOptions(stockColorOptions, currentRowColorOptions)
                     : editColorOptions;
                   const stockQuantity = getStockVariantQuantity(
                     selectedEditDamageStock,
@@ -1800,7 +1829,10 @@ const DamageRepairedTable = () => {
                           value={
                             editSizeOptions.find(
                               (option) => option.value === row.size,
-                            ) || null
+                            ) ||
+                            (row.size
+                              ? { value: row.size, label: row.size }
+                              : null)
                           }
                           onChange={(selected) =>
                             updateVariantRow(
@@ -1830,7 +1862,10 @@ const DamageRepairedTable = () => {
                           value={
                             colorOptions.find(
                               (option) => option.value === row.color,
-                            ) || null
+                            ) ||
+                            (row.color
+                              ? { value: row.color, label: row.color }
+                              : null)
                           }
                           onChange={(selected) =>
                             updateVariantRow(

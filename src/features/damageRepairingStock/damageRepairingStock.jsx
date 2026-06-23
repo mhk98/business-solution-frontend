@@ -64,6 +64,12 @@ export const damageRepairingStockApi = baseApi.injectEndpoints({
       providesTags: [{ type: "DamageRepairingStock", id: "LIST" }],
       refetchOnMountOrArgChange: true,
     }),
+
+    getAllDamageRepairingStockRawWithoutQuery: build.query({
+      query: () => ({ url: "/damage-repairing-stock/all-raw" }),
+      providesTags: [{ type: "DamageRepairingStock", id: "LIST" }],
+      refetchOnMountOrArgChange: true,
+    }),
   }),
 });
 
@@ -73,4 +79,5 @@ export const {
   useDeleteDamageRepairingStockMutation,
   useUpdateDamageRepairingStockMutation,
   useGetAllDamageRepairingStockWithoutQueryQuery,
+  useGetAllDamageRepairingStockRawWithoutQueryQuery,
 } = damageRepairingStockApi;

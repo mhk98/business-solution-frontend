@@ -29,6 +29,7 @@ const thirtyDaysAgo = new Date(Date.now() - 29 * 24 * 60 * 60 * 1000)
 
 const REPORT_FIELDS = [
   { key: "pending", label: "Pending" },
+  { key: "completedPendingAssign", label: "Completed Pending assign" },
   { key: "cancelRequest", label: "Cancel Request" },
   { key: "cancelApprove", label: "Cancel Approve" },
   { key: "cancelResend", label: "Cancel Resend" },
@@ -43,8 +44,7 @@ const REPORT_FIELDS = [
   },
   { key: "holdParcelReceived", label: "Hold parcel received" },
   { key: "csProblemSolve", label: "CS Problem solve" },
-  { key: "pendingAssign", label: "Pending Assign" },
-  { key: "completedPendingAssign", label: "Completed Pending assign" },
+  // { key: "pendingAssign", label: "Pending Assign" },
 ];
 
 const EMPTY_FORM = REPORT_FIELDS.reduce(
@@ -126,18 +126,15 @@ const LogisticWorkReportManager = () => {
   const [deleteReport, { isLoading: deleting }] =
     useDeleteLogisticWorkReportMutation();
 
-  const reportNameOptions = useMemo(
-    () => {
-      const optionRes = canManageReports
-        ? allReportNameOptionsRes
-        : myReportNameOptionsRes;
+  const reportNameOptions = useMemo(() => {
+    const optionRes = canManageReports
+      ? allReportNameOptionsRes
+      : myReportNameOptionsRes;
 
-      return Array.from(
-        new Set((optionRes?.data || []).map((row) => row?.name).filter(Boolean)),
-      ).map((name) => ({ value: name, label: name }));
-    },
-    [allReportNameOptionsRes, canManageReports, myReportNameOptionsRes],
-  );
+    return Array.from(
+      new Set((optionRes?.data || []).map((row) => row?.name).filter(Boolean)),
+    ).map((name) => ({ value: name, label: name }));
+  }, [allReportNameOptionsRes, canManageReports, myReportNameOptionsRes]);
 
   const currentReport = currentReportRes?.data?.[0];
   const reportRes = canManageReports ? allReportsRes : myReportsRes;

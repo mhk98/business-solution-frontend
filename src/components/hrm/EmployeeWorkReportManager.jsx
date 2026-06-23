@@ -64,6 +64,8 @@ const REPORT_FIELDS = [
   { key: "crossReceived", label: "Cross থেকে আসছে" },
   { key: "canceledReceived", label: "Canceled থেকে আসছে" },
   { key: "holdReceived", label: "Hold থেকে আসছে" },
+  { key: "notResponseGiven", label: "Not Response দেওয়া হয়েছে" },
+  { key: "notResponseReceived", label: "Not Response থেকে আসছে" },
   { key: "totalAssign", label: "Total Assign" },
   { key: "totalOrder", label: "Total Order" },
   { key: "totalAmount", label: "Total Amount", step: "0.01" },
@@ -82,7 +84,6 @@ const TOTAL_ORDER_SOURCE_FIELDS = [
   "pendingReceived",
   "pendingReturnReceived",
   "leadReceived",
-  "crossReceived",
   "canceledReceived",
   "holdReceived",
   "ideskReceived",
@@ -760,6 +761,9 @@ const EmployeeWorkReportManager = () => {
                               >
                                 <Edit3 size={15} />
                               </button>
+                              {/* 
+                             Delete button is commented out for now 
+                             
                               <button
                                 type="button"
                                 onClick={() => handleDelete(row)}
@@ -769,6 +773,7 @@ const EmployeeWorkReportManager = () => {
                               >
                                 <Trash2 size={15} />
                               </button>
+                             */}
                             </div>
                           ) : (
                             <div className="text-right text-xs font-semibold text-slate-400">
