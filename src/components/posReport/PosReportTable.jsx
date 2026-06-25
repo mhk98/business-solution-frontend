@@ -1010,6 +1010,7 @@ const getReportItems = (report) => {
     );
 
     return {
+      ...item,
       Id: item?.Id ?? item?.id ?? item?.productId ?? item?.product?.Id ?? index,
       name:
         item?.name ??
@@ -1026,6 +1027,18 @@ const getReportItems = (report) => {
         qty * price,
     };
   });
+};
+
+const getItemDisplayName = (item, index) =>
+  item?.name || item?.productName || item?.ProductName || `Item ${index + 1}`;
+
+const summarizeReportItems = (report) => {
+  const items = getReportItems(report);
+  if (!items.length) return "-";
+
+  const [first, ...rest] = items;
+  const suffix = rest.length ? ` +${rest.length} more` : "";
+  return `${getItemDisplayName(first, 0)}${suffix}`;
 };
 
 const PosReportTable = () => {
@@ -1224,14 +1237,15 @@ const PosReportTable = () => {
       .filter(Boolean);
   }, [selectedIds, reportsAll, reports]);
 
+  const getFullReport = (report) =>
+    (reportsAll || []).find((item) => String(item?.Id) === String(report?.Id)) ||
+    report;
+
   // ----------------------------
   // Invoice Modal (single)
   // ----------------------------
   const openInvoice = (report) => {
-    const fullReport =
-      (reportsAll || []).find(
-        (item) => String(item?.Id) === String(report?.Id),
-      ) || report;
+    const fullReport = getFullReport(report);
 
     setInvoiceReport({ ...fullReport, items: getReportItems(fullReport) });
     setIsInvoiceOpen(true);
@@ -1416,21 +1430,22 @@ const PosReportTable = () => {
   // Edit Modal
   // ----------------------------
   const openEdit = (report) => {
+    const fullReport = getFullReport(report);
     const normalized = {
-      ...report,
-      date: report?.date ? String(report.date).slice(0, 10) : "",
-      name: report?.name || "",
-      mobile: report?.mobile || "",
-      address: report?.address || "",
-      note: report?.note || "",
-      subTotal: safeNum(report?.subTotal),
-      discount: safeNum(report?.discount),
-      deliveryCharge: safeNum(report?.deliveryCharge),
-      total: safeNum(report?.total),
-      paidAmount: safeNum(report?.paidAmount),
-      dueAmount: safeNum(report?.dueAmount),
-      status: report?.status || "---",
-      items: getReportItems(report),
+      ...fullReport,
+      date: fullReport?.date ? String(fullReport.date).slice(0, 10) : "",
+      name: fullReport?.name || "",
+      mobile: fullReport?.mobile || "",
+      address: fullReport?.address || "",
+      note: fullReport?.note || "",
+      subTotal: safeNum(fullReport?.subTotal),
+      discount: safeNum(fullReport?.discount),
+      deliveryCharge: safeNum(fullReport?.deliveryCharge),
+      total: safeNum(fullReport?.total),
+      paidAmount: safeNum(fullReport?.paidAmount),
+      dueAmount: safeNum(fullReport?.dueAmount),
+      status: fullReport?.status || "---",
+      items: getReportItems(fullReport),
       userId,
     };
 
@@ -1467,6 +1482,58 @@ const PosReportTable = () => {
       dueAmount: nextDueAmount,
       paidAmount: Math.max(0, safeTotal - nextDueAmount),
     });
+  };
+
+  const recalculateEditTotals = (updates) => {
+    const nextReport = { ...currentReport, ...updates };
+    const itemsTotal = (nextReport.items || []).reduce(
+      (sum, item) => sum + safeNum(item?.qty) * safeNum(item?.price),
+      0,
+    );
+    const subTotal = (nextReport.items || []).length
+      ? itemsTotal
+      : safeNum(nextReport.subTotal);
+    const total = Math.max(
+      0,
+      subTotal -
+        safeNum(nextReport.discount) +
+        safeNum(nextReport.deliveryCharge),
+    );
+    const paidAmount = Math.min(safeNum(nextReport.paidAmount), total);
+
+    return {
+      ...nextReport,
+      subTotal,
+      total,
+      paidAmount,
+      dueAmount: Math.max(0, total - paidAmount),
+    };
+  };
+
+  const updateEditItem = (index, field, value) => {
+    if (!currentReport) return;
+
+    const items = (currentReport.items || []).map((item, itemIndex) => {
+      if (itemIndex !== index) return item;
+
+      const nextItem = {
+        ...item,
+        [field]: field === "name" ? value : safeNum(value),
+      };
+
+      if (field === "qty" || field === "price") {
+        nextItem.total = safeNum(nextItem.qty) * safeNum(nextItem.price);
+      }
+
+      return nextItem;
+    });
+
+    setCurrentReport(recalculateEditTotals({ items }));
+  };
+
+  const handleEditAmountFieldChange = (field, value) => {
+    if (!currentReport) return;
+    setCurrentReport(recalculateEditTotals({ [field]: value }));
   };
 
   const handleUpdate = async () => {
@@ -1673,6 +1740,7 @@ const PosReportTable = () => {
               {[
                 "Date",
                 "Customer",
+                "Product",
                 "Mobile",
                 "Total",
                 "Paid",
@@ -1715,6 +1783,9 @@ const PosReportTable = () => {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-900">
                   {r.name || "-"}
+                </td>
+                <td className="px-6 py-4 min-w-[220px] text-sm text-slate-700">
+                  {summarizeReportItems(getFullReport(r))}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                   {r.mobile || "-"}
@@ -1767,7 +1838,7 @@ const PosReportTable = () => {
             {!isLoading && (reports || []).length === 0 && (
               <tr>
                 <td
-                  colSpan={9}
+                  colSpan={10}
                   className="px-6 py-10 text-center text-sm text-slate-500"
                 >
                   No POS reports found
@@ -1872,7 +1943,7 @@ const PosReportTable = () => {
                 type="number"
                 value={currentReport.discount}
                 onChange={(v) =>
-                  setCurrentReport({ ...currentReport, discount: v })
+                  handleEditAmountFieldChange("discount", v)
                 }
               />
 
@@ -1881,7 +1952,7 @@ const PosReportTable = () => {
                 type="number"
                 value={currentReport.deliveryCharge}
                 onChange={(v) =>
-                  setCurrentReport({ ...currentReport, deliveryCharge: v })
+                  handleEditAmountFieldChange("deliveryCharge", v)
                 }
               />
 
@@ -1889,9 +1960,7 @@ const PosReportTable = () => {
                 label="Total"
                 type="number"
                 value={currentReport.total}
-                onChange={(v) =>
-                  setCurrentReport({ ...currentReport, total: v })
-                }
+                readOnly
               />
 
               <Field
@@ -1943,6 +2012,84 @@ const PosReportTable = () => {
                   </select>
                 </div>
               )}
+            </div>
+
+            <div className="mt-6">
+              <h3 className="text-sm font-semibold text-slate-900">
+                Product Details
+              </h3>
+              <div className="mt-2 overflow-x-auto rounded-xl border border-slate-200">
+                <table className="min-w-full divide-y divide-slate-200 text-sm">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-600">
+                        Product
+                      </th>
+                      <th className="px-3 py-2 text-right font-semibold text-slate-600">
+                        Qty
+                      </th>
+                      <th className="px-3 py-2 text-right font-semibold text-slate-600">
+                        Price
+                      </th>
+                      <th className="px-3 py-2 text-right font-semibold text-slate-600">
+                        Total
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 bg-white">
+                    {(currentReport.items || []).map((item, index) => (
+                      <tr key={`${item?.Id || "item"}-${index}`}>
+                        <td className="px-3 py-2 min-w-[240px]">
+                          <input
+                            type="text"
+                            value={getItemDisplayName(item, index)}
+                            onChange={(e) =>
+                              updateEditItem(index, "name", e.target.value)
+                            }
+                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-900 outline-none focus:border-indigo-200 focus:ring-2 focus:ring-indigo-500/20"
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            type="number"
+                            min="0"
+                            value={item?.qty ?? 0}
+                            onChange={(e) =>
+                              updateEditItem(index, "qty", e.target.value)
+                            }
+                            className="w-24 rounded-lg border border-slate-200 bg-white px-3 py-2 text-right text-slate-900 outline-none focus:border-indigo-200 focus:ring-2 focus:ring-indigo-500/20"
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            type="number"
+                            min="0"
+                            value={item?.price ?? 0}
+                            onChange={(e) =>
+                              updateEditItem(index, "price", e.target.value)
+                            }
+                            className="w-28 rounded-lg border border-slate-200 bg-white px-3 py-2 text-right text-slate-900 outline-none focus:border-indigo-200 focus:ring-2 focus:ring-indigo-500/20"
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-right font-semibold text-slate-900">
+                          {safeNum(item?.total).toFixed(0)}
+                        </td>
+                      </tr>
+                    ))}
+
+                    {(currentReport.items || []).length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={4}
+                          className="px-3 py-6 text-center text-slate-500"
+                        >
+                          No product details
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             <div className="flex flex-col-reverse gap-2 border-t border-slate-200 mt-6 pt-4 sm:flex-row sm:justify-end">
