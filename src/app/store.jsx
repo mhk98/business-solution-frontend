@@ -141,6 +141,7 @@ import { damageStockApi } from "../features/damageStock/damageStock";
 import { supplierHistoryApi } from "../features/supplierHistory/supplierHistory";
 import { manufactureApi } from "../features/manufacture/manufacture";
 import { itemApi } from "../features/item/item";
+import { itemRequisitionApi } from "../features/itemRequisition/itemRequisition";
 import { mixerApi } from "../features/mixer/mixer";
 import { itemMasterApi } from "../features/manufactureStock/manufactureStock";
 import { damageRepairingStockApi } from "../features/damageRepairingStock/damageRepairingStock";
@@ -199,6 +200,7 @@ const apis = [
   marketingExpenseApi,
   profitLossApi,
   itemApi,
+  itemRequisitionApi,
   supplierApi,
   loanApi,
   supplierHistoryApi,

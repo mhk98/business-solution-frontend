@@ -137,6 +137,22 @@ const ManufactureStockTable = () => {
     }),
   };
 
+  const getVariantLabel = (variant) =>
+    [variant?.size, variant?.color].filter(Boolean).join(" / ");
+
+  const getUnitCost = (row) => {
+    const cost = Number(row?.cost || 0);
+    const unitValue = Number(row?.unitValue || 0);
+    if (!cost || !unitValue) return 0;
+    return cost / unitValue;
+  };
+
+  const formatMoney = (value) =>
+    Number(value || 0).toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
   return (
     <motion.div
       className="bg-white/90 backdrop-blur-md shadow-sm rounded-3xl p-4 sm:p-8 border border-slate-100 mb-8"
@@ -235,9 +251,9 @@ const ManufactureStockTable = () => {
                 <th className="px-6 py-5 text-center text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
                   {t.in_hand_qty || "In Hand Value"}
                 </th>
-                {/* <th className="px-6 py-5 text-center text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
+                <th className="px-6 py-5 text-center text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
                   {t.unit_cost || "Unit Cost"}
-                </th> */}
+                </th>
               </tr>
             </thead>
 
@@ -266,17 +282,22 @@ const ManufactureStockTable = () => {
                       {/* {resolveProductName(rp)} */}
                       {rp.name || "N/A"}
                     </div>
+                    {getVariantLabel(rp.variant) ? (
+                      <div className="mt-1 inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-600">
+                        {getVariantLabel(rp.variant)}
+                      </div>
+                    ) : null}
                   </td>
                   <td className="px-6 py-5 whitespace-nowrap text-center">
                     <span className="inline-flex items-center px-4 py-1.5 rounded-2xl text-xs font-black bg-indigo-50 text-indigo-700 border border-indigo-100 shadow-sm shadow-indigo-50 tabular-nums">
                       {Number(rp.unitValue || 0)} {rp.unit || "Pcs"}
                     </span>
                   </td>
-                  {/* <td className="px-6 py-5 whitespace-nowrap text-center">
-                    <span className="inline-flex items-center px-4 py-1.5 rounded-2xl text-xs font-black bg-indigo-50 text-indigo-700 border border-indigo-100 shadow-sm shadow-indigo-50 tabular-nums">
-                      {Number(rp.unitCost || 0).toLocaleString()}
+                  <td className="px-6 py-5 whitespace-nowrap text-center">
+                    <span className="inline-flex items-center px-4 py-1.5 rounded-2xl text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-100 shadow-sm shadow-emerald-50 tabular-nums">
+                      {formatMoney(getUnitCost(rp))}
                     </span>
-                  </td> */}
+                  </td>
                 </motion.tr>
               ))}
             </tbody>

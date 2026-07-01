@@ -45,29 +45,36 @@ const normalizeManufactureItems = (response) => {
 
   const list = Array.isArray(baseData) ? baseData : baseData ? [baseData] : [];
 
-  return list.map((item, index) => ({
-    id: String(
-      item?.Id ??
-        item?.id ??
-        item?.manufactureId ??
-        item?.manufactureItemId ??
-        item?.itemId ??
-        index,
-    ),
-    label:
+  return list.map((item, index) => {
+    const baseLabel =
       item?.name ||
       item?.itemName ||
       item?.item?.name ||
       item?.product?.name ||
-      `Manufacture Item ${index + 1}`,
-    unitValue:
+      `Manufacture Item ${index + 1}`;
+    const variantLabel = [item?.variant?.size, item?.variant?.color]
+      .filter(Boolean)
+      .join(" / ");
+
+    return {
+      id: String(
+        item?.Id ??
+          item?.id ??
+          item?.manufactureId ??
+          item?.manufactureItemId ??
+          item?.itemId ??
+          index,
+      ),
+      label: variantLabel ? `${baseLabel} - ${variantLabel}` : baseLabel,
+      unitValue:
       item?.unitValue ??
       item?.quantity ??
       item?.item?.unitValue ??
       item?.product?.unitValue ??
       "",
-    unit: item?.unit ?? item?.item?.unit ?? item?.product?.unit ?? "Pcs",
-  }));
+      unit: item?.unit ?? item?.item?.unit ?? item?.product?.unit ?? "Pcs",
+    };
+  });
 };
 
 const formatManufactureItemUnit = (item) => {

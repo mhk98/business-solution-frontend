@@ -71,6 +71,9 @@ const getVariationAttributeValues = (product, key) => {
   ];
 };
 
+const getProductDeleteRestriction = (product) =>
+  Boolean(product?.isDeleteRestricted || product?.stockId);
+
 const ProductsTable = () => {
   const role = localStorage.getItem("role");
   const { language } = useLayout();
@@ -245,10 +248,15 @@ const ProductsTable = () => {
   };
 
   const [deleteProduct] = useDeleteProductMutation();
-  const handleDeleteProduct = async (id) => {
+  const handleDeleteProduct = async (product) => {
+    if (getProductDeleteRestriction(product)) {
+      toast.error("This product cannot be deleted because it exists in inventory/stock");
+      return;
+    }
+
     if (await requestDeleteConfirmation({ message: "Do you want to delete this product?" })) {
       try {
-        const res = await deleteProduct(id).unwrap();
+        const res = await deleteProduct(product.Id).unwrap();
         if (res?.success !== false) {
           toast.success("Product deleted successfully!");
           refetch();
@@ -385,6 +393,8 @@ const ProductsTable = () => {
               {products.map((product) => {
                 const sizes = getVariationAttributeValues(product, "size");
                 const colors = getVariationAttributeValues(product, "color");
+                const isDeleteRestricted =
+                  getProductDeleteRestriction(product);
 
                 return (
                   <motion.tr
@@ -448,12 +458,28 @@ const ProductsTable = () => {
                           </button>
 
                           <button
-                            onClick={() => handleDeleteProduct(product.Id)}
-                            className="h-9 w-9 flex items-center justify-center rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition shadow-sm active:scale-90"
-                            title={t.delete}
+                            onClick={() => handleDeleteProduct(product)}
+                            disabled={isDeleteRestricted}
+                            className={`h-9 w-9 flex items-center justify-center rounded-xl bg-white border border-slate-200 text-slate-400 transition shadow-sm ${
+                              isDeleteRestricted
+                                ? "cursor-not-allowed opacity-50"
+                                : "hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 active:scale-90"
+                            }`}
+                            title={
+                              isDeleteRestricted
+                                ? "Product exists in inventory/stock"
+                                : t.delete
+                            }
                             type="button"
                           >
-                            <Trash2 className="text-red-600" size={16} />
+                            <Trash2
+                              className={
+                                isDeleteRestricted
+                                  ? "text-slate-400"
+                                  : "text-red-600"
+                              }
+                              size={16}
+                            />
                           </button>
                         </div>
                       )}

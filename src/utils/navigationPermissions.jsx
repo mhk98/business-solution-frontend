@@ -49,6 +49,7 @@ export const ROLE_OPTIONS = [
   { value: "leader", label: "Leader" },
   { value: "inventor", label: "Inventor" },
   { value: "accountant", label: "Accountant" },
+  { value: "hr", label: "HR" },
   { value: "logistics", label: "Logistics" },
   { value: "up", label: "UP" },
   { value: "cs", label: "CS" },
@@ -74,6 +75,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "profit_loss_user",
     "manufacture",
     "item",
+    "item_requisition",
     "manufacture_stock",
     "manufacture_menu",
     "stock_adjustment",
@@ -156,6 +158,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "profit_loss_user",
     "manufacture",
     "manufacture_menu",
+    "item_requisition",
     "manufacture_stock",
     "stock_adjustment",
     "mixer",
@@ -252,6 +255,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "mixer",
     "product",
     "item",
+    "item_requisition",
     "purchase_requisition",
     "received_product",
     "received_return",
@@ -316,12 +320,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "tasks",
     "profile",
   ],
-  logistics: [
-    "logistic_work_reports",
-    "notifications",
-    "tasks",
-    "profile",
-  ],
+  logistics: ["logistic_work_reports", "notifications", "tasks", "profile"],
   up: ["notifications", "tasks", "profile"],
   cs: ["cs_work_reports", "notifications", "tasks", "profile"],
   staff: ["notifications", "tasks", "profile"],
@@ -464,6 +463,13 @@ export const SIDEBAR_ITEMS = [
         roles: ["superAdmin", "admin"],
       },
       {
+        name: "Item Requisition",
+        key: "item_requisition",
+        icon: ClipboardList,
+        href: "/item-requisition",
+        roles: ["superAdmin", "admin", "inventor"],
+      },
+      {
         name: "Manufacture Stock",
         key: "manufacture_stock",
         icon: Boxes,
@@ -543,13 +549,13 @@ export const SIDEBAR_ITEMS = [
         href: "/products",
         roles: ["superAdmin", "admin"],
       },
-      {
-        name: "Purchase Requisition",
-        key: "purchase_requisition",
-        icon: ClipboardList,
-        href: "/purchase-requisition",
-        roles: ["superAdmin", "admin", "inventor"],
-      },
+      // {
+      //   name: "Purchase Requisition",
+      //   key: "purchase_requisition",
+      //   icon: ClipboardList,
+      //   href: "/purchase-requisition",
+      //   roles: ["superAdmin", "admin", "inventor"],
+      // },
       {
         name: "Purchase Product",
         key: "received_product",
@@ -664,11 +670,18 @@ export const SIDEBAR_ITEMS = [
         matchPaths: ["/supplier-history"],
         roles: ["superAdmin", "admin"],
       },
+      // {
+      //   name: "Purchase Requisition",
+      //   key: "purchase_requisition",
+      //   icon: ClipboardList,
+      //   href: "/purchase-requisition",
+      //   roles: ["superAdmin", "admin", "inventor"],
+      // },
       {
-        name: "Purchase Requisition",
-        key: "purchase_requisition",
+        name: "Item Requisition",
+        key: "item_requisition",
         icon: ClipboardList,
-        href: "/purchase-requisition",
+        href: "/item-requisition",
         roles: ["superAdmin", "admin", "inventor"],
       },
       {
@@ -1038,7 +1051,8 @@ export const SIDEBAR_ITEMS = [
 ];
 
 const STORAGE_KEY = "roleMenuPermissions";
-const OVERVIEW_DEFAULT_REMOVED_STORAGE_KEY = "overview-default-permission-removed";
+const OVERVIEW_DEFAULT_REMOVED_STORAGE_KEY =
+  "overview-default-permission-removed";
 const DAILY_WORK_REPORTS_DEFAULT_REMOVED_STORAGE_KEY =
   "daily-work-reports-default-permission-removed";
 const NON_ADMIN_DEFAULT_PERMISSIONS_REMOVED_STORAGE_KEY =
@@ -1216,20 +1230,20 @@ const removeOverviewPermissionFromMap = (permissionMap = {}) =>
 
 const removeDailyWorkReportsPermissionFromMap = (permissionMap = {}) =>
   Object.entries(permissionMap).reduce((acc, [role, keys]) => {
-    acc[role] = ROLES_WITH_LEGACY_DAILY_WORK_REPORTS_DEFAULT.has(role) &&
+    acc[role] =
+      ROLES_WITH_LEGACY_DAILY_WORK_REPORTS_DEFAULT.has(role) &&
       Array.isArray(keys)
-      ? keys.filter(
-          (key) => getCanonicalPermissionKey(key) !== "daily_work_reports",
-        )
-      : keys;
+        ? keys.filter(
+            (key) => getCanonicalPermissionKey(key) !== "daily_work_reports",
+          )
+        : keys;
     return acc;
   }, {});
 
 const removeNonAdminPermissionsFromMap = (permissionMap = {}) =>
   Object.entries(permissionMap).reduce((acc, [role, keys]) => {
-    acc[role] = DEFAULT_PERMISSION_ROLES.has(role) && Array.isArray(keys)
-      ? keys
-      : [];
+    acc[role] =
+      DEFAULT_PERMISSION_ROLES.has(role) && Array.isArray(keys) ? keys : [];
     return acc;
   }, {});
 

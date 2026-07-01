@@ -17,7 +17,7 @@ import Modal from "../common/Modal";
 import { useLayout } from "../../context/LayoutContext";
 import { translations } from "../../utils/translations";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
-import { useGetAllItemWithoutQueryQuery } from "../../features/item/item";
+import { useGetAllItemMasterWithoutQueryQuery } from "../../features/manufactureStock/manufactureStock";
 import {
   useDeleteStockAdjustmentMutation,
   useGetAllStockAdjustmentQuery,
@@ -29,6 +29,8 @@ import { useGetAllSupplierWithoutQueryQuery } from "../../features/supplier/supp
 const initialCreateProduct = {
   itemId: "",
   productId: "",
+  variant: null,
+  variantKey: "",
   supplierId: "",
   unitValue: "",
   note: "",
@@ -118,7 +120,7 @@ const StockAdjustmentTable = () => {
     isLoading: isLoadingAllItems,
     isError: isErrorAllItems,
     error: errorAllItems,
-  } = useGetAllItemWithoutQueryQuery();
+  } = useGetAllItemMasterWithoutQueryQuery();
 
   const itemsData = allItemsRes?.data || [];
 
@@ -131,7 +133,12 @@ const StockAdjustmentTable = () => {
   const itemDropdownOptions = useMemo(() => {
     return (itemsData || []).map((p) => ({
       value: String(p.Id ?? p.id ?? p._id),
-      label: p.name,
+      label: [
+        p.name,
+        [p.variant?.size, p.variant?.color].filter(Boolean).join(" / "),
+        `${Number(p.unitValue || 0)} ${p.unit || "Pcs"}`,
+      ].filter(Boolean).join(" - "),
+      row: p,
     }));
   }, [itemsData]);
 
@@ -200,6 +207,9 @@ const StockAdjustmentTable = () => {
     // productNameMap.get(String(possibleId)) ||
     // `Item #${possibleId}`
   };
+
+  const getVariantLabel = (variant) =>
+    [variant?.size, variant?.color].filter(Boolean).join(" / ");
   const queryArgs = useMemo(() => {
     const args = {
       page: currentPage,
@@ -268,6 +278,8 @@ const StockAdjustmentTable = () => {
       ...rp,
       itemId: rp.itemId ? String(rp.itemId) : "",
       productId: rp.productId ? String(rp.productId) : "",
+      variant: rp.variant || null,
+      variantKey: rp.variantKey || "",
       supplierId: rp.supplierId ? String(rp.supplierId) : "",
       date: rp.date ?? "",
       note: rp.note ?? "",
@@ -286,6 +298,8 @@ const StockAdjustmentTable = () => {
       ...rp,
       itemId: rp.itemId ? String(rp.itemId) : "",
       productId: rp.productId ? String(rp.productId) : "",
+      variant: rp.variant || null,
+      variantKey: rp.variantKey || "",
       supplierId: rp.supplierId ? String(rp.supplierId) : "",
       date: rp.date ?? "",
       note: rp.note ?? "",
@@ -309,6 +323,9 @@ const StockAdjustmentTable = () => {
     try {
       const payload = {
         itemId: Number(createProduct.itemId) || "",
+        productId: Number(createProduct.productId) || "",
+        variant: createProduct.variant || null,
+        variantKey: createProduct.variantKey || "",
         unit: createProduct.unit || "Pcs",
         unitValue: createProduct.hasUnit
           ? Number(createProduct.unitValue) || 0
@@ -347,6 +364,9 @@ const StockAdjustmentTable = () => {
     try {
       const payload = {
         itemId: Number(createProduct.itemId) || "",
+        productId: Number(createProduct.productId) || "",
+        variant: createProduct.variant || null,
+        variantKey: createProduct.variantKey || "",
         unit: createProduct.unit || "Pcs",
         stock: "Out",
         unitValue: createProduct.hasUnit
@@ -379,6 +399,9 @@ const StockAdjustmentTable = () => {
     try {
       const payload = {
         itemId: Number(currentProduct.itemId) || "",
+        productId: Number(currentProduct.productId) || "",
+        variant: currentProduct.variant || null,
+        variantKey: currentProduct.variantKey || "",
         unit: currentProduct.unit || "Pcs",
         unitValue: currentProduct.hasUnit
           ? Number(currentProduct.unitValue) || 0
@@ -419,6 +442,8 @@ const StockAdjustmentTable = () => {
       const payload = {
         itemId: Number(currentProduct.itemId) || "",
         productId: Number(currentProduct.productId) || "",
+        variant: currentProduct.variant || null,
+        variantKey: currentProduct.variantKey || "",
         unit: currentProduct.unit || "Pcs",
         unitValue: currentProduct.hasUnit
           ? Number(currentProduct.unitValue) || 0
@@ -549,6 +574,37 @@ const StockAdjustmentTable = () => {
       })),
     [suppliers],
   );
+
+  const applySelectedStockRow = (target, selected) => {
+    const row = selected?.row || null;
+    const patch = {
+      itemMasterId: selected?.value || "",
+      itemId: row?.itemId ? String(row.itemId) : "",
+      productId: row?.productId ? String(row.productId) : "",
+      variant: row?.variant || null,
+      variantKey: row?.variantKey || "",
+      unit: row?.unit || target?.unit || "Pcs",
+    };
+
+    return {
+      ...target,
+      ...patch,
+    };
+  };
+
+  const findStockOption = (record = {}) =>
+    itemDropdownOptions.find((option) => {
+      const row = option.row || {};
+      if (record.itemMasterId && String(option.value) === String(record.itemMasterId)) {
+        return true;
+      }
+
+      return (
+        String(row.itemId || "") === String(record.itemId || "") &&
+        String(row.productId || "") === String(record.productId || "") &&
+        String(row.variantKey || "") === String(record.variantKey || "")
+      );
+    }) || null;
   return (
     <motion.div
       className="bg-white/90 backdrop-blur-md shadow-[0_4px_20px_rgba(15,23,42,0.04)] rounded-2xl p-4 sm:p-6 border border-slate-200 mb-8"
@@ -730,6 +786,11 @@ const StockAdjustmentTable = () => {
                     <div className="text-sm font-bold text-slate-900">
                       {resolveItemName(rp)}
                     </div>
+                    {getVariantLabel(rp.variant) ? (
+                      <div className="mt-1 text-xs font-semibold text-slate-500">
+                        {getVariantLabel(rp.variant)}
+                      </div>
+                    ) : null}
                   </td>
 
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
@@ -935,16 +996,9 @@ const StockAdjustmentTable = () => {
             </label>
             <Select
               options={itemDropdownOptions}
-              value={
-                itemDropdownOptions.find(
-                  (o) => o.value === String(currentProduct?.itemId),
-                ) || null
-              }
+              value={findStockOption(currentProduct)}
               onChange={(selected) =>
-                setCurrentProduct({
-                  ...currentProduct,
-                  itemId: selected?.value || "",
-                })
+                setCurrentProduct(applySelectedStockRow(currentProduct, selected))
               }
               placeholder={t.search_item || "Search item..."}
               isClearable
@@ -1218,16 +1272,9 @@ const StockAdjustmentTable = () => {
             </label>
             <Select
               options={itemDropdownOptions}
-              value={
-                itemDropdownOptions.find(
-                  (o) => o.value === String(createProduct.itemId),
-                ) || null
-              }
+              value={findStockOption(createProduct)}
               onChange={(selected) =>
-                setCreateProduct({
-                  ...createProduct,
-                  itemId: selected?.value || "",
-                })
+                setCreateProduct(applySelectedStockRow(createProduct, selected))
               }
               placeholder={t.search_product || "Search item..."}
               isClearable
@@ -1435,16 +1482,9 @@ const StockAdjustmentTable = () => {
             </label>
             <Select
               options={itemDropdownOptions}
-              value={
-                itemDropdownOptions.find(
-                  (o) => o.value === String(createProduct.itemId),
-                ) || null
-              }
+              value={findStockOption(createProduct)}
               onChange={(selected) =>
-                setCreateProduct({
-                  ...createProduct,
-                  itemId: selected?.value || "",
-                })
+                setCreateProduct(applySelectedStockRow(createProduct, selected))
               }
               placeholder={t.search_product || "Search item..."}
               isClearable

@@ -51,6 +51,7 @@ const RolePermissionsPage = lazy(() => import("./pages/RolePermissionsPage"));
 const DamageRepairPage = lazy(() => import("./pages/DamageRepairPage"));
 const DamageRepairedPage = lazy(() => import("./pages/DamageRepairedPage"));
 const PurchaseRequisitionPage = lazy(() => import("./pages/purchaseRequisitionPage"));
+const ItemRequisitionPage = lazy(() => import("./pages/ItemRequisitionPage"));
 const AssetsRequisitionPage = lazy(() => import("./pages/AssetsRequisitionPage"));
 const ExpiredProductPage = lazy(() => import("./pages/ExpiredProductPage"));
 const PosReportPage = lazy(() => import("./pages/PosReportPage"));
@@ -161,6 +162,7 @@ function App() {
                 <Route path="/pos-report" element={<AuthedRoute><PosReportPage /></AuthedRoute>} />
                 <Route path="/inventory-overview" element={<AuthedRoute><InventoryDashboardPage /></AuthedRoute>} />
                 <Route path="/item" element={<AuthedRoute><ItemsPage /></AuthedRoute>} />
+                <Route path="/item-requisition" element={<AuthedRoute><ItemRequisitionPage /></AuthedRoute>} />
                 <Route path="/manufacture-stock" element={<AuthedRoute><ManufactureStockPage /></AuthedRoute>} />
                 <Route path="/manufacture" element={<AuthedRoute><ManufacturePage /></AuthedRoute>} />
                 <Route path="/stock-adjustment" element={<AuthedRoute><StockAdjustmentPage /></AuthedRoute>} />

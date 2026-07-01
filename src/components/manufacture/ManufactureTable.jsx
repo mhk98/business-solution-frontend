@@ -30,6 +30,8 @@ import { useGetAllSupplierWithoutQueryQuery } from "../../features/supplier/supp
 const initialCreateProduct = {
   itemId: "",
   productId: "",
+  variant: null,
+  variantKey: "",
   supplierId: "",
   unitValue: "",
   cost: "",
@@ -264,6 +266,8 @@ const ManufactureTable = () => {
       ...rp,
       itemId: rp.itemId ? String(rp.itemId) : "",
       productId: rp.productId ? String(rp.productId) : "",
+      variant: rp.variant || null,
+      variantKey: rp.variantKey || "",
       supplierId: rp.supplierId ? String(rp.supplierId) : "",
       date: rp.date ?? "",
       note: rp.note ?? "",
@@ -282,6 +286,8 @@ const ManufactureTable = () => {
       ...rp,
       itemId: rp.itemId ? String(rp.itemId) : "",
       productId: rp.productId ? String(rp.productId) : "",
+      variant: rp.variant || null,
+      variantKey: rp.variantKey || "",
       supplierId: rp.supplierId ? String(rp.supplierId) : "",
       date: rp.date ?? "",
       note: rp.note ?? "",
@@ -306,10 +312,17 @@ const ManufactureTable = () => {
       return toast.error("Please select a product");
     }
 
+    const createVariantOptions = getProductVariantOptions(createProduct.productId);
+    if (createVariantOptions.length && !createProduct.variantKey) {
+      return toast.error("Please select a product variant");
+    }
+
     try {
       const payload = {
         itemId: Number(createProduct.itemId) || "",
         productId: Number(createProduct.productId) || "",
+        variant: createProduct.variant || null,
+        variantKey: createProduct.variantKey || "",
         unit: createProduct.unit || "Pcs",
         unitValue: createProduct.hasUnit
           ? Number(createProduct.unitValue) || 0
@@ -339,9 +352,16 @@ const ManufactureTable = () => {
 
   const handleUpdateProduct = async () => {
     try {
+      const currentVariantOptions = getProductVariantOptions(currentProduct.productId);
+      if (currentVariantOptions.length && !currentProduct.variantKey) {
+        return toast.error("Please select a product variant");
+      }
+
       const payload = {
         itemId: Number(currentProduct.itemId) || "",
         productId: Number(currentProduct.productId) || "",
+        variant: currentProduct.variant || null,
+        variantKey: currentProduct.variantKey || "",
         unit: currentProduct.unit || "Pcs",
         unitValue: currentProduct.hasUnit
           ? Number(currentProduct.unitValue) || 0
@@ -382,6 +402,8 @@ const ManufactureTable = () => {
       const payload = {
         itemId: Number(currentProduct.itemId) || "",
         productId: Number(currentProduct.productId) || "",
+        variant: currentProduct.variant || null,
+        variantKey: currentProduct.variantKey || "",
         unit: currentProduct.unit || "Pcs",
         unitValue: currentProduct.hasUnit
           ? Number(currentProduct.unitValue) || 0
@@ -467,8 +489,82 @@ const ManufactureTable = () => {
     return (productsData || []).map((p) => ({
       value: String(p.Id ?? p.id ?? p._id),
       label: p.name,
+      product: p,
     }));
   }, [productsData]);
+
+  const parseVariationValue = (value) => {
+    if (Array.isArray(value)) {
+      return value.map((item) => String(item).trim()).filter(Boolean);
+    }
+
+    if (typeof value === "string") {
+      try {
+        const parsed = JSON.parse(value);
+        if (Array.isArray(parsed)) {
+          return parsed.map((item) => String(item).trim()).filter(Boolean);
+        }
+      } catch {
+        return value
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
+      }
+    }
+
+    return [];
+  };
+
+  const buildVariantKey = (variant) =>
+    Object.entries(variant || {})
+      .filter(([, value]) => value)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, value]) => `${key}:${value}`)
+      .join("|");
+
+  const getProductById = (productId) =>
+    (productsData || []).find(
+      (product) => String(product.Id ?? product.id ?? product._id) === String(productId),
+    );
+
+  const getProductVariantOptions = (productId) => {
+    const product = getProductById(productId);
+    if (!Array.isArray(product?.variations)) return [];
+
+    const options = product.variations.flatMap((variation) => {
+      const sizes = parseVariationValue(variation?.size);
+      const colors = parseVariationValue(variation?.color);
+      const safeSizes = sizes.length ? sizes : [""];
+      const safeColors = colors.length ? colors : [""];
+
+      return safeSizes.flatMap((size) =>
+        safeColors.map((color) => {
+          const variant = {
+            ...(size ? { size } : {}),
+            ...(color ? { color } : {}),
+          };
+          const value = buildVariantKey(variant);
+          const label = [size, color].filter(Boolean).join(" / ");
+          return value ? { value, label, variant } : null;
+        }),
+      );
+    }).filter(Boolean);
+
+    return Array.from(
+      new Map(options.map((option) => [option.value, option])).values(),
+    );
+  };
+
+  const getVariantLabel = (variant) => {
+    const parsed = typeof variant === "string" ? (() => {
+      try {
+        return JSON.parse(variant);
+      } catch {
+        return null;
+      }
+    })() : variant;
+    return [parsed?.size, parsed?.color].filter(Boolean).join(" / ");
+  };
 
   const productNameMap = useMemo(() => {
     const m = new Map();
@@ -691,6 +787,11 @@ const ManufactureTable = () => {
                     <div className="text-sm font-bold text-slate-900">
                       {resolveItemName(rp)}
                     </div>
+                    {getVariantLabel(rp.variant) ? (
+                      <div className="mt-1 text-xs font-semibold text-slate-500">
+                        {getVariantLabel(rp.variant)}
+                      </div>
+                    ) : null}
                   </td>
 
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
@@ -884,6 +985,8 @@ const ManufactureTable = () => {
                 setCurrentProduct({
                   ...currentProduct,
                   productId: selected?.value || "",
+                  variant: null,
+                  variantKey: "",
                 })
               }
               placeholder={t.search_product || "Search product..."}
@@ -893,6 +996,33 @@ const ManufactureTable = () => {
               isDisabled={isLoadingAllProducts}
             />
           </div>
+          {getProductVariantOptions(currentProduct?.productId).length > 0 && (
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+                Variant
+              </label>
+              <Select
+                options={getProductVariantOptions(currentProduct?.productId)}
+                value={
+                  getProductVariantOptions(currentProduct?.productId).find(
+                    (option) =>
+                      option.value === String(currentProduct?.variantKey || ""),
+                  ) || null
+                }
+                onChange={(selected) =>
+                  setCurrentProduct({
+                    ...currentProduct,
+                    variant: selected?.variant || null,
+                    variantKey: selected?.value || "",
+                  })
+                }
+                placeholder="Select variant..."
+                isClearable
+                styles={selectStyles}
+                className="text-sm text-black font-medium"
+              />
+            </div>
+          )}
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
               {t.select_item || "Select Item"}
@@ -1148,6 +1278,8 @@ const ManufactureTable = () => {
                 setCreateProduct({
                   ...createProduct,
                   productId: selected?.value || "",
+                  variant: null,
+                  variantKey: "",
                 })
               }
               placeholder={t.search_product || "Search product..."}
@@ -1157,6 +1289,33 @@ const ManufactureTable = () => {
               isDisabled={isLoadingAllProducts}
             />
           </div>
+          {getProductVariantOptions(createProduct?.productId).length > 0 && (
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+                Variant
+              </label>
+              <Select
+                options={getProductVariantOptions(createProduct?.productId)}
+                value={
+                  getProductVariantOptions(createProduct?.productId).find(
+                    (option) =>
+                      option.value === String(createProduct?.variantKey || ""),
+                  ) || null
+                }
+                onChange={(selected) =>
+                  setCreateProduct({
+                    ...createProduct,
+                    variant: selected?.variant || null,
+                    variantKey: selected?.value || "",
+                  })
+                }
+                placeholder="Select variant..."
+                isClearable
+                styles={selectStyles}
+                className="text-sm text-black font-medium"
+              />
+            </div>
+          )}
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
               {t.select_item || "Select Item"}
