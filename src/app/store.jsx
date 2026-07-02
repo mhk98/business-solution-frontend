@@ -169,6 +169,7 @@ import { assetsApi } from "../features/assets/assets";
 import { noticeApi } from "../features/notice/notice";
 import { taskApi } from "../features/task/task";
 import { chargeSettingApi } from "../features/chargeSetting/chargeSetting";
+import { ownerTransactionApi } from "../features/ownerTransaction/ownerTransaction";
 
 // ✅ 1) Collect all apis once
 const apis = [
@@ -203,6 +204,7 @@ const apis = [
   itemRequisitionApi,
   supplierApi,
   loanApi,
+  ownerTransactionApi,
   supplierHistoryApi,
   wirehouseApi,
   warrantyroductApi,

@@ -1,5 +1,14 @@
 import { motion } from "framer-motion";
-import { Edit, Minus, Notebook, Plus, Search, Trash2 } from "lucide-react";
+import {
+  Edit,
+  FileText,
+  Minus,
+  Notebook,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
+import jsPDF from "jspdf";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import {
@@ -948,6 +957,12 @@ const CashInOutTable = () => {
   const [reportBlobUrl, setReportBlobUrl] = useState("");
   const [reportLoading, setReportLoading] = useState(false);
   const [sheetPreview, setSheetPreview] = useState({ header: [], rows: [] });
+  const [voucherPreview, setVoucherPreview] = useState({
+    open: false,
+    blob: null,
+    url: "",
+    filename: "",
+  });
 
   const closeReportPreview = () => {
     setIsReportPreviewOpen(false);
@@ -960,6 +975,11 @@ const CashInOutTable = () => {
       URL.revokeObjectURL(reportBlobUrl);
       setReportBlobUrl("");
     }
+  };
+
+  const closeVoucherPreview = () => {
+    if (voucherPreview.url) URL.revokeObjectURL(voucherPreview.url);
+    setVoucherPreview({ open: false, blob: null, url: "", filename: "" });
   };
 
   const handleReportPdf = async () => {
@@ -1014,6 +1034,147 @@ const CashInOutTable = () => {
     } finally {
       setReportLoading(false);
     }
+  };
+
+  const createVoucherPdf = (row) => {
+    const voucherNo = `CIO-${row?.Id ?? row?.id ?? "ROW"}-${String(Date.now()).slice(-6)}`;
+    const amount = Number(row?.amount || 0).toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    const pdf = new jsPDF("p", "mm", "a4");
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const margin = 16;
+    let y = 18;
+
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(18);
+    pdf.text("KAFELA MART", margin, y);
+    pdf.setFontSize(13);
+    pdf.text("Cash In/Out Voucher", pageWidth - margin, y, {
+      align: "right",
+    });
+
+    y += 8;
+    pdf.setDrawColor(226, 232, 240);
+    pdf.line(margin, y, pageWidth - margin, y);
+
+    y += 10;
+    pdf.setFontSize(10);
+    pdf.setFont("helvetica", "normal");
+    pdf.text(`Voucher No: ${voucherNo}`, margin, y);
+    pdf.text(`Date: ${row?.date || "-"}`, pageWidth - margin, y, {
+      align: "right",
+    });
+
+    const details = [
+      ["Book", bookName || "-"],
+      ["Category", row?.category || "-"],
+      ["Payment Status", row?.paymentStatus || "-"],
+      ["Payment Mode", row?.paymentMode || "-"],
+      ["Bank", row?.paymentMode === "Bank" ? row?.bankName || "-" : "-"],
+      [
+        "Bank Account",
+        row?.paymentMode === "Bank" ? row?.bankAccount || "-" : "-",
+      ],
+      ["Supplier", row?.supplier?.name || row?.supplierName || "-"],
+      [
+        "Loan",
+        row?.loan?.name ||
+          row?.lender ||
+          row?.loanName ||
+          row?.loan_person_name ||
+          row?.loanPersonName ||
+          "-",
+      ],
+      ["Status", row?.status || "Active"],
+    ];
+
+    y += 10;
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(12);
+    pdf.text("Transaction Details", margin, y);
+
+    y += 7;
+    pdf.setFontSize(10);
+    details.forEach(([label, value]) => {
+      pdf.setFont("helvetica", "bold");
+      pdf.text(`${label}:`, margin, y);
+      pdf.setFont("helvetica", "normal");
+      pdf.text(String(value), margin + 42, y);
+      y += 7;
+    });
+
+    y += 3;
+    pdf.setDrawColor(226, 232, 240);
+    pdf.line(margin, y, pageWidth - margin, y);
+
+    y += 10;
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(14);
+    pdf.text("Amount", margin, y);
+    pdf.text(`${amount} BDT`, pageWidth - margin, y, { align: "right" });
+
+    y += 12;
+    pdf.setFontSize(11);
+    pdf.text("Note", margin, y);
+    y += 7;
+    pdf.setFont("helvetica", "normal");
+    const noteLines = pdf.splitTextToSize(
+      String(row?.remarks || row?.note || "-"),
+      pageWidth - margin * 2,
+    );
+    pdf.text(noteLines, margin, y);
+
+    y = Math.max(y + noteLines.length * 6 + 20, 250);
+    pdf.setDrawColor(203, 213, 225);
+    pdf.line(margin, y, margin + 55, y);
+    pdf.line(pageWidth - margin - 55, y, pageWidth - margin, y);
+    y += 6;
+    pdf.setFontSize(9);
+    pdf.text("Prepared By", margin, y);
+    pdf.text("Approved By", pageWidth - margin - 55, y);
+
+    return {
+      pdf,
+      filename: `${voucherNo}.pdf`,
+    };
+  };
+
+  const handleVoucherOpen = (row) => {
+    try {
+      if (voucherPreview.url) URL.revokeObjectURL(voucherPreview.url);
+      const { pdf, filename } = createVoucherPdf(row);
+      const blob = pdf.output("blob");
+      const url = URL.createObjectURL(blob);
+      setVoucherPreview({ open: true, blob, url, filename });
+    } catch (error) {
+      console.error("Voucher preview failed:", error);
+      toast.error("Voucher preview failed!");
+    }
+  };
+
+  const handleVoucherDownload = () => {
+    if (!voucherPreview.blob || !voucherPreview.url) return;
+    const a = document.createElement("a");
+    a.href = voucherPreview.url;
+    a.download = voucherPreview.filename || "cash-in-out-voucher.pdf";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+
+  const handleVoucherPrint = () => {
+    if (!voucherPreview.url) return;
+    const printWindow = window.open(voucherPreview.url, "_blank");
+    if (!printWindow) {
+      toast.error("Please allow popup to print voucher.");
+      return;
+    }
+    printWindow.addEventListener("load", () => {
+      printWindow.focus();
+      printWindow.print();
+    });
   };
 
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
@@ -1659,6 +1820,15 @@ const CashInOutTable = () => {
 
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex items-center gap-3">
+                      <button
+                        className="h-10 w-10 rounded-md flex items-center justify-center text-violet-600 hover:bg-violet-50"
+                        title="Voucher"
+                        type="button"
+                        onClick={() => handleVoucherOpen(rp)}
+                      >
+                        <FileText size={18} />
+                      </button>
+
                       {rp.note ? (
                         <div className="relative">
                           <button
@@ -2872,6 +3042,53 @@ const CashInOutTable = () => {
         sheetPreview={sheetPreview}
         loading={reportLoading}
       />
+
+      <Modal
+        isOpen={voucherPreview.open}
+        onClose={closeVoucherPreview}
+        title="Cash In/Out Voucher"
+        maxWidth="max-w-4xl"
+      >
+        <div className="space-y-4">
+          <div className="flex flex-wrap justify-end gap-3">
+            <button
+              type="button"
+              onClick={handleVoucherPrint}
+              className="h-10 rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-800"
+            >
+              Print
+            </button>
+            <button
+              type="button"
+              onClick={handleVoucherDownload}
+              className="h-10 rounded-xl border border-slate-200 px-5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Download
+            </button>
+          </div>
+
+          <div className="h-[70vh] overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+            {voucherPreview.url ? (
+              <object
+                data={voucherPreview.url}
+                type="application/pdf"
+                className="h-full w-full"
+                aria-label="Cash In/Out Voucher Preview"
+              >
+                <iframe
+                  src={voucherPreview.url}
+                  title="Cash In/Out Voucher Preview"
+                  className="h-full w-full"
+                />
+              </object>
+            ) : (
+              <div className="flex h-full items-center justify-center text-sm text-slate-500">
+                Voucher preview is not available.
+              </div>
+            )}
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         isOpen={isDeleteRequestOpen}

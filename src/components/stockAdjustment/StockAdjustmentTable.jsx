@@ -24,14 +24,10 @@ import {
   useInsertStockAdjustmentMutation,
   useUpdateStockAdjustmentMutation,
 } from "../../features/stockAdjustment/stockAdjustment";
-import { useGetAllSupplierWithoutQueryQuery } from "../../features/supplier/supplier";
 
 const initialCreateProduct = {
   itemId: "",
   productId: "",
-  variant: null,
-  variantKey: "",
-  supplierId: "",
   unitValue: "",
   note: "",
   date: new Date().toISOString().slice(0, 10),
@@ -59,7 +55,6 @@ const StockAdjustmentTable = () => {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [itemName, setItemName] = useState("");
-  const [supplier, setSupplier] = useState("");
 
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
@@ -135,7 +130,6 @@ const StockAdjustmentTable = () => {
       value: String(p.Id ?? p.id ?? p._id),
       label: [
         p.name,
-        [p.variant?.size, p.variant?.color].filter(Boolean).join(" / "),
         `${Number(p.unitValue || 0)} ${p.unit || "Pcs"}`,
       ].filter(Boolean).join(" - "),
       row: p,
@@ -202,14 +196,12 @@ const StockAdjustmentTable = () => {
     }
 
     const matchedName = itemNameMap.get(String(possibleId));
-    return matchedName;
+    return matchedName || `Item #${possibleId}`;
     // ||
     // productNameMap.get(String(possibleId)) ||
     // `Item #${possibleId}`
   };
 
-  const getVariantLabel = (variant) =>
-    [variant?.size, variant?.color].filter(Boolean).join(" / ");
   const queryArgs = useMemo(() => {
     const args = {
       page: currentPage,
@@ -217,7 +209,6 @@ const StockAdjustmentTable = () => {
       startDate: startDate || undefined,
       endDate: endDate || undefined,
       name: itemName || undefined,
-      supplierId: supplier || undefined,
     };
 
     Object.keys(args).forEach((k) => {
@@ -227,7 +218,7 @@ const StockAdjustmentTable = () => {
     });
 
     return args;
-  }, [currentPage, itemsPerPage, startDate, endDate, itemName, supplier]);
+  }, [currentPage, itemsPerPage, startDate, endDate, itemName]);
 
   const { data, isLoading, isError, error, refetch } =
     useGetAllStockAdjustmentQuery(queryArgs);
@@ -278,9 +269,6 @@ const StockAdjustmentTable = () => {
       ...rp,
       itemId: rp.itemId ? String(rp.itemId) : "",
       productId: rp.productId ? String(rp.productId) : "",
-      variant: rp.variant || null,
-      variantKey: rp.variantKey || "",
-      supplierId: rp.supplierId ? String(rp.supplierId) : "",
       date: rp.date ?? "",
       note: rp.note ?? "",
       unitValue: rp.unitValue ?? "",
@@ -298,9 +286,6 @@ const StockAdjustmentTable = () => {
       ...rp,
       itemId: rp.itemId ? String(rp.itemId) : "",
       productId: rp.productId ? String(rp.productId) : "",
-      variant: rp.variant || null,
-      variantKey: rp.variantKey || "",
-      supplierId: rp.supplierId ? String(rp.supplierId) : "",
       date: rp.date ?? "",
       note: rp.note ?? "",
       unitValue: rp.unitValue ?? "",
@@ -324,8 +309,6 @@ const StockAdjustmentTable = () => {
       const payload = {
         itemId: Number(createProduct.itemId) || "",
         productId: Number(createProduct.productId) || "",
-        variant: createProduct.variant || null,
-        variantKey: createProduct.variantKey || "",
         unit: createProduct.unit || "Pcs",
         unitValue: createProduct.hasUnit
           ? Number(createProduct.unitValue) || 0
@@ -334,7 +317,6 @@ const StockAdjustmentTable = () => {
         date: createProduct.date || "",
         note: createProduct.note || "",
         userId: Number(userId) || 0,
-        supplierId: Number(createProduct.supplierId) || undefined,
 
         actorRole: role,
       };
@@ -365,8 +347,6 @@ const StockAdjustmentTable = () => {
       const payload = {
         itemId: Number(createProduct.itemId) || "",
         productId: Number(createProduct.productId) || "",
-        variant: createProduct.variant || null,
-        variantKey: createProduct.variantKey || "",
         unit: createProduct.unit || "Pcs",
         stock: "Out",
         unitValue: createProduct.hasUnit
@@ -375,7 +355,6 @@ const StockAdjustmentTable = () => {
         date: createProduct.date || "",
         note: createProduct.note || "",
         userId: Number(userId) || 0,
-        supplierId: Number(createProduct.supplierId) || undefined,
 
         actorRole: role,
       };
@@ -400,8 +379,6 @@ const StockAdjustmentTable = () => {
       const payload = {
         itemId: Number(currentProduct.itemId) || "",
         productId: Number(currentProduct.productId) || "",
-        variant: currentProduct.variant || null,
-        variantKey: currentProduct.variantKey || "",
         unit: currentProduct.unit || "Pcs",
         unitValue: currentProduct.hasUnit
           ? Number(currentProduct.unitValue) || 0
@@ -409,7 +386,6 @@ const StockAdjustmentTable = () => {
         date: currentProduct.date || "",
         note: currentProduct.note || "",
         userId: Number(currentProduct.userId) || 0,
-        supplierId: Number(currentProduct.supplierId) || undefined,
 
         actorRole: role,
       };
@@ -442,15 +418,12 @@ const StockAdjustmentTable = () => {
       const payload = {
         itemId: Number(currentProduct.itemId) || "",
         productId: Number(currentProduct.productId) || "",
-        variant: currentProduct.variant || null,
-        variantKey: currentProduct.variantKey || "",
         unit: currentProduct.unit || "Pcs",
         unitValue: currentProduct.hasUnit
           ? Number(currentProduct.unitValue) || 0
           : 0,
         date: currentProduct.date || "",
         note: currentProduct.note || "",
-        supplierId: Number(currentProduct.supplierId) || undefined,
 
         userId: Number(currentProduct.userId) || 0,
         actorRole: role,
@@ -553,58 +526,40 @@ const StockAdjustmentTable = () => {
     menu: (base) => ({ ...base, borderRadius: 14, overflow: "hidden" }),
   };
 
-  // ✅ suppliers
-  const {
-    data: allSupplierRes,
-    isError: isErrorSupplier,
-    error: errorSupplier,
-  } = useGetAllSupplierWithoutQueryQuery();
-  const suppliers = useMemo(() => allSupplierRes?.data || [], [allSupplierRes]);
-
-  useEffect(() => {
-    if (isErrorSupplier)
-      console.error("Error fetching suppliers", errorSupplier);
-  }, [isErrorSupplier, errorSupplier]);
-
-  const supplierOptions = useMemo(
-    () =>
-      (suppliers || []).map((s) => ({
-        value: s.Id,
-        label: s.name,
-      })),
-    [suppliers],
-  );
-
   const applySelectedStockRow = (target, selected) => {
+    const safeTarget = target || {};
     const row = selected?.row || null;
     const patch = {
       itemMasterId: selected?.value || "",
       itemId: row?.itemId ? String(row.itemId) : "",
       productId: row?.productId ? String(row.productId) : "",
-      variant: row?.variant || null,
-      variantKey: row?.variantKey || "",
-      unit: row?.unit || target?.unit || "Pcs",
+      unit: row?.unit || safeTarget?.unit || "Pcs",
     };
 
     return {
-      ...target,
+      ...safeTarget,
       ...patch,
     };
   };
 
-  const findStockOption = (record = {}) =>
-    itemDropdownOptions.find((option) => {
+  const findStockOption = (record = {}) => {
+    const safeRecord = record || {};
+
+    return itemDropdownOptions.find((option) => {
       const row = option.row || {};
-      if (record.itemMasterId && String(option.value) === String(record.itemMasterId)) {
+      if (
+        safeRecord.itemMasterId &&
+        String(option.value) === String(safeRecord.itemMasterId)
+      ) {
         return true;
       }
 
       return (
-        String(row.itemId || "") === String(record.itemId || "") &&
-        String(row.productId || "") === String(record.productId || "") &&
-        String(row.variantKey || "") === String(record.variantKey || "")
+        String(row.itemId || "") === String(safeRecord.itemId || "") &&
+        String(row.productId || "") === String(safeRecord.productId || "")
       );
     }) || null;
+  };
   return (
     <motion.div
       className="bg-white/90 backdrop-blur-md shadow-[0_4px_20px_rgba(15,23,42,0.04)] rounded-2xl p-4 sm:p-6 border border-slate-200 mb-8"
@@ -713,25 +668,6 @@ const StockAdjustmentTable = () => {
           />
         </div>
 
-        <div className="flex flex-col">
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
-            {t.supplier}
-          </label>
-          <Select
-            options={supplierOptions}
-            value={
-              supplierOptions.find(
-                (o) => String(o.value) === String(supplier),
-              ) || null
-            }
-            onChange={(selected) => setSupplier(selected?.value || "")}
-            placeholder={t.search}
-            isClearable
-            styles={selectStyles}
-            className="text-black"
-          />
-        </div>
-
         <button
           type="button"
           className="h-11 bg-slate-100 hover:bg-slate-200 text-slate-600 transition rounded-xl px-4 text-sm font-bold flex items-center justify-center gap-2 active:scale-95 border border-slate-200"
@@ -751,9 +687,6 @@ const StockAdjustmentTable = () => {
                 </th>
                 <th className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
                   {t.product || "Product"}
-                </th>
-                <th className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
-                  {t.supplier || "Supplier"}
                 </th>
                 <th className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
                   {t.unit_value || "Unit Value"}
@@ -786,15 +719,6 @@ const StockAdjustmentTable = () => {
                     <div className="text-sm font-bold text-slate-900">
                       {resolveItemName(rp)}
                     </div>
-                    {getVariantLabel(rp.variant) ? (
-                      <div className="mt-1 text-xs font-semibold text-slate-500">
-                        {getVariantLabel(rp.variant)}
-                      </div>
-                    ) : null}
-                  </td>
-
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                    {rp.supplier?.name || "N/A"}
                   </td>
 
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
@@ -878,7 +802,7 @@ const StockAdjustmentTable = () => {
               {!isLoading && rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={6}
                     className="px-6 py-20 text-center text-sm text-slate-400 italic"
                   >
                     {t.no_data_found || "No data found"}
@@ -1188,31 +1112,6 @@ const StockAdjustmentTable = () => {
               className="text-black"
             />
           </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-              {t.supplier || "Supplier"}
-            </label>
-            <Select
-              options={supplierOptions}
-              value={
-                supplierOptions.find(
-                  (option) =>
-                    String(option.value) ===
-                    String(currentProduct?.supplierId || ""),
-                ) || null
-              }
-              onChange={(selected) =>
-                setCurrentProduct({
-                  ...currentProduct,
-                  supplierId: selected?.value || "",
-                })
-              }
-              placeholder={t.select_supplier || "Select Supplier"}
-              isClearable
-              styles={selectStyles}
-              className="text-black"
-            />
-          </div>
         </div>
 
         <div className="flex justify-end gap-3 pt-6 border-t border-slate-100 mt-6">
@@ -1395,31 +1294,6 @@ const StockAdjustmentTable = () => {
               }
               className="w-full min-h-[80px] border border-slate-200 rounded-xl p-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition resize-none"
               placeholder={t.add_extra_info || "Add any extra info..."}
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-              {t.supplier || "Supplier"}
-            </label>
-            <Select
-              options={supplierOptions}
-              value={
-                supplierOptions.find(
-                  (option) =>
-                    String(option.value) ===
-                    String(createProduct?.supplierId || ""),
-                ) || null
-              }
-              onChange={(selected) =>
-                setCreateProduct({
-                  ...createProduct,
-                  supplierId: selected?.value || "",
-                })
-              }
-              placeholder={t.select_supplier || "Select Supplier"}
-              isClearable
-              styles={selectStyles}
-              className="text-black"
             />
           </div>
           <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">

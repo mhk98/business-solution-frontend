@@ -439,6 +439,20 @@ const normalizeLedgerEntity = (ledger, type, index) => ({
   ),
 });
 
+const getEntityDisplayMeta = (entity) => {
+  if (!entity) return "-";
+
+  if (entity.type === "employee") {
+    const employeeIdText = entity.employeeId
+      ? `Employee ID: ${entity.employeeId}`
+      : "";
+
+    return [employeeIdText, entity.phone].filter(Boolean).join(" • ") || "-";
+  }
+
+  return entity.phone || entity.extra || "-";
+};
+
 const CreditLedgerTable = () => {
   // const [startDate, setStartDate] = useState("");
   // const [endDate, setEndDate] = useState("");
@@ -527,20 +541,23 @@ const CreditLedgerTable = () => {
 
   const employeeOptions = useMemo(
     () =>
-      (employeeResponse?.data || []).map((employee) => ({
-        value: String(
+      (employeeResponse?.data || []).map((employee) => {
+        const employeeId = String(
           employee?.employee_id ?? employee?.Id ?? employee?.id ?? "",
-        ),
-        employeeId: String(
-          employee?.employee_id ?? employee?.Id ?? employee?.id ?? "",
-        ),
-        label: employee?.name || "Unnamed Employee",
-        name: employee?.name || "",
-        phone: employee?.phone || "",
-        extra: employee?.employee_id
-          ? `Employee ID: ${employee.employee_id}`
-          : employee?.remarks || "",
-      })),
+        );
+        const employeeName = employee?.name || "Unnamed Employee";
+
+        return {
+          value: employeeId,
+          employeeId,
+          label: employeeId ? `${employeeName} (${employeeId})` : employeeName,
+          name: employeeName,
+          phone: employee?.phone || "",
+          extra: employeeId
+            ? `Employee ID: ${employeeId}`
+            : employee?.remarks || "",
+        };
+      }),
     [employeeResponse],
   );
 
@@ -562,7 +579,10 @@ const CreditLedgerTable = () => {
     [],
   );
 
-  const bankAccountsFromDB = bankAccountRes?.data || [];
+  const bankAccountsFromDB = useMemo(
+    () => bankAccountRes?.data || [],
+    [bankAccountRes],
+  );
 
   const bankOptions = useMemo(() => {
     const seen = new Set();
@@ -1367,7 +1387,7 @@ const CreditLedgerTable = () => {
       content: `
         <h1>Due History</h1>
         <p><strong>Name:</strong> ${escapeHtml(selectedEntity.name)}</p>
-        <p><strong>Contact:</strong> ${escapeHtml(selectedEntity.phone || selectedEntity.extra || "-")}</p>
+        <p><strong>Contact:</strong> ${escapeHtml(getEntityDisplayMeta(selectedEntity))}</p>
         <p><strong>Role:</strong> ${escapeHtml(selectedEntity.role || "-")}</p>
         <table>
           <thead>
@@ -1416,7 +1436,7 @@ const CreditLedgerTable = () => {
         return `
           <tr>
             <td>${escapeHtml(item.name)}</td>
-            <td>${escapeHtml(item.phone || item.extra || "-")}</td>
+            <td>${escapeHtml(getEntityDisplayMeta(item))}</td>
             <td>${escapeHtml(item.role || "-")}</td>
             <td style="text-align:right;">${escapeHtml(formatCurrency(entityBalance))}</td>
           </tr>`;
@@ -1476,7 +1496,7 @@ const CreditLedgerTable = () => {
       content: `
         <h1>Credit Ledger</h1>
         <p><strong>Name:</strong> ${escapeHtml(selectedEntity.name)}</p>
-        <p><strong>Contact:</strong> ${escapeHtml(selectedEntity.phone || selectedEntity.extra || "-")}</p>
+        <p><strong>Contact:</strong> ${escapeHtml(getEntityDisplayMeta(selectedEntity))}</p>
         <p><strong>Range:</strong> ${escapeHtml(filterLabel)}</p>
         <table>
           <thead>
@@ -1525,7 +1545,7 @@ const CreditLedgerTable = () => {
       doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
       doc.text(
-        `Contact: ${selectedEntity.phone || selectedEntity.extra || "-"}`,
+        `Contact: ${getEntityDisplayMeta(selectedEntity)}`,
         14,
         23,
       );
@@ -1805,13 +1825,7 @@ const CreditLedgerTable = () => {
 
               {!isEntityListLoading &&
                 filteredEntities.map((item) => {
-                  const entitySummary = getEntitySummary(item);
-                  const entityBalance = getBalanceValue(
-                    entitySummary.totalReceived || 0,
-                    entitySummary.totalPaid || 0,
-                  );
                   const isSelected = selectedEntityId === item.id;
-                  const hasPendingDue = entityBalance < 0;
 
                   return (
                     <button
@@ -1833,7 +1847,7 @@ const CreditLedgerTable = () => {
                             {item.name}
                           </p>
                           <p className="truncate text-sm text-slate-500">
-                            {item.phone || item.extra || "-"}
+                            {getEntityDisplayMeta(item)}
                           </p>
                         </div>
                       </div>
@@ -1864,7 +1878,7 @@ const CreditLedgerTable = () => {
                     </span>
                   </div>
                   <p className="text-sm text-slate-400">
-                    {selectedEntity?.phone || selectedEntity?.extra || "-"}
+                    {getEntityDisplayMeta(selectedEntity)}
                   </p>
                 </div>
               </div>
@@ -2187,7 +2201,7 @@ const CreditLedgerTable = () => {
                     </h2>
                     <p className="mt-1 text-sm text-slate-500">
                       {selectedEntity?.name || "-"} •{" "}
-                      {selectedEntity?.phone || selectedEntity?.extra || "-"}
+                      {getEntityDisplayMeta(selectedEntity)}
                     </p>
                   </div>
 
@@ -2489,7 +2503,7 @@ const CreditLedgerTable = () => {
                       {selectedEntity?.name || "-"}
                     </p>
                     <p className="text-sm text-slate-500">
-                      {selectedEntity?.phone || selectedEntity?.extra || "-"}
+                      {getEntityDisplayMeta(selectedEntity)}
                     </p>
                     <p className="mt-2 text-xs text-slate-500">
                       Ledger ID:{" "}

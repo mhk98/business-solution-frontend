@@ -107,6 +107,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "petty_cash_requisition",
     "petty_cash",
     "loan",
+    "owner_transaction",
     "credit_ledger",
     "log_history",
     "notifications",
@@ -186,6 +187,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "petty_cash_requisition",
     "petty_cash",
     "loan",
+    "owner_transaction",
     "credit_ledger",
     "log_history",
     "notifications",
@@ -284,6 +286,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "petty_cash_requisition",
     "petty_cash",
     "loan",
+    "owner_transaction",
     "credit_ledger",
     "log_history",
     "hrm",
@@ -712,6 +715,13 @@ export const SIDEBAR_ITEMS = [
         icon: HandCoins,
         href: "/loan",
         matchPaths: ["/loan/"],
+        roles: ["superAdmin", "admin", "accountant"],
+      },
+      {
+        name: "Owner Transaction",
+        key: "owner_transaction",
+        icon: WalletCards,
+        href: "/owner-transaction",
         roles: ["superAdmin", "admin", "accountant"],
       },
       {
@@ -1181,6 +1191,10 @@ const normalizeRolePermissionMap = (value) => {
 
     if (defaultKeys.includes("loan")) {
       normalizedKeys.add("loan");
+    }
+
+    if (defaultKeys.includes("owner_transaction")) {
+      normalizedKeys.add("owner_transaction");
     }
 
     if (defaultKeys.includes("cs_work_reports")) {

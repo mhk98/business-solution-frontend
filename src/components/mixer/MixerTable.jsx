@@ -52,10 +52,6 @@ const normalizeManufactureItems = (response) => {
       item?.item?.name ||
       item?.product?.name ||
       `Manufacture Item ${index + 1}`;
-    const variantLabel = [item?.variant?.size, item?.variant?.color]
-      .filter(Boolean)
-      .join(" / ");
-
     return {
       id: String(
         item?.Id ??
@@ -65,7 +61,7 @@ const normalizeManufactureItems = (response) => {
           item?.itemId ??
           index,
       ),
-      label: variantLabel ? `${baseLabel} - ${variantLabel}` : baseLabel,
+      label: baseLabel,
       unitValue:
       item?.unitValue ??
       item?.quantity ??

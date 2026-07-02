@@ -806,12 +806,12 @@ const EmployeeTable = () => {
     if (!createEmployee.name?.trim()) return toast.error("Name is required!");
     if (!createEmployee.employee_id?.toString().trim())
       return toast.error("Employee Id is required!");
-    if (
-      Number(createEmployee.advance) > 0 &&
-      !normalizeOptionalId(createEmployee.bookId)
-    ) {
-      return toast.error("Book is required when advance exists!");
-    }
+    // if (
+    //   Number(createEmployee.advance) > 0 &&
+    //   !normalizeOptionalId(createEmployee.bookId)
+    // ) {
+    //   return toast.error("Book is required when advance exists!");
+    // }
     try {
       const s = calcSalary(createEmployee);
 
@@ -867,12 +867,12 @@ const EmployeeTable = () => {
     if (!currentEmployee.name?.trim()) return toast.error("Name is required!");
     if (!currentEmployee.employee_id?.toString().trim())
       return toast.error("Employee Id is required!");
-    if (
-      Number(currentEmployee.advance) > 0 &&
-      !normalizeOptionalId(currentEmployee.bookId)
-    ) {
-      return toast.error("Book is required when advance exists!");
-    }
+    // if (
+    //   Number(currentEmployee.advance) > 0 &&
+    //   !normalizeOptionalId(currentEmployee.bookId)
+    // ) {
+    //   return toast.error("Book is required when advance exists!");
+    // }
     try {
       const s = calcSalary(currentEmployee);
 
@@ -2390,6 +2390,7 @@ const EmployeeTable = () => {
               onChange={(v) => updateCurrentField("advance", v)}
             />
 
+            {/* 
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
                 Book:
@@ -2414,7 +2415,7 @@ const EmployeeTable = () => {
                 styles={selectStyles}
                 className="w-full"
               />
-            </div>
+            </div> */}
 
             <Field
               label={t.late_days_label || "Late (days):"}
@@ -2786,7 +2787,7 @@ const EmployeeTable = () => {
               onChange={(v) => updateCreateField("advance", v)}
             />
 
-            <div>
+            {/* <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
                 Book:
               </label>
@@ -2810,7 +2811,7 @@ const EmployeeTable = () => {
                 styles={selectStyles}
                 className="w-full"
               />
-            </div>
+            </div> */}
 
             <Field
               label={t.late_days_label + ":" || "Late (days):"}

@@ -67,6 +67,7 @@ const WarehousePage = lazy(() => import("./pages/WarehousePage"));
 const SupplierHistoryPage = lazy(() => import("./pages/SupplierHistoryPage"));
 const LoanPage = lazy(() => import("./pages/LoanPage"));
 const LoanHistoryPage = lazy(() => import("./pages/LoanHistoryPage"));
+const OwnerTransactionPage = lazy(() => import("./pages/OwnerTransactionPage"));
 const CreditLedgerPage = lazy(() => import("./pages/CreditLedgerPage"));
 const LogHistoryPage = lazy(() => import("./pages/LogHistoryPage"));
 const ManufacturePage = lazy(() => import("./pages/ManufacturePage"));
@@ -190,6 +191,7 @@ function App() {
                 <Route path="/petty-cash" element={<AuthedRoute><PettyCashPage /></AuthedRoute>} />
                 <Route path="/loan" element={<AuthedRoute><LoanPage /></AuthedRoute>} />
                 <Route path="/loan/:lender" element={<AuthedRoute><LoanHistoryPage /></AuthedRoute>} />
+                <Route path="/owner-transaction" element={<AuthedRoute><OwnerTransactionPage /></AuthedRoute>} />
                 <Route path="/credit-ledger" element={<AuthedRoute><CreditLedgerPage /></AuthedRoute>} />
                 <Route path="/log-history" element={<AuthedRoute><LogHistoryPage /></AuthedRoute>} />
                 <Route path="/expense" element={<AuthedRoute><ExpensePage /></AuthedRoute>} />

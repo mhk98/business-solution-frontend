@@ -25,16 +25,12 @@ import {
 } from "../../features/manufacture/manufacture";
 import { useGetAllItemWithoutQueryQuery } from "../../features/item/item";
 import { useGetAllProductWithoutQueryQuery } from "../../features/product/product";
-import { useGetAllSupplierWithoutQueryQuery } from "../../features/supplier/supplier";
 
 const initialCreateProduct = {
   itemId: "",
   productId: "",
-  variant: null,
-  variantKey: "",
-  supplierId: "",
   unitValue: "",
-  cost: "",
+  unitCost: "",
   note: "",
   date: new Date().toISOString().slice(0, 10),
   hasUnit: false,
@@ -44,7 +40,6 @@ const initialCreateProduct = {
 const ManufactureTable = () => {
   const { language } = useLayout();
   const t = translations[language] || translations.EN;
-  const [supplier, setSupplier] = useState("");
 
   const role = localStorage.getItem("role");
   const userId = localStorage.getItem("userId");
@@ -211,7 +206,6 @@ const ManufactureTable = () => {
       startDate: startDate || undefined,
       endDate: endDate || undefined,
       name: itemName || undefined,
-      supplierId: supplier || undefined,
     };
 
     Object.keys(args).forEach((k) => {
@@ -221,7 +215,7 @@ const ManufactureTable = () => {
     });
 
     return args;
-  }, [currentPage, itemsPerPage, startDate, endDate, itemName, supplier]);
+  }, [currentPage, itemsPerPage, startDate, endDate, itemName]);
 
   const { data, isLoading, isError, error, refetch } =
     useGetAllManufactureQuery(queryArgs);
@@ -261,17 +255,33 @@ const ManufactureTable = () => {
     setCurrentProduct(null);
   };
 
+  const getUnitCost = (row) => {
+    const cost = Number(row?.cost || 0);
+    const unitValue = Number(row?.unitValue || 0);
+    if (!cost) return 0;
+    return unitValue > 0 ? cost / unitValue : cost;
+  };
+
+  const getTotalCost = (unitCost, unitValue) => {
+    const parsedUnitCost = Number(unitCost || 0);
+    const parsedUnitValue = Number(unitValue || 0);
+    return parsedUnitCost * (parsedUnitValue > 0 ? parsedUnitValue : 1);
+  };
+
+  const formatMoney = (value) =>
+    Number(value || 0).toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
   const handleEditClick = (rp) => {
     setCurrentProduct({
       ...rp,
       itemId: rp.itemId ? String(rp.itemId) : "",
       productId: rp.productId ? String(rp.productId) : "",
-      variant: rp.variant || null,
-      variantKey: rp.variantKey || "",
-      supplierId: rp.supplierId ? String(rp.supplierId) : "",
       date: rp.date ?? "",
       note: rp.note ?? "",
-      cost: rp.cost ?? "",
+      unitCost: getUnitCost(rp) || "",
       unitValue: rp.unitValue ?? "",
       unit: rp.unit ?? "Pcs",
       hasUnit: !!rp.unitValue,
@@ -286,12 +296,9 @@ const ManufactureTable = () => {
       ...rp,
       itemId: rp.itemId ? String(rp.itemId) : "",
       productId: rp.productId ? String(rp.productId) : "",
-      variant: rp.variant || null,
-      variantKey: rp.variantKey || "",
-      supplierId: rp.supplierId ? String(rp.supplierId) : "",
       date: rp.date ?? "",
       note: rp.note ?? "",
-      cost: rp.cost ?? "",
+      unitCost: getUnitCost(rp) || "",
       unitValue: rp.unitValue ?? "",
       unit: rp.unit ?? "Pcs",
       hasUnit: !!rp.unitValue,
@@ -312,25 +319,18 @@ const ManufactureTable = () => {
       return toast.error("Please select a product");
     }
 
-    const createVariantOptions = getProductVariantOptions(createProduct.productId);
-    if (createVariantOptions.length && !createProduct.variantKey) {
-      return toast.error("Please select a product variant");
-    }
-
     try {
+      const unitValue = createProduct.hasUnit
+        ? Number(createProduct.unitValue) || 0
+        : 0;
       const payload = {
         itemId: Number(createProduct.itemId) || "",
         productId: Number(createProduct.productId) || "",
-        variant: createProduct.variant || null,
-        variantKey: createProduct.variantKey || "",
         unit: createProduct.unit || "Pcs",
-        unitValue: createProduct.hasUnit
-          ? Number(createProduct.unitValue) || 0
-          : 0,
-        cost: Number(createProduct.cost) || 0,
+        unitValue,
+        cost: getTotalCost(createProduct.unitCost, unitValue),
         date: createProduct.date || "",
         note: createProduct.note || "",
-        supplierId: Number(createProduct.supplierId) || undefined,
         userId: Number(userId) || 0,
         actorRole: role,
       };
@@ -352,24 +352,17 @@ const ManufactureTable = () => {
 
   const handleUpdateProduct = async () => {
     try {
-      const currentVariantOptions = getProductVariantOptions(currentProduct.productId);
-      if (currentVariantOptions.length && !currentProduct.variantKey) {
-        return toast.error("Please select a product variant");
-      }
-
+      const unitValue = currentProduct.hasUnit
+        ? Number(currentProduct.unitValue) || 0
+        : 0;
       const payload = {
         itemId: Number(currentProduct.itemId) || "",
         productId: Number(currentProduct.productId) || "",
-        variant: currentProduct.variant || null,
-        variantKey: currentProduct.variantKey || "",
         unit: currentProduct.unit || "Pcs",
-        unitValue: currentProduct.hasUnit
-          ? Number(currentProduct.unitValue) || 0
-          : 0,
-        cost: Number(currentProduct.cost) || 0,
+        unitValue,
+        cost: getTotalCost(currentProduct.unitCost, unitValue),
         date: currentProduct.date || "",
         note: currentProduct.note || "",
-        supplierId: Number(currentProduct.supplierId) || undefined,
         userId: Number(currentProduct.userId) || 0,
         actorRole: role,
       };
@@ -399,19 +392,17 @@ const ManufactureTable = () => {
     }
 
     try {
+      const unitValue = currentProduct.hasUnit
+        ? Number(currentProduct.unitValue) || 0
+        : 0;
       const payload = {
         itemId: Number(currentProduct.itemId) || "",
         productId: Number(currentProduct.productId) || "",
-        variant: currentProduct.variant || null,
-        variantKey: currentProduct.variantKey || "",
         unit: currentProduct.unit || "Pcs",
-        unitValue: currentProduct.hasUnit
-          ? Number(currentProduct.unitValue) || 0
-          : 0,
-        cost: Number(currentProduct.cost) || 0,
+        unitValue,
+        cost: getTotalCost(currentProduct.unitCost, unitValue),
         date: currentProduct.date || "",
         note: currentProduct.note || "",
-        supplierId: Number(currentProduct.supplierId) || undefined,
         userId: Number(currentProduct.userId) || 0,
         actorRole: role,
       };
@@ -493,79 +484,6 @@ const ManufactureTable = () => {
     }));
   }, [productsData]);
 
-  const parseVariationValue = (value) => {
-    if (Array.isArray(value)) {
-      return value.map((item) => String(item).trim()).filter(Boolean);
-    }
-
-    if (typeof value === "string") {
-      try {
-        const parsed = JSON.parse(value);
-        if (Array.isArray(parsed)) {
-          return parsed.map((item) => String(item).trim()).filter(Boolean);
-        }
-      } catch {
-        return value
-          .split(",")
-          .map((item) => item.trim())
-          .filter(Boolean);
-      }
-    }
-
-    return [];
-  };
-
-  const buildVariantKey = (variant) =>
-    Object.entries(variant || {})
-      .filter(([, value]) => value)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, value]) => `${key}:${value}`)
-      .join("|");
-
-  const getProductById = (productId) =>
-    (productsData || []).find(
-      (product) => String(product.Id ?? product.id ?? product._id) === String(productId),
-    );
-
-  const getProductVariantOptions = (productId) => {
-    const product = getProductById(productId);
-    if (!Array.isArray(product?.variations)) return [];
-
-    const options = product.variations.flatMap((variation) => {
-      const sizes = parseVariationValue(variation?.size);
-      const colors = parseVariationValue(variation?.color);
-      const safeSizes = sizes.length ? sizes : [""];
-      const safeColors = colors.length ? colors : [""];
-
-      return safeSizes.flatMap((size) =>
-        safeColors.map((color) => {
-          const variant = {
-            ...(size ? { size } : {}),
-            ...(color ? { color } : {}),
-          };
-          const value = buildVariantKey(variant);
-          const label = [size, color].filter(Boolean).join(" / ");
-          return value ? { value, label, variant } : null;
-        }),
-      );
-    }).filter(Boolean);
-
-    return Array.from(
-      new Map(options.map((option) => [option.value, option])).values(),
-    );
-  };
-
-  const getVariantLabel = (variant) => {
-    const parsed = typeof variant === "string" ? (() => {
-      try {
-        return JSON.parse(variant);
-      } catch {
-        return null;
-      }
-    })() : variant;
-    return [parsed?.size, parsed?.color].filter(Boolean).join(" / ");
-  };
-
   const productNameMap = useMemo(() => {
     const m = new Map();
     (productsData || []).forEach((p) => {
@@ -588,28 +506,6 @@ const ManufactureTable = () => {
     placeholder: (base) => ({ ...base, color: "#64748b" }),
     menu: (base) => ({ ...base, borderRadius: 14, overflow: "hidden" }),
   };
-
-  // ✅ suppliers
-  const {
-    data: allSupplierRes,
-    isError: isErrorSupplier,
-    error: errorSupplier,
-  } = useGetAllSupplierWithoutQueryQuery();
-  const suppliers = useMemo(() => allSupplierRes?.data || [], [allSupplierRes]);
-
-  useEffect(() => {
-    if (isErrorSupplier)
-      console.error("Error fetching suppliers", errorSupplier);
-  }, [isErrorSupplier, errorSupplier]);
-
-  const supplierOptions = useMemo(
-    () =>
-      (suppliers || []).map((s) => ({
-        value: s.Id,
-        label: s.name,
-      })),
-    [suppliers],
-  );
 
   return (
     <motion.div
@@ -712,24 +608,6 @@ const ManufactureTable = () => {
             className="text-black"
           />
         </div>
-        <div className="flex flex-col">
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
-            {t.supplier}
-          </label>
-          <Select
-            options={supplierOptions}
-            value={
-              supplierOptions.find(
-                (o) => String(o.value) === String(supplier),
-              ) || null
-            }
-            onChange={(selected) => setSupplier(selected?.value || "")}
-            placeholder={t.search}
-            isClearable
-            styles={selectStyles}
-            className="text-black"
-          />
-        </div>
         <button
           type="button"
           className="h-11 bg-slate-100 hover:bg-slate-200 text-slate-600 transition rounded-xl px-4 text-sm font-bold flex items-center justify-center gap-2 active:scale-95 border border-slate-200"
@@ -751,13 +629,10 @@ const ManufactureTable = () => {
                   {t.product || "Product"}
                 </th>
                 <th className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
-                  {t.supplier || "Supplier"}
-                </th>
-                <th className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
                   {t.unit_value || "Unit Value"}
                 </th>
                 <th className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
-                  {t.cost || "Cost"}
+                  {t.unit_cost || "Unit Cost"}
                 </th>
                 <th className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
                   {t.status || "Status"}
@@ -787,15 +662,6 @@ const ManufactureTable = () => {
                     <div className="text-sm font-bold text-slate-900">
                       {resolveItemName(rp)}
                     </div>
-                    {getVariantLabel(rp.variant) ? (
-                      <div className="mt-1 text-xs font-semibold text-slate-500">
-                        {getVariantLabel(rp.variant)}
-                      </div>
-                    ) : null}
-                  </td>
-
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                    {rp.supplier?.name || "N/A"}
                   </td>
 
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
@@ -803,7 +669,7 @@ const ManufactureTable = () => {
                   </td>
 
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                    ৳{Number(rp.cost || 0).toLocaleString()}
+                    ৳{formatMoney(getUnitCost(rp))}
                   </td>
 
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -883,7 +749,7 @@ const ManufactureTable = () => {
               {!isLoading && rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={6}
                     className="px-6 py-20 text-center text-sm text-slate-400 italic"
                   >
                     {t.no_data_found || "No data found"}
@@ -972,7 +838,7 @@ const ManufactureTable = () => {
         <div className="space-y-4 max-h-[70vh] overflow-y-auto px-1 custom-scrollbar">
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-              {t.select_product || "Select Product"}
+              {t.select_product || "Out Product"}
             </label>
             <Select
               options={productDropdownOptions}
@@ -985,8 +851,6 @@ const ManufactureTable = () => {
                 setCurrentProduct({
                   ...currentProduct,
                   productId: selected?.value || "",
-                  variant: null,
-                  variantKey: "",
                 })
               }
               placeholder={t.search_product || "Search product..."}
@@ -996,33 +860,6 @@ const ManufactureTable = () => {
               isDisabled={isLoadingAllProducts}
             />
           </div>
-          {getProductVariantOptions(currentProduct?.productId).length > 0 && (
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-                Variant
-              </label>
-              <Select
-                options={getProductVariantOptions(currentProduct?.productId)}
-                value={
-                  getProductVariantOptions(currentProduct?.productId).find(
-                    (option) =>
-                      option.value === String(currentProduct?.variantKey || ""),
-                  ) || null
-                }
-                onChange={(selected) =>
-                  setCurrentProduct({
-                    ...currentProduct,
-                    variant: selected?.variant || null,
-                    variantKey: selected?.value || "",
-                  })
-                }
-                placeholder="Select variant..."
-                isClearable
-                styles={selectStyles}
-                className="text-sm text-black font-medium"
-              />
-            </div>
-          )}
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
               {t.select_item || "Select Item"}
@@ -1045,31 +882,6 @@ const ManufactureTable = () => {
               styles={selectStyles}
               className="text-sm font-medium"
               isDisabled={isLoadingAllItems}
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-              {t.supplier || "Supplier"}
-            </label>
-            <Select
-              options={supplierOptions}
-              value={
-                supplierOptions.find(
-                  (option) =>
-                    String(option.value) ===
-                    String(currentProduct?.supplierId || ""),
-                ) || null
-              }
-              onChange={(selected) =>
-                setCurrentProduct({
-                  ...currentProduct,
-                  supplierId: selected?.value || "",
-                })
-              }
-              placeholder={t.select_supplier || "Select Supplier"}
-              isClearable
-              styles={selectStyles}
-              className="text-black"
             />
           </div>
           <div>
@@ -1174,14 +986,17 @@ const ManufactureTable = () => {
 
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-              {t.cost || "Cost"}
+              {t.unit_cost || "Unit Cost"}
             </label>
             <input
               type="number"
               step="0.01"
-              value={currentProduct?.cost || ""}
+              value={currentProduct?.unitCost || ""}
               onChange={(e) =>
-                setCurrentProduct({ ...currentProduct, cost: e.target.value })
+                setCurrentProduct({
+                  ...currentProduct,
+                  unitCost: e.target.value,
+                })
               }
               className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
             />
@@ -1265,7 +1080,7 @@ const ManufactureTable = () => {
         >
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-              {t.select_product || "Select Product"}
+              {t.select_product || "Out Product"}
             </label>
             <Select
               options={productDropdownOptions}
@@ -1278,8 +1093,6 @@ const ManufactureTable = () => {
                 setCreateProduct({
                   ...createProduct,
                   productId: selected?.value || "",
-                  variant: null,
-                  variantKey: "",
                 })
               }
               placeholder={t.search_product || "Search product..."}
@@ -1289,33 +1102,6 @@ const ManufactureTable = () => {
               isDisabled={isLoadingAllProducts}
             />
           </div>
-          {getProductVariantOptions(createProduct?.productId).length > 0 && (
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-                Variant
-              </label>
-              <Select
-                options={getProductVariantOptions(createProduct?.productId)}
-                value={
-                  getProductVariantOptions(createProduct?.productId).find(
-                    (option) =>
-                      option.value === String(createProduct?.variantKey || ""),
-                  ) || null
-                }
-                onChange={(selected) =>
-                  setCreateProduct({
-                    ...createProduct,
-                    variant: selected?.variant || null,
-                    variantKey: selected?.value || "",
-                  })
-                }
-                placeholder="Select variant..."
-                isClearable
-                styles={selectStyles}
-                className="text-sm text-black font-medium"
-              />
-            </div>
-          )}
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
               {t.select_item || "Select Item"}
@@ -1341,31 +1127,6 @@ const ManufactureTable = () => {
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-              {t.supplier || "Supplier"}
-            </label>
-            <Select
-              options={supplierOptions}
-              value={
-                supplierOptions.find(
-                  (option) =>
-                    String(option.value) ===
-                    String(createProduct?.supplierId || ""),
-                ) || null
-              }
-              onChange={(selected) =>
-                setCreateProduct({
-                  ...createProduct,
-                  supplierId: selected?.value || "",
-                })
-              }
-              placeholder={t.select_supplier || "Select Supplier"}
-              isClearable
-              styles={selectStyles}
-              className="text-black"
-            />
-          </div>
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
               {t.date || "Date"}
@@ -1468,14 +1229,17 @@ const ManufactureTable = () => {
 
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-              {t.cost || "Cost"}
+              {t.unit_cost || "Unit Cost"}
             </label>
             <input
               type="number"
               step="0.01"
-              value={createProduct?.cost || ""}
+              value={createProduct?.unitCost || ""}
               onChange={(e) =>
-                setCreateProduct({ ...createProduct, cost: e.target.value })
+                setCreateProduct({
+                  ...createProduct,
+                  unitCost: e.target.value,
+                })
               }
               className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
             />

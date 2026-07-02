@@ -136,8 +136,16 @@ const LoanTable = () => {
       transition={{ duration: 0.25 }}
     >
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full mb-6">
-        <SummaryCard label="Total Loan নিয়েছি" value={summary.totalLoanTaken} tone="emerald" />
-        <SummaryCard label="Total পরিশোধ" value={summary.totalLoanPaid} tone="rose" />
+        <SummaryCard
+          label="Total Loan নিয়েছি"
+          value={summary.totalLoanTaken}
+          tone="emerald"
+        />
+        <SummaryCard
+          label="Total পরিশোধ"
+          value={summary.totalLoanPaid}
+          tone="rose"
+        />
         <SummaryCard label="কত পাবে" value={summary.netBalance} tone="indigo" />
       </div>
 
@@ -153,7 +161,10 @@ const LoanTable = () => {
             placeholder="Search loan person..."
             className="w-full h-11 rounded-xl border border-slate-200 bg-white px-4 pr-11 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
           />
-          <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+          <Search
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400"
+            size={18}
+          />
         </div>
         <button
           type="button"
@@ -169,19 +180,34 @@ const LoanTable = () => {
         <table className="min-w-full divide-y divide-slate-200 bg-white">
           <thead className="bg-slate-50">
             <tr>
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Name</th>
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Loan নিয়েছি</th>
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">পরিশোধ</th>
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">কত পাবে</th>
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Status</th>
-              <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-600">Actions</th>
+              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
+                Name
+              </th>
+              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
+                Loan নিয়েছি
+              </th>
+              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
+                পরিশোধ
+              </th>
+              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
+                কত পাবে
+              </th>
+              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
+                Status
+              </th>
+              <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-600">
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
             {rows.map((item) => (
               <tr key={item.Id} className="hover:bg-slate-50">
                 <td className="px-5 py-4">
-                  <Link to={`/loan/${item.Id}`} className="flex min-w-0 items-center gap-3">
+                  <Link
+                    to={`/loan/${item.Id}`}
+                    className="flex min-w-0 items-center gap-3"
+                  >
                     <span className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-50">
                       <HandCoins className="text-indigo-600" size={18} />
                     </span>
@@ -189,13 +215,23 @@ const LoanTable = () => {
                       <span className="block text-sm font-semibold text-slate-900 hover:text-indigo-600">
                         {item.name}
                       </span>
-                      {item.note && <span className="block text-xs text-slate-500">{item.note}</span>}
+                      {item.note && (
+                        <span className="block text-xs text-slate-500">
+                          {item.note}
+                        </span>
+                      )}
                     </span>
                   </Link>
                 </td>
-                <td className="px-5 py-4 text-sm tabular-nums text-slate-700">{formatAmount(item.totalLoanTaken)}</td>
-                <td className="px-5 py-4 text-sm tabular-nums text-slate-700">{formatAmount(item.totalLoanPaid)}</td>
-                <td className="px-5 py-4 text-sm font-semibold tabular-nums text-slate-900">{formatAmount(item.netBalance)}</td>
+                <td className="px-5 py-4 text-sm tabular-nums text-slate-700">
+                  {formatAmount(item.totalLoanTaken)}
+                </td>
+                <td className="px-5 py-4 text-sm tabular-nums text-slate-700">
+                  {formatAmount(item.totalLoanPaid)}
+                </td>
+                <td className="px-5 py-4 text-sm font-semibold tabular-nums text-slate-900">
+                  {formatAmount(item.netBalance)}
+                </td>
                 <td className="px-5 py-4">
                   <span className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
                     {item.status || "Active"}
@@ -223,7 +259,10 @@ const LoanTable = () => {
             ))}
             {!isLoading && rows.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-6 py-10 text-center text-sm text-slate-500">
+                <td
+                  colSpan={6}
+                  className="px-6 py-10 text-center text-sm text-slate-500"
+                >
                   No loan data found
                 </td>
               </tr>
@@ -258,7 +297,14 @@ const LoanTable = () => {
           );
         })}
         <button
-          onClick={() => setStartPage((p) => Math.min(p + pagesPerSet, Math.max(1, totalPages - pagesPerSet + 1)))}
+          onClick={() =>
+            setStartPage((p) =>
+              Math.min(
+                p + pagesPerSet,
+                Math.max(1, totalPages - pagesPerSet + 1),
+              ),
+            )
+          }
           disabled={endPage === totalPages}
           className="px-4 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl disabled:opacity-60 hover:bg-slate-50 transition"
         >
@@ -274,39 +320,55 @@ const LoanTable = () => {
       >
         <form onSubmit={handleSave} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-semibold text-slate-600">Name</label>
+            <label className="mb-1 block text-sm font-semibold text-slate-600">
+              Name
+            </label>
             <input
               value={form.name}
               onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-              className="h-11 w-full rounded-xl border border-slate-200 px-3 text-slate-900 outline-none focus:border-indigo-200 focus:ring-2 focus:ring-indigo-500/20"
+              className="h-11 bg-white w-full rounded-xl border border-slate-200 px-3 text-slate-900 outline-none focus:border-indigo-200 focus:ring-2 focus:ring-indigo-500/20"
               placeholder="Loan person name"
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-semibold text-slate-600">Status</label>
+            <label className="mb-1 block text-sm font-semibold text-slate-600">
+              Status
+            </label>
             <select
               value={form.status}
-              onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))}
-              className="h-11 w-full rounded-xl border border-slate-200 px-3 text-slate-900 outline-none focus:border-indigo-200 focus:ring-2 focus:ring-indigo-500/20"
+              onChange={(e) =>
+                setForm((p) => ({ ...p, status: e.target.value }))
+              }
+              className="h-11 bg-white w-full rounded-xl border border-slate-200 px-3 text-slate-900 outline-none focus:border-indigo-200 focus:ring-2 focus:ring-indigo-500/20"
             >
               <option value="Active">Active</option>
               <option value="Inactive">Inactive</option>
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-sm font-semibold text-slate-600">Note</label>
+            <label className="mb-1 block text-sm font-semibold text-slate-600">
+              Note
+            </label>
             <textarea
               value={form.note}
               onChange={(e) => setForm((p) => ({ ...p, note: e.target.value }))}
-              className="min-h-[96px] w-full rounded-xl border border-slate-200 px-3 py-2 text-slate-900 outline-none focus:border-indigo-200 focus:ring-2 focus:ring-indigo-500/20"
+              className="min-h-[96px] bg-white w-full rounded-xl border border-slate-200 px-3 py-2 text-slate-900 outline-none focus:border-indigo-200 focus:ring-2 focus:ring-indigo-500/20"
               placeholder="Optional note"
             />
           </div>
           <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
-            <button type="button" onClick={closeModal} className="h-11 rounded-xl border border-slate-200 px-5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+            <button
+              type="button"
+              onClick={closeModal}
+              className="h-11 rounded-xl border border-slate-200 px-5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
               Cancel
             </button>
-            <button type="submit" disabled={isSaving} className="h-11 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="h-11 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+            >
               {isSaving ? "Saving..." : "Save"}
             </button>
           </div>
@@ -332,7 +394,9 @@ const SummaryCard = ({ label, value, tone }) => {
             {formatAmount(value)}
           </p>
         </div>
-        <div className={`h-10 w-10 rounded-xl border flex items-center justify-center ${toneClass}`}>
+        <div
+          className={`h-10 w-10 rounded-xl border flex items-center justify-center ${toneClass}`}
+        >
           <HandCoins size={18} />
         </div>
       </div>

@@ -137,9 +137,6 @@ const ManufactureStockTable = () => {
     }),
   };
 
-  const getVariantLabel = (variant) =>
-    [variant?.size, variant?.color].filter(Boolean).join(" / ");
-
   const getUnitCost = (row) => {
     const cost = Number(row?.cost || 0);
     const unitValue = Number(row?.unitValue || 0);
@@ -282,11 +279,6 @@ const ManufactureStockTable = () => {
                       {/* {resolveProductName(rp)} */}
                       {rp.name || "N/A"}
                     </div>
-                    {getVariantLabel(rp.variant) ? (
-                      <div className="mt-1 inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-600">
-                        {getVariantLabel(rp.variant)}
-                      </div>
-                    ) : null}
                   </td>
                   <td className="px-6 py-5 whitespace-nowrap text-center">
                     <span className="inline-flex items-center px-4 py-1.5 rounded-2xl text-xs font-black bg-indigo-50 text-indigo-700 border border-indigo-100 shadow-sm shadow-indigo-50 tabular-nums">
