@@ -2021,13 +2021,13 @@ const ReceivedProductTable = () => {
             </div>
           </div>
 
-          <button
+          {/* <button
             type="button"
             onClick={handleAddProduct}
             className="group relative inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white transition-all px-6 py-3 rounded-2xl text-sm font-bold shadow-xl shadow-indigo-100 active:scale-95 overflow-hidden w-full sm:w-auto"
           >
             <Plus size={18} /> {t.add_new_received || "Add New Purchase"}
-          </button>
+          </button> */}
         </div>
       </div>
 
@@ -3594,6 +3594,7 @@ const ReceivedProductTable = () => {
       </Modal>
 
       {/* Add Purchase Modal */}
+
       <Modal
         isOpen={isModalOpen1}
         onClose={handleModalClose1}

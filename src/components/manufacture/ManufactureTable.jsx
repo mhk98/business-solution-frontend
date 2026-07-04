@@ -517,11 +517,10 @@ const ManufactureTable = () => {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-10">
         <div>
           <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-            {t.manufacture_history || "Manufacture History"}
+            Item Purchase History
           </h2>
           <p className="text-slate-500 text-sm mt-1 font-medium">
-            {t.track_manufacture_entries ||
-              "Track and manage manufacture entries"}
+            Track and manage item purchase entries
           </p>
         </div>
 

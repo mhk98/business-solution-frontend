@@ -10,7 +10,10 @@ export const mixerApi = baseApi.injectEndpoints({
         method: "POST",
         body: data,
       }),
-      invalidatesTags: [{ type: "Mixer", id: "LIST" }],
+      invalidatesTags: [
+        { type: "Mixer", id: "LIST" },
+        { type: "InventoryOverview", id: "LIST" },
+      ],
     }),
 
     deleteMixer: build.mutation({
@@ -18,7 +21,10 @@ export const mixerApi = baseApi.injectEndpoints({
         url: `mixer/${id}`,
         method: "DELETE",
       }),
-      invalidatesTags: [{ type: "Mixer", id: "LIST" }],
+      invalidatesTags: [
+        { type: "Mixer", id: "LIST" },
+        { type: "InventoryOverview", id: "LIST" },
+      ],
     }),
 
     updateMixer: build.mutation({
@@ -29,7 +35,8 @@ export const mixerApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: (res, err, arg) => [
         { type: "Mixer", id: "LIST" },
-        { type: "Manufacture", id: arg.id },
+        { type: "Mixer", id: arg.id },
+        { type: "InventoryOverview", id: "LIST" },
       ],
     }),
 

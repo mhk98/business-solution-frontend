@@ -6,7 +6,7 @@ export const manufactureApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
     insertManufacture: build.mutation({
       query: (data) => ({
-        url: "manufacture/create",
+        url: "item-purchase/create",
         method: "POST",
         body: data,
       }),
@@ -18,7 +18,7 @@ export const manufactureApi = baseApi.injectEndpoints({
 
     deleteManufacture: build.mutation({
       query: (id) => ({
-        url: `manufacture/${id}`,
+        url: `item-purchase/${id}`,
         method: "DELETE",
       }),
       invalidatesTags: [
@@ -29,7 +29,7 @@ export const manufactureApi = baseApi.injectEndpoints({
 
     getSingleManDataById: build.mutation({
       query: (id) => ({
-        url: `manufacture/${id}`,
+        url: `item-purchase/${id}`,
         method: "GET",
       }),
       invalidatesTags: [
@@ -40,7 +40,7 @@ export const manufactureApi = baseApi.injectEndpoints({
 
     updateManufacture: build.mutation({
       query: ({ id, data }) => ({
-        url: `manufacture/${id}`,
+        url: `item-purchase/${id}`,
         method: "PUT",
         body: data,
       }),
@@ -53,7 +53,7 @@ export const manufactureApi = baseApi.injectEndpoints({
 
     getAllManufacture: build.query({
       query: ({ page, limit, startDate, endDate, name, supplierId }) => ({
-        url: "manufacture",
+        url: "item-purchase",
         params: { page, limit, startDate, endDate, name, supplierId },
       }),
       providesTags: (result) =>
@@ -68,7 +68,7 @@ export const manufactureApi = baseApi.injectEndpoints({
 
     getAllManufactureWithoutQuery: build.query({
       query: () => ({
-        url: "manufacture/all",
+        url: "item-purchase/all",
       }),
       providesTags: [{ type: "Manufacture", id: "LIST" }],
       refetchOnMountOrArgChange: true,

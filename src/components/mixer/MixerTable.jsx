@@ -23,16 +23,135 @@ import {
   useInsertMixerMutation,
   useUpdateMixerMutation,
 } from "../../features/mixer/mixer";
-import { useGetAllProductWithoutQueryQuery } from "../../features/product/product";
+import {
+  useGetAllProductWithoutQueryQuery,
+  useGetSingleReceivedProductByIdQuery,
+} from "../../features/product/product";
+import { useGetAllManufacturerWithoutQueryQuery } from "../../features/manufacturer/manufacturer";
 import { useGetSingleItemMasterDataByIdMutation } from "../../features/manufactureStock/manufactureStock";
+import { useGetAllWirehouseWithoutQueryQuery } from "../../features/wirehouse/wirehouse";
 // import { useGetSingleManDataByIdMutation } from "../../features/manufacture/manufacture";
 
 const initialCreateProduct = {
   productId: "",
+  manufacturerId: "",
+  warehouseId: "",
   combo: "",
   note: "",
   date: new Date().toISOString().slice(0, 10),
   materialSelections: [],
+  variantRows: [{ size: "", color: "", quantity: "" }],
+};
+
+const parseVariationValue = (value) => {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.map((item) => String(item).trim()).filter(Boolean);
+      }
+    } catch {
+      return value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+  }
+
+  return [];
+};
+
+const getVariationOptions = (product, key) => {
+  if (!Array.isArray(product?.variations)) return [];
+
+  return [
+    ...new Set(
+      product.variations.flatMap((variation) =>
+        parseVariationValue(variation?.[key]),
+      ),
+    ),
+  ].map((value) => ({ value, label: value }));
+};
+
+const getVariationColorsForSize = (product, size) => {
+  if (!size || !Array.isArray(product?.variations)) return [];
+
+  return [
+    ...new Set(
+      product.variations.flatMap((variation) => {
+        const sizes = parseVariationValue(variation?.size);
+        if (!sizes.includes(size)) return [];
+        return parseVariationValue(variation?.color);
+      }),
+    ),
+  ].map((value) => ({ value, label: value }));
+};
+
+const getVariantRowsFromProduct = (product) => {
+  if (!Array.isArray(product?.variations) || product.variations.length === 0) {
+    return [];
+  }
+
+  return product.variations.flatMap((variation) => {
+    const sizes = parseVariationValue(variation?.size);
+    const colors = parseVariationValue(variation?.color);
+    return sizes.flatMap((size) =>
+      colors.length ? colors.map((color) => ({ size, color })) : [{ size }],
+    );
+  });
+};
+
+const createEmptyVariantRow = () => ({
+  size: "",
+  color: "",
+  quantity: "",
+});
+
+const normalizeVariantRows = (value) => {
+  if (Array.isArray(value) && value.length > 0) {
+    return value.map((row) => ({
+      size: row?.size ? String(row.size) : "",
+      color: row?.color ? String(row.color) : "",
+      quantity:
+        row?.quantity !== undefined && row?.quantity !== null
+          ? String(row.quantity)
+          : "",
+    }));
+  }
+
+  return [createEmptyVariantRow()];
+};
+
+const getNormalizedVariantsPayload = (rows) =>
+  normalizeVariantRows(rows)
+    .filter((row) => row.size || row.color || row.quantity)
+    .map((row) => ({
+      size: row.size || "",
+      color: row.color || "",
+      quantity: Number(row.quantity) || 0,
+    }))
+    .filter((row) => row.size);
+
+const getVariantQuantityTotal = (rows) =>
+  getNormalizedVariantsPayload(rows).reduce(
+    (total, row) => total + (Number(row.quantity) || 0),
+    0,
+  );
+
+const buildMixerVariantNote = (rows) => {
+  const variants = getNormalizedVariantsPayload(rows);
+  if (!variants.length) return "";
+
+  return variants
+    .map((variant, index) => {
+      const label = [variant.size, variant.color].filter(Boolean).join(" / ");
+      return `Variant ${index + 1}: ${label}${variant.quantity ? ` x ${variant.quantity}` : ""}`;
+    })
+    .join("\n");
 };
 
 const normalizeManufactureItems = (response) => {
@@ -63,11 +182,11 @@ const normalizeManufactureItems = (response) => {
       ),
       label: baseLabel,
       unitValue:
-      item?.unitValue ??
-      item?.quantity ??
-      item?.item?.unitValue ??
-      item?.product?.unitValue ??
-      "",
+        item?.unitValue ??
+        item?.quantity ??
+        item?.item?.unitValue ??
+        item?.product?.unitValue ??
+        "",
       unit: item?.unit ?? item?.item?.unit ?? item?.product?.unit ?? "Pcs",
     };
   });
@@ -196,8 +315,14 @@ const MixerTable = () => {
     isError: isErrorAllProducts,
     error: errorAllProducts,
   } = useGetAllProductWithoutQueryQuery();
+  const { data: manufacturersRes, isLoading: isLoadingManufacturers } =
+    useGetAllManufacturerWithoutQueryQuery();
+  const { data: warehousesRes, isLoading: isLoadingWarehouses } =
+    useGetAllWirehouseWithoutQueryQuery();
 
   const productsData = allProductsRes?.data || [];
+  const manufacturersData = manufacturersRes?.data || [];
+  const warehousesData = warehousesRes?.data || [];
 
   useEffect(() => {
     if (isErrorAllProducts) {
@@ -211,6 +336,148 @@ const MixerTable = () => {
       label: p.name,
     }));
   }, [productsData]);
+
+  const manufacturerDropdownOptions = useMemo(() => {
+    return (manufacturersData || []).map((manufacturer) => ({
+      value: String(manufacturer.Id ?? manufacturer.id ?? manufacturer._id),
+      label: manufacturer.name,
+    }));
+  }, [manufacturersData]);
+
+  const warehouseDropdownOptions = useMemo(() => {
+    return (warehousesData || []).map((warehouse) => ({
+      value: String(warehouse.Id ?? warehouse.id ?? warehouse._id),
+      label: warehouse.name,
+    }));
+  }, [warehousesData]);
+
+  const selectedCreateProductId = createProduct?.productId || undefined;
+  const selectedEditProductId = currentProduct?.productId || undefined;
+
+  const { data: selectedCreateProductRes } =
+    useGetSingleReceivedProductByIdQuery(selectedCreateProductId, {
+      skip: !selectedCreateProductId,
+    });
+  const { data: selectedEditProductRes } = useGetSingleReceivedProductByIdQuery(
+    selectedEditProductId,
+    { skip: !selectedEditProductId },
+  );
+
+  const selectedCreateProductData =
+    selectedCreateProductRes?.data || selectedCreateProductRes;
+  const selectedEditProductData =
+    selectedEditProductRes?.data || selectedEditProductRes;
+
+  const selectedCreateProductVariants = useMemo(
+    () => getVariantRowsFromProduct(selectedCreateProductData),
+    [selectedCreateProductData],
+  );
+  const selectedEditProductVariants = useMemo(
+    () => getVariantRowsFromProduct(selectedEditProductData),
+    [selectedEditProductData],
+  );
+
+  const shouldShowCreateVariantOptions =
+    Boolean(createProduct?.productId) &&
+    selectedCreateProductVariants.length > 0;
+  const shouldShowEditVariantOptions =
+    Boolean(currentProduct?.productId) &&
+    selectedEditProductVariants.length > 0;
+
+  const createSizeOptions = useMemo(
+    () => getVariationOptions(selectedCreateProductData, "size"),
+    [selectedCreateProductData],
+  );
+  const createColorOptions = useMemo(
+    () => getVariationOptions(selectedCreateProductData, "color"),
+    [selectedCreateProductData],
+  );
+  const editSizeOptions = useMemo(
+    () => getVariationOptions(selectedEditProductData, "size"),
+    [selectedEditProductData],
+  );
+  const editColorOptions = useMemo(
+    () => getVariationOptions(selectedEditProductData, "color"),
+    [selectedEditProductData],
+  );
+
+  const createVariantQuantityTotal = useMemo(
+    () => getVariantQuantityTotal(createProduct?.variantRows),
+    [createProduct?.variantRows],
+  );
+  const editVariantQuantityTotal = useMemo(
+    () => getVariantQuantityTotal(currentProduct?.variantRows),
+    [currentProduct?.variantRows],
+  );
+
+  useEffect(() => {
+    if (!shouldShowCreateVariantOptions) return;
+    setCreateProduct((prev) => ({
+      ...prev,
+      combo: createVariantQuantityTotal ? String(createVariantQuantityTotal) : "",
+    }));
+  }, [createVariantQuantityTotal, shouldShowCreateVariantOptions]);
+
+  useEffect(() => {
+    if (!shouldShowEditVariantOptions) return;
+    setCurrentProduct((prev) =>
+      prev
+        ? {
+            ...prev,
+            combo: editVariantQuantityTotal
+              ? String(editVariantQuantityTotal)
+              : "",
+          }
+        : prev,
+    );
+  }, [editVariantQuantityTotal, shouldShowEditVariantOptions]);
+
+  const updateVariantRow = (mode, index, key, value) => {
+    const setter = mode === "edit" ? setCurrentProduct : setCreateProduct;
+
+    setter((prev) => {
+      const nextRows = normalizeVariantRows(prev?.variantRows).map(
+        (row, rowIndex) =>
+          rowIndex === index
+            ? {
+                ...row,
+                [key]: value,
+                ...(key === "size" ? { color: "" } : {}),
+              }
+            : row,
+      );
+
+      return {
+        ...prev,
+        variantRows: nextRows,
+      };
+    });
+  };
+
+  const addVariantRow = (mode) => {
+    const setter = mode === "edit" ? setCurrentProduct : setCreateProduct;
+    setter((prev) => ({
+      ...prev,
+      variantRows: [
+        ...normalizeVariantRows(prev?.variantRows),
+        createEmptyVariantRow(),
+      ],
+    }));
+  };
+
+  const removeVariantRow = (mode, index) => {
+    const setter = mode === "edit" ? setCurrentProduct : setCreateProduct;
+    setter((prev) => {
+      const nextRows = normalizeVariantRows(prev?.variantRows).filter(
+        (_, rowIndex) => rowIndex !== index,
+      );
+
+      return {
+        ...prev,
+        variantRows: nextRows.length > 0 ? nextRows : [createEmptyVariantRow()],
+      };
+    });
+  };
 
   const itemNameMap = useMemo(() => {
     const m = new Map();
@@ -384,6 +651,14 @@ const MixerTable = () => {
         rp.productId || rp.product_id || rp.ProductId
           ? String(rp.productId || rp.product_id || rp.ProductId)
           : "",
+      manufacturerId:
+        rp.manufacturerId || rp.manufacturer_id || rp.ManufacturerId
+          ? String(rp.manufacturerId || rp.manufacturer_id || rp.ManufacturerId)
+          : "",
+      warehouseId:
+        rp.warehouseId || rp.warehouse_id || rp.WarehouseId
+          ? String(rp.warehouseId || rp.warehouse_id || rp.WarehouseId)
+          : "",
       combo: rp.combo ?? "",
       date: rp.date ?? "",
       note: rp.note ?? "",
@@ -392,6 +667,7 @@ const MixerTable = () => {
       // unit: rp.unit ?? "Pcs",
       // hasUnit: !!rp.unitValue,
       materialSelections: [],
+      variantRows: normalizeVariantRows(rp.variants),
       userId,
     });
 
@@ -405,6 +681,10 @@ const MixerTable = () => {
         rp.productId || rp.product_id || rp.ProductId
           ? String(rp.productId || rp.product_id || rp.ProductId)
           : "",
+      manufacturerId:
+        rp.manufacturerId || rp.manufacturer_id || rp.ManufacturerId
+          ? String(rp.manufacturerId || rp.manufacturer_id || rp.ManufacturerId)
+          : "",
       date: rp.date ?? "",
       note: rp.note ?? "",
       cost: rp.cost ?? "",
@@ -412,6 +692,7 @@ const MixerTable = () => {
       // unit: rp.unit ?? "Pcs",
       // hasUnit: !!rp.unitValue,
       materialSelections: [],
+      variantRows: normalizeVariantRows(rp.variants),
       userId,
     });
 
@@ -423,6 +704,17 @@ const MixerTable = () => {
 
     if (!createProduct.productId) {
       return toast.error("Please select a product");
+    }
+
+    if (!createProduct.manufacturerId) {
+      return toast.error("Please select a manufacturer");
+    }
+
+    if (
+      shouldShowCreateVariantOptions &&
+      Number(createVariantQuantityTotal) <= 0
+    ) {
+      return toast.error("Please enter valid variant quantity");
     }
 
     if (!createProduct.combo || Number(createProduct.combo) <= 0) {
@@ -448,13 +740,20 @@ const MixerTable = () => {
       const finalNote = buildMixerMaterialNote(
         createManufactureItems,
         createProduct.materialSelections || [],
-        createProduct.note || "",
+        [
+          buildMixerVariantNote(createProduct.variantRows),
+          createProduct.note || "",
+        ]
+          .filter(Boolean)
+          .join("\n"),
       );
-
 
       const payload = {
         productId: Number(createProduct.productId) || "",
+        manufacturerId: Number(createProduct.manufacturerId) || "",
+        warehouseId: Number(createProduct.warehouseId) || null,
         combo: Number(createProduct.combo) || 0,
+        variants: getNormalizedVariantsPayload(createProduct.variantRows),
         mixItems: (createProduct.materialSelections || []).map((selection) => ({
           manufactureId: Number(selection.manufactureId) || "",
           unitValue: Number(selection.quantity) || 0,
@@ -487,8 +786,19 @@ const MixerTable = () => {
 
   const handleUpdateProduct = async () => {
     try {
+      if (
+        shouldShowEditVariantOptions &&
+        Number(editVariantQuantityTotal) <= 0
+      ) {
+        return toast.error("Please enter valid variant quantity");
+      }
+
       if (!currentProduct?.combo || Number(currentProduct.combo) <= 0) {
         return toast.error("Please enter valid combo quantity");
+      }
+
+      if (!currentProduct?.manufacturerId) {
+        return toast.error("Please select a manufacturer");
       }
 
       if (currentManufactureItems.length) {
@@ -509,12 +819,20 @@ const MixerTable = () => {
       const finalNote = buildMixerMaterialNote(
         currentManufactureItems,
         currentProduct?.materialSelections || [],
-        currentProduct?.note || "",
+        [
+          buildMixerVariantNote(currentProduct?.variantRows),
+          currentProduct?.note || "",
+        ]
+          .filter(Boolean)
+          .join("\n"),
       );
 
       const payload = {
         productId: Number(currentProduct.productId) || "",
+        manufacturerId: Number(currentProduct.manufacturerId) || "",
+        warehouseId: Number(currentProduct.warehouseId) || null,
         combo: Number(currentProduct.combo) || 0,
+        variants: getNormalizedVariantsPayload(currentProduct.variantRows),
         mixItems: (currentProduct?.materialSelections || []).map(
           (selection) => ({
             manufactureId: Number(selection.manufactureId) || "",
@@ -589,7 +907,9 @@ const MixerTable = () => {
   };
 
   const handleDeleteProduct = async (id) => {
-    const confirmDelete = await requestDeleteConfirmation({ message: "Do you want to delete this product?" });
+    const confirmDelete = await requestDeleteConfirmation({
+      message: "Do you want to delete this product?",
+    });
     if (!confirmDelete) return toast.info("Delete action was cancelled.");
 
     try {
@@ -687,6 +1007,116 @@ const MixerTable = () => {
       null
     );
   };
+
+  const renderVariantOptions = ({
+    mode,
+    rows,
+    sizeOptions,
+    colorOptions,
+    selectedProductData,
+  }) => (
+    <div className="space-y-4 rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">
+            Product Variants
+          </h3>
+          <p className="text-[11px] font-medium text-slate-500 mt-1">
+            Select size, color and quantity combinations for this mixer.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => addVariantRow(mode)}
+          className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+        >
+          <Plus size={14} />
+          Add Variant
+        </button>
+      </div>
+
+      {normalizeVariantRows(rows).map((row, index) => {
+        const availableColorOptions = row.size
+          ? getVariationColorsForSize(selectedProductData, row.size)
+          : colorOptions;
+
+        return (
+          <div
+            key={`${mode}-variant-${index}`}
+            className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end rounded-2xl border border-slate-200 bg-white p-3"
+          >
+            <div className="sm:col-span-5">
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+                Size / Code
+              </label>
+              <Select
+                options={sizeOptions}
+                value={
+                  sizeOptions.find((option) => option.value === row.size) ||
+                  null
+                }
+                onChange={(selected) =>
+                  updateVariantRow(mode, index, "size", selected?.value || "")
+                }
+                placeholder="Select size..."
+                isClearable
+                styles={selectStyles}
+                className="text-sm text-black font-medium"
+                isDisabled={sizeOptions.length === 0}
+              />
+            </div>
+
+            <div className="sm:col-span-4">
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+                Color
+              </label>
+              <Select
+                options={availableColorOptions}
+                value={
+                  availableColorOptions.find(
+                    (option) => option.value === row.color,
+                  ) || null
+                }
+                onChange={(selected) =>
+                  updateVariantRow(mode, index, "color", selected?.value || "")
+                }
+                placeholder="Select color..."
+                isClearable
+                styles={selectStyles}
+                className="text-sm text-black font-medium"
+                isDisabled={!row.size || availableColorOptions.length === 0}
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+                Quantity
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={row.quantity}
+                onChange={(e) =>
+                  updateVariantRow(mode, index, "quantity", e.target.value)
+                }
+                className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => removeVariantRow(mode, index)}
+              className="sm:col-span-1 h-11 w-full rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition disabled:opacity-50"
+              disabled={normalizeVariantRows(rows).length === 1}
+            >
+              <X size={16} className="mx-auto" />
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
 
   return (
     <motion.div
@@ -1033,7 +1463,9 @@ const MixerTable = () => {
                 setCurrentProduct((prev) => ({
                   ...prev,
                   productId: selected?.value || "",
+                  combo: "",
                   materialSelections: [],
+                  variantRows: [createEmptyVariantRow()],
                 }))
               }
               placeholder={t.search_product || "Search product..."}
@@ -1041,6 +1473,56 @@ const MixerTable = () => {
               styles={selectStyles}
               className="text-sm font-medium"
               isDisabled={isLoadingAllProducts}
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+              Manufacturer
+            </label>
+            <Select
+              options={manufacturerDropdownOptions}
+              value={
+                manufacturerDropdownOptions.find(
+                  (o) => o.value === String(currentProduct?.manufacturerId),
+                ) || null
+              }
+              onChange={(selected) =>
+                setCurrentProduct((prev) => ({
+                  ...prev,
+                  manufacturerId: selected?.value || "",
+                }))
+              }
+              placeholder="Select manufacturer..."
+              isClearable
+              styles={selectStyles}
+              className="text-sm font-medium"
+              isDisabled={isLoadingManufacturers}
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+              Warehouse
+            </label>
+            <Select
+              options={warehouseDropdownOptions}
+              value={
+                warehouseDropdownOptions.find(
+                  (o) => o.value === String(currentProduct?.warehouseId),
+                ) || null
+              }
+              onChange={(selected) =>
+                setCurrentProduct((prev) => ({
+                  ...prev,
+                  warehouseId: selected?.value || "",
+                }))
+              }
+              placeholder="Select warehouse..."
+              isClearable
+              styles={selectStyles}
+              className="text-sm font-medium"
+              isDisabled={isLoadingWarehouses}
             />
           </div>
 
@@ -1070,8 +1552,13 @@ const MixerTable = () => {
               onChange={(e) =>
                 setCurrentProduct((p) => ({ ...p, combo: e.target.value }))
               }
-              className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-              placeholder="Enter combo quantity"
+              disabled={shouldShowEditVariantOptions}
+              className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+              placeholder={
+                shouldShowEditVariantOptions
+                  ? "Auto calculated from variants"
+                  : "Enter combo quantity"
+              }
             />
           </div>
 
@@ -1174,6 +1661,15 @@ const MixerTable = () => {
             </div>
           )}
 
+          {shouldShowEditVariantOptions &&
+            renderVariantOptions({
+              mode: "edit",
+              rows: currentProduct?.variantRows,
+              sizeOptions: editSizeOptions,
+              colorOptions: editColorOptions,
+              selectedProductData: selectedEditProductData,
+            })}
+
           {role === "superAdmin" || role === "admin" ? (
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
@@ -1251,7 +1747,9 @@ const MixerTable = () => {
                 setCreateProduct((prev) => ({
                   ...prev,
                   productId: selected?.value || "",
+                  combo: "",
                   materialSelections: [],
+                  variantRows: [createEmptyVariantRow()],
                 }))
               }
               placeholder={t.search_product || "Search product..."}
@@ -1259,6 +1757,56 @@ const MixerTable = () => {
               styles={selectStyles}
               className="text-sm text-black font-medium"
               isDisabled={isLoadingAllProducts}
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+              Manufacturer
+            </label>
+            <Select
+              options={manufacturerDropdownOptions}
+              value={
+                manufacturerDropdownOptions.find(
+                  (o) => o.value === String(createProduct.manufacturerId),
+                ) || null
+              }
+              onChange={(selected) =>
+                setCreateProduct((prev) => ({
+                  ...prev,
+                  manufacturerId: selected?.value || "",
+                }))
+              }
+              placeholder="Select manufacturer..."
+              isClearable
+              styles={selectStyles}
+              className="text-sm text-black font-medium"
+              isDisabled={isLoadingManufacturers}
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+              Warehouse
+            </label>
+            <Select
+              options={warehouseDropdownOptions}
+              value={
+                warehouseDropdownOptions.find(
+                  (o) => o.value === String(createProduct.warehouseId),
+                ) || null
+              }
+              onChange={(selected) =>
+                setCreateProduct((prev) => ({
+                  ...prev,
+                  warehouseId: selected?.value || "",
+                }))
+              }
+              placeholder="Select warehouse..."
+              isClearable
+              styles={selectStyles}
+              className="text-sm text-black font-medium"
+              isDisabled={isLoadingWarehouses}
             />
           </div>
 
@@ -1273,23 +1821,6 @@ const MixerTable = () => {
                 setCreateProduct((p) => ({ ...p, date: e.target.value }))
               }
               className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-              Combo Quantity
-            </label>
-            <input
-              type="number"
-              min="0.01"
-              step="0.01"
-              value={createProduct?.combo || ""}
-              onChange={(e) =>
-                setCreateProduct((p) => ({ ...p, combo: e.target.value }))
-              }
-              className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-              placeholder="Enter combo quantity"
             />
           </div>
 
@@ -1482,6 +2013,36 @@ const MixerTable = () => {
               )}
             </div>
           )}
+
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+              Combo Quantity
+            </label>
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={createProduct?.combo || ""}
+              onChange={(e) =>
+                setCreateProduct((p) => ({ ...p, combo: e.target.value }))
+              }
+              disabled={shouldShowCreateVariantOptions}
+              className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+              placeholder={
+                shouldShowCreateVariantOptions
+                  ? "Auto calculated from variants"
+                  : "Enter combo quantity"
+              }
+            />
+          </div>
+          {shouldShowCreateVariantOptions &&
+            renderVariantOptions({
+              mode: "create",
+              rows: createProduct?.variantRows,
+              sizeOptions: createSizeOptions,
+              colorOptions: createColorOptions,
+              selectedProductData: selectedCreateProductData,
+            })}
 
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">

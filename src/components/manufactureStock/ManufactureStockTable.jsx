@@ -13,10 +13,12 @@ import { useLayout } from "../../context/LayoutContext";
 import { translations } from "../../utils/translations";
 import { useGetAllItemWithoutQueryQuery } from "../../features/item/item";
 import { useGetAllItemMasterQuery } from "../../features/manufactureStock/manufactureStock";
+import { useGetAllManufactureStockQuery } from "../../features/manufactureStockBalance/manufactureStockBalance";
 
-const ManufactureStockTable = () => {
+const ManufactureStockTable = ({ stockType = "item" }) => {
   const { language } = useLayout();
   const t = translations[language] || translations.EN;
+  const isManufactureStock = stockType === "manufacture";
   const [rows, setRows] = useState([]);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -98,7 +100,15 @@ const ManufactureStockTable = () => {
     return args;
   }, [currentPage, itemsPerPage, startDate, endDate, productName]);
 
-  const { data, isLoading } = useGetAllItemMasterQuery(queryArgs);
+  const itemStockQuery = useGetAllItemMasterQuery(queryArgs, {
+    skip: isManufactureStock,
+  });
+  const manufactureStockQuery = useGetAllManufactureStockQuery(queryArgs, {
+    skip: !isManufactureStock,
+  });
+  const { data, isLoading } = isManufactureStock
+    ? manufactureStockQuery
+    : itemStockQuery;
 
 
   useEffect(() => {
@@ -160,10 +170,12 @@ const ManufactureStockTable = () => {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-10">
         <div>
           <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-            {t.inventory_overview_title}
+            {isManufactureStock ? "Manufacturer Stock" : "Item Stock"}
           </h2>
           <p className="text-slate-500 text-sm mt-1 font-medium">
-            {t.real_time_stock_levels}
+            {isManufactureStock
+              ? "Real-time manufacturer stock levels"
+              : "Real-time item stock levels"}
           </p>
         </div>
 
@@ -245,6 +257,11 @@ const ManufactureStockTable = () => {
                 <th className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
                   {t.item_detail || "Item Detail"}
                 </th>
+                {isManufactureStock && (
+                  <th className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
+                    Manufacturer
+                  </th>
+                )}
                 <th className="px-6 py-5 text-center text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
                   {t.in_hand_qty || "In Hand Value"}
                 </th>
@@ -280,6 +297,13 @@ const ManufactureStockTable = () => {
                       {rp.name || "N/A"}
                     </div>
                   </td>
+                  {isManufactureStock && (
+                    <td className="px-6 py-5 whitespace-nowrap">
+                      <div className="text-sm font-bold text-slate-900">
+                        {rp.manufacturerName || "N/A"}
+                      </div>
+                    </td>
+                  )}
                   <td className="px-6 py-5 whitespace-nowrap text-center">
                     <span className="inline-flex items-center px-4 py-1.5 rounded-2xl text-xs font-black bg-indigo-50 text-indigo-700 border border-indigo-100 shadow-sm shadow-indigo-50 tabular-nums">
                       {Number(rp.unitValue || 0)} {rp.unit || "Pcs"}

@@ -1,15 +1,15 @@
 import Header from "../components/common/Header";
 import ManufactureStockTable from "../components/manufactureStock/ManufactureStockTable";
 
-const ManufactureStockPage = () => {
+const ItemStockPage = () => {
   return (
     <div className="flex-1 relative z-10">
-      <Header title="Manufacturer Stock" />
+      <Header title="Item Stock" />
 
       <main className="max-w-8xl mx-auto py-6 px-4 lg:px-8 bg-slate-50 min-h-[calc(100vh-64px)]">
-        <ManufactureStockTable stockType="manufacture" />
+        <ManufactureStockTable stockType="item" />
       </main>
     </div>
   );
 };
-export default ManufactureStockPage;
+export default ItemStockPage;

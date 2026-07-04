@@ -71,6 +71,9 @@ const OwnerTransactionPage = lazy(() => import("./pages/OwnerTransactionPage"));
 const CreditLedgerPage = lazy(() => import("./pages/CreditLedgerPage"));
 const LogHistoryPage = lazy(() => import("./pages/LogHistoryPage"));
 const ManufacturePage = lazy(() => import("./pages/ManufacturePage"));
+const ManufacturerPage = lazy(() => import("./pages/ManufacturerPage"));
+const ItemStockPage = lazy(() => import("./pages/ItemStockPage"));
+const ItemPurchasePage = lazy(() => import("./pages/ItemPurchasePage"));
 const ItemsPage = lazy(() => import("./pages/ItemsPage"));
 const ManufactureStockPage = lazy(() => import("./pages/ManufactureStockPage"));
 const MixerPage = lazy(() => import("./pages/MixerPage"));
@@ -163,9 +166,12 @@ function App() {
                 <Route path="/pos-report" element={<AuthedRoute><PosReportPage /></AuthedRoute>} />
                 <Route path="/inventory-overview" element={<AuthedRoute><InventoryDashboardPage /></AuthedRoute>} />
                 <Route path="/item" element={<AuthedRoute><ItemsPage /></AuthedRoute>} />
+                <Route path="/item-stock" element={<AuthedRoute><ItemStockPage /></AuthedRoute>} />
                 <Route path="/item-requisition" element={<AuthedRoute><ItemRequisitionPage /></AuthedRoute>} />
+                <Route path="/item-purchase" element={<AuthedRoute><ItemPurchasePage /></AuthedRoute>} />
                 <Route path="/manufacture-stock" element={<AuthedRoute><ManufactureStockPage /></AuthedRoute>} />
                 <Route path="/manufacture" element={<AuthedRoute><ManufacturePage /></AuthedRoute>} />
+                <Route path="/manufacturer" element={<AuthedRoute><ManufacturerPage /></AuthedRoute>} />
                 <Route path="/stock-adjustment" element={<AuthedRoute><StockAdjustmentPage /></AuthedRoute>} />
                 <Route path="/mixer" element={<AuthedRoute><MixerPage /></AuthedRoute>} />
                 <Route path="/stock-product" element={<AuthedRoute><InventoryOverviewPage /></AuthedRoute>} />
