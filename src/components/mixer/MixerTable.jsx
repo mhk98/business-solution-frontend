@@ -28,18 +28,34 @@ import {
   useGetSingleReceivedProductByIdQuery,
 } from "../../features/product/product";
 import { useGetAllManufacturerWithoutQueryQuery } from "../../features/manufacturer/manufacturer";
-import { useGetSingleItemMasterDataByIdMutation } from "../../features/manufactureStock/manufactureStock";
+import {
+  useGetAllItemMasterWithoutQueryQuery,
+  useGetSingleItemMasterDataByIdMutation,
+} from "../../features/manufactureStock/manufactureStock";
 import { useGetAllWirehouseWithoutQueryQuery } from "../../features/wirehouse/wirehouse";
 // import { useGetSingleManDataByIdMutation } from "../../features/manufacture/manufacture";
+
+const createEmptyMaterialSelection = () => ({
+  manufactureId: "",
+  quantity: "",
+});
+
+const createEmptyPackagingSelection = () => ({
+  itemMasterId: "",
+  quantity: "",
+});
 
 const initialCreateProduct = {
   productId: "",
   manufacturerId: "",
   warehouseId: "",
   combo: "",
+  purchase_price: "",
+  sale_price: "",
   note: "",
   date: new Date().toISOString().slice(0, 10),
-  materialSelections: [],
+  materialSelections: [createEmptyMaterialSelection()],
+  packagingSelections: [createEmptyPackagingSelection()],
   variantRows: [{ size: "", color: "", quantity: "" }],
 };
 
@@ -109,6 +125,8 @@ const createEmptyVariantRow = () => ({
   size: "",
   color: "",
   quantity: "",
+  purchase_price: "",
+  sale_price: "",
 });
 
 const normalizeVariantRows = (value) => {
@@ -119,6 +137,14 @@ const normalizeVariantRows = (value) => {
       quantity:
         row?.quantity !== undefined && row?.quantity !== null
           ? String(row.quantity)
+          : "",
+      purchase_price:
+        row?.purchase_price !== undefined && row?.purchase_price !== null
+          ? String(row.purchase_price)
+          : "",
+      sale_price:
+        row?.sale_price !== undefined && row?.sale_price !== null
+          ? String(row.sale_price)
           : "",
     }));
   }
@@ -133,6 +159,8 @@ const getNormalizedVariantsPayload = (rows) =>
       size: row.size || "",
       color: row.color || "",
       quantity: Number(row.quantity) || 0,
+      purchase_price: Number(row.purchase_price) || 0,
+      sale_price: Number(row.sale_price) || 0,
     }))
     .filter((row) => row.size);
 
@@ -204,11 +232,40 @@ const formatManufactureItemUnit = (item) => {
 
 const getManufactureItemUnitLabel = (item) => item?.unit || "Pcs";
 
-const buildMaterialSelections = (items, existingSelections = []) =>
-  items.map((item, index) => ({
-    manufactureId: existingSelections?.[index]?.manufactureId || item.id || "",
-    unitValue: existingSelections?.[index]?.quantity || "",
-  }));
+const normalizeMaterialSelections = (existingSelections = []) => {
+  if (Array.isArray(existingSelections) && existingSelections.length > 0) {
+    return existingSelections.map((selection) => ({
+      manufactureId: selection?.manufactureId
+        ? String(selection.manufactureId)
+        : "",
+      quantity:
+        selection?.quantity !== undefined && selection?.quantity !== null
+          ? String(selection.quantity)
+          : "",
+    }));
+  }
+
+  return [createEmptyMaterialSelection()];
+};
+
+const normalizePackagingSelections = (existingSelections = []) => {
+  if (Array.isArray(existingSelections) && existingSelections.length > 0) {
+    return existingSelections.map((selection) => ({
+      itemMasterId:
+        selection?.itemMasterId !== undefined && selection?.itemMasterId !== null
+          ? String(selection.itemMasterId)
+          : "",
+      quantity:
+        selection?.quantity !== undefined && selection?.quantity !== null
+          ? String(selection.quantity)
+          : selection?.unitValue !== undefined && selection?.unitValue !== null
+            ? String(selection.unitValue)
+            : "",
+    }));
+  }
+
+  return [createEmptyPackagingSelection()];
+};
 
 const buildMixerMaterialNote = (
   manufactureItems,
@@ -230,6 +287,41 @@ const buildMixerMaterialNote = (
 
   return [...detailLines, extraNote || ""].filter(Boolean).join("\n");
 };
+
+const getSelectedPackagingItems = (selections) =>
+  normalizePackagingSelections(selections).filter(
+    (selection) => selection.itemMasterId || selection.quantity,
+  );
+
+const validatePackagingSelections = (selections) => {
+  const selectedItems = getSelectedPackagingItems(selections);
+  const selectedIds = selectedItems
+    .map((selection) => selection.itemMasterId)
+    .filter(Boolean);
+
+  if (new Set(selectedIds).size !== selectedIds.length) {
+    return "Please remove duplicate packaging items";
+  }
+
+  const invalidIndex = selectedItems.findIndex(
+    (selection) =>
+      !selection.itemMasterId ||
+      !selection.quantity ||
+      Number(selection.quantity) <= 0,
+  );
+
+  if (invalidIndex !== -1) {
+    return `Please select packaging item and quantity for row ${invalidIndex + 1}`;
+  }
+
+  return "";
+};
+
+const buildPackagingPayload = (selections) =>
+  getSelectedPackagingItems(selections).map((selection) => ({
+    itemMasterId: Number(selection.itemMasterId) || "",
+    unitValue: Number(selection.quantity) || 0,
+  }));
 
 const MixerTable = () => {
   const { language } = useLayout();
@@ -319,10 +411,25 @@ const MixerTable = () => {
     useGetAllManufacturerWithoutQueryQuery();
   const { data: warehousesRes, isLoading: isLoadingWarehouses } =
     useGetAllWirehouseWithoutQueryQuery();
+  const { data: itemMasterRes, isLoading: isLoadingItemMaster } =
+    useGetAllItemMasterWithoutQueryQuery();
 
-  const productsData = allProductsRes?.data || [];
-  const manufacturersData = manufacturersRes?.data || [];
-  const warehousesData = warehousesRes?.data || [];
+  const productsData = useMemo(
+    () => allProductsRes?.data || [],
+    [allProductsRes?.data],
+  );
+  const manufacturersData = useMemo(
+    () => manufacturersRes?.data || [],
+    [manufacturersRes?.data],
+  );
+  const warehousesData = useMemo(
+    () => warehousesRes?.data || [],
+    [warehousesRes?.data],
+  );
+  const itemMasterData = useMemo(
+    () => itemMasterRes?.data || [],
+    [itemMasterRes?.data],
+  );
 
   useEffect(() => {
     if (isErrorAllProducts) {
@@ -350,6 +457,19 @@ const MixerTable = () => {
       label: warehouse.name,
     }));
   }, [warehousesData]);
+
+  const packagingItemOptions = useMemo(() => {
+    return (itemMasterData || []).map((item) => ({
+      value: String(item.Id ?? item.id ?? item._id),
+      label: [
+        item.name,
+        `${Number(item.unitValue || 0)} ${item.unit || "Pcs"}`,
+      ]
+        .filter(Boolean)
+        .join(" - "),
+      unit: item.unit || "Pcs",
+    }));
+  }, [itemMasterData]);
 
   const selectedCreateProductId = createProduct?.productId || undefined;
   const selectedEditProductId = currentProduct?.productId || undefined;
@@ -570,22 +690,22 @@ const MixerTable = () => {
     if (!isModalOpen1) return;
     setCreateProduct((prev) => ({
       ...prev,
-      materialSelections: buildMaterialSelections(
-        createManufactureItems,
-        prev.materialSelections,
-      ),
+      materialSelections: normalizeMaterialSelections(prev.materialSelections),
     }));
   }, [createManufactureItems, isModalOpen1]);
 
   useEffect(() => {
-    if (!isModalOpen || !currentProduct) return;
-    setCurrentProduct((prev) => ({
-      ...prev,
-      materialSelections: buildMaterialSelections(
-        currentManufactureItems,
-        prev?.materialSelections,
-      ),
-    }));
+    if (!isModalOpen) return;
+    setCurrentProduct((prev) =>
+      prev
+        ? {
+            ...prev,
+            materialSelections: normalizeMaterialSelections(
+              prev.materialSelections,
+            ),
+          }
+        : prev,
+    );
   }, [currentManufactureItems, isModalOpen]);
 
   const queryArgs = useMemo(() => {
@@ -660,13 +780,16 @@ const MixerTable = () => {
           ? String(rp.warehouseId || rp.warehouse_id || rp.WarehouseId)
           : "",
       combo: rp.combo ?? "",
+      purchase_price: rp.purchase_price ?? "",
+      sale_price: rp.sale_price ?? "",
       date: rp.date ?? "",
       note: rp.note ?? "",
       // cost: rp.cost ?? "",
       // unitValue: rp.unitValue ?? "",
       // unit: rp.unit ?? "Pcs",
       // hasUnit: !!rp.unitValue,
-      materialSelections: [],
+      materialSelections: [createEmptyMaterialSelection()],
+      packagingSelections: normalizePackagingSelections(rp.packagingItems),
       variantRows: normalizeVariantRows(rp.variants),
       userId,
     });
@@ -688,10 +811,13 @@ const MixerTable = () => {
       date: rp.date ?? "",
       note: rp.note ?? "",
       cost: rp.cost ?? "",
+      purchase_price: rp.purchase_price ?? "",
+      sale_price: rp.sale_price ?? "",
       // unitValue: rp.unitValue ?? "",
       // unit: rp.unit ?? "Pcs",
       // hasUnit: !!rp.unitValue,
-      materialSelections: [],
+      materialSelections: [createEmptyMaterialSelection()],
+      packagingSelections: normalizePackagingSelections(rp.packagingItems),
       variantRows: normalizeVariantRows(rp.variants),
       userId,
     });
@@ -722,9 +848,18 @@ const MixerTable = () => {
     }
 
     if (createManufactureItems.length) {
-      for (const [index, selection] of (
-        createProduct.materialSelections || []
-      ).entries()) {
+      const materialSelections = normalizeMaterialSelections(
+        createProduct.materialSelections,
+      );
+      const selectedManufactureIds = materialSelections
+        .map((selection) => selection.manufactureId)
+        .filter(Boolean);
+
+      if (new Set(selectedManufactureIds).size !== selectedManufactureIds.length) {
+        return toast.error("Please remove duplicate manufacture items");
+      }
+
+      for (const [index, selection] of materialSelections.entries()) {
         if (!selection?.manufactureId) {
           return toast.error(`Please select manufacture item ${index + 1}`);
         }
@@ -736,10 +871,15 @@ const MixerTable = () => {
       }
     }
 
+    const packagingError = validatePackagingSelections(
+      createProduct.packagingSelections,
+    );
+    if (packagingError) return toast.error(packagingError);
+
     try {
       const finalNote = buildMixerMaterialNote(
         createManufactureItems,
-        createProduct.materialSelections || [],
+        normalizeMaterialSelections(createProduct.materialSelections),
         [
           buildMixerVariantNote(createProduct.variantRows),
           createProduct.note || "",
@@ -754,10 +894,15 @@ const MixerTable = () => {
         warehouseId: Number(createProduct.warehouseId) || null,
         combo: Number(createProduct.combo) || 0,
         variants: getNormalizedVariantsPayload(createProduct.variantRows),
-        mixItems: (createProduct.materialSelections || []).map((selection) => ({
-          manufactureId: Number(selection.manufactureId) || "",
-          unitValue: Number(selection.quantity) || 0,
-        })),
+        purchase_price: Number(createProduct.purchase_price) || 0,
+        sale_price: Number(createProduct.sale_price) || 0,
+        mixItems: normalizeMaterialSelections(createProduct.materialSelections).map(
+          (selection) => ({
+            manufactureId: Number(selection.manufactureId) || "",
+            unitValue: Number(selection.quantity) || 0,
+          }),
+        ),
+        packagingItems: buildPackagingPayload(createProduct.packagingSelections),
         // unit: createProduct.unit || "Pcs",
         // unitValue: createProduct.hasUnit
         //   ? Number(createProduct.unitValue) || 0
@@ -802,9 +947,20 @@ const MixerTable = () => {
       }
 
       if (currentManufactureItems.length) {
-        for (const [index, selection] of (
-          currentProduct?.materialSelections || []
-        ).entries()) {
+        const materialSelections = normalizeMaterialSelections(
+          currentProduct?.materialSelections,
+        );
+        const selectedManufactureIds = materialSelections
+          .map((selection) => selection.manufactureId)
+          .filter(Boolean);
+
+        if (
+          new Set(selectedManufactureIds).size !== selectedManufactureIds.length
+        ) {
+          return toast.error("Please remove duplicate manufacture items");
+        }
+
+        for (const [index, selection] of materialSelections.entries()) {
           if (!selection?.manufactureId) {
             return toast.error(`Please select manufacture item ${index + 1}`);
           }
@@ -816,9 +972,14 @@ const MixerTable = () => {
         }
       }
 
+      const packagingError = validatePackagingSelections(
+        currentProduct?.packagingSelections,
+      );
+      if (packagingError) return toast.error(packagingError);
+
       const finalNote = buildMixerMaterialNote(
         currentManufactureItems,
-        currentProduct?.materialSelections || [],
+        normalizeMaterialSelections(currentProduct?.materialSelections),
         [
           buildMixerVariantNote(currentProduct?.variantRows),
           currentProduct?.note || "",
@@ -833,12 +994,15 @@ const MixerTable = () => {
         warehouseId: Number(currentProduct.warehouseId) || null,
         combo: Number(currentProduct.combo) || 0,
         variants: getNormalizedVariantsPayload(currentProduct.variantRows),
-        mixItems: (currentProduct?.materialSelections || []).map(
+        purchase_price: Number(currentProduct.purchase_price) || 0,
+        sale_price: Number(currentProduct.sale_price) || 0,
+        mixItems: normalizeMaterialSelections(currentProduct?.materialSelections).map(
           (selection) => ({
             manufactureId: Number(selection.manufactureId) || "",
             unitValue: Number(selection.quantity) || 0,
           }),
         ),
+        packagingItems: buildPackagingPayload(currentProduct?.packagingSelections),
         // unit: currentProduct.unit || "Pcs",
         // unitValue: currentProduct.hasUnit
         //   ? Number(currentProduct.unitValue) || 0
@@ -984,16 +1148,193 @@ const MixerTable = () => {
     });
   };
 
+  const addMaterialSelectionRow = (mode) => {
+    const setter = mode === "edit" ? setCurrentProduct : setCreateProduct;
+    setter((prev) => ({
+      ...prev,
+      materialSelections: [
+        ...normalizeMaterialSelections(prev?.materialSelections),
+        createEmptyMaterialSelection(),
+      ],
+    }));
+  };
+
+  const removeMaterialSelectionRow = (mode, index) => {
+    const setter = mode === "edit" ? setCurrentProduct : setCreateProduct;
+    setter((prev) => {
+      const nextSelections = normalizeMaterialSelections(
+        prev?.materialSelections,
+      ).filter((_, rowIndex) => rowIndex !== index);
+
+      return {
+        ...prev,
+        materialSelections: nextSelections.length
+          ? nextSelections
+          : [createEmptyMaterialSelection()],
+      };
+    });
+  };
+
+  const handlePackagingSelectionChange = (mode, index, key, value) => {
+    const setter = mode === "edit" ? setCurrentProduct : setCreateProduct;
+    setter((prev) => {
+      const nextSelections = normalizePackagingSelections(
+        prev?.packagingSelections,
+      );
+      nextSelections[index] = {
+        ...nextSelections[index],
+        [key]: value,
+      };
+
+      return {
+        ...prev,
+        packagingSelections: nextSelections,
+      };
+    });
+  };
+
+  const addPackagingSelectionRow = (mode) => {
+    const setter = mode === "edit" ? setCurrentProduct : setCreateProduct;
+    setter((prev) => ({
+      ...prev,
+      packagingSelections: [
+        ...normalizePackagingSelections(prev?.packagingSelections),
+        createEmptyPackagingSelection(),
+      ],
+    }));
+  };
+
+  const removePackagingSelectionRow = (mode, index) => {
+    const setter = mode === "edit" ? setCurrentProduct : setCreateProduct;
+    setter((prev) => {
+      const nextSelections = normalizePackagingSelections(
+        prev?.packagingSelections,
+      ).filter((_, rowIndex) => rowIndex !== index);
+
+      return {
+        ...prev,
+        packagingSelections: nextSelections.length
+          ? nextSelections
+          : [createEmptyPackagingSelection()],
+      };
+    });
+  };
+
+  const getPackagingOptionByIndex = (selections, index) => {
+    const selectedId = String(selections?.[index]?.itemMasterId || "");
+    return (
+      packagingItemOptions.find((option) => option.value === selectedId) || null
+    );
+  };
+
+  const renderPackagingSection = (mode, productState) => {
+    const selections = normalizePackagingSelections(
+      productState?.packagingSelections,
+    );
+
+    return (
+      <div className="space-y-4 rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">
+              Packaging
+            </h3>
+            <p className="text-[11px] font-medium text-slate-500 mt-1">
+              Select packaging items from item stock.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => addPackagingSelectionRow(mode)}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+          >
+            <Plus size={14} />
+            Add Item
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          {selections.map((selection, index) => {
+            const selectedOption = getPackagingOptionByIndex(selections, index);
+
+            return (
+              <div
+                key={`${mode}-packaging-${index}`}
+                className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_140px_44px] gap-3"
+              >
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+                    Packaging Item {index + 1}
+                  </label>
+                  <Select
+                    options={packagingItemOptions}
+                    value={selectedOption}
+                    onChange={(selected) =>
+                      handlePackagingSelectionChange(
+                        mode,
+                        index,
+                        "itemMasterId",
+                        selected?.value || "",
+                      )
+                    }
+                    placeholder="Select packaging item..."
+                    isClearable
+                    styles={selectStyles}
+                    className="text-sm text-black font-medium"
+                    isDisabled={isLoadingItemMaster}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+                    Value
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={selection.quantity || ""}
+                      onChange={(e) =>
+                        handlePackagingSelectionChange(
+                          mode,
+                          index,
+                          "quantity",
+                          e.target.value,
+                        )
+                      }
+                      className="w-full h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+                    />
+                    <span className="shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-600">
+                      {selectedOption?.unit || "Pcs"}
+                    </span>
+                  </div>
+                </div>
+
+                {selections.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removePackagingSelectionRow(mode, index)}
+                    className="mt-6 inline-flex h-11 w-11 items-center justify-center rounded-xl border border-red-100 bg-red-50 text-red-500 hover:bg-red-100 transition active:scale-95"
+                    title="Remove item"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   const getCreateManufactureItemByIndex = (index) => {
     const selectedId = String(
       createProduct?.materialSelections?.[index]?.manufactureId || "",
     );
 
-    return (
-      createManufactureItems.find((item) => item.id === selectedId) ||
-      createManufactureItems[index] ||
-      null
-    );
+    return createManufactureItems.find((item) => item.id === selectedId) || null;
   };
 
   const getCurrentManufactureItemByIndex = (index) => {
@@ -1001,11 +1342,7 @@ const MixerTable = () => {
       currentProduct?.materialSelections?.[index]?.manufactureId || "",
     );
 
-    return (
-      currentManufactureItems.find((item) => item.id === selectedId) ||
-      currentManufactureItems[index] ||
-      null
-    );
+    return currentManufactureItems.find((item) => item.id === selectedId) || null;
   };
 
   const renderVariantOptions = ({
@@ -1045,7 +1382,7 @@ const MixerTable = () => {
             key={`${mode}-variant-${index}`}
             className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end rounded-2xl border border-slate-200 bg-white p-3"
           >
-            <div className="sm:col-span-5">
+            <div className="sm:col-span-3">
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
                 Size / Code
               </label>
@@ -1066,7 +1403,7 @@ const MixerTable = () => {
               />
             </div>
 
-            <div className="sm:col-span-4">
+            <div className="sm:col-span-2">
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
                 Color
               </label>
@@ -1104,6 +1441,38 @@ const MixerTable = () => {
               />
             </div>
 
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+                Purchase Price
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={row.purchase_price}
+                onChange={(e) =>
+                  updateVariantRow(mode, index, "purchase_price", e.target.value)
+                }
+                className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+                Sale Price
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={row.sale_price}
+                onChange={(e) =>
+                  updateVariantRow(mode, index, "sale_price", e.target.value)
+                }
+                className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+              />
+            </div>
+
             <button
               type="button"
               onClick={() => removeVariantRow(mode, index)}
@@ -1117,6 +1486,46 @@ const MixerTable = () => {
       })}
     </div>
   );
+
+  const renderOutputPriceFields = (mode, productState) => {
+    const setter = mode === "edit" ? setCurrentProduct : setCreateProduct;
+
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+            Purchase Price
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={productState?.purchase_price || ""}
+            onChange={(e) =>
+              setter((prev) => ({ ...prev, purchase_price: e.target.value }))
+            }
+            className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+            Sale Price
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={productState?.sale_price || ""}
+            onChange={(e) =>
+              setter((prev) => ({ ...prev, sale_price: e.target.value }))
+            }
+            className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+          />
+        </div>
+      </div>
+    );
+  };
 
   return (
     <motion.div
@@ -1464,7 +1873,9 @@ const MixerTable = () => {
                   ...prev,
                   productId: selected?.value || "",
                   combo: "",
-                  materialSelections: [],
+                  purchase_price: "",
+                  sale_price: "",
+                  materialSelections: [createEmptyMaterialSelection()],
                   variantRows: [createEmptyVariantRow()],
                 }))
               }
@@ -1562,16 +1973,28 @@ const MixerTable = () => {
             />
           </div>
 
+          {!shouldShowEditVariantOptions &&
+            renderOutputPriceFields("edit", currentProduct)}
+
           {currentProduct?.productId && (
             <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4 space-y-4">
-              <div>
-                <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">
-                  Manufacture Items
-                </h3>
-                <p className="text-[11px] font-medium text-slate-500 mt-1">
-                  Matching manufacture items are shown based on selected
-                  product.
-                </p>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">
+                    Manufacture Items
+                  </h3>
+                  <p className="text-[11px] font-medium text-slate-500 mt-1">
+                    Select manufacture items for this mixer.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => addMaterialSelectionRow("edit")}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                >
+                  <Plus size={14} />
+                  Add Item
+                </button>
               </div>
 
               {currentManufactureState?.isLoading ? (
@@ -1580,10 +2003,12 @@ const MixerTable = () => {
                 </p>
               ) : currentManufactureItems.length > 0 ? (
                 <div className="space-y-4">
-                  {currentManufactureItems.map((_, index) => (
+                  {normalizeMaterialSelections(
+                    currentProduct?.materialSelections,
+                  ).map((_, index) => (
                     <div
                       key={`current-material-${index}`}
-                      className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_140px] gap-3"
+                      className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_140px_44px] gap-3"
                     >
                       <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
@@ -1650,6 +2075,18 @@ const MixerTable = () => {
                           </span>
                         </div>
                       </div>
+                      {normalizeMaterialSelections(
+                        currentProduct?.materialSelections,
+                      ).length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeMaterialSelectionRow("edit", index)}
+                          className="mt-6 inline-flex h-11 w-11 items-center justify-center rounded-xl border border-red-100 bg-red-50 text-red-500 hover:bg-red-100 transition active:scale-95"
+                          title="Remove item"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1660,6 +2097,8 @@ const MixerTable = () => {
               )}
             </div>
           )}
+
+          {renderPackagingSection("edit", currentProduct)}
 
           {shouldShowEditVariantOptions &&
             renderVariantOptions({
@@ -1748,7 +2187,9 @@ const MixerTable = () => {
                   ...prev,
                   productId: selected?.value || "",
                   combo: "",
-                  materialSelections: [],
+                  purchase_price: "",
+                  sale_price: "",
+                  materialSelections: [createEmptyMaterialSelection()],
                   variantRows: [createEmptyVariantRow()],
                 }))
               }
@@ -1917,14 +2358,23 @@ const MixerTable = () => {
 
           {createProduct?.productId && (
             <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4 space-y-4">
-              <div>
-                <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">
-                  Manufacture Items
-                </h3>
-                <p className="text-[11px] font-medium text-slate-500 mt-1">
-                  Matching manufacture items are shown based on selected
-                  product.
-                </p>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-tight">
+                    Manufacture Items
+                  </h3>
+                  <p className="text-[11px] font-medium text-slate-500 mt-1">
+                    Select manufacture items for this mixer.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => addMaterialSelectionRow("create")}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                >
+                  <Plus size={14} />
+                  Add Item
+                </button>
               </div>
 
               {createManufactureState?.isLoading ? (
@@ -1933,10 +2383,12 @@ const MixerTable = () => {
                 </p>
               ) : createManufactureItems.length > 0 ? (
                 <div className="space-y-4">
-                  {createManufactureItems.map((_, index) => (
+                  {normalizeMaterialSelections(
+                    createProduct.materialSelections,
+                  ).map((_, index) => (
                     <div
                       key={`create-material-${index}`}
-                      className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_140px] gap-3"
+                      className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_140px_44px] gap-3"
                     >
                       <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
@@ -2003,6 +2455,20 @@ const MixerTable = () => {
                           </span>
                         </div>
                       </div>
+                      {normalizeMaterialSelections(
+                        createProduct.materialSelections,
+                      ).length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            removeMaterialSelectionRow("create", index)
+                          }
+                          className="mt-6 inline-flex h-11 w-11 items-center justify-center rounded-xl border border-red-100 bg-red-50 text-red-500 hover:bg-red-100 transition active:scale-95"
+                          title="Remove item"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -2013,6 +2479,8 @@ const MixerTable = () => {
               )}
             </div>
           )}
+
+          {renderPackagingSection("create", createProduct)}
 
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
@@ -2035,6 +2503,9 @@ const MixerTable = () => {
               }
             />
           </div>
+          {!shouldShowCreateVariantOptions &&
+            renderOutputPriceFields("create", createProduct)}
+
           {shouldShowCreateVariantOptions &&
             renderVariantOptions({
               mode: "create",

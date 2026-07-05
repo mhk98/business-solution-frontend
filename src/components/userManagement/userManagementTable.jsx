@@ -44,6 +44,9 @@ const getVisibleRoleOptions = (actorRole) =>
       (role.value !== "superAdmin" && role.value !== "admin"),
   );
 
+const getRoleLabel = (value) =>
+  ROLE_OPTIONS.find((role) => role.value === value)?.label || value || "-";
+
 const UserManagementTable = () => {
   const navigate = useNavigate();
   const actorRole = localStorage.getItem("role");
@@ -459,7 +462,7 @@ const UserManagementTable = () => {
                         {item.Email || "-"}
                       </div>
                       <div className="mt-1 text-xs text-slate-500">
-                        Role: {item.role || "-"} • Status:{" "}
+                        Role: {getRoleLabel(item.role)} • Status:{" "}
                         <span
                           className={
                             isInactive

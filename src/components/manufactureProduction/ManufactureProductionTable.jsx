@@ -15,7 +15,6 @@ import Select from "react-select";
 import Modal from "../common/Modal";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 import { useGetAllItemWithoutQueryQuery } from "../../features/item/item";
-import { useGetAllProductWithoutQueryQuery } from "../../features/product/product";
 import { useGetAllManufacturerWithoutQueryQuery } from "../../features/manufacturer/manufacturer";
 import {
   useDeleteManufactureProductionMutation,
@@ -24,13 +23,16 @@ import {
   useUpdateManufactureProductionMutation,
 } from "../../features/manufactureProduction/manufactureProduction";
 
+const createItemLine = () => ({
+  itemId: "",
+});
+
 const initialForm = {
   itemId: "",
-  productId: "",
+  items: [createItemLine()],
   manufacturerId: "",
   unitValue: "",
   unit: "Pcs",
-  unitCost: "",
   date: new Date().toISOString().slice(0, 10),
   note: "",
 };
@@ -73,8 +75,6 @@ const ManufactureProductionTable = () => {
 
   const { data: itemsRes, isLoading: isItemsLoading } =
     useGetAllItemWithoutQueryQuery();
-  const { data: productsRes, isLoading: isProductsLoading } =
-    useGetAllProductWithoutQueryQuery();
   const { data: manufacturersRes, isLoading: isManufacturersLoading } =
     useGetAllManufacturerWithoutQueryQuery();
 
@@ -85,14 +85,6 @@ const ManufactureProductionTable = () => {
         label: item.name,
       })),
     [itemsRes?.data],
-  );
-  const productOptions = useMemo(
-    () =>
-      (productsRes?.data || []).map((product) => ({
-        value: String(product.Id),
-        label: product.name,
-      })),
-    [productsRes?.data],
   );
   const manufacturerOptions = useMemo(
     () =>
@@ -144,14 +136,10 @@ const ManufactureProductionTable = () => {
     setEditingRow(row);
     setForm({
       itemId: row.itemId ? String(row.itemId) : "",
-      productId: row.productId ? String(row.productId) : "",
+      items: [createItemLine()],
       manufacturerId: row.manufacturerId ? String(row.manufacturerId) : "",
       unitValue: row.unitValue ? String(Number(row.unitValue || 0)) : "",
       unit: row.unit || "Pcs",
-      unitCost:
-        Number(row.unitValue || 0) > 0
-          ? String(Number(row.cost || 0) / Number(row.unitValue || 1))
-          : "",
       date: row.date || new Date().toISOString().slice(0, 10),
       note: row.note || "",
     });
@@ -160,21 +148,26 @@ const ManufactureProductionTable = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.itemId) return toast.error("Please select an item");
-    if (!form.productId) return toast.error("Please select a product");
     if (!form.manufacturerId) return toast.error("Please select a manufacturer");
+
+    const selectedItems = editingRow?.Id
+      ? [form.itemId].filter(Boolean)
+      : (form.items || []).map((item) => item.itemId).filter(Boolean);
+
+    if (!selectedItems.length) return toast.error("Please select an item");
+
+    if (!editingRow?.Id && new Set(selectedItems).size !== selectedItems.length) {
+      return toast.error("Please remove duplicate items");
+    }
 
     const unitValue = Number(form.unitValue || 0);
     if (unitValue <= 0) return toast.error("Please enter valid quantity");
 
     try {
-      const payload = {
-        itemId: Number(form.itemId),
-        productId: Number(form.productId),
+      const basePayload = {
         manufacturerId: Number(form.manufacturerId),
         unit: form.unit || "Pcs",
         unitValue,
-        cost: Number(form.unitCost || 0) * unitValue,
         date: form.date || "",
         note: form.note || "",
       };
@@ -182,15 +175,29 @@ const ManufactureProductionTable = () => {
       const res = editingRow?.Id
         ? await updateManufacture({
             id: editingRow.Id,
-            data: payload,
+            data: {
+              ...basePayload,
+              itemId: Number(selectedItems[0]),
+            },
           }).unwrap()
-        : await insertManufacture(payload).unwrap();
+        : await Promise.all(
+            selectedItems.map((itemId) =>
+              insertManufacture({
+                ...basePayload,
+                itemId: Number(itemId),
+              }).unwrap(),
+            ),
+          );
 
-      if (res?.success !== false) {
+      const isSuccess = Array.isArray(res)
+        ? res.every((entry) => entry?.success !== false)
+        : res?.success !== false;
+
+      if (isSuccess) {
         toast.success(
           editingRow?.Id
-            ? "Manufacture updated successfully"
-            : "Manufacture created successfully",
+            ? "Factory updated successfully"
+            : "Factory created successfully",
         );
         closeModal();
         refetch();
@@ -200,16 +207,45 @@ const ManufactureProductionTable = () => {
     }
   };
 
+  const updateCreateItem = (index, itemId) => {
+    setForm((prev) => ({
+      ...prev,
+      items: (prev.items || [createItemLine()]).map((item, itemIndex) =>
+        itemIndex === index ? { ...item, itemId } : item,
+      ),
+    }));
+  };
+
+  const addCreateItem = () => {
+    setForm((prev) => ({
+      ...prev,
+      items: [...(prev.items || []), createItemLine()],
+    }));
+  };
+
+  const removeCreateItem = (index) => {
+    setForm((prev) => {
+      const nextItems = (prev.items || []).filter(
+        (_, itemIndex) => itemIndex !== index,
+      );
+
+      return {
+        ...prev,
+        items: nextItems.length ? nextItems : [createItemLine()],
+      };
+    });
+  };
+
   const handleDelete = async (id) => {
     const confirmed = await requestDeleteConfirmation({
-      message: "Do you want to delete this manufacture entry?",
+      message: "Do you want to delete this factory entry?",
     });
     if (!confirmed) return;
 
     try {
       const res = await deleteManufacture(id).unwrap();
       if (res?.success !== false) {
-        toast.success("Manufacture deleted successfully");
+        toast.success("Factory deleted successfully");
         refetch();
       }
     } catch (err) {
@@ -227,10 +263,10 @@ const ManufactureProductionTable = () => {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-10">
         <div>
           <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-            Manufacture History
+            Factory History
           </h2>
           <p className="text-slate-500 text-sm mt-1 font-medium">
-            Select manufacturer and transfer item stock into manufacturer stock
+            Select manufacturer and transfer item stock into factory stock
           </p>
         </div>
 
@@ -358,7 +394,7 @@ const ManufactureProductionTable = () => {
                   <td colSpan={6} className="px-6 py-20 text-center">
                     <Factory size={42} className="mx-auto mb-4 text-slate-300" />
                     <p className="font-bold text-sm italic text-slate-400">
-                      No manufacture entries found
+                      No factory entries found
                     </p>
                   </td>
                 </tr>
@@ -394,7 +430,7 @@ const ManufactureProductionTable = () => {
       <Modal
         isOpen={isModalOpen}
         onClose={closeModal}
-        title={editingRow?.Id ? "Edit Manufacture" : "Add Manufacture"}
+        title={editingRow?.Id ? "Edit Factory" : "Add Factory"}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -418,44 +454,77 @@ const ManufactureProductionTable = () => {
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-              Out Product
-            </label>
-            <Select
-              options={productOptions}
-              value={
-                productOptions.find((o) => o.value === String(form.productId)) ||
-                null
-              }
-              onChange={(selected) =>
-                setForm({ ...form, productId: selected?.value || "" })
-              }
-              placeholder="Select product..."
-              isDisabled={isProductsLoading}
-              styles={selectStyles}
-              className="text-black"
-            />
-          </div>
+          {editingRow?.Id ? (
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+                Item
+              </label>
+              <Select
+                options={itemOptions}
+                value={
+                  itemOptions.find((o) => o.value === String(form.itemId)) ||
+                  null
+                }
+                onChange={(selected) =>
+                  setForm({ ...form, itemId: selected?.value || "" })
+                }
+                placeholder="Select item..."
+                isDisabled={isItemsLoading}
+                styles={selectStyles}
+                className="text-black"
+              />
+            </div>
+          ) : (
+            <div>
+              <div className="flex items-center justify-between gap-3 mb-1.5 ml-1">
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Item
+                </label>
+                <button
+                  type="button"
+                  onClick={addCreateItem}
+                  className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-indigo-100 bg-indigo-50 px-3 text-xs font-bold text-indigo-600 hover:bg-indigo-100 transition active:scale-95"
+                >
+                  <Plus size={14} /> Add Item
+                </button>
+              </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-              Item
-            </label>
-            <Select
-              options={itemOptions}
-              value={
-                itemOptions.find((o) => o.value === String(form.itemId)) || null
-              }
-              onChange={(selected) =>
-                setForm({ ...form, itemId: selected?.value || "" })
-              }
-              placeholder="Select item..."
-              isDisabled={isItemsLoading}
-              styles={selectStyles}
-              className="text-black"
-            />
-          </div>
+              <div className="space-y-3">
+                {(form.items || [createItemLine()]).map((item, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <div className="min-w-0 flex-1">
+                      <Select
+                        options={itemOptions}
+                        value={
+                          itemOptions.find(
+                            (o) => o.value === String(item.itemId),
+                          ) || null
+                        }
+                        onChange={(selected) =>
+                          updateCreateItem(index, selected?.value || "")
+                        }
+                        placeholder="Select item..."
+                        isDisabled={isItemsLoading}
+                        styles={selectStyles}
+                        className="text-black"
+                      />
+                    </div>
+
+                    {(form.items || []).length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeCreateItem(index)}
+                        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-red-100 bg-red-50 text-red-500 hover:bg-red-100 transition active:scale-95"
+                        title="Remove item"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-[1fr_130px] gap-3">
             <input
@@ -476,15 +545,6 @@ const ManufactureProductionTable = () => {
               className="text-black"
             />
           </div>
-
-          <input
-            type="number"
-            step="0.01"
-            value={form.unitCost}
-            onChange={(e) => setForm({ ...form, unitCost: e.target.value })}
-            placeholder="Unit cost"
-            className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition w-full"
-          />
 
           <input
             type="date"

@@ -24,11 +24,15 @@ import {
   useUpdateManufactureMutation,
 } from "../../features/manufacture/manufacture";
 import { useGetAllItemWithoutQueryQuery } from "../../features/item/item";
-import { useGetAllProductWithoutQueryQuery } from "../../features/product/product";
+import { useGetAllSupplierWithoutQueryQuery } from "../../features/supplier/supplier";
+
+const createItemLine = () => ({
+  itemId: "",
+});
 
 const initialCreateProduct = {
-  itemId: "",
-  productId: "",
+  items: [createItemLine()],
+  supplierId: "",
   unitValue: "",
   unitCost: "",
   note: "",
@@ -117,8 +121,18 @@ const ManufactureTable = () => {
     isError: isErrorAllItems,
     error: errorAllItems,
   } = useGetAllItemWithoutQueryQuery();
+  const {
+    data: allSuppliersRes,
+    isLoading: isLoadingAllSuppliers,
+    isError: isErrorAllSuppliers,
+    error: errorAllSuppliers,
+  } = useGetAllSupplierWithoutQueryQuery();
 
-  const itemsData = allItemsRes?.data || [];
+  const itemsData = useMemo(() => allItemsRes?.data || [], [allItemsRes?.data]);
+  const suppliersData = useMemo(
+    () => allSuppliersRes?.data || [],
+    [allSuppliersRes?.data],
+  );
 
   useEffect(() => {
     if (isErrorAllItems) {
@@ -126,12 +140,25 @@ const ManufactureTable = () => {
     }
   }, [isErrorAllItems, errorAllItems]);
 
+  useEffect(() => {
+    if (isErrorAllSuppliers) {
+      console.error("Error fetching suppliers", errorAllSuppliers);
+    }
+  }, [isErrorAllSuppliers, errorAllSuppliers]);
+
   const itemDropdownOptions = useMemo(() => {
     return (itemsData || []).map((p) => ({
       value: String(p.Id ?? p.id ?? p._id),
       label: p.name,
     }));
   }, [itemsData]);
+
+  const supplierDropdownOptions = useMemo(() => {
+    return (suppliersData || []).map((supplier) => ({
+      value: String(supplier.Id ?? supplier.id ?? supplier._id),
+      label: supplier.name,
+    }));
+  }, [suppliersData]);
 
   const itemNameMap = useMemo(() => {
     const m = new Map();
@@ -193,11 +220,7 @@ const ManufactureTable = () => {
     }
 
     const matchedName = itemNameMap.get(String(possibleId));
-    return (
-      matchedName ||
-      productNameMap.get(String(possibleId)) ||
-      `Item #${possibleId}`
-    );
+    return matchedName || `Item #${possibleId}`;
   };
   const queryArgs = useMemo(() => {
     const args = {
@@ -268,6 +291,35 @@ const ManufactureTable = () => {
     return parsedUnitCost * (parsedUnitValue > 0 ? parsedUnitValue : 1);
   };
 
+  const updateCreateItem = (index, itemId) => {
+    setCreateProduct((prev) => ({
+      ...prev,
+      items: (prev.items || [createItemLine()]).map((item, itemIndex) =>
+        itemIndex === index ? { ...item, itemId } : item,
+      ),
+    }));
+  };
+
+  const addCreateItem = () => {
+    setCreateProduct((prev) => ({
+      ...prev,
+      items: [...(prev.items || []), createItemLine()],
+    }));
+  };
+
+  const removeCreateItem = (index) => {
+    setCreateProduct((prev) => {
+      const nextItems = (prev.items || []).filter(
+        (_, itemIndex) => itemIndex !== index,
+      );
+
+      return {
+        ...prev,
+        items: nextItems.length ? nextItems : [createItemLine()],
+      };
+    });
+  };
+
   const formatMoney = (value) =>
     Number(value || 0).toLocaleString("en-US", {
       minimumFractionDigits: 2,
@@ -278,7 +330,7 @@ const ManufactureTable = () => {
     setCurrentProduct({
       ...rp,
       itemId: rp.itemId ? String(rp.itemId) : "",
-      productId: rp.productId ? String(rp.productId) : "",
+      supplierId: rp.supplierId ? String(rp.supplierId) : "",
       date: rp.date ?? "",
       note: rp.note ?? "",
       unitCost: getUnitCost(rp) || "",
@@ -295,7 +347,7 @@ const ManufactureTable = () => {
     setCurrentProduct({
       ...rp,
       itemId: rp.itemId ? String(rp.itemId) : "",
-      productId: rp.productId ? String(rp.productId) : "",
+      supplierId: rp.supplierId ? String(rp.supplierId) : "",
       date: rp.date ?? "",
       note: rp.note ?? "",
       unitCost: getUnitCost(rp) || "",
@@ -311,39 +363,53 @@ const ManufactureTable = () => {
   const handleCreateProduct = async (e) => {
     e.preventDefault();
 
-    if (!createProduct.itemId) {
+    const selectedItems = (createProduct.items || [])
+      .map((item) => item.itemId)
+      .filter(Boolean);
+
+    if (!selectedItems.length) {
       return toast.error("Please select an item");
     }
 
-    if (!createProduct.productId) {
-      return toast.error("Please select a product");
+    if (new Set(selectedItems).size !== selectedItems.length) {
+      return toast.error("Please remove duplicate items");
+    }
+
+    if (!createProduct.supplierId) {
+      return toast.error("Please select a supplier");
     }
 
     try {
       const unitValue = createProduct.hasUnit
         ? Number(createProduct.unitValue) || 0
         : 0;
-      const payload = {
-        itemId: Number(createProduct.itemId) || "",
-        productId: Number(createProduct.productId) || "",
+      const basePayload = {
         unit: createProduct.unit || "Pcs",
         unitValue,
         cost: getTotalCost(createProduct.unitCost, unitValue),
         date: createProduct.date || "",
         note: createProduct.note || "",
+        supplierId: Number(createProduct.supplierId) || "",
         userId: Number(userId) || 0,
         actorRole: role,
       };
 
-      const res = await insertManufacture(payload).unwrap();
+      const responses = await Promise.all(
+        selectedItems.map((itemId) =>
+          insertManufacture({
+            ...basePayload,
+            itemId: Number(itemId) || "",
+          }).unwrap(),
+        ),
+      );
 
-      if (res?.success) {
+      if (responses.every((res) => res?.success !== false)) {
         toast.success("Successfully created!");
         setIsModalOpen1(false);
         setCreateProduct(initialCreateProduct);
         refetch?.();
       } else {
-        toast.error(res?.message || "Create failed!");
+        toast.error("Create failed!");
       }
     } catch (err) {
       toast.error(err?.data?.message || "Create failed!");
@@ -357,12 +423,12 @@ const ManufactureTable = () => {
         : 0;
       const payload = {
         itemId: Number(currentProduct.itemId) || "",
-        productId: Number(currentProduct.productId) || "",
         unit: currentProduct.unit || "Pcs",
         unitValue,
         cost: getTotalCost(currentProduct.unitCost, unitValue),
         date: currentProduct.date || "",
         note: currentProduct.note || "",
+        supplierId: Number(currentProduct.supplierId) || "",
         userId: Number(currentProduct.userId) || 0,
         actorRole: role,
       };
@@ -397,12 +463,12 @@ const ManufactureTable = () => {
         : 0;
       const payload = {
         itemId: Number(currentProduct.itemId) || "",
-        productId: Number(currentProduct.productId) || "",
         unit: currentProduct.unit || "Pcs",
         unitValue,
         cost: getTotalCost(currentProduct.unitCost, unitValue),
         date: currentProduct.date || "",
         note: currentProduct.note || "",
+        supplierId: Number(currentProduct.supplierId) || "",
         userId: Number(currentProduct.userId) || 0,
         actorRole: role,
       };
@@ -460,38 +526,6 @@ const ManufactureTable = () => {
     setIsNoteModalOpen(false);
     setNoteContent("");
   };
-
-  const {
-    data: allProductsRes,
-    isLoading: isLoadingAllProducts,
-    isError: isErrorAllProducts,
-    error: errorAllProducts,
-  } = useGetAllProductWithoutQueryQuery();
-
-  const productsData = allProductsRes?.data || [];
-
-  useEffect(() => {
-    if (isErrorAllProducts) {
-      console.error("Error fetching products", errorAllProducts);
-    }
-  }, [isErrorAllProducts, errorAllProducts]);
-
-  const productDropdownOptions = useMemo(() => {
-    return (productsData || []).map((p) => ({
-      value: String(p.Id ?? p.id ?? p._id),
-      label: p.name,
-      product: p,
-    }));
-  }, [productsData]);
-
-  const productNameMap = useMemo(() => {
-    const m = new Map();
-    (productsData || []).forEach((p) => {
-      const key = String(p.Id ?? p.id ?? p._id);
-      m.set(key, p.name);
-    });
-    return m;
-  }, [productsData]);
 
   const selectStyles = {
     control: (base, state) => ({
@@ -837,30 +871,6 @@ const ManufactureTable = () => {
         <div className="space-y-4 max-h-[70vh] overflow-y-auto px-1 custom-scrollbar">
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-              {t.select_product || "Out Product"}
-            </label>
-            <Select
-              options={productDropdownOptions}
-              value={
-                productDropdownOptions.find(
-                  (o) => o.value === String(currentProduct?.productId),
-                ) || null
-              }
-              onChange={(selected) =>
-                setCurrentProduct({
-                  ...currentProduct,
-                  productId: selected?.value || "",
-                })
-              }
-              placeholder={t.search_product || "Search product..."}
-              isClearable
-              styles={selectStyles}
-              className="text-sm text-black font-medium"
-              isDisabled={isLoadingAllProducts}
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
               {t.select_item || "Select Item"}
             </label>
             <Select
@@ -881,6 +891,30 @@ const ManufactureTable = () => {
               styles={selectStyles}
               className="text-sm font-medium"
               isDisabled={isLoadingAllItems}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+              {t.supplier || "Supplier"}
+            </label>
+            <Select
+              options={supplierDropdownOptions}
+              value={
+                supplierDropdownOptions.find(
+                  (o) => o.value === String(currentProduct?.supplierId),
+                ) || null
+              }
+              onChange={(selected) =>
+                setCurrentProduct({
+                  ...currentProduct,
+                  supplierId: selected?.value || "",
+                })
+              }
+              placeholder={t.select_supplier || "Select supplier..."}
+              isClearable
+              styles={selectStyles}
+              className="text-sm text-black font-medium"
+              isDisabled={isLoadingAllSuppliers}
             />
           </div>
           <div>
@@ -1078,51 +1112,78 @@ const ManufactureTable = () => {
           className="space-y-4 max-h-[70vh] overflow-y-auto px-1 custom-scrollbar"
         >
           <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-              {t.select_product || "Out Product"}
-            </label>
-            <Select
-              options={productDropdownOptions}
-              value={
-                productDropdownOptions.find(
-                  (o) => o.value === String(createProduct.productId),
-                ) || null
-              }
-              onChange={(selected) =>
-                setCreateProduct({
-                  ...createProduct,
-                  productId: selected?.value || "",
-                })
-              }
-              placeholder={t.search_product || "Search product..."}
-              isClearable
-              styles={selectStyles}
-              className="text-sm text-black font-medium"
-              isDisabled={isLoadingAllProducts}
-            />
+            <div className="flex items-center justify-between gap-3 mb-1.5 ml-1">
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
+                {t.select_item || "Select Item"}
+              </label>
+              <button
+                type="button"
+                onClick={addCreateItem}
+                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-indigo-100 bg-indigo-50 px-3 text-xs font-bold text-indigo-600 hover:bg-indigo-100 transition active:scale-95"
+              >
+                <Plus size={14} /> Add Item
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {(createProduct.items || [createItemLine()]).map((item, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <Select
+                      options={itemDropdownOptions}
+                      value={
+                        itemDropdownOptions.find(
+                          (o) => o.value === String(item.itemId),
+                        ) || null
+                      }
+                      onChange={(selected) =>
+                        updateCreateItem(index, selected?.value || "")
+                      }
+                      placeholder={t.search_item || "Search item..."}
+                      isClearable
+                      styles={selectStyles}
+                      className="text-sm text-black font-medium"
+                      isDisabled={isLoadingAllItems}
+                    />
+                  </div>
+
+                  {(createProduct.items || []).length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeCreateItem(index)}
+                      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-red-100 bg-red-50 text-red-500 hover:bg-red-100 transition active:scale-95"
+                      title="Remove item"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
+
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-              {t.select_item || "Select Item"}
+              {t.supplier || "Supplier"}
             </label>
             <Select
-              options={itemDropdownOptions}
+              options={supplierDropdownOptions}
               value={
-                itemDropdownOptions.find(
-                  (o) => o.value === String(createProduct.itemId),
+                supplierDropdownOptions.find(
+                  (o) => o.value === String(createProduct.supplierId),
                 ) || null
               }
               onChange={(selected) =>
                 setCreateProduct({
                   ...createProduct,
-                  itemId: selected?.value || "",
+                  supplierId: selected?.value || "",
                 })
               }
-              placeholder={t.search_product || "Search item..."}
+              placeholder={t.select_supplier || "Select supplier..."}
               isClearable
               styles={selectStyles}
               className="text-sm text-black font-medium"
-              isDisabled={isLoadingAllItems}
+              isDisabled={isLoadingAllSuppliers}
             />
           </div>
 

@@ -25,9 +25,17 @@ import {
   useUpdateStockAdjustmentMutation,
 } from "../../features/stockAdjustment/stockAdjustment";
 
+const createStockItemLine = () => ({
+  itemMasterId: "",
+  itemId: "",
+  productId: "",
+  unit: "Pcs",
+});
+
 const initialCreateProduct = {
   itemId: "",
   productId: "",
+  items: [createStockItemLine()],
   unitValue: "",
   note: "",
   date: new Date().toISOString().slice(0, 10),
@@ -117,7 +125,7 @@ const StockAdjustmentTable = () => {
     error: errorAllItems,
   } = useGetAllItemMasterWithoutQueryQuery();
 
-  const itemsData = allItemsRes?.data || [];
+  const itemsData = useMemo(() => allItemsRes?.data || [], [allItemsRes?.data]);
 
   useEffect(() => {
     if (isErrorAllItems) {
@@ -262,6 +270,7 @@ const StockAdjustmentTable = () => {
   const handleModalClose3 = () => {
     setIsModalOpen3(false);
     setCurrentProduct(null);
+    setCreateProduct(initialCreateProduct);
   };
 
   const handleEditClick = (rp) => {
@@ -301,15 +310,23 @@ const StockAdjustmentTable = () => {
   const handleCreateProduct = async (e) => {
     e.preventDefault();
 
-    if (!createProduct.itemId) {
+    const selectedItems = (createProduct.items || [])
+      .filter((item) => item?.itemId || item?.itemMasterId)
+      .map((item) => ({
+        ...item,
+        key: item.itemMasterId || `${item.itemId || ""}-${item.productId || ""}`,
+      }));
+
+    if (!selectedItems.length) {
       return toast.error("Please select an item");
     }
 
+    if (new Set(selectedItems.map((item) => item.key)).size !== selectedItems.length) {
+      return toast.error("Please remove duplicate items");
+    }
+
     try {
-      const payload = {
-        itemId: Number(createProduct.itemId) || "",
-        productId: Number(createProduct.productId) || "",
-        unit: createProduct.unit || "Pcs",
+      const basePayload = {
         unitValue: createProduct.hasUnit
           ? Number(createProduct.unitValue) || 0
           : 0,
@@ -321,15 +338,26 @@ const StockAdjustmentTable = () => {
         actorRole: role,
       };
 
-      const res = await insertStockAdjustment(payload).unwrap();
+      const responses = await Promise.all(
+        selectedItems.map((item) =>
+          insertStockAdjustment({
+            ...basePayload,
+            itemId: Number(item.itemId) || "",
+            productId: Number(item.productId) || "",
+            unit: createProduct.hasUnit
+              ? createProduct.unit || "Pcs"
+              : item.unit || createProduct.unit || "Pcs",
+          }).unwrap(),
+        ),
+      );
 
-      if (res?.success) {
+      if (responses.every((res) => res?.success !== false)) {
         toast.success("Successfully created!");
         setIsModalOpen1(false);
         setCreateProduct(initialCreateProduct);
         refetch?.();
       } else {
-        toast.error(res?.message || "Create failed!");
+        toast.error("Create failed!");
       }
     } catch (err) {
       toast.error(err?.data?.message || "Create failed!");
@@ -339,15 +367,23 @@ const StockAdjustmentTable = () => {
   const handleCreateProduct1 = async (e) => {
     e.preventDefault();
 
-    if (!createProduct.itemId) {
+    const selectedItems = (createProduct.items || [])
+      .filter((item) => item?.itemId || item?.itemMasterId)
+      .map((item) => ({
+        ...item,
+        key: item.itemMasterId || `${item.itemId || ""}-${item.productId || ""}`,
+      }));
+
+    if (!selectedItems.length) {
       return toast.error("Please select an item");
     }
 
+    if (new Set(selectedItems.map((item) => item.key)).size !== selectedItems.length) {
+      return toast.error("Please remove duplicate items");
+    }
+
     try {
-      const payload = {
-        itemId: Number(createProduct.itemId) || "",
-        productId: Number(createProduct.productId) || "",
-        unit: createProduct.unit || "Pcs",
+      const basePayload = {
         stock: "Out",
         unitValue: createProduct.hasUnit
           ? Number(createProduct.unitValue) || 0
@@ -359,15 +395,26 @@ const StockAdjustmentTable = () => {
         actorRole: role,
       };
 
-      const res = await insertStockAdjustment(payload).unwrap();
+      const responses = await Promise.all(
+        selectedItems.map((item) =>
+          insertStockAdjustment({
+            ...basePayload,
+            itemId: Number(item.itemId) || "",
+            productId: Number(item.productId) || "",
+            unit: createProduct.hasUnit
+              ? createProduct.unit || "Pcs"
+              : item.unit || createProduct.unit || "Pcs",
+          }).unwrap(),
+        ),
+      );
 
-      if (res?.success) {
+      if (responses.every((res) => res?.success !== false)) {
         toast.success("Successfully created!");
         setIsModalOpen3(false);
         setCreateProduct(initialCreateProduct);
         refetch?.();
       } else {
-        toast.error(res?.message || "Create failed!");
+        toast.error("Create failed!");
       }
     } catch (err) {
       toast.error(err?.data?.message || "Create failed!");
@@ -560,6 +607,83 @@ const StockAdjustmentTable = () => {
       );
     }) || null;
   };
+
+  const updateCreateItem = (index, selected) => {
+    setCreateProduct((prev) => ({
+      ...prev,
+      items: (prev.items || [createStockItemLine()]).map((item, itemIndex) =>
+        itemIndex === index ? applySelectedStockRow(item, selected) : item,
+      ),
+    }));
+  };
+
+  const addCreateItem = () => {
+    setCreateProduct((prev) => ({
+      ...prev,
+      items: [...(prev.items || []), createStockItemLine()],
+    }));
+  };
+
+  const removeCreateItem = (index) => {
+    setCreateProduct((prev) => {
+      const nextItems = (prev.items || []).filter(
+        (_, itemIndex) => itemIndex !== index,
+      );
+
+      return {
+        ...prev,
+        items: nextItems.length ? nextItems : [createStockItemLine()],
+      };
+    });
+  };
+
+  const renderCreateItemRows = () => (
+    <div>
+      <div className="flex items-center justify-between gap-3 mb-1.5 ml-1">
+        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
+          {t.select_item || "Select Item"}
+        </label>
+        <button
+          type="button"
+          onClick={addCreateItem}
+          className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-indigo-100 bg-indigo-50 px-3 text-xs font-bold text-indigo-600 hover:bg-indigo-100 transition active:scale-95"
+        >
+          <Plus size={14} /> Add Item
+        </button>
+      </div>
+
+      <div className="space-y-3">
+        {(createProduct.items || [createStockItemLine()]).map((item, index) => (
+          <div key={index} className="flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <Select
+                options={itemDropdownOptions}
+                value={findStockOption(item)}
+                onChange={(selected) => updateCreateItem(index, selected)}
+                placeholder={t.search_item || "Search item..."}
+                isClearable
+                styles={selectStyles}
+                className="text-sm text-black font-medium"
+                isDisabled={isLoadingAllItems}
+              />
+            </div>
+
+            {(createProduct.items || []).length > 1 && (
+              <button
+                type="button"
+                onClick={() => removeCreateItem(index)}
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-red-100 bg-red-50 text-red-500 hover:bg-red-100 transition active:scale-95"
+                title="Remove item"
+              >
+                <Trash2 size={16} />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <motion.div
       className="bg-white/90 backdrop-blur-md shadow-[0_4px_20px_rgba(15,23,42,0.04)] rounded-2xl p-4 sm:p-6 border border-slate-200 mb-8"
@@ -1165,23 +1289,7 @@ const StockAdjustmentTable = () => {
             />
           </div> */}
 
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-              {t.select_item || "Select Item"}
-            </label>
-            <Select
-              options={itemDropdownOptions}
-              value={findStockOption(createProduct)}
-              onChange={(selected) =>
-                setCreateProduct(applySelectedStockRow(createProduct, selected))
-              }
-              placeholder={t.search_product || "Search item..."}
-              isClearable
-              styles={selectStyles}
-              className="text-sm text-black font-medium"
-              isDisabled={isLoadingAllItems}
-            />
-          </div>
+          {renderCreateItemRows()}
 
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
@@ -1350,23 +1458,7 @@ const StockAdjustmentTable = () => {
             />
           </div> */}
 
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-              {t.select_item || "Select Item"}
-            </label>
-            <Select
-              options={itemDropdownOptions}
-              value={findStockOption(createProduct)}
-              onChange={(selected) =>
-                setCreateProduct(applySelectedStockRow(createProduct, selected))
-              }
-              placeholder={t.search_product || "Search item..."}
-              isClearable
-              styles={selectStyles}
-              className="text-sm text-black font-medium"
-              isDisabled={isLoadingAllItems}
-            />
-          </div>
+          {renderCreateItemRows()}
 
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">

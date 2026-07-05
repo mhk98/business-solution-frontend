@@ -461,7 +461,7 @@ export const SIDEBAR_ITEMS = [
     ],
   },
   {
-    name: "Manufacture",
+    name: "Factory",
     key: "manufacture",
     icon: Factory,
     color: "#8b5cf6",
@@ -496,14 +496,14 @@ export const SIDEBAR_ITEMS = [
         roles: ["superAdmin", "admin"],
       },
       {
-        name: "Manufacture",
+        name: "Factory",
         key: "manufacture_menu",
         icon: Cog,
         href: "/manufacture",
         roles: ["superAdmin", "admin"],
       },
       {
-        name: "Manufacturer Stock",
+        name: "Factory Stock",
         key: "manufacture_stock",
         icon: Boxes,
         href: "/manufacture-stock",

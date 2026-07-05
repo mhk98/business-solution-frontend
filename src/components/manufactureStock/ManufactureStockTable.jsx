@@ -170,11 +170,11 @@ const ManufactureStockTable = ({ stockType = "item" }) => {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-10">
         <div>
           <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-            {isManufactureStock ? "Manufacturer Stock" : "Item Stock"}
+            {isManufactureStock ? "Factory Stock" : "Item Stock"}
           </h2>
           <p className="text-slate-500 text-sm mt-1 font-medium">
             {isManufactureStock
-              ? "Real-time manufacturer stock levels"
+              ? "Real-time factory stock levels"
               : "Real-time item stock levels"}
           </p>
         </div>
