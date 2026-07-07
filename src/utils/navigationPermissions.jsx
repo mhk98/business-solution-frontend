@@ -82,6 +82,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "manufacture_menu",
     "manufacturer",
     "stock_adjustment",
+    "stock_movement",
     "mixer",
     "inventory",
     "inventory_overview",
@@ -168,6 +169,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "item_requisition",
     "manufacture_stock",
     "stock_adjustment",
+    "stock_movement",
     "mixer",
     "inventory",
     "inventory_overview",
@@ -461,7 +463,7 @@ export const SIDEBAR_ITEMS = [
     ],
   },
   {
-    name: "Factory",
+    name: "Manufacture",
     key: "manufacture",
     icon: Factory,
     color: "#8b5cf6",
@@ -496,10 +498,10 @@ export const SIDEBAR_ITEMS = [
         roles: ["superAdmin", "admin"],
       },
       {
-        name: "Factory",
-        key: "manufacture_menu",
-        icon: Cog,
-        href: "/manufacture",
+        name: "Manufacturer",
+        key: "manufacturer",
+        icon: Factory,
+        href: "/manufacturer",
         roles: ["superAdmin", "admin"],
       },
       {
@@ -510,10 +512,10 @@ export const SIDEBAR_ITEMS = [
         roles: ["superAdmin", "admin"],
       },
       {
-        name: "Manufacturer",
-        key: "manufacturer",
-        icon: Factory,
-        href: "/manufacturer",
+        name: "Factory",
+        key: "manufacture_menu",
+        icon: Cog,
+        href: "/manufacture",
         roles: ["superAdmin", "admin"],
       },
       {
@@ -521,6 +523,13 @@ export const SIDEBAR_ITEMS = [
         key: "stock_adjustment",
         icon: SlidersHorizontal,
         href: "/stock-adjustment",
+        roles: ["superAdmin", "admin"],
+      },
+      {
+        name: "Stock Movement",
+        key: "stock_movement",
+        icon: History,
+        href: "/stock-movement",
         roles: ["superAdmin", "admin"],
       },
       {
@@ -1217,6 +1226,10 @@ const normalizeRolePermissionMap = (value) => {
 
     if (defaultKeys.includes("stock_alert")) {
       normalizedKeys.add("stock_alert");
+    }
+
+    if (defaultKeys.includes("stock_movement")) {
+      normalizedKeys.add("stock_movement");
     }
 
     if (defaultKeys.includes("loan")) {

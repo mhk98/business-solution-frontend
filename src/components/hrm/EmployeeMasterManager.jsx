@@ -97,6 +97,7 @@ const EmployeeMasterManager = () => {
     useApproveEmployeeListMutation();
 
   const rows = data?.data || [];
+  const employeeMeta = data?.meta || {};
   const managerRows = managerRowsRes?.data || [];
   const users = usersRes?.data || [];
   const departments = departmentsRes?.data || [];
@@ -159,15 +160,15 @@ const EmployeeMasterManager = () => {
   }, [currentItem?.Id, form.departmentId, managerOptions, managerRows]);
 
   const stats = useMemo(() => {
-    const activeCount = rows.filter((row) => row.status === "Active").length;
-    const linkedUsers = rows.filter((row) => row.userId).length;
-    const assignedDepartments = rows.filter((row) => row.departmentId).length;
-    const withShift = rows.filter((row) => row.shiftId).length;
+    const activeCount = Number(employeeMeta.activeCount || 0);
+    const linkedUsers = Number(employeeMeta.linkedUsers || 0);
+    const assignedDepartments = Number(employeeMeta.assignedDepartments || 0);
+    const withShift = Number(employeeMeta.withShift || 0);
 
     return [
       {
         name: "Employee Records",
-        value: rows.length,
+        value: Number(employeeMeta.count || 0),
         icon: Users2,
         iconBg: "#EEF2FF",
         iconColor: "#4338CA",
@@ -194,7 +195,7 @@ const EmployeeMasterManager = () => {
         iconColor: "#1D4ED8",
       },
     ];
-  }, [rows]);
+  }, [employeeMeta]);
 
   const statusTone = (status) =>
     ({

@@ -951,6 +951,7 @@ import {
 } from "../../features/assetsRequisition/assetsRequisition";
 
 import Modal from "../common/Modal";
+import DateRangeFilter from "../common/DateRangeFilter";
 import { useLayout } from "../../context/LayoutContext";
 import { translations } from "../../utils/translations";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
@@ -1521,25 +1522,16 @@ const AssetsRequisitionTable = () => {
 
       {/* Filters */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end mb-6 w-full justify-center mx-auto">
-        <div className="flex flex-col">
-          <label className="text-sm text-slate-600 mb-1">{t.from}</label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
-          />
-        </div>
-
-        <div className="flex flex-col">
-          <label className="text-sm text-slate-600 mb-1">{t.to}</label>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
-          />
-        </div>
+        <DateRangeFilter
+          startDate={startDate}
+          endDate={endDate}
+          onStartDateChange={setStartDate}
+          onEndDateChange={setEndDate}
+          startLabel={t.start_date}
+          endLabel={t.end_date}
+          compact
+          className="md:col-span-2"
+        />
 
         <div className="flex items-center justify-center md:mt-0">
           <Select

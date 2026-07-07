@@ -20,20 +20,19 @@ const PayslipPage = () => {
 
   const { data, isLoading } = useGetAllPayrollItemsQuery(queryArgs);
   const rows = data?.data || [];
+  const payrollMeta = data?.meta || {};
 
   const stats = [
     {
       name: "Payslip Rows",
-      value: rows.length,
+      value: payrollMeta.count || 0,
       icon: ReceiptText,
       iconBg: "#EEF2FF",
       iconColor: "#4338CA",
     },
     {
       name: "Total Net",
-      value: rows
-        .reduce((sum, row) => sum + Number(row.netAmount || 0), 0)
-        .toFixed(2),
+      value: Number(payrollMeta.totalNet || 0).toFixed(2),
       icon: Wallet,
       iconBg: "#ECFDF5",
       iconColor: "#047857",

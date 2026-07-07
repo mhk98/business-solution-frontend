@@ -11,6 +11,7 @@ import {
 } from "../../features/buyer/buyer";
 import Select from "react-select";
 import Modal from "../common/Modal";
+import DateRangeFilter from "../common/DateRangeFilter";
 
 const BuyersTable = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -206,24 +207,14 @@ const BuyersTable = () => {
       </div>
 
       <div className="mt-5 grid grid-cols-1 md:grid-cols-4 gap-4 items-end w-full">
-        <div className="flex flex-col">
-          <label className="text-sm text-slate-600 mb-1">Start Date</label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="h-11 px-3 rounded-xl border border-slate-200 bg-white text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
-          />
-        </div>
-        <div className="flex flex-col">
-          <label className="text-sm text-slate-600 mb-1">End Date</label>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="h-11 px-3 rounded-xl border border-slate-200 bg-white text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
-          />
-        </div>
+        <DateRangeFilter
+          startDate={startDate}
+          endDate={endDate}
+          onStartDateChange={setStartDate}
+          onEndDateChange={setEndDate}
+          compact
+          className="md:col-span-2"
+        />
 
         <div className="flex flex-col">
           <label className="text-sm text-slate-600 mb-1">Buyer</label>

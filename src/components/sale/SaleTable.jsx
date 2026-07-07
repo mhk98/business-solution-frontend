@@ -15,6 +15,7 @@ import { translations } from "../../utils/translations";
 import { useGetAllBuyerWithoutQueryQuery } from "../../features/buyer/buyer";
 import { useGetAllProductWithoutQueryQuery } from "../../features/product/product";
 import Modal from "../common/Modal";
+import DateRangeFilter from "../common/DateRangeFilter";
 
 const SaleTable = () => {
   const { language } = useLayout();
@@ -210,28 +211,16 @@ const SaleTable = () => {
 
       {/* Filters */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 bg-slate-50/50 p-5 rounded-2xl border border-slate-100">
-        <div>
-          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">{t.start_date}</label>
-          <div className="relative">
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-            />
-          </div>
-        </div>
-        <div>
-          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">{t.end_date}</label>
-          <div className="relative">
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-            />
-          </div>
-        </div>
+        <DateRangeFilter
+          startDate={startDate}
+          endDate={endDate}
+          onStartDateChange={setStartDate}
+          onEndDateChange={setEndDate}
+          startLabel={t.start_date}
+          endLabel={t.end_date}
+          compact
+          className="sm:col-span-2"
+        />
         <div>
           <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">{t.buyer}</label>
           <Select

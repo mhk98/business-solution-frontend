@@ -1,7 +1,8 @@
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import Select from "react-select";
-import { BadgeDollarSign, Boxes, Calendar, X } from "lucide-react";
+import { BadgeDollarSign, Boxes, X } from "lucide-react";
+import DateRangeFilter from "../common/DateRangeFilter";
 import {
   useGetAllAssetsStockQuery,
   useGetAllAssetsStockWithoutQueryQuery,
@@ -216,42 +217,14 @@ const AssetsStockTable = () => {
           <X size={16} /> Reset
         </button>
 
-        <div className="flex flex-col">
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
-            Start Date
-          </label>
-          <div className="relative">
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="w-full h-11 px-4 pr-10 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-medium outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500"
-            />
-            <Calendar
-              size={16}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-            />
-          </div>
-        </div>
-
-        <div className="flex flex-col">
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
-            End Date
-          </label>
-          <div className="relative">
-            <input
-              type="date"
-              value={endDate}
-              min={startDate || undefined}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="w-full h-11 px-4 pr-10 rounded-xl border border-slate-200 bg-white text-slate-700 text-sm font-medium outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500"
-            />
-            <Calendar
-              size={16}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
-            />
-          </div>
-        </div>
+        <DateRangeFilter
+          startDate={startDate}
+          endDate={endDate}
+          onStartDateChange={setStartDate}
+          onEndDateChange={setEndDate}
+          compact
+          className="sm:col-span-2"
+        />
       </div>
 
       <div className="overflow-x-auto">

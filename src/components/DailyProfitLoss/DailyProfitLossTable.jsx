@@ -11,6 +11,7 @@ import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import Select from "react-select";
 import Modal from "../common/Modal";
+import DateRangeFilter from "../common/DateRangeFilter";
 import { useGetAllInventoryOverviewWithoutQueryQuery } from "../../features/inventoryOverview/inventoryOverview";
 import useDebounce from "../../hooks/useDebounce";
 
@@ -1114,29 +1115,14 @@ const DailyProfitLossTable = () => {
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <label className="min-w-[180px]">
-              <span className="mb-1.5 block text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
-                Start Date
-              </span>
-              <input
-                type="date"
-                value={historyStartDate}
-                onChange={(e) => setHistoryStartDate(e.target.value)}
-                className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-100"
-              />
-            </label>
-
-            <label className="min-w-[180px]">
-              <span className="mb-1.5 block text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
-                End Date
-              </span>
-              <input
-                type="date"
-                value={historyEndDate}
-                onChange={(e) => setHistoryEndDate(e.target.value)}
-                className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-100"
-              />
-            </label>
+            <DateRangeFilter
+              startDate={historyStartDate}
+              endDate={historyEndDate}
+              onStartDateChange={setHistoryStartDate}
+              onEndDateChange={setHistoryEndDate}
+              compact
+              className="sm:col-span-2"
+            />
 
             <label className="min-w-[220px]">
               <span className="mb-1.5 block text-xs font-bold uppercase tracking-[0.16em] text-slate-400">

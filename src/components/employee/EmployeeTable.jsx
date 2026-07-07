@@ -27,15 +27,21 @@ import { useGetAllBookWithoutQueryQuery } from "../../features/book/book";
 import { useGetAllLedgerHistoryQuery } from "../../features/ledgerHistory/ledgerHistory";
 import { useGetAllSalaryQuery } from "../../features/salary/salary";
 import Modal from "../common/Modal";
+import DateRangeFilter from "../common/DateRangeFilter";
 import { useLayout } from "../../context/LayoutContext";
 import { translations } from "../../utils/translations";
-import { useGetAllEmployeeListWithoutQueryQuery } from "../../features/employeeList/employeeList";
+import {
+  useGetAllEmployeeListQuery,
+  useGetAllEmployeeListWithoutQueryQuery,
+} from "../../features/employeeList/employeeList";
 import { useGetAllDepartmentsQuery } from "../../features/department/department";
 import { useGetAllDesignationsQuery } from "../../features/designation/designation";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 
 const isActiveEmployee = (employee) =>
-  String(employee?.status || "").toLowerCase() === "active";
+  String(employee?.status || "")
+    .trim()
+    .toLowerCase() === "active";
 
 const EmployeeTable = () => {
   const { language } = useLayout();
@@ -375,15 +381,33 @@ const EmployeeTable = () => {
   ]);
 
   const { data: employeeList } = useGetAllEmployeeListWithoutQueryQuery();
+  const { data: employeeListOptionsData } = useGetAllEmployeeListQuery({
+    page: 1,
+    limit: 1000,
+  });
+
+  const employeeListRows = useMemo(() => {
+    const rowsById = new Map();
+
+    [...(employeeList?.data || []), ...(employeeListOptionsData?.data || [])]
+      .filter(Boolean)
+      .forEach((employee) => {
+        const id = employee?.Id ?? employee?.id ?? "";
+        if (!id) return;
+        rowsById.set(String(id), employee);
+      });
+
+    return [...rowsById.values()];
+  }, [employeeList, employeeListOptionsData]);
 
   const phoneMatchedEmployeeListId = useMemo(() => {
     const trimmed = phoneFilter.trim();
     if (!trimmed) return undefined;
-    const matched = (employeeList?.data || []).find(
+    const matched = employeeListRows.find(
       (e) => e.phone && e.phone.includes(trimmed),
     );
     return matched ? String(matched.Id) : "0";
-  }, [phoneFilter, employeeList]);
+  }, [phoneFilter, employeeListRows]);
 
   const queryArgs = {
     page: currentPage,
@@ -445,7 +469,7 @@ const EmployeeTable = () => {
   const employeeOptions = useMemo(() => {
     const seen = new Set();
 
-    return (employeeList?.data || [])
+    return employeeListRows
       .map((employee) => {
         const id = employee.Id ?? employee.id ?? "";
         const employeeNo = employee.employee_id || "";
@@ -463,20 +487,22 @@ const EmployeeTable = () => {
         return buildEmployeeOption(employee);
       })
       .filter(Boolean);
-  }, [employeeList]);
+  }, [employeeListRows]);
 
   const employeeSalaryOptions = useMemo(() => {
     const seen = new Set();
 
-    return (employeeList?.data || [])
+    return employeeListRows
       .filter(isActiveEmployee)
       .map((employee) => {
         const id = employee.Id ?? employee.id ?? "";
         const name = employee.name || "";
         const employeeNo = employee.employee_id || "";
-        const key = employeeNo
-          ? `employee-${employeeNo}`
-          : name.trim().toLowerCase();
+        const key = id
+          ? `employee-list-${id}`
+          : employeeNo
+            ? `employee-${employeeNo}`
+            : name.trim().toLowerCase();
 
         if (!key || seen.has(String(key))) return null;
         seen.add(String(key));
@@ -484,6 +510,7 @@ const EmployeeTable = () => {
         return {
           value: String(id),
           label: name,
+          name,
           id,
           employee_id: employeeNo,
           salary:
@@ -498,16 +525,16 @@ const EmployeeTable = () => {
         };
       })
       .filter(Boolean);
-  }, [employeeList]);
+  }, [employeeListRows]);
 
   const getEmployeeListById = (id) =>
-    (employeeList?.data || []).find(
+    employeeListRows.find(
       (employee) =>
         String(employee?.Id ?? employee?.id ?? "") === String(id || ""),
     );
 
   const getEmployeeListByEmployeeNo = (employeeNo) =>
-    (employeeList?.data || []).find(
+    employeeListRows.find(
       (employee) =>
         String(employee?.employee_id ?? "") === String(employeeNo || ""),
     );
@@ -553,7 +580,7 @@ const EmployeeTable = () => {
       selectedEmployee?.employee ||
       getEmployeeListByEmployeeNo(selectedEmployee?.employee_id)
     );
-  }, [employeeList, phoneMatchedEmployeeListId, selectedEmployee]);
+  }, [employeeListRows, phoneMatchedEmployeeListId, selectedEmployee]);
 
   const displayEmployees = useMemo(() => {
     const rows = employees || [];
@@ -663,7 +690,7 @@ const EmployeeTable = () => {
   const getEmployeeInternalId = (employeeCode) => {
     if (!employeeCode) return undefined;
 
-    const matchedEmployee = (employeeList?.data || []).find(
+    const matchedEmployee = employeeListRows.find(
       (employee) => String(employee?.employee_id ?? "").trim() === employeeCode,
     );
 
@@ -711,7 +738,7 @@ const EmployeeTable = () => {
   const applyEmployeeSalaryDefaults = (prev, selected) => {
     const next = {
       ...(prev || {}),
-      name: selected?.label || "",
+      name: selected?.name || selected?.label || "",
       departmentId: selected?.departmentId || "",
       designationId: selected?.designationId || "",
       employeeListId: selected?.id || "",
@@ -741,6 +768,24 @@ const EmployeeTable = () => {
 
   const handleCurrentEmployeeSelect = (selected) => {
     setCurrentEmployee((prev) => applyEmployeeSalaryDefaults(prev, selected));
+  };
+
+  const selectPortalTarget =
+    typeof document !== "undefined" ? document.body : null;
+
+  const formatEmployeeSalaryOption = (option, { context }) => {
+    const name = option?.name || option?.label || "";
+    if (context === "value") return name;
+
+    return (
+      <div className="flex flex-col">
+        <span className="font-medium text-slate-900">{name}</span>
+        <span className="text-xs text-slate-500">
+          ID: {option?.employee_id || option?.id || "-"} - Salary:{" "}
+          {option?.salary || 0}
+        </span>
+      </div>
+    );
   };
 
   useEffect(() => {
@@ -1901,6 +1946,7 @@ const EmployeeTable = () => {
         overflow: "hidden",
         zIndex: 60,
       }),
+      menuPortal: (base) => ({ ...base, zIndex: 9999 }),
       option: (base, state) => ({
         ...base,
         backgroundColor: state.isSelected
@@ -1988,25 +2034,14 @@ const EmployeeTable = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-8 gap-4 items-end mb-6 w-full justify-center mx-auto">
-        <div className="flex flex-col">
-          <label className="text-sm text-slate-600 mb-1">{t.from}</label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
-          />
-        </div>
-
-        <div className="flex flex-col">
-          <label className="text-sm text-slate-600 mb-1">{t.to}</label>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
-          />
-        </div>
+        <DateRangeFilter
+          startDate={startDate}
+          endDate={endDate}
+          onStartDateChange={setStartDate}
+          onEndDateChange={setEndDate}
+          compact
+          className="md:col-span-2"
+        />
 
         <div className="flex flex-col">
           <label className="text-sm text-slate-600 mb-1">
@@ -2415,13 +2450,17 @@ const EmployeeTable = () => {
                     (option) =>
                       option.value ===
                         String(currentEmployee?.employeeListId || "") ||
-                      option.label === (currentEmployee?.name || ""),
+                      option.name === (currentEmployee?.name || ""),
                   ) || null
                 }
                 onChange={handleCurrentEmployeeSelect}
                 placeholder={t.select_employee || "Select Employee"}
                 isClearable
                 hideSelectedOptions={false}
+                formatOptionLabel={formatEmployeeSalaryOption}
+                menuPortalTarget={selectPortalTarget}
+                menuPosition="fixed"
+                menuPlacement="auto"
                 styles={selectStyles}
                 className="w-full"
               />
@@ -2811,13 +2850,17 @@ const EmployeeTable = () => {
                     (option) =>
                       option.value ===
                         String(createEmployee.employeeListId || "") ||
-                      option.label === createEmployee.name,
+                      option.name === createEmployee.name,
                   ) || null
                 }
                 onChange={handleCreateEmployeeSelect}
                 placeholder={t.select_employee || "Select Employee"}
                 isClearable
                 hideSelectedOptions={false}
+                formatOptionLabel={formatEmployeeSalaryOption}
+                menuPortalTarget={selectPortalTarget}
+                menuPosition="fixed"
+                menuPlacement="auto"
                 styles={selectStyles}
                 className="w-full"
               />

@@ -14,6 +14,7 @@ import ReportMenu from "./ReportMenu";
 import { generatePettyCashXlsx } from "../../utils/pettyCashReport/generatePettyCashXlsx";
 import { generatePettyCashPdf } from "../../utils/pettyCashReport/generatePettyCashPdf";
 import Modal from "../common/Modal";
+import DateRangeFilter from "../common/DateRangeFilter";
 import {
   useGetAllCategoryQuery,
   useInsertCategoryMutation,
@@ -1025,27 +1026,14 @@ const PettyCashTable = ({ mode = "default" }) => {
 
       {/* Filters */}
       <div className="grid grid-cols-1 md:grid-cols-7 gap-4 items-center mb-6 w-full justify-center mx-auto">
-        <div className="flex flex-col">
-          <label className="text-sm text-slate-600 mb-1">From</label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="px-3 py-2 rounded-lg bg-white border border-slate-300 text-slate-900 outline-none
-                       focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300"
-          />
-        </div>
-
-        <div className="flex flex-col">
-          <label className="text-sm text-slate-600 mb-1">To</label>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="px-3 py-2 rounded-lg bg-white border border-slate-300 text-slate-900 outline-none
-                       focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300"
-          />
-        </div>
+        <DateRangeFilter
+          startDate={startDate}
+          endDate={endDate}
+          onStartDateChange={setStartDate}
+          onEndDateChange={setEndDate}
+          compact
+          className="md:col-span-2"
+        />
 
         <div className="flex flex-col">
           <label className="text-sm text-slate-600 mb-1">Payment Mode:</label>

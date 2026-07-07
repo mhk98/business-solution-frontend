@@ -14,6 +14,7 @@ import toast from "react-hot-toast";
 import Select from "react-select";
 
 import Modal from "../common/Modal";
+import DateRangeFilter from "../common/DateRangeFilter";
 import { useLayout } from "../../context/LayoutContext";
 import { translations } from "../../utils/translations";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
@@ -28,18 +29,25 @@ import { useGetAllSupplierWithoutQueryQuery } from "../../features/supplier/supp
 
 const createItemLine = () => ({
   itemId: "",
+  hasUnit: true,
+  unitValue: "",
+  unit: "Pcs",
+  unitCost: "",
 });
 
 const initialCreateProduct = {
   items: [createItemLine()],
   supplierId: "",
-  unitValue: "",
-  unitCost: "",
   note: "",
   date: new Date().toISOString().slice(0, 10),
-  hasUnit: false,
-  unit: "Pcs",
 };
+
+const unitOptions = ["Pcs", "Kg", "Ml", "Gram", "Yard", "Inch", "Feet"].map(
+  (unit) => ({
+    value: unit,
+    label: unit,
+  }),
+);
 
 const ManufactureTable = () => {
   const { language } = useLayout();
@@ -291,11 +299,11 @@ const ManufactureTable = () => {
     return parsedUnitCost * (parsedUnitValue > 0 ? parsedUnitValue : 1);
   };
 
-  const updateCreateItem = (index, itemId) => {
+  const updateCreateItem = (index, changes) => {
     setCreateProduct((prev) => ({
       ...prev,
       items: (prev.items || [createItemLine()]).map((item, itemIndex) =>
-        itemIndex === index ? { ...item, itemId } : item,
+        itemIndex === index ? { ...item, ...changes } : item,
       ),
     }));
   };
@@ -363,15 +371,18 @@ const ManufactureTable = () => {
   const handleCreateProduct = async (e) => {
     e.preventDefault();
 
-    const selectedItems = (createProduct.items || [])
+    const selectedItems = (createProduct.items || []).filter(
+      (item) => item.itemId,
+    );
+    const selectedItemIds = selectedItems
       .map((item) => item.itemId)
       .filter(Boolean);
 
-    if (!selectedItems.length) {
+    if (!selectedItemIds.length) {
       return toast.error("Please select an item");
     }
 
-    if (new Set(selectedItems).size !== selectedItems.length) {
+    if (new Set(selectedItemIds).size !== selectedItemIds.length) {
       return toast.error("Please remove duplicate items");
     }
 
@@ -379,14 +390,17 @@ const ManufactureTable = () => {
       return toast.error("Please select a supplier");
     }
 
+    const invalidUnitItem = selectedItems.find((item) => {
+      const unitValue = item.hasUnit ? Number(item.unitValue || 0) : 0;
+      return unitValue <= 0;
+    });
+
+    if (invalidUnitItem) {
+      return toast.error("Please enter unit details for every item");
+    }
+
     try {
-      const unitValue = createProduct.hasUnit
-        ? Number(createProduct.unitValue) || 0
-        : 0;
       const basePayload = {
-        unit: createProduct.unit || "Pcs",
-        unitValue,
-        cost: getTotalCost(createProduct.unitCost, unitValue),
         date: createProduct.date || "",
         note: createProduct.note || "",
         supplierId: Number(createProduct.supplierId) || "",
@@ -395,12 +409,16 @@ const ManufactureTable = () => {
       };
 
       const responses = await Promise.all(
-        selectedItems.map((itemId) =>
-          insertManufacture({
+        selectedItems.map((item) => {
+          const unitValue = Number(item.unitValue || 0);
+          return insertManufacture({
             ...basePayload,
-            itemId: Number(itemId) || "",
-          }).unwrap(),
-        ),
+            itemId: Number(item.itemId) || "",
+            unit: item.unit || "Pcs",
+            unitValue,
+            cost: getTotalCost(item.unitCost, unitValue),
+          }).unwrap();
+        }),
       );
 
       if (responses.every((res) => res?.success !== false)) {
@@ -584,29 +602,16 @@ const ManufactureTable = () => {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-10 bg-slate-50/50 p-6 rounded-3xl border border-slate-100 items-end">
-        <div className="flex flex-col">
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
-            {t.from}
-          </label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="h-11 px-4 rounded-xl border border-slate-200 bg-white text-slate-800 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition font-medium text-sm"
-          />
-        </div>
-
-        <div className="flex flex-col">
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
-            {t.to}
-          </label>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="h-11 px-4 rounded-xl border border-slate-200 bg-white text-slate-800 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition font-medium text-sm"
-          />
-        </div>
+        <DateRangeFilter
+          startDate={startDate}
+          endDate={endDate}
+          onStartDateChange={setStartDate}
+          onEndDateChange={setEndDate}
+          startLabel={t.start_date}
+          endLabel={t.end_date}
+          compact
+          className="sm:col-span-2"
+        />
 
         <div className="flex flex-col">
           <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
@@ -1106,13 +1111,14 @@ const ManufactureTable = () => {
         isOpen={isModalOpen1}
         onClose={handleModalClose1}
         title={t.add_new || "Add New"}
+        maxWidth="max-w-4xl"
       >
         <form
           onSubmit={handleCreateProduct}
-          className="space-y-4 max-h-[70vh] overflow-y-auto px-1 custom-scrollbar"
+          className="space-y-4 overflow-x-hidden px-1"
         >
           <div>
-            <div className="flex items-center justify-between gap-3 mb-1.5 ml-1">
+            <div className="sticky top-0 z-20 -mx-1 mb-3 flex items-center justify-between gap-3 border-b border-slate-100 bg-white/95 px-1 py-2 backdrop-blur">
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
                 {t.select_item || "Select Item"}
               </label>
@@ -1127,36 +1133,127 @@ const ManufactureTable = () => {
 
             <div className="space-y-3">
               {(createProduct.items || [createItemLine()]).map((item, index) => (
-                <div key={index} className="flex items-center gap-2">
-                  <div className="min-w-0 flex-1">
-                    <Select
-                      options={itemDropdownOptions}
-                      value={
-                        itemDropdownOptions.find(
-                          (o) => o.value === String(item.itemId),
-                        ) || null
-                      }
-                      onChange={(selected) =>
-                        updateCreateItem(index, selected?.value || "")
-                      }
-                      placeholder={t.search_item || "Search item..."}
-                      isClearable
-                      styles={selectStyles}
-                      className="text-sm text-black font-medium"
-                      isDisabled={isLoadingAllItems}
-                    />
-                  </div>
+                <div
+                  key={index}
+                  className="rounded-2xl border border-slate-200 bg-slate-50/50 p-3"
+                >
+                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(240px,1.25fr)_minmax(260px,1fr)_minmax(150px,0.65fr)_44px] lg:items-end">
+                    <div className="min-w-0">
+                      <label className="mb-1.5 ml-1 block text-[10px] font-black uppercase tracking-wider text-slate-500">
+                        {t.item || "Item"}
+                      </label>
+                      <Select
+                        options={itemDropdownOptions}
+                        value={
+                          itemDropdownOptions.find(
+                            (o) => o.value === String(item.itemId),
+                          ) || null
+                        }
+                        onChange={(selected) =>
+                          updateCreateItem(index, {
+                            itemId: selected?.value || "",
+                          })
+                        }
+                        placeholder={t.search_item || "Search item..."}
+                        isClearable
+                        styles={selectStyles}
+                        className="text-sm text-black font-medium"
+                        isDisabled={isLoadingAllItems}
+                      />
+                    </div>
 
-                  {(createProduct.items || []).length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeCreateItem(index)}
-                      className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-red-100 bg-red-50 text-red-500 hover:bg-red-100 transition active:scale-95"
-                      title="Remove item"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
+                    <div className="min-w-0">
+                      <div className="mb-1.5 flex items-center justify-between gap-2">
+                        <label className="ml-1 block text-[10px] font-black uppercase tracking-wider text-slate-500">
+                          {t.unit_details || "Unit Details"}
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateCreateItem(index, {
+                              hasUnit: !item.hasUnit,
+                              unitValue: item.hasUnit ? "" : item.unitValue || "",
+                              unit: item.hasUnit ? "Pcs" : item.unit || "Pcs",
+                            })
+                          }
+                          className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
+                            item.hasUnit ? "bg-indigo-600" : "bg-slate-300"
+                          }`}
+                        >
+                          <span className="sr-only">Toggle Unit</span>
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out ${
+                              item.hasUnit ? "translate-x-6" : "translate-x-1"
+                            }`}
+                          />
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-[minmax(0,1fr)_128px] gap-2">
+                        <input
+                          type="number"
+                          min="1"
+                          value={item.unitValue || ""}
+                          onChange={(e) =>
+                            updateCreateItem(index, {
+                              unitValue: e.target.value,
+                            })
+                          }
+                          placeholder="20"
+                          disabled={!item.hasUnit}
+                          className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+                        />
+
+                        <Select
+                          options={unitOptions}
+                          value={{
+                            value: item.unit || "Pcs",
+                            label: item.unit || "Pcs",
+                          }}
+                          onChange={(selected) =>
+                            updateCreateItem(index, {
+                              unit: selected?.value || "Pcs",
+                            })
+                          }
+                          styles={selectStyles}
+                          className="text-black"
+                          isDisabled={!item.hasUnit}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="min-w-0">
+                      <label className="mb-1.5 ml-1 block text-[10px] font-black uppercase tracking-wider text-slate-500">
+                        {t.unit_cost || "Unit Cost"}
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={item.unitCost || ""}
+                        onChange={(e) =>
+                          updateCreateItem(index, {
+                            unitCost: e.target.value,
+                          })
+                        }
+                        className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+                      />
+                    </div>
+
+                    <div className="flex lg:justify-end">
+                      {(createProduct.items || []).length > 1 ? (
+                        <button
+                          type="button"
+                          onClick={() => removeCreateItem(index)}
+                          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-red-100 bg-red-50 text-red-500 hover:bg-red-100 transition active:scale-95"
+                          title="Remove item"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      ) : (
+                        <div className="hidden h-11 w-11 lg:block" />
+                      )}
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1196,110 +1293,6 @@ const ManufactureTable = () => {
               value={createProduct?.date || ""}
               onChange={(e) =>
                 setCreateProduct((p) => ({ ...p, date: e.target.value }))
-              }
-              className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-            />
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-1">
-            <div className="flex items-center justify-between px-4 py-3">
-              <div>
-                <span className="text-sm font-black text-slate-700 uppercase tracking-tight">
-                  {t.unit_settings || "Unit Settings"}
-                </span>
-                <p className="text-[10px] font-bold text-slate-400">
-                  {t.enable_if_needed || "Enable if needed"}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() =>
-                  setCreateProduct((prev) => ({
-                    ...prev,
-                    hasUnit: !prev?.hasUnit,
-                    unitValue: prev?.hasUnit ? "" : prev?.unitValue || "",
-                    unit: prev?.hasUnit ? "Pcs" : prev?.unit || "Pcs",
-                  }))
-                }
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
-                  createProduct?.hasUnit ? "bg-indigo-600" : "bg-slate-300"
-                }`}
-              >
-                <span className="sr-only">Toggle Unit</span>
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out ${
-                    createProduct?.hasUnit ? "translate-x-6" : "translate-x-1"
-                  }`}
-                />
-              </button>
-            </div>
-
-            {createProduct?.hasUnit && (
-              <div className="bg-white rounded-xl border border-slate-100 m-1 p-4 space-y-3 shadow-sm">
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  {t.unit_details || "Unit Details"}
-                </label>
-
-                <div className="flex gap-2">
-                  <input
-                    type="number"
-                    min="1"
-                    value={createProduct?.unitValue || ""}
-                    onChange={(e) =>
-                      setCreateProduct((prev) => ({
-                        ...prev,
-                        unitValue: e.target.value,
-                      }))
-                    }
-                    placeholder="30"
-                    className="h-11 flex-1 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-                  />
-
-                  <Select
-                    options={[
-                      "Pcs",
-                      "Kg",
-                      "Ml",
-                      "Gram",
-                      "Yard",
-                      "Inch",
-                      "Feet",
-                    ].map((unit) => ({
-                      value: unit,
-                      label: unit,
-                    }))}
-                    value={{
-                      value: createProduct?.unit || "Pcs",
-                      label: createProduct?.unit || "Pcs",
-                    }}
-                    onChange={(selected) =>
-                      setCreateProduct((prev) => ({
-                        ...prev,
-                        unit: selected?.value || "Pcs",
-                      }))
-                    }
-                    styles={selectStyles}
-                    className="w-32 text-black"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-              {t.unit_cost || "Unit Cost"}
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              value={createProduct?.unitCost || ""}
-              onChange={(e) =>
-                setCreateProduct({
-                  ...createProduct,
-                  unitCost: e.target.value,
-                })
               }
               className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
             />

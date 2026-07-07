@@ -22,6 +22,7 @@ import {
   YAxis,
 } from "recharts";
 import Modal from "../common/Modal";
+import DateRangeFilter from "../common/DateRangeFilter";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 import { useGetAllDepartmentsQuery } from "../../features/department/department";
 import { useGetAllDesignationsQuery } from "../../features/designation/designation";
@@ -1005,25 +1006,14 @@ const EmployeeKPITable = () => {
           isEmployeeRole ? "md:grid-cols-4 xl:grid-cols-7" : "md:grid-cols-4 xl:grid-cols-8"
         }`}
       >
-        <div className="flex flex-col">
-          <label className="text-sm text-slate-600 mb-1">From</label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
-          />
-        </div>
-
-        <div className="flex flex-col">
-          <label className="text-sm text-slate-600 mb-1">To</label>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
-          />
-        </div>
+        <DateRangeFilter
+          startDate={startDate}
+          endDate={endDate}
+          onStartDateChange={setStartDate}
+          onEndDateChange={setEndDate}
+          compact
+          className="md:col-span-2"
+        />
 
         {!isEmployeeRole ? (
           <div className="flex flex-col">

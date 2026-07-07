@@ -33,6 +33,7 @@ import {
 } from "../../features/ledgerHistory/ledgerHistory";
 import { useGetAllSupplierWithoutQueryQuery } from "../../features/supplier/supplier";
 import useDebounce from "../../hooks/useDebounce";
+import DateRangeFilter from "../common/DateRangeFilter";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 
 const ENTITY_TYPES = {
@@ -1894,21 +1895,13 @@ const CreditLedgerTable = () => {
                   <FileText size={16} className="text-slate-600" />
                 </button>
 
-                <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500">
-                  <input
-                    type="date"
-                    value={mainHistoryStartDate}
-                    onChange={(e) => setMainHistoryStartDate(e.target.value)}
-                    className="bg-transparent text-sm outline-none"
-                  />
-                  <span>-</span>
-                  <input
-                    type="date"
-                    value={mainHistoryEndDate}
-                    onChange={(e) => setMainHistoryEndDate(e.target.value)}
-                    className="bg-transparent text-sm outline-none"
-                  />
-                </div>
+                <DateRangeFilter
+                  startDate={mainHistoryStartDate}
+                  endDate={mainHistoryEndDate}
+                  onStartDateChange={setMainHistoryStartDate}
+                  onEndDateChange={setMainHistoryEndDate}
+                  compact
+                />
 
                 <button
                   type="button"
@@ -2266,28 +2259,14 @@ const CreditLedgerTable = () => {
 
                 <div className="max-h-[55vh] overflow-auto px-6 py-5">
                   <div className="mb-4 grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-[1fr_1fr_auto]">
-                    <label className="text-sm">
-                      <span className="mb-1 block text-slate-500">
-                        Start Date
-                      </span>
-                      <input
-                        type="date"
-                        value={dueHistoryStartDate}
-                        onChange={(e) => setDueHistoryStartDate(e.target.value)}
-                        className="h-11 w-full rounded-xl text-black border border-slate-200 bg-white px-3 text-sm outline-none focus:border-slate-400"
-                      />
-                    </label>
-                    <label className="text-sm">
-                      <span className="mb-1 block text-slate-500">
-                        End Date
-                      </span>
-                      <input
-                        type="date"
-                        value={dueHistoryEndDate}
-                        onChange={(e) => setDueHistoryEndDate(e.target.value)}
-                        className="h-11 w-full rounded-xl text-black border border-slate-200 bg-white px-3 text-sm outline-none focus:border-slate-400"
-                      />
-                    </label>
+                    <DateRangeFilter
+                      startDate={dueHistoryStartDate}
+                      endDate={dueHistoryEndDate}
+                      onStartDateChange={setDueHistoryStartDate}
+                      onEndDateChange={setDueHistoryEndDate}
+                      compact
+                      className="sm:col-span-2"
+                    />
                     <div className="flex items-end">
                       <button
                         type="button"

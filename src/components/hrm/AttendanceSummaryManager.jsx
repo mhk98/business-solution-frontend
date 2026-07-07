@@ -25,12 +25,13 @@ const AttendanceSummaryManager = () => {
 
   const { data, isLoading } = useGetAllAttendanceSummariesQuery(queryArgs);
   const rows = data?.data || [];
+  const totalRows = data?.meta?.count || 0;
   const statusCounts = data?.meta?.statusCounts || {};
 
   const stats = [
     {
       name: "Summary Rows",
-      value: rows.length,
+      value: totalRows,
       icon: ClipboardCheck,
       iconBg: "#EEF2FF",
       iconColor: "#4338CA",

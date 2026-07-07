@@ -16,6 +16,7 @@ import {
 import Select from "react-select";
 import toast from "react-hot-toast";
 import Header from "../components/common/Header";
+import DateRangeFilter from "../components/common/DateRangeFilter";
 import {
   useDeleteEmployeeWorkReportMutation,
   useGetAllEmployeeWorkReportsQuery,
@@ -109,6 +110,23 @@ const TOTAL_ORDER_SOURCE_FIELDS = [
   "callReceived",
   "whatsappReceived",
 ];
+const ORDER_REPORT_COLUMNS = [
+  { key: "reportDate", label: "Date" },
+  { key: "name", label: "Name" },
+  { key: "failedReceived", label: "Failed" },
+  { key: "pendingReceived", label: "Pending" },
+  { key: "leadReceived", label: "Lead" },
+  { key: "crossReceived", label: "Cross" },
+  { key: "ideskReceived", label: "Inbox" },
+  { key: "callReceived", label: "Call" },
+  { key: "whatsappReceived", label: "WhatsApp" },
+  { key: "pendingReturnReceived", label: "Pending Return" },
+  { key: "canceledReceived", label: "Canceled" },
+  { key: "holdReceived", label: "Hold" },
+  { key: "notResponseReceived", label: "Not Response" },
+  { key: "totalOrder", label: "Total Order" },
+  { key: "totalAmount", label: "Total Amount" },
+];
 const AUTO_TOTAL_FIELDS = ["totalAssign", "totalOrder"];
 const AUTO_TOTAL_SOURCE_FIELDS = [
   ...TOTAL_ASSIGN_SOURCE_FIELDS,
@@ -198,9 +216,10 @@ const DailyProfitLossUserPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 400);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
-  const [fromDate, setFromDate] = useState(today);
-  const [toDate, setToDate] = useState(today);
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [startPage, setStartPage] = useState(1);
 
   // Edit report modal
   const [editingId, setEditingId] = useState(null);
@@ -242,10 +261,12 @@ const DailyProfitLossUserPage = () => {
     () => ({
       page: 1,
       limit: 9999,
+      searchTerm: debouncedSearchTerm || undefined,
+      employeeId: selectedEmployee?.value || undefined,
       startDate: fromDate || undefined,
       endDate: toDate || undefined,
     }),
-    [fromDate, toDate],
+    [debouncedSearchTerm, selectedEmployee, fromDate, toDate],
   );
 
   const { data: employeeListRes } = useGetAllEmployeeListWithoutQueryQuery(
@@ -331,23 +352,42 @@ const DailyProfitLossUserPage = () => {
   const reportMeta = reportRes?.meta || {};
   const totalReports = reportMeta?.count || 0;
   const totalPages = Math.max(1, Math.ceil(totalReports / pageSize));
+  const pagesPerSet = 10;
+  const endPage = Math.min(startPage + pagesPerSet - 1, totalPages);
+  const visiblePages = Array.from(
+    { length: Math.max(0, endPage - startPage + 1) },
+    (_, index) => startPage + index,
+  );
   const isLoading = allReportsLoading || myReportsLoading;
 
   const calcReportRes = canManageReports
     ? allReportsForCalcRes
     : myReportsForCalcRes;
   const allCalcReports = calcReportRes?.data || [];
+  const calcMeta = calcReportRes?.meta || {};
 
-  const totals = allCalcReports.reduce(
-    (acc, row) => ({
-      totalAssign: acc.totalAssign + Number(row.totalAssign || 0),
-      totalOrder: acc.totalOrder + Number(row.totalOrder || 0),
-      totalAmount: acc.totalAmount + Number(row.totalAmount || 0),
-    }),
-    { totalAssign: 0, totalOrder: 0, totalAmount: 0 },
-  );
+  const totals = {
+    totalAssign:
+      calcMeta.totalAssign ??
+      allCalcReports.reduce(
+        (sum, row) => sum + Number(row.totalAssign || 0),
+        0,
+      ),
+    totalOrder:
+      calcMeta.totalOrder ??
+      allCalcReports.reduce(
+        (sum, row) => sum + Number(row.totalOrder || 0),
+        0,
+      ),
+    totalAmount:
+      calcMeta.totalAmount ??
+      allCalcReports.reduce(
+        (sum, row) => sum + Number(row.totalAmount || 0),
+        0,
+      ),
+  };
 
-  const totalCalcReports = allCalcReports.length;
+  const totalCalcReports = Number(calcMeta.count ?? allCalcReports.length);
 
   const stats = [
     {
@@ -559,21 +599,24 @@ const DailyProfitLossUserPage = () => {
             .map(
               (r) => `<tr>
                 <td>${escapeHtml(r.reportDate || "-")}</td>
-                <td>${escapeHtml(r.name || "-")}</td>
-                <td>${safeNumber(r.failedGiven)}/${safeNumber(r.failedReceived)}</td>
-                <td>${safeNumber(r.pendingGiven)}/${safeNumber(r.pendingReceived)}</td>
-                <td>${safeNumber(r.leadGiven)}/${safeNumber(r.leadReceived)}</td>
+                <td>${escapeHtml(r.employee?.name || r.name || "-")}</td>
+                <td>${safeNumber(r.failedReceived)}</td>
+                <td>${safeNumber(r.pendingReceived)}</td>
+                <td>${safeNumber(r.leadReceived)}</td>
                 <td>${safeNumber(r.crossReceived)}</td>
-                <td>${safeNumber(r.ideskGiven)}/${safeNumber(r.ideskReceived)}</td>
-                <td>${safeNumber(r.callDone)}/${safeNumber(r.callReceived)}</td>
-                <td>${safeNumber(r.whatsappDone)}/${safeNumber(r.whatsappReceived)}</td>
-                <td>${safeNumber(r.totalAssign)}</td>
+                <td>${safeNumber(r.ideskReceived)}</td>
+                <td>${safeNumber(r.callReceived)}</td>
+                <td>${safeNumber(r.whatsappReceived)}</td>
+                <td>${safeNumber(r.pendingReturnReceived)}</td>
+                <td>${safeNumber(r.canceledReceived)}</td>
+                <td>${safeNumber(r.holdReceived)}</td>
+                <td>${safeNumber(r.notResponseReceived)}</td>
                 <td>${safeNumber(r.totalOrder)}</td>
                 <td class="amount">${escapeHtml(formatCurrency(r.totalAmount))}</td>
               </tr>`,
             )
             .join("")
-        : `<tr><td colspan="12" style="text-align:center;padding:20px;color:#94a3b8;">কোনো employee report নেই</td></tr>`;
+        : `<tr><td colspan="15" style="text-align:center;padding:20px;color:#94a3b8;">কোনো employee report নেই</td></tr>`;
 
     const historyRowsHtml =
       profitLossRows.length > 0
@@ -631,7 +674,8 @@ const DailyProfitLossUserPage = () => {
               <tr>
                 <th>Date</th><th>Name</th><th>Failed</th><th>Pending</th>
                 <th>Lead</th><th>Cross</th><th>Inbox</th><th>Call</th><th>WhatsApp</th>
-                <th>Assign</th><th>Order</th><th>Amount</th>
+                <th>Pending Return</th><th>Canceled</th><th>Hold</th><th>Not Response</th>
+                <th>Total Order</th><th>Amount</th>
               </tr>
             </thead>
             <tbody>${reportRowsHtml}</tbody>
@@ -708,15 +752,18 @@ const DailyProfitLossUserPage = () => {
 
     const employeeReportDetails = allCalcReports.map((r) => ({
       reportDate: r.reportDate || "-",
-      name: r.name || "-",
-      failed: `${safeNumber(r.failedGiven)}/${safeNumber(r.failedReceived)}`,
-      pending: `${safeNumber(r.pendingGiven)}/${safeNumber(r.pendingReceived)}`,
-      lead: `${safeNumber(r.leadGiven)}/${safeNumber(r.leadReceived)}`,
+      name: r.employee?.name || r.name || "-",
+      failed: safeNumber(r.failedReceived),
+      pending: safeNumber(r.pendingReceived),
+      lead: safeNumber(r.leadReceived),
       cross: safeNumber(r.crossReceived),
-      inbox: `${safeNumber(r.ideskGiven)}/${safeNumber(r.ideskReceived)}`,
-      call: `${safeNumber(r.callDone)}/${safeNumber(r.callReceived)}`,
-      whatsapp: `${safeNumber(r.whatsappDone)}/${safeNumber(r.whatsappReceived)}`,
-      totalAssign: safeNumber(r.totalAssign),
+      inbox: safeNumber(r.ideskReceived),
+      call: safeNumber(r.callReceived),
+      whatsapp: safeNumber(r.whatsappReceived),
+      pendingReturn: safeNumber(r.pendingReturnReceived),
+      canceled: safeNumber(r.canceledReceived),
+      hold: safeNumber(r.holdReceived),
+      notResponse: safeNumber(r.notResponseReceived),
       totalOrder: safeNumber(r.totalOrder),
       totalAmount: safeNumber(r.totalAmount),
     }));
@@ -773,7 +820,53 @@ const DailyProfitLossUserPage = () => {
   // ── Effects ──
   useEffect(() => {
     setCurrentPage(1);
+    setStartPage(1);
   }, [searchTerm, selectedEmployee, fromDate, toDate]);
+
+  useEffect(() => {
+    if (currentPage < startPage) {
+      setStartPage(currentPage);
+    } else if (currentPage > endPage) {
+      setStartPage(
+        Math.max(1, Math.floor((currentPage - 1) / pagesPerSet) * pagesPerSet + 1),
+      );
+    }
+  }, [currentPage, startPage, endPage, pagesPerSet]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+
+    setStartPage((prev) =>
+      Math.min(prev, Math.max(1, totalPages - pagesPerSet + 1)),
+    );
+  }, [currentPage, totalPages, pagesPerSet]);
+
+  const handleReportPageChange = (pageNumber) => {
+    if (pageNumber < 1 || pageNumber > totalPages) return;
+
+    setCurrentPage(pageNumber);
+    if (pageNumber < startPage) {
+      setStartPage(pageNumber);
+    } else if (pageNumber > endPage) {
+      setStartPage(pageNumber - pagesPerSet + 1);
+    }
+  };
+
+  const handlePreviousPageSet = () => {
+    setStartPage((prev) => Math.max(prev - pagesPerSet, 1));
+    setCurrentPage((prev) => Math.max(prev - pagesPerSet, 1));
+  };
+
+  const handleNextPageSet = () => {
+    const nextStart = Math.min(
+      startPage + pagesPerSet,
+      Math.max(1, totalPages - pagesPerSet + 1),
+    );
+    setStartPage(nextStart);
+    setCurrentPage(nextStart);
+  };
 
   useEffect(() => {
     setHistoryPage(1);
@@ -811,8 +904,8 @@ const DailyProfitLossUserPage = () => {
           </div>
 
           {/* ── Employee Reports Table ── */}
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-5">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <h3 className="text-lg font-bold text-slate-900">
                   {canManageReports ? "All Employee Reports" : "My Reports"}
@@ -827,62 +920,76 @@ const DailyProfitLossUserPage = () => {
             </div>
 
             <div
-              className={`mt-5 grid gap-3 ${
+              className={`mt-5 grid min-w-0 grid-cols-1 items-end gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 p-3 ${
                 canManageReports
-                  ? "lg:grid-cols-[260px_1fr_160px_160px]"
-                  : "lg:grid-cols-[1fr_160px_160px]"
+                  ? "md:grid-cols-2 xl:grid-cols-[260px_minmax(260px,1fr)_minmax(520px,560px)]"
+                  : "md:grid-cols-[minmax(260px,1fr)_minmax(520px,560px)]"
               }`}
             >
               {canManageReports && (
-                <Select
-                  value={selectedEmployee}
-                  onChange={setSelectedEmployee}
-                  options={employeeOptions}
-                  isClearable
-                  placeholder="Select employee"
-                  className="text-sm text-slate-900"
-                  styles={selectStyles}
-                />
+                <div className="min-w-0">
+                  <label className="mb-1.5 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    Employee
+                  </label>
+                  <Select
+                    value={selectedEmployee}
+                    onChange={setSelectedEmployee}
+                    options={employeeOptions}
+                    isClearable
+                    placeholder="Select employee"
+                    className="text-sm text-slate-900"
+                    styles={selectStyles}
+                  />
+                </div>
               )}
-              <label className="relative block">
-                <Search
-                  size={16}
-                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-                />
-                <input
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search something..."
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
-                />
+              <label className="block min-w-0">
+                <span className="mb-1.5 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  Search
+                </span>
+                <span className="relative block">
+                  <Search
+                    size={16}
+                    className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
+                  />
+                  <input
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Search something..."
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
+                  />
+                </span>
               </label>
-              <input
-                type="date"
-                value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
-                className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
-              />
-              <input
-                type="date"
-                value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
-                className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
+              <DateRangeFilter
+                startDate={fromDate}
+                endDate={toDate}
+                onStartDateChange={setFromDate}
+                onEndDateChange={setToDate}
+                compact
+                className={
+                  canManageReports
+                    ? "min-w-0 md:col-span-2 xl:col-span-1"
+                    : "min-w-0"
+                }
               />
             </div>
 
-            <div className="mt-5 overflow-x-auto rounded-2xl border border-slate-200">
-              <table className="min-w-[1040px] w-full divide-y divide-slate-200 text-left text-sm">
+            {fromDate || toDate ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-500">
+                <span className="rounded-full bg-slate-100 px-3 py-1">
+                  Date: {fromDate || "..."} to {toDate || "..."}
+                </span>
+              </div>
+            ) : null}
+
+            <div className="mt-5 max-w-full overflow-x-auto rounded-2xl border border-slate-200">
+              <table className="w-full min-w-[1280px] divide-y divide-slate-200 text-left text-sm">
                 <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
                   <tr>
-                    <th className="px-4 py-3">Date</th>
-                    <th className="px-4 py-3">Name</th>
-                    <th className="px-4 py-3">Failed</th>
-                    <th className="px-4 py-3">Pending</th>
-                    <th className="px-4 py-3">Lead</th>
-                    <th className="px-4 py-3">Cross</th>
-                    <th className="px-4 py-3">Inbox</th>
-                    <th className="px-4 py-3">Call</th>
-                    <th className="px-4 py-3">WhatsApp</th>
+                    {ORDER_REPORT_COLUMNS.map((column) => (
+                      <th key={column.key} className="px-4 py-3">
+                        {column.label}
+                      </th>
+                    ))}
                     <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -890,7 +997,7 @@ const DailyProfitLossUserPage = () => {
                   {isLoading && (
                     <tr>
                       <td
-                        colSpan={10}
+                        colSpan={ORDER_REPORT_COLUMNS.length + 1}
                         className="px-4 py-10 text-center text-slate-500"
                       >
                         Loading reports...
@@ -900,7 +1007,7 @@ const DailyProfitLossUserPage = () => {
                   {!isLoading && reports.length === 0 && (
                     <tr>
                       <td
-                        colSpan={10}
+                        colSpan={ORDER_REPORT_COLUMNS.length + 1}
                         className="px-4 py-10 text-center text-slate-500"
                       >
                         No cs work report found.
@@ -913,39 +1020,48 @@ const DailyProfitLossUserPage = () => {
                         Number(row.user?.Id) === currentUserId;
                       return (
                         <tr key={row.Id} className="hover:bg-slate-50">
-                          <td className="px-4 py-3 font-medium text-slate-900">
-                            {row.reportDate}
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="font-semibold text-slate-900">
-                              {row.name}
-                            </div>
-                            <div className="text-xs text-slate-500">
-                              {row.user?.Email || "-"}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            {row.failedGiven || 0} / {row.failedReceived || 0}
-                          </td>
-                          <td className="px-4 py-3">
-                            {row.pendingGiven || 0} / {row.pendingReceived || 0}
-                          </td>
-                          <td className="px-4 py-3">
-                            {row.leadGiven || 0} / {row.leadReceived || 0}
-                          </td>
-                          <td className="px-4 py-3">
-                            {row.crossReceived || 0}
-                          </td>
-                          <td className="px-4 py-3">
-                            {row.ideskGiven || 0} / {row.ideskReceived || 0}
-                          </td>
-                          <td className="px-4 py-3">
-                            {row.callDone || 0} / {row.callReceived || 0}
-                          </td>
-                          <td className="px-4 py-3">
-                            {row.whatsappDone || 0} /{" "}
-                            {row.whatsappReceived || 0}
-                          </td>
+                          {ORDER_REPORT_COLUMNS.map((column) => {
+                            const value =
+                              column.key === "name"
+                                ? row.employee?.name || row.name || "-"
+                                : column.key === "totalAmount"
+                                  ? Number(row.totalAmount || 0).toLocaleString(
+                                      undefined,
+                                      {
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2,
+                                      },
+                                    )
+                                  : column.key === "reportDate"
+                                    ? row.reportDate || "-"
+                                    : Number(row[column.key] || 0).toLocaleString();
+
+                            return (
+                              <td
+                                key={column.key}
+                                className={`px-4 py-3 ${
+                                  ["name", "totalOrder", "totalAmount"].includes(
+                                    column.key,
+                                  )
+                                    ? "font-semibold text-slate-900"
+                                    : ""
+                                }`}
+                              >
+                                {column.key === "name" ? (
+                                  <div>
+                                    <div className="font-semibold text-slate-900">
+                                      {value}
+                                    </div>
+                                    <div className="text-xs text-slate-500">
+                                      {row.user?.Email || "-"}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  value
+                                )}
+                              </td>
+                            );
+                          })}
                           <td className="px-4 py-3">
                             {canMutateRow ? (
                               <div className="flex justify-end gap-2">
@@ -981,30 +1097,47 @@ const DailyProfitLossUserPage = () => {
             </div>
 
             {totalPages > 1 && (
-              <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setCurrentPage((prev) => Math.max(prev - 1, 1))
-                  }
-                  disabled={currentPage === 1}
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
-                >
-                  Prev
-                </button>
-                <span className="px-3 text-sm font-semibold text-slate-600">
-                  Page {currentPage} of {totalPages}
-                </span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-                  }
-                  disabled={currentPage === totalPages}
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:opacity-50"
-                >
-                  Next
-                </button>
+              <div className="mt-6 flex flex-col items-center justify-between gap-4 px-1 sm:flex-row">
+                <p className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                  Showing page{" "}
+                  <span className="text-indigo-600">{currentPage}</span> of{" "}
+                  <span className="text-slate-900">{totalPages}</span>
+                </p>
+
+                <div className="flex max-w-full items-center gap-2 overflow-x-auto pb-1">
+                  <button
+                    type="button"
+                    onClick={handlePreviousPageSet}
+                    disabled={startPage === 1}
+                    className="inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 active:scale-95 disabled:opacity-50"
+                  >
+                    <ChevronLeft size={16} /> Prev
+                  </button>
+
+                  {visiblePages.map((pageNumber) => (
+                    <button
+                      key={pageNumber}
+                      type="button"
+                      onClick={() => handleReportPageChange(pageNumber)}
+                      className={`h-11 w-11 shrink-0 rounded-2xl text-sm font-black transition-all active:scale-90 ${
+                        pageNumber === currentPage
+                          ? "bg-indigo-600 text-white shadow-xl shadow-indigo-100"
+                          : "border border-slate-100 bg-white text-slate-600 hover:bg-indigo-50 hover:text-indigo-600"
+                      }`}
+                    >
+                      {pageNumber}
+                    </button>
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={handleNextPageSet}
+                    disabled={endPage === totalPages}
+                    className="inline-flex h-11 shrink-0 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 active:scale-95 disabled:opacity-50"
+                  >
+                    Next <ChevronRight size={16} />
+                  </button>
+                </div>
               </div>
             )}
           </section>
@@ -1147,29 +1280,21 @@ const DailyProfitLossUserPage = () => {
                   দেখা যাবে।
                 </p>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold uppercase text-slate-500">
-                    Start Date
-                  </span>
-                  <input
-                    type="date"
-                    value={historyStartDate}
-                    onChange={(e) => setHistoryStartDate(e.target.value)}
-                    className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold uppercase text-slate-500">
-                    End Date
-                  </span>
-                  <input
-                    type="date"
-                    value={historyEndDate}
-                    onChange={(e) => setHistoryEndDate(e.target.value)}
-                    className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
-                  />
-                </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <DateRangeFilter
+                  startDate={historyStartDate}
+                  endDate={historyEndDate}
+                  onStartDateChange={(value) => {
+                    setHistoryStartDate(value);
+                    setHistoryPage(1);
+                  }}
+                  onEndDateChange={(value) => {
+                    setHistoryEndDate(value);
+                    setHistoryPage(1);
+                  }}
+                  onFilterTypeChange={() => setHistoryPage(1)}
+                  compact
+                />
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-semibold uppercase text-slate-500">
                     Sales Type

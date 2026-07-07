@@ -4,7 +4,6 @@ import {
   BookOpen,
   Pencil,
   Plus,
-  RefreshCcw,
   Search,
   Trash2,
 } from "lucide-react";
@@ -21,6 +20,7 @@ import Modal from "../common/Modal";
 import { useGetOverviewSummaryQuery } from "../../features/marketingExpense/marketingExpense.jsx";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 import useDebounce from "../../hooks/useDebounce";
+import DateRangeFilter from "../common/DateRangeFilter";
 
 
 // ✅ helper: default range (এই মাসের ১ তারিখ → আজ)
@@ -178,11 +178,8 @@ const MarketingBookTable = () => {
 
   const defaultRange = useMemo(() => getDefaultRange(), []);
 
-  // ✅ input values
   const [from, setFrom] = useState(defaultRange.from);
   const [to, setTo] = useState(defaultRange.to);
-
-  // ✅ applied range (Apply না চাপা পর্যন্ত API call হবে না)
   const [applied, setApplied] = useState(defaultRange);
 
   const {
@@ -194,18 +191,6 @@ const MarketingBookTable = () => {
 
   const summary = summaryRes?.data || {};
 
-
-  const onApply = () => {
-    if (!from || !to) return;
-    setApplied({ from, to });
-  };
-
-  const onReset = () => {
-    const d = getDefaultRange();
-    setFrom(d.from);
-    setTo(d.to);
-    setApplied(d);
-  };
 
   if (isError1) console.error("Overview Summary error:", error1);
 
@@ -222,68 +207,17 @@ const MarketingBookTable = () => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.2 }}
     >
-      {/* <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[160px_160px_auto] gap-3 items-end">
-          <div className="flex flex-col">
-            <label className="text-xs text-slate-500 mb-1">From</label>
-            <input
-              type="date"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-              className="h-10 px-3 rounded-xl date-black-icon border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300"
-            />
-          </div>
-
-          <div className="flex flex-col">
-            <label className="text-xs text-slate-500 mb-1">To</label>
-            <input
-              type="date"
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-              className="h-10 px-3 rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300"
-            />
-          </div>
-
-          <div className="flex gap-2">
-            <button
-              onClick={onApply}
-              className="h-10 px-4 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 active:scale-[0.99] transition"
-            >
-              Apply
-            </button>
-
-            <button
-              onClick={onReset}
-              className="h-10 px-4 rounded-xl border border-slate-200 bg-white text-slate-800 text-sm font-semibold hover:bg-slate-50 active:scale-[0.99] transition flex items-center gap-2"
-            >
-              <RefreshCcw size={16} />
-              Reset
-            </button>
-          </div>
-        </div>
-      </div> */}
-
       {/* Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end mb-6 w-full">
-        <div className="flex flex-col">
-          <label className="text-sm text-slate-600 mb-1">From</label>
-          <input
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-            className="h-10 px-3 rounded-xl date-black-icon border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300"
-          />
-        </div>
-
-        <div className="flex flex-col">
-          <label className="text-sm text-slate-600 mb-1">To</label>
-          <input
-            type="date"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            className="h-10 px-3 rounded-xl border border-slate-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300"
-          />
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-[minmax(220px,300px)_minmax(260px,1fr)_auto] gap-4 items-end mb-6 w-full">
+        <DateRangeFilter
+          startDate={from}
+          endDate={to}
+          onStartDateChange={setFrom}
+          onEndDateChange={setTo}
+          onFilterTypeChange={(_, range) => setApplied(range)}
+          defaultFilter="this_month"
+          compact
+        />
 
         {/* <div className="flex flex-col">
           <label className="text-sm text-slate-600 mb-1">Payment Status</label>
@@ -299,23 +233,6 @@ const MarketingBookTable = () => {
           </select>
         </div> */}
         {/* Add button */}
-
-        <div className="flex gap-2">
-          <button
-            onClick={onApply}
-            className="h-10 px-4 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 active:scale-[0.99] transition"
-          >
-            Apply
-          </button>
-
-          <button
-            onClick={onReset}
-            className="h-10 px-4 rounded-xl border border-slate-200 bg-white text-slate-800 text-sm font-semibold hover:bg-slate-50 active:scale-[0.99] transition flex items-center gap-2"
-          >
-            <RefreshCcw size={16} />
-            Reset
-          </button>
-        </div>
 
         <div className="relative w-full sm:max-w-[520px]">
           <input

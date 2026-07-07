@@ -14,6 +14,7 @@ import toast from "react-hot-toast";
 import Select from "react-select";
 
 import Modal from "../common/Modal";
+import DateRangeFilter from "../common/DateRangeFilter";
 import { useLayout } from "../../context/LayoutContext";
 import { translations } from "../../utils/translations";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
@@ -43,13 +44,22 @@ const createEmptyMaterialSelection = () => ({
 const createEmptyPackagingSelection = () => ({
   itemMasterId: "",
   quantity: "",
+  unit: "Pcs",
 });
+
+const unitOptions = ["Pcs", "Kg", "Gram", "Liter", "Ml", "Box", "Dozen"].map(
+  (unit) => ({
+    value: unit,
+    label: unit,
+  }),
+);
 
 const initialCreateProduct = {
   productId: "",
   manufacturerId: "",
   warehouseId: "",
   combo: "",
+  unitWage: "",
   purchase_price: "",
   sale_price: "",
   note: "",
@@ -261,6 +271,7 @@ const normalizePackagingSelections = (existingSelections = []) => {
           : selection?.unitValue !== undefined && selection?.unitValue !== null
             ? String(selection.unitValue)
             : "",
+      unit: selection?.unit || "Pcs",
     }));
   }
 
@@ -321,6 +332,7 @@ const buildPackagingPayload = (selections) =>
   getSelectedPackagingItems(selections).map((selection) => ({
     itemMasterId: Number(selection.itemMasterId) || "",
     unitValue: Number(selection.quantity) || 0,
+    unit: selection.unit || "Pcs",
   }));
 
 const MixerTable = () => {
@@ -780,6 +792,7 @@ const MixerTable = () => {
           ? String(rp.warehouseId || rp.warehouse_id || rp.WarehouseId)
           : "",
       combo: rp.combo ?? "",
+      unitWage: rp.unitWage ?? "",
       purchase_price: rp.purchase_price ?? "",
       sale_price: rp.sale_price ?? "",
       date: rp.date ?? "",
@@ -811,6 +824,7 @@ const MixerTable = () => {
       date: rp.date ?? "",
       note: rp.note ?? "",
       cost: rp.cost ?? "",
+      unitWage: rp.unitWage ?? "",
       purchase_price: rp.purchase_price ?? "",
       sale_price: rp.sale_price ?? "",
       // unitValue: rp.unitValue ?? "",
@@ -893,6 +907,7 @@ const MixerTable = () => {
         manufacturerId: Number(createProduct.manufacturerId) || "",
         warehouseId: Number(createProduct.warehouseId) || null,
         combo: Number(createProduct.combo) || 0,
+        unitWage: Number(createProduct.unitWage) || 0,
         variants: getNormalizedVariantsPayload(createProduct.variantRows),
         purchase_price: Number(createProduct.purchase_price) || 0,
         sale_price: Number(createProduct.sale_price) || 0,
@@ -993,6 +1008,7 @@ const MixerTable = () => {
         manufacturerId: Number(currentProduct.manufacturerId) || "",
         warehouseId: Number(currentProduct.warehouseId) || null,
         combo: Number(currentProduct.combo) || 0,
+        unitWage: Number(currentProduct.unitWage) || 0,
         variants: getNormalizedVariantsPayload(currentProduct.variantRows),
         purchase_price: Number(currentProduct.purchase_price) || 0,
         sale_price: Number(currentProduct.sale_price) || 0,
@@ -1193,6 +1209,25 @@ const MixerTable = () => {
     });
   };
 
+  const handlePackagingItemChange = (mode, index, selected) => {
+    const setter = mode === "edit" ? setCurrentProduct : setCreateProduct;
+    setter((prev) => {
+      const nextSelections = normalizePackagingSelections(
+        prev?.packagingSelections,
+      );
+      nextSelections[index] = {
+        ...nextSelections[index],
+        itemMasterId: selected?.value || "",
+        unit: selected?.unit || "Pcs",
+      };
+
+      return {
+        ...prev,
+        packagingSelections: nextSelections,
+      };
+    });
+  };
+
   const addPackagingSelectionRow = (mode) => {
     const setter = mode === "edit" ? setCurrentProduct : setCreateProduct;
     setter((prev) => ({
@@ -1249,7 +1284,7 @@ const MixerTable = () => {
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
           >
             <Plus size={14} />
-            Add Item
+            Add Packaging
           </button>
         </div>
 
@@ -1260,7 +1295,7 @@ const MixerTable = () => {
             return (
               <div
                 key={`${mode}-packaging-${index}`}
-                className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_140px_44px] gap-3"
+                className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_120px_112px_44px] gap-3"
               >
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
@@ -1270,12 +1305,7 @@ const MixerTable = () => {
                     options={packagingItemOptions}
                     value={selectedOption}
                     onChange={(selected) =>
-                      handlePackagingSelectionChange(
-                        mode,
-                        index,
-                        "itemMasterId",
-                        selected?.value || "",
-                      )
+                      handlePackagingItemChange(mode, index, selected)
                     }
                     placeholder="Select packaging item..."
                     isClearable
@@ -1289,26 +1319,46 @@ const MixerTable = () => {
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
                     Value
                   </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min="0.01"
-                      step="0.01"
-                      value={selection.quantity || ""}
-                      onChange={(e) =>
-                        handlePackagingSelectionChange(
-                          mode,
-                          index,
-                          "quantity",
-                          e.target.value,
-                        )
-                      }
-                      className="w-full h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-                    />
-                    <span className="shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-600">
-                      {selectedOption?.unit || "Pcs"}
-                    </span>
-                  </div>
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={selection.quantity || ""}
+                    onChange={(e) =>
+                      handlePackagingSelectionChange(
+                        mode,
+                        index,
+                        "quantity",
+                        e.target.value,
+                      )
+                    }
+                    className="w-full h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+                    Unit
+                  </label>
+                  <Select
+                    options={unitOptions}
+                    value={
+                      unitOptions.find(
+                        (option) => option.value === (selection.unit || "Pcs"),
+                      ) || unitOptions[0]
+                    }
+                    onChange={(selected) =>
+                      handlePackagingSelectionChange(
+                        mode,
+                        index,
+                        "unit",
+                        selected?.value || "Pcs",
+                      )
+                    }
+                    isSearchable={false}
+                    styles={selectStyles}
+                    className="text-sm text-black font-medium"
+                  />
                 </div>
 
                 {selections.length > 1 && (
@@ -1570,29 +1620,14 @@ const MixerTable = () => {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-10 bg-slate-50/50 p-6 rounded-3xl border border-slate-100 items-end">
-        <div className="flex flex-col">
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
-            {t.from}
-          </label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="h-11 px-4 rounded-xl border border-slate-200 bg-white text-slate-800 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition font-medium text-sm"
-          />
-        </div>
-
-        <div className="flex flex-col">
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
-            {t.to}
-          </label>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="h-11 px-4 rounded-xl border border-slate-200 bg-white text-slate-800 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition font-medium text-sm"
-          />
-        </div>
+        <DateRangeFilter
+          startDate={startDate}
+          endDate={endDate}
+          onStartDateChange={setStartDate}
+          onEndDateChange={setEndDate}
+          compact
+          className="md:col-span-2"
+        />
 
         <div className="flex flex-col">
           <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
@@ -1951,26 +1986,45 @@ const MixerTable = () => {
             />
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-              Combo Quantity
-            </label>
-            <input
-              type="number"
-              min="0.01"
-              step="0.01"
-              value={currentProduct?.combo || ""}
-              onChange={(e) =>
-                setCurrentProduct((p) => ({ ...p, combo: e.target.value }))
-              }
-              disabled={shouldShowEditVariantOptions}
-              className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
-              placeholder={
-                shouldShowEditVariantOptions
-                  ? "Auto calculated from variants"
-                  : "Enter combo quantity"
-              }
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+                Combo Quantity
+              </label>
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={currentProduct?.combo || ""}
+                onChange={(e) =>
+                  setCurrentProduct((p) => ({ ...p, combo: e.target.value }))
+                }
+                disabled={shouldShowEditVariantOptions}
+                className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+                placeholder={
+                  shouldShowEditVariantOptions
+                    ? "Auto calculated from variants"
+                    : "Enter combo quantity"
+                }
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+                Unit Wage
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={currentProduct?.unitWage || ""}
+                onChange={(e) =>
+                  setCurrentProduct((p) => ({ ...p, unitWage: e.target.value }))
+                }
+                className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+                placeholder="Enter unit wage"
+              />
+            </div>
           </div>
 
           {!shouldShowEditVariantOptions &&
@@ -1993,7 +2047,7 @@ const MixerTable = () => {
                   className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
                 >
                   <Plus size={14} />
-                  Add Item
+                  Add Manufacture
                 </button>
               </div>
 
@@ -2373,7 +2427,7 @@ const MixerTable = () => {
                   className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50"
                 >
                   <Plus size={14} />
-                  Add Item
+                  Add Manufacture
                 </button>
               </div>
 
@@ -2482,26 +2536,45 @@ const MixerTable = () => {
 
           {renderPackagingSection("create", createProduct)}
 
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-              Combo Quantity
-            </label>
-            <input
-              type="number"
-              min="0.01"
-              step="0.01"
-              value={createProduct?.combo || ""}
-              onChange={(e) =>
-                setCreateProduct((p) => ({ ...p, combo: e.target.value }))
-              }
-              disabled={shouldShowCreateVariantOptions}
-              className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
-              placeholder={
-                shouldShowCreateVariantOptions
-                  ? "Auto calculated from variants"
-                  : "Enter combo quantity"
-              }
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+                Combo Quantity
+              </label>
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={createProduct?.combo || ""}
+                onChange={(e) =>
+                  setCreateProduct((p) => ({ ...p, combo: e.target.value }))
+                }
+                disabled={shouldShowCreateVariantOptions}
+                className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+                placeholder={
+                  shouldShowCreateVariantOptions
+                    ? "Auto calculated from variants"
+                    : "Enter combo quantity"
+                }
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+                Unit Wage
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={createProduct?.unitWage || ""}
+                onChange={(e) =>
+                  setCreateProduct((p) => ({ ...p, unitWage: e.target.value }))
+                }
+                className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+                placeholder="Enter unit wage"
+              />
+            </div>
           </div>
           {!shouldShowCreateVariantOptions &&
             renderOutputPriceFields("create", createProduct)}

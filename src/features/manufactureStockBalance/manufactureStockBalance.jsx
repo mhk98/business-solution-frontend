@@ -3,9 +3,9 @@ import { baseApi } from "../baseApi/api";
 export const manufactureStockBalanceApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
     getAllManufactureStock: build.query({
-      query: ({ page, limit, startDate, endDate, name }) => ({
+      query: ({ page, limit, startDate, endDate, name, manufacturerId }) => ({
         url: "manufacture-stock",
-        params: { page, limit, startDate, endDate, name },
+        params: { page, limit, startDate, endDate, name, manufacturerId },
       }),
       providesTags: (result) =>
         result?.data?.length

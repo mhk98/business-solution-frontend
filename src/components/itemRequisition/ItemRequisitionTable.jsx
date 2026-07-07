@@ -17,6 +17,7 @@ import { useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import Select from "react-select";
 import Modal from "../common/Modal";
+import DateRangeFilter from "../common/DateRangeFilter";
 import { useGetAllItemWithoutQueryQuery } from "../../features/item/item";
 import { useGetAllSupplierWithoutQueryQuery } from "../../features/supplier/supplier";
 import { useGetAllBookWithoutQueryQuery } from "../../features/book/book";
@@ -424,40 +425,20 @@ const ItemRequisitionTable = () => {
         </div>
 
         <div className="mt-8 grid gap-4 rounded-2xl border border-slate-100 bg-slate-50/60 p-5 lg:grid-cols-[1fr_1fr_1fr_1.2fr_1fr]">
-          <label className="space-y-2">
-            <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
-              From
-            </span>
-            <input
-              type="date"
-              value={filters.startDate}
-              onChange={(event) => {
-                setFilters((prev) => ({
-                  ...prev,
-                  startDate: event.target.value,
-                }));
-                setPage(1);
-              }}
-              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-800 outline-none focus:border-indigo-400"
-            />
-          </label>
-          <label className="space-y-2">
-            <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
-              To
-            </span>
-            <input
-              type="date"
-              value={filters.endDate}
-              onChange={(event) => {
-                setFilters((prev) => ({
-                  ...prev,
-                  endDate: event.target.value,
-                }));
-                setPage(1);
-              }}
-              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-800 outline-none focus:border-indigo-400"
-            />
-          </label>
+          <DateRangeFilter
+            startDate={filters.startDate}
+            endDate={filters.endDate}
+            onStartDateChange={(value) => {
+              setFilters((prev) => ({ ...prev, startDate: value }));
+              setPage(1);
+            }}
+            onEndDateChange={(value) => {
+              setFilters((prev) => ({ ...prev, endDate: value }));
+              setPage(1);
+            }}
+            compact
+            className="lg:col-span-2"
+          />
           <label className="space-y-2">
             <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
               Per Page

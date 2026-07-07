@@ -4,15 +4,18 @@ import StatCard from "../components/common/StatCard";
 import { useMemo, useState } from "react";
 import {
   Receipt,
-  CalendarDays,
-  RefreshCcw,
   TrendingUp,
   Package,
   Wallet,
   Boxes,
   ClipboardList,
   TriangleAlert,
+  RefreshCcw,
 } from "lucide-react";
+import DateRangeFilter, {
+  formatDateOnly,
+  getDatePresetRange,
+} from "../components/common/DateRangeFilter";
 import { useGetOverviewSummaryQuery } from "../features/overview/overview";
 import { useLayout } from "../context/LayoutContext";
 import { translations } from "../utils/translations";
@@ -30,48 +33,7 @@ const formatCurrency = (value) =>
     maximumFractionDigits: 2,
   })}`;
 
-const formatDateOnly = (date) => {
-  const yyyy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, "0");
-  const dd = String(date.getDate()).padStart(2, "0");
-
-  return `${yyyy}-${mm}-${dd}`;
-};
-
-const getTodayRange = () => {
-  const today = formatDateOnly(new Date());
-  return { from: today, to: today };
-};
-
-const getYesterdayRange = () => {
-  const yesterday = new Date();
-  yesterday.setDate(yesterday.getDate() - 1);
-  const date = formatDateOnly(yesterday);
-  return { from: date, to: date };
-};
-
-const getThisWeekRange = () => {
-  const now = new Date();
-  const day = now.getDay();
-  const diffToMonday = day === 0 ? -6 : 1 - day;
-  const start = new Date(now);
-  start.setDate(now.getDate() + diffToMonday);
-
-  return {
-    from: formatDateOnly(start),
-    to: formatDateOnly(now),
-  };
-};
-
-const getThisMonthRange = () => {
-  const now = new Date();
-  return {
-    from: formatDateOnly(new Date(now.getFullYear(), now.getMonth(), 1)),
-    to: formatDateOnly(new Date(now.getFullYear(), now.getMonth() + 1, 0)),
-  };
-};
-
-const getLastDaysRange = (days) => {
+const getLastTrendDaysRange = (days) => {
   const end = new Date();
   const start = new Date();
   start.setDate(end.getDate() - Math.max(Number(days) || 1, 1) + 1);
@@ -85,8 +47,21 @@ const getLastDaysRange = (days) => {
 const OverviewPage = () => {
   const { language } = useLayout();
   const t = translations[language] || translations.EN;
-  const defaultRange = useMemo(() => getLastDaysRange(30), []);
-  const [selectedFilter, setSelectedFilter] = useState("last30");
+  const authUser = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem("authUser") || "null");
+    } catch {
+      return null;
+    }
+  }, []);
+  const currentUserEmail = String(
+    authUser?.email || authUser?.Email || localStorage.getItem("email") || "",
+  )
+    .trim()
+    .toLowerCase();
+  const canViewPrivateOverview =
+    currentUserEmail === "ndhrubotara7@gmail.com";
+  const defaultRange = useMemo(() => getDatePresetRange("last30"), []);
   const [from, setFrom] = useState(defaultRange.from);
   const [to, setTo] = useState(defaultRange.to);
   const [appliedFilter, setAppliedFilter] = useState({
@@ -143,45 +118,11 @@ const OverviewPage = () => {
   const summary = summaryRes?.data || {};
 
   const onFilterChange = (value) => {
-    setSelectedFilter(value);
-
-    if (value === "today") {
-      const todayRange = getTodayRange();
-      setFrom(todayRange.from);
-      setTo(todayRange.to);
-      setAppliedFilter({ type: "today", ...todayRange });
-      return;
-    }
-
-    if (value === "yesterday") {
-      const yesterdayRange = getYesterdayRange();
-      setFrom(yesterdayRange.from);
-      setTo(yesterdayRange.to);
-      setAppliedFilter({ type: "yesterday", ...yesterdayRange });
-      return;
-    }
-
-    if (value === "thisWeek") {
-      const weekRange = getThisWeekRange();
-      setFrom(weekRange.from);
-      setTo(weekRange.to);
-      setAppliedFilter({ type: "thisWeek", ...weekRange });
-      return;
-    }
-
-    if (value === "thisMonth") {
-      const monthRange = getThisMonthRange();
-      setFrom(monthRange.from);
-      setTo(monthRange.to);
-      setAppliedFilter({ type: "thisMonth", ...monthRange });
-      return;
-    }
-
-    if (value === "last30") {
-      const last30Range = getLastDaysRange(30);
-      setFrom(last30Range.from);
-      setTo(last30Range.to);
-      setAppliedFilter({ type: "last30", ...last30Range });
+    if (value && value !== "custom") {
+      const range = getDatePresetRange(value);
+      setFrom(range.from);
+      setTo(range.to);
+      setAppliedFilter({ type: value, ...range });
       return;
     }
 
@@ -190,22 +131,8 @@ const OverviewPage = () => {
     }
   };
 
-  const onApply = () => {
-    if (selectedFilter !== "custom" || !from || !to) return;
-    setAppliedFilter({ type: "custom", from, to });
-  };
-
-  const onReset = () => {
-    const last30Range = getLastDaysRange(30);
-    setSelectedFilter("last30");
-    setFrom(last30Range.from);
-    setTo(last30Range.to);
-    setAppliedFilter({ type: "last30", ...last30Range });
-  };
-
   if (isError) console.error("Overview Summary error:", error);
 
-  const isCustomFilter = selectedFilter === "custom";
   const liveSummaryText =
     summary?.from && summary?.to
       ? `${t.live_summary}: ${summary.from} → ${summary.to}`
@@ -238,9 +165,6 @@ const OverviewPage = () => {
   );
   const pendingAssetsRequisitionCount = Number(
     summary?.pendingAssetsRequisitionCount || 0,
-  );
-  const totalPendingApprovalCount = Number(
-    summary?.totalPendingApprovalCount || 0,
   );
   const inTransitSalesAmount = safeNumber(summary?.inTransitSalesAmount);
   const salesReturnSalesAmount = safeNumber(summary?.salesReturnSalesAmount);
@@ -277,8 +201,8 @@ const OverviewPage = () => {
   const inTransitTrendRange = useMemo(
     () =>
       trendFilter === "yesterday"
-        ? getYesterdayRange()
-        : getLastDaysRange(Number(trendFilter) || 1),
+        ? getDatePresetRange("yesterday")
+        : getLastTrendDaysRange(Number(trendFilter) || 1),
     [trendFilter],
   );
   const trendLabel =
@@ -406,75 +330,23 @@ const OverviewPage = () => {
               </p>
             </div>
 
-            {/* ✅ Date Range Filter Container */}
-            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 sm:p-5 flex flex-col gap-3 lg:gap-4 ring-1 ring-slate-100 min-w-[320px]">
-              <div className="flex flex-col sm:w-48">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1.5">
-                  Filter
-                </label>
-                <select
-                  value={selectedFilter}
-                  onChange={(e) => onFilterChange(e.target.value)}
-                  className="h-11 px-4 rounded-xl border border-slate-200 bg-white text-slate-800 text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-                >
-                  <option value="last30">Last 30 Days</option>
-                  <option value="">All Data</option>
-                  <option value="today">Today</option>
-                  <option value="yesterday">Yesterday</option>
-                  <option value="thisWeek">This Week</option>
-                  <option value="thisMonth">This Month</option>
-                  <option value="custom">Custom Date</option>
-                </select>
-              </div>
-
-              {isCustomFilter ? (
-                <div className="flex flex-col sm:flex-row items-end gap-3 lg:gap-4">
-                  <div className="flex flex-col flex-1 w-full">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1.5 flex items-center gap-1.5">
-                      <CalendarDays size={12} className="text-indigo-500" />{" "}
-                      {t.start_date}
-                    </label>
-                    <input
-                      type="date"
-                      value={from}
-                      onChange={(e) => setFrom(e.target.value)}
-                      className="h-11 px-4 rounded-xl border border-slate-200 bg-white text-slate-800 text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-                    />
-                  </div>
-
-                  <div className="flex flex-col flex-1 w-full">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1.5 flex items-center gap-1.5">
-                      <CalendarDays size={12} className="text-indigo-500" />{" "}
-                      {t.end_date}
-                    </label>
-                    <input
-                      type="date"
-                      value={to}
-                      onChange={(e) => setTo(e.target.value)}
-                      className="h-11 px-4 rounded-xl border border-slate-200 bg-white text-slate-800 text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-                    />
-                  </div>
-
-                  <div className="flex gap-2 w-full sm:w-auto">
-                    <button
-                      onClick={onApply}
-                      disabled={!from || !to}
-                      className="h-11 px-6 rounded-xl bg-indigo-600 text-white text-sm font-black hover:bg-indigo-700 active:scale-[0.98] transition shadow-lg shadow-indigo-100 disabled:bg-slate-300 disabled:shadow-none disabled:cursor-not-allowed disabled:active:scale-100"
-                    >
-                      {t.apply}
-                    </button>
-
-                    <button
-                      onClick={onReset}
-                      className="h-11 w-11 rounded-xl border border-slate-200 bg-white text-slate-400 hover:text-slate-600 active:scale-[0.98] transition flex items-center justify-center hover:bg-slate-50"
-                      title="Reset to all data"
-                    >
-                      <RefreshCcw size={18} />
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-            </div>
+            <DateRangeFilter
+              startDate={from}
+              endDate={to}
+              onStartDateChange={setFrom}
+              onEndDateChange={setTo}
+              onFilterTypeChange={(filterType, range) => {
+                if (filterType === "custom") {
+                  setAppliedFilter({ type: "custom", ...range });
+                  return;
+                }
+                onFilterChange(filterType);
+              }}
+              defaultFilter="last30"
+              startLabel={t.start_date}
+              endLabel={t.end_date}
+              className="min-w-[320px]"
+            />
           </div>
 
           {/* ✅ Status Indicator */}
@@ -489,52 +361,54 @@ const OverviewPage = () => {
             </div>
           </div>
 
-          {/* ✅ Stat Cards */}
-          <motion.div
-            className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 mb-12"
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.45 }}
-          >
-            <StatCard
-              name="Assets Balance"
-              icon={Boxes}
-              value={
-                isLoading
-                  ? "..."
-                  : `৳${totalAssetsBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-              }
-              iconBg="#EEF2FF"
-              iconColor="#4F46E5"
-            />
+          {canViewPrivateOverview && (
+            <>
+              {/* ✅ Stat Cards */}
+              <motion.div
+                className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 mb-12"
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.45 }}
+              >
+                <StatCard
+                  name="Assets Balance"
+                  icon={Boxes}
+                  value={
+                    isLoading
+                      ? "..."
+                      : `৳${totalAssetsBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+                  }
+                  iconBg="#EEF2FF"
+                  iconColor="#4F46E5"
+                />
 
-            <StatCard
-              name={t.marketing_investment}
-              icon={Receipt}
-              value={
-                isLoading
-                  ? "..."
-                  : `৳${totalMetaAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-              }
-              iconBg="#F5F3FF"
-              iconColor="#7C3AED"
-            />
+                <StatCard
+                  name={t.marketing_investment}
+                  icon={Receipt}
+                  value={
+                    isLoading
+                      ? "..."
+                      : `৳${totalMetaAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+                  }
+                  iconBg="#F5F3FF"
+                  iconColor="#7C3AED"
+                />
 
-            <StatCard
-              name="Low Stock Alerts"
-              icon={TriangleAlert}
-              value={isLoading ? "..." : lowStockCount.toLocaleString()}
-              iconBg="#FFF1F2"
-              iconColor="#E11D48"
-            />
-          </motion.div>
+                <StatCard
+                  name="Low Stock Alerts"
+                  icon={TriangleAlert}
+                  value={isLoading ? "..." : lowStockCount.toLocaleString()}
+                  iconBg="#FFF1F2"
+                  iconColor="#E11D48"
+                />
+              </motion.div>
 
-          <motion.div
-            className="mb-10 rounded-3xl border border-slate-100 bg-white p-6 shadow-sm"
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.45, delay: 0.02 }}
-          >
+              <motion.div
+                className="mb-10 rounded-3xl border border-slate-100 bg-white p-6 shadow-sm"
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.45, delay: 0.02 }}
+              >
             <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-orange-100 bg-orange-50 text-orange-600">
@@ -600,9 +474,9 @@ const OverviewPage = () => {
                 </div>
               ))}
             </div>
-          </motion.div>
+              </motion.div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-10">
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-10">
             <motion.div
               className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6"
               initial={{ opacity: 0, y: 14 }}
@@ -764,7 +638,9 @@ const OverviewPage = () => {
                 ))}
               </div>
             </motion.div>
-          </div>
+              </div>
+            </>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-12">
             {/* ✅ Trending Products (Modern) */}

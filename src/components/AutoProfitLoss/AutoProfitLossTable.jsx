@@ -9,6 +9,7 @@ import {
   useInsertProfitLossMutation,
   useDeleteProfitLossMutation,
 } from "../../features/profitLoss/profitLoss";
+import DateRangeFilter from "../common/DateRangeFilter";
 
 const safeNumber = (value) => {
   const parsed = Number(value);
@@ -470,36 +471,20 @@ const AutoProfitLossTable = () => {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <label>
-              <span className="mb-1.5 block text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
-                Start Date
-              </span>
-              <input
-                type="date"
-                value={historyStartDate}
-                onChange={(event) => {
-                  setHistoryStartDate(event.target.value);
-                  setCurrentPage(1);
-                }}
-                className="h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-100"
-              />
-            </label>
-            <label>
-              <span className="mb-1.5 block text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
-                End Date
-              </span>
-              <input
-                type="date"
-                value={historyEndDate}
-                onChange={(event) => {
-                  setHistoryEndDate(event.target.value);
-                  setCurrentPage(1);
-                }}
-                className="h-11 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-100"
-              />
-            </label>
-          </div>
+          <DateRangeFilter
+            startDate={historyStartDate}
+            endDate={historyEndDate}
+            onStartDateChange={(value) => {
+              setHistoryStartDate(value);
+              setCurrentPage(1);
+            }}
+            onEndDateChange={(value) => {
+              setHistoryEndDate(value);
+              setCurrentPage(1);
+            }}
+            onFilterTypeChange={() => setCurrentPage(1)}
+            compact
+          />
         </div>
 
         <div className="mt-6 overflow-x-auto">

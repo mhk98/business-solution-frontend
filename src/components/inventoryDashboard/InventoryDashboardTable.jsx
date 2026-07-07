@@ -4,6 +4,7 @@ import { useGetAllProductWithoutQueryQuery } from "../../features/product/produc
 import Select from "react-select";
 import { motion } from "framer-motion";
 import { ShoppingBasket, TrendingUp, TrendingDown } from "lucide-react";
+import DateRangeFilter from "../common/DateRangeFilter";
 
 const formatMoney = (value) => {
   const amount = Number(value || 0);
@@ -280,27 +281,14 @@ const InventoryOverviewTable = () => {
       <div className="max-w-8xl mx-auto px-4 lg:px-8 py-6">
         {/* Filters row */}
         <div className="mt-5 grid grid-cols-1 md:grid-cols-6 gap-4 items-end w-full">
-          <div className="flex flex-col">
-            <label className="text-sm text-slate-600 mb-1">From</label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="h-11 px-3 rounded-xl border border-slate-200 bg-white text-slate-800 outline-none
-                       focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
-            />
-          </div>
-
-          <div className="flex flex-col">
-            <label className="text-sm text-slate-600 mb-1">To</label>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="h-11 px-3 rounded-xl border border-slate-200 bg-white text-slate-800 outline-none
-                       focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
-            />
-          </div>
+        <DateRangeFilter
+          startDate={startDate}
+          endDate={endDate}
+          onStartDateChange={setStartDate}
+          onEndDateChange={setEndDate}
+          compact
+          className="md:col-span-2"
+        />
 
           {/* Product Filter */}
           <div className="flex flex-col">

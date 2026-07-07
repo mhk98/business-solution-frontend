@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Edit3, PackageCheck, Plus, Save } from "lucide-react";
 import toast from "react-hot-toast";
 import Modal from "../common/Modal";
+import DateRangeFilter from "../common/DateRangeFilter";
 import HrmWorkspace from "./HrmWorkspace";
 import {
   useCreateLogisticUpdateMutation,
@@ -49,11 +50,11 @@ const LogisticUpdateManager = () => {
   const rows = data?.data || [];
   const total = data?.meta?.count || 0;
   const totalPages = Math.max(1, Math.ceil(total / 20));
-  const totalQuantity = rows.reduce((sum, row) => sum + Number(row.quantity || 0), 0);
+  const totalQuantity = Number(data?.meta?.totalQuantity || 0);
 
   const stats = [
     { name: "Updates", value: total, icon: PackageCheck, iconBg: "#EEF2FF", iconColor: "#4F46E5" },
-    { name: "Page Quantity", value: totalQuantity, icon: PackageCheck, iconBg: "#ECFDF5", iconColor: "#047857" },
+    { name: "Total Quantity", value: totalQuantity, icon: PackageCheck, iconBg: "#ECFDF5", iconColor: "#047857" },
   ];
 
   const openCreate = () => {
@@ -126,8 +127,14 @@ const LogisticUpdateManager = () => {
         </div>
 
         <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <Input type="date" label="From date" value={startDate} onChange={setFilter(setStartDate)} />
-          <Input type="date" label="To date" value={endDate} onChange={setFilter(setEndDate)} />
+          <DateRangeFilter
+            startDate={startDate}
+            endDate={endDate}
+            onStartDateChange={setStartDate}
+            onEndDateChange={setEndDate}
+            compact
+            className="md:col-span-2"
+          />
           <label className="block">
             <span className="mb-2 block text-sm font-semibold text-slate-700">Department</span>
             <select value={departmentId} onChange={setFilter(setDepartmentId)} className={inputClassName}>

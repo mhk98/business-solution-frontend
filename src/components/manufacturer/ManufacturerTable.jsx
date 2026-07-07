@@ -4,6 +4,7 @@ import {
   ChevronRight,
   Edit,
   Factory,
+  History,
   Plus,
   Search,
   Trash2,
@@ -11,6 +12,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
 
 import Modal from "../common/Modal";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
@@ -27,7 +29,14 @@ const emptyForm = {
   address: "",
 };
 
+const formatMoney = (value) =>
+  `৳${Number(value || 0).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+
 const ManufacturerTable = () => {
+  const navigate = useNavigate();
   const role = localStorage.getItem("role");
   const canManage = role === "superAdmin" || role === "admin";
 
@@ -130,6 +139,10 @@ const ManufacturerTable = () => {
       address: row.address || "",
     });
     setIsEditOpen(true);
+  };
+
+  const openHistory = (row) => {
+    navigate(`/manufacturer/${row.Id}`);
   };
 
   const goToPage = (page) => {
@@ -303,6 +316,12 @@ const ManufacturerTable = () => {
                 <th className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
                   Address
                 </th>
+                <th className="px-6 py-5 text-right text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
+                  Paid
+                </th>
+                <th className="px-6 py-5 text-right text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
+                  Unpaid
+                </th>
                 <th className="px-6 py-5 text-center text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
                   Actions
                 </th>
@@ -317,9 +336,14 @@ const ManufacturerTable = () => {
                   className="hover:bg-indigo-50/30 transition-colors group"
                 >
                   <td className="px-6 py-5 whitespace-nowrap">
-                    <div className="text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                    <button
+                      type="button"
+                      onClick={() => openHistory(row)}
+                      className="text-left text-sm font-bold text-slate-900 group-hover:text-indigo-600 transition-colors hover:underline underline-offset-4"
+                      title="View transaction history"
+                    >
                       {row.name}
-                    </div>
+                    </button>
                   </td>
                   <td className="px-6 py-5 whitespace-nowrap text-sm font-medium text-slate-600">
                     {row.phone || "N/A"}
@@ -327,9 +351,24 @@ const ManufacturerTable = () => {
                   <td className="px-6 py-5 min-w-80 text-sm font-medium text-slate-600">
                     {row.address || "N/A"}
                   </td>
+                  <td className="px-6 py-5 whitespace-nowrap text-right text-sm font-black text-emerald-600">
+                    {formatMoney(row.paidAmount)}
+                  </td>
+                  <td className="px-6 py-5 whitespace-nowrap text-right text-sm font-black text-rose-600">
+                    {formatMoney(row.unpaidAmount)}
+                  </td>
                   <td className="px-6 py-5 whitespace-nowrap text-center">
-                    {canManage && (
-                      <div className="flex items-center justify-center gap-2">
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        onClick={() => openHistory(row)}
+                        className="h-9 w-9 flex items-center justify-center rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition shadow-sm active:scale-90"
+                        title="Transaction History"
+                        type="button"
+                      >
+                        <History className="text-slate-600" size={16} />
+                      </button>
+                      {canManage && (
+                        <>
                         <button
                           onClick={() => openEdit(row)}
                           className="h-9 w-9 flex items-center justify-center rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 transition shadow-sm active:scale-90"
@@ -338,7 +377,10 @@ const ManufacturerTable = () => {
                         >
                           <Edit className="text-indigo-600" size={16} />
                         </button>
+                        </>
+                      )}
 
+                      {canManage && (
                         <button
                           onClick={() => handleDelete(row.Id)}
                           className="h-9 w-9 flex items-center justify-center rounded-xl bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition shadow-sm active:scale-90"
@@ -347,8 +389,8 @@ const ManufacturerTable = () => {
                         >
                           <Trash2 className="text-red-600" size={16} />
                         </button>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </td>
                 </motion.tr>
               ))}

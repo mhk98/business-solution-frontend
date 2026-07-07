@@ -25,6 +25,8 @@ import {
 
 const createItemLine = () => ({
   itemId: "",
+  unitValue: "",
+  unit: "Pcs",
 });
 
 const initialForm = {
@@ -50,7 +52,12 @@ const selectStyles = {
     boxShadow: state.isFocused ? "0 0 0 4px rgba(99,102,241,0.15)" : "none",
     "&:hover": { borderColor: "#cbd5e1" },
   }),
-  menu: (base) => ({ ...base, zIndex: 50, borderRadius: 14, overflow: "hidden" }),
+  menu: (base) => ({
+    ...base,
+    zIndex: 50,
+    borderRadius: 14,
+    overflow: "hidden",
+  }),
 };
 
 const formatMoney = (value) =>
@@ -148,26 +155,39 @@ const ManufactureProductionTable = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.manufacturerId) return toast.error("Please select a manufacturer");
+    if (!form.manufacturerId)
+      return toast.error("Please select a manufacturer");
 
     const selectedItems = editingRow?.Id
       ? [form.itemId].filter(Boolean)
-      : (form.items || []).map((item) => item.itemId).filter(Boolean);
+      : (form.items || []).filter((item) => item.itemId);
+    const selectedItemIds = editingRow?.Id
+      ? selectedItems
+      : selectedItems.map((item) => item.itemId).filter(Boolean);
 
-    if (!selectedItems.length) return toast.error("Please select an item");
+    if (!selectedItemIds.length) return toast.error("Please select an item");
 
-    if (!editingRow?.Id && new Set(selectedItems).size !== selectedItems.length) {
+    if (
+      !editingRow?.Id &&
+      new Set(selectedItemIds).size !== selectedItemIds.length
+    ) {
       return toast.error("Please remove duplicate items");
     }
 
-    const unitValue = Number(form.unitValue || 0);
-    if (unitValue <= 0) return toast.error("Please enter valid quantity");
+    if (editingRow?.Id) {
+      const unitValue = Number(form.unitValue || 0);
+      if (unitValue <= 0) return toast.error("Please enter valid quantity");
+    } else {
+      const invalidItem = selectedItems.find(
+        (item) => Number(item.unitValue || 0) <= 0,
+      );
+      if (invalidItem)
+        return toast.error("Please enter quantity for every item");
+    }
 
     try {
       const basePayload = {
         manufacturerId: Number(form.manufacturerId),
-        unit: form.unit || "Pcs",
-        unitValue,
         date: form.date || "",
         note: form.note || "",
       };
@@ -177,16 +197,21 @@ const ManufactureProductionTable = () => {
             id: editingRow.Id,
             data: {
               ...basePayload,
-              itemId: Number(selectedItems[0]),
+              itemId: Number(selectedItemIds[0]),
+              unit: form.unit || "Pcs",
+              unitValue: Number(form.unitValue || 0),
             },
           }).unwrap()
         : await Promise.all(
-            selectedItems.map((itemId) =>
-              insertManufacture({
+            selectedItems.map((item) => {
+              const unitValue = Number(item.unitValue || 0);
+              return insertManufacture({
                 ...basePayload,
-                itemId: Number(itemId),
-              }).unwrap(),
-            ),
+                itemId: Number(item.itemId),
+                unit: item.unit || "Pcs",
+                unitValue,
+              }).unwrap();
+            }),
           );
 
       const isSuccess = Array.isArray(res)
@@ -207,11 +232,11 @@ const ManufactureProductionTable = () => {
     }
   };
 
-  const updateCreateItem = (index, itemId) => {
+  const updateCreateItem = (index, changes) => {
     setForm((prev) => ({
       ...prev,
       items: (prev.items || [createItemLine()]).map((item, itemIndex) =>
-        itemIndex === index ? { ...item, itemId } : item,
+        itemIndex === index ? { ...item, ...changes } : item,
       ),
     }));
   };
@@ -330,16 +355,21 @@ const ManufactureProductionTable = () => {
           <table className="min-w-full divide-y divide-slate-100">
             <thead className="bg-slate-50/50">
               <tr>
-                {["Date", "Manufacturer", "Item", "Unit Value", "Unit Cost", "Actions"].map(
-                  (heading) => (
-                    <th
-                      key={heading}
-                      className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]"
-                    >
-                      {heading}
-                    </th>
-                  ),
-                )}
+                {[
+                  "Date",
+                  "Manufacturer",
+                  "Item",
+                  "Unit Value",
+                  "Unit Cost",
+                  "Actions",
+                ].map((heading) => (
+                  <th
+                    key={heading}
+                    className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]"
+                  >
+                    {heading}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -392,7 +422,10 @@ const ManufactureProductionTable = () => {
               {!isLoading && rows.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-6 py-20 text-center">
-                    <Factory size={42} className="mx-auto mb-4 text-slate-300" />
+                    <Factory
+                      size={42}
+                      className="mx-auto mb-4 text-slate-300"
+                    />
                     <p className="font-bold text-sm italic text-slate-400">
                       No factory entries found
                     </p>
@@ -431,8 +464,12 @@ const ManufactureProductionTable = () => {
         isOpen={isModalOpen}
         onClose={closeModal}
         title={editingRow?.Id ? "Edit Factory" : "Add Factory"}
+        maxWidth={editingRow?.Id ? "max-w-2xl" : "max-w-4xl"}
       >
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-4 overflow-x-hidden px-1"
+        >
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
               Manufacturer
@@ -476,7 +513,7 @@ const ManufactureProductionTable = () => {
             </div>
           ) : (
             <div>
-              <div className="flex items-center justify-between gap-3 mb-1.5 ml-1">
+              <div className="sticky top-0 z-20 -mx-1 mb-3 flex items-center justify-between gap-3 border-b border-slate-100 bg-white/95 px-1 py-2 backdrop-blur">
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
                   Item
                 </label>
@@ -491,60 +528,112 @@ const ManufactureProductionTable = () => {
 
               <div className="space-y-3">
                 {(form.items || [createItemLine()]).map((item, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <div className="min-w-0 flex-1">
-                      <Select
-                        options={itemOptions}
-                        value={
-                          itemOptions.find(
-                            (o) => o.value === String(item.itemId),
-                          ) || null
-                        }
-                        onChange={(selected) =>
-                          updateCreateItem(index, selected?.value || "")
-                        }
-                        placeholder="Select item..."
-                        isDisabled={isItemsLoading}
-                        styles={selectStyles}
-                        className="text-black"
-                      />
-                    </div>
+                  <div
+                    key={index}
+                    className="rounded-2xl border border-slate-200 bg-slate-50/50 p-3"
+                  >
+                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(260px,1.35fr)_minmax(260px,1fr)_44px] lg:items-end">
+                      <div className="min-w-0">
+                        <label className="mb-1.5 ml-1 block text-[10px] font-black uppercase tracking-wider text-slate-500">
+                          Item
+                        </label>
+                        <Select
+                          options={itemOptions}
+                          value={
+                            itemOptions.find(
+                              (o) => o.value === String(item.itemId),
+                            ) || null
+                          }
+                          onChange={(selected) =>
+                            updateCreateItem(index, {
+                              itemId: selected?.value || "",
+                            })
+                          }
+                          placeholder="Select item..."
+                          isDisabled={isItemsLoading}
+                          styles={selectStyles}
+                          className="text-black"
+                        />
+                      </div>
 
-                    {(form.items || []).length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeCreateItem(index)}
-                        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-red-100 bg-red-50 text-red-500 hover:bg-red-100 transition active:scale-95"
-                        title="Remove item"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    )}
+                      <div className="min-w-0">
+                        <label className="mb-1.5 ml-1 block text-[10px] font-black uppercase tracking-wider text-slate-500">
+                          Unit Details
+                        </label>
+                        <div className="grid grid-cols-[minmax(0,1fr)_128px] gap-2">
+                          <input
+                            type="number"
+                            min="1"
+                            value={item.unitValue || ""}
+                            onChange={(e) =>
+                              updateCreateItem(index, {
+                                unitValue: e.target.value,
+                              })
+                            }
+                            // placeholder="Quantity"
+                            className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+                          />
+                          <Select
+                            options={unitOptions}
+                            value={{
+                              value: item.unit || "Pcs",
+                              label: item.unit || "Pcs",
+                            }}
+                            onChange={(selected) =>
+                              updateCreateItem(index, {
+                                unit: selected?.value || "Pcs",
+                              })
+                            }
+                            styles={selectStyles}
+                            className="text-black"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex lg:justify-end">
+                        {(form.items || []).length > 1 ? (
+                          <button
+                            type="button"
+                            onClick={() => removeCreateItem(index)}
+                            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-red-100 bg-red-50 text-red-500 hover:bg-red-100 transition active:scale-95"
+                            title="Remove item"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        ) : (
+                          <div className="hidden h-11 w-11 lg:block" />
+                        )}
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_130px] gap-3">
-            <input
-              type="number"
-              min="1"
-              value={form.unitValue}
-              onChange={(e) => setForm({ ...form, unitValue: e.target.value })}
-              placeholder="Quantity"
-              className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-            />
-            <Select
-              options={unitOptions}
-              value={{ value: form.unit, label: form.unit }}
-              onChange={(selected) =>
-                setForm({ ...form, unit: selected?.value || "Pcs" })
-              }
-              styles={selectStyles}
-              className="text-black"
-            />
-          </div>
+          {editingRow?.Id && (
+            <div className="grid grid-cols-1 sm:grid-cols-[1fr_130px] gap-3">
+              <input
+                type="number"
+                min="1"
+                value={form.unitValue}
+                onChange={(e) =>
+                  setForm({ ...form, unitValue: e.target.value })
+                }
+                // placeholder="Quantity"
+                className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+              />
+              <Select
+                options={unitOptions}
+                value={{ value: form.unit, label: form.unit }}
+                onChange={(selected) =>
+                  setForm({ ...form, unit: selected?.value || "Pcs" })
+                }
+                styles={selectStyles}
+                className="text-black"
+              />
+            </div>
+          )}
 
           <input
             type="date"

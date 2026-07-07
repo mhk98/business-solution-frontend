@@ -90,6 +90,7 @@ const HrmCrudManager = ({
   const [approveItem, { isLoading: isApproving }] = useApproveItemMutation();
 
   const rows = data?.data || [];
+  const totalRows = data?.meta?.count ?? rows.length;
   const derivedStats = useMemo(() => {
     const activeCount = rows.filter((row) => row.status === "Active").length;
 
@@ -98,7 +99,7 @@ const HrmCrudManager = ({
       : [
           {
             name: `Total ${entityLabel}`,
-            value: rows.length,
+            value: totalRows,
             icon: Plus,
             iconBg: DEFAULT_STAT_ICON_BG,
             iconColor: DEFAULT_STAT_ICON_COLOR,
@@ -111,7 +112,7 @@ const HrmCrudManager = ({
             iconColor: "#047857",
           },
         ];
-  }, [entityLabel, rows, stats]);
+  }, [entityLabel, rows, stats, totalRows]);
 
   useEffect(() => {
     setForm(emptyForm);

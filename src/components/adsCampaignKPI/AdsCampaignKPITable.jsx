@@ -22,6 +22,7 @@ import {
   YAxis,
 } from "recharts";
 import toast from "react-hot-toast";
+import DateRangeFilter from "../common/DateRangeFilter";
 import {
   useCreateAdsAccountMutation,
   useDeleteAdsCampaignKPIMutation,
@@ -489,39 +490,16 @@ const AdsCampaignKPITable = () => {
                   </option>
                 ))}
               </select>
-              <select
-                value={datePreset}
-                onChange={(event) => updateDatePreset(event.target.value)}
-                className="h-10 bg-white rounded-md border border-gray-200 px-3 text-sm text-gray-900 outline-none focus:border-orange-400"
-              >
-                <option value="today">Today</option>
-                <option value="yesterday">Yesterday</option>
-                <option value="this_week">This Week</option>
-                <option value="this_month">This Month</option>
-                <option value="custom">Custom</option>
-              </select>
+              <DateRangeFilter
+                startDate={filters.startDate}
+                endDate={filters.endDate}
+                onStartDateChange={(value) => updateFilter("startDate", value)}
+                onEndDateChange={(value) => updateFilter("endDate", value)}
+                defaultFilter="thisWeek"
+                compact
+                className="md:col-span-2"
+              />
             </div>
-
-            {datePreset === "custom" ? (
-              <div className="mt-3 grid gap-3 md:grid-cols-2">
-                <input
-                  type="date"
-                  value={filters.startDate}
-                  onChange={(event) =>
-                    updateFilter("startDate", event.target.value)
-                  }
-                  className="h-10 w-full bg-white rounded-md border border-gray-200 px-3 text-sm text-gray-900 outline-none focus:border-orange-400"
-                />
-                <input
-                  type="date"
-                  value={filters.endDate}
-                  onChange={(event) =>
-                    updateFilter("endDate", event.target.value)
-                  }
-                  className="h-10 w-full bg-white rounded-md border border-gray-200 px-3 text-sm text-gray-900 outline-none focus:border-orange-400"
-                />
-              </div>
-            ) : null}
           </div>
 
           <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">

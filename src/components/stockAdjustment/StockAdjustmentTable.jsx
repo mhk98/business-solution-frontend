@@ -14,6 +14,7 @@ import toast from "react-hot-toast";
 import Select from "react-select";
 
 import Modal from "../common/Modal";
+import DateRangeFilter from "../common/DateRangeFilter";
 import { useLayout } from "../../context/LayoutContext";
 import { translations } from "../../utils/translations";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
@@ -29,6 +30,7 @@ const createStockItemLine = () => ({
   itemMasterId: "",
   itemId: "",
   productId: "",
+  unitValue: "",
   unit: "Pcs",
 });
 
@@ -327,9 +329,6 @@ const StockAdjustmentTable = () => {
 
     try {
       const basePayload = {
-        unitValue: createProduct.hasUnit
-          ? Number(createProduct.unitValue) || 0
-          : 0,
         stock: "In",
         date: createProduct.date || "",
         note: createProduct.note || "",
@@ -338,15 +337,21 @@ const StockAdjustmentTable = () => {
         actorRole: role,
       };
 
+      const invalidItem = selectedItems.find(
+        (item) => Number(item.unitValue || 0) <= 0,
+      );
+      if (invalidItem) {
+        return toast.error("Please enter quantity for every item");
+      }
+
       const responses = await Promise.all(
         selectedItems.map((item) =>
           insertStockAdjustment({
             ...basePayload,
             itemId: Number(item.itemId) || "",
             productId: Number(item.productId) || "",
-            unit: createProduct.hasUnit
-              ? createProduct.unit || "Pcs"
-              : item.unit || createProduct.unit || "Pcs",
+            unitValue: Number(item.unitValue || 0),
+            unit: item.unit || "Pcs",
           }).unwrap(),
         ),
       );
@@ -385,9 +390,6 @@ const StockAdjustmentTable = () => {
     try {
       const basePayload = {
         stock: "Out",
-        unitValue: createProduct.hasUnit
-          ? Number(createProduct.unitValue) || 0
-          : 0,
         date: createProduct.date || "",
         note: createProduct.note || "",
         userId: Number(userId) || 0,
@@ -395,15 +397,21 @@ const StockAdjustmentTable = () => {
         actorRole: role,
       };
 
+      const invalidItem = selectedItems.find(
+        (item) => Number(item.unitValue || 0) <= 0,
+      );
+      if (invalidItem) {
+        return toast.error("Please enter quantity for every item");
+      }
+
       const responses = await Promise.all(
         selectedItems.map((item) =>
           insertStockAdjustment({
             ...basePayload,
             itemId: Number(item.itemId) || "",
             productId: Number(item.productId) || "",
-            unit: createProduct.hasUnit
-              ? createProduct.unit || "Pcs"
-              : item.unit || createProduct.unit || "Pcs",
+            unitValue: Number(item.unitValue || 0),
+            unit: item.unit || "Pcs",
           }).unwrap(),
         ),
       );
@@ -608,7 +616,16 @@ const StockAdjustmentTable = () => {
     }) || null;
   };
 
-  const updateCreateItem = (index, selected) => {
+  const updateCreateItem = (index, changes) => {
+    setCreateProduct((prev) => ({
+      ...prev,
+      items: (prev.items || [createStockItemLine()]).map((item, itemIndex) =>
+        itemIndex === index ? { ...item, ...changes } : item,
+      ),
+    }));
+  };
+
+  const updateCreateItemSelection = (index, selected) => {
     setCreateProduct((prev) => ({
       ...prev,
       items: (prev.items || [createStockItemLine()]).map((item, itemIndex) =>
@@ -639,7 +656,7 @@ const StockAdjustmentTable = () => {
 
   const renderCreateItemRows = () => (
     <div>
-      <div className="flex items-center justify-between gap-3 mb-1.5 ml-1">
+      <div className="sticky top-0 z-20 -mx-1 mb-3 flex items-center justify-between gap-3 border-b border-slate-100 bg-white/95 px-1 py-2 backdrop-blur">
         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
           {t.select_item || "Select Item"}
         </label>
@@ -654,30 +671,88 @@ const StockAdjustmentTable = () => {
 
       <div className="space-y-3">
         {(createProduct.items || [createStockItemLine()]).map((item, index) => (
-          <div key={index} className="flex items-center gap-2">
-            <div className="min-w-0 flex-1">
-              <Select
-                options={itemDropdownOptions}
-                value={findStockOption(item)}
-                onChange={(selected) => updateCreateItem(index, selected)}
-                placeholder={t.search_item || "Search item..."}
-                isClearable
-                styles={selectStyles}
-                className="text-sm text-black font-medium"
-                isDisabled={isLoadingAllItems}
-              />
-            </div>
+          <div
+            key={index}
+            className="rounded-2xl border border-slate-200 bg-slate-50/50 p-3"
+          >
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(260px,1.35fr)_minmax(260px,1fr)_44px] lg:items-end">
+              <div className="min-w-0">
+                <label className="mb-1.5 ml-1 block text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  {t.select_item || "Select Item"}
+                </label>
+                <Select
+                  options={itemDropdownOptions}
+                  value={findStockOption(item)}
+                  onChange={(selected) =>
+                    updateCreateItemSelection(index, selected)
+                  }
+                  placeholder={t.search_item || "Search item..."}
+                  isClearable
+                  styles={selectStyles}
+                  className="text-sm text-black font-medium"
+                  isDisabled={isLoadingAllItems}
+                />
+              </div>
 
-            {(createProduct.items || []).length > 1 && (
-              <button
-                type="button"
-                onClick={() => removeCreateItem(index)}
-                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-red-100 bg-red-50 text-red-500 hover:bg-red-100 transition active:scale-95"
-                title="Remove item"
-              >
-                <Trash2 size={16} />
-              </button>
-            )}
+              <div className="min-w-0">
+                <label className="mb-1.5 ml-1 block text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  {t.unit_details || "Unit Details"}
+                </label>
+                <div className="grid grid-cols-[minmax(0,1fr)_128px] gap-2">
+                  <input
+                    type="number"
+                    min="1"
+                    value={item.unitValue || ""}
+                    onChange={(e) =>
+                      updateCreateItem(index, { unitValue: e.target.value })
+                    }
+                    placeholder="Quantity"
+                    className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+                  />
+
+                  <Select
+                    options={[
+                      "Pcs",
+                      "Kg",
+                      "Liter",
+                      "Ml",
+                      "Gram",
+                      "Box",
+                      "Dozen",
+                    ].map((unit) => ({
+                      value: unit,
+                      label: unit,
+                    }))}
+                    value={{
+                      value: item.unit || "Pcs",
+                      label: item.unit || "Pcs",
+                    }}
+                    onChange={(selected) =>
+                      updateCreateItem(index, {
+                        unit: selected?.value || "Pcs",
+                      })
+                    }
+                    styles={selectStyles}
+                    className="text-black"
+                  />
+                </div>
+              </div>
+
+              <div className="flex lg:justify-end">
+                {(createProduct.items || []).length > 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => removeCreateItem(index)}
+                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-red-100 bg-red-50 text-red-500 hover:bg-red-100 transition active:scale-95"
+                    title="Remove item"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                ) : (
+                  <div className="hidden h-11 w-11 lg:block" />
+                )}
+              </div>
+            </div>
           </div>
         ))}
       </div>
@@ -734,29 +809,16 @@ const StockAdjustmentTable = () => {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-10 bg-slate-50/50 p-6 rounded-3xl border border-slate-100 items-end">
-        <div className="flex flex-col">
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
-            {t.from}
-          </label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="h-11 px-4 rounded-xl border border-slate-200 bg-white text-slate-800 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition font-medium text-sm"
-          />
-        </div>
-
-        <div className="flex flex-col">
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
-            {t.to}
-          </label>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="h-11 px-4 rounded-xl border border-slate-200 bg-white text-slate-800 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition font-medium text-sm"
-          />
-        </div>
+        <DateRangeFilter
+          startDate={startDate}
+          endDate={endDate}
+          onStartDateChange={setStartDate}
+          onEndDateChange={setEndDate}
+          startLabel={t.start_date}
+          endLabel={t.end_date}
+          compact
+          className="sm:col-span-2"
+        />
 
         <div className="flex flex-col">
           <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
@@ -1259,10 +1321,11 @@ const StockAdjustmentTable = () => {
         isOpen={isModalOpen1}
         onClose={handleModalClose1}
         title={t.add_new || "Add New"}
+        maxWidth="max-w-4xl"
       >
         <form
           onSubmit={handleCreateProduct}
-          className="space-y-4 max-h-[70vh] overflow-y-auto px-1 custom-scrollbar"
+          className="space-y-4 overflow-x-hidden px-1"
         >
           {/* <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
@@ -1303,92 +1366,6 @@ const StockAdjustmentTable = () => {
               }
               className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
             />
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-1">
-            <div className="flex items-center justify-between px-4 py-3">
-              <div>
-                <span className="text-sm font-black text-slate-700 uppercase tracking-tight">
-                  {t.unit_settings || "Unit Settings"}
-                </span>
-                <p className="text-[10px] font-bold text-slate-400">
-                  {t.enable_if_needed || "Enable if needed"}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() =>
-                  setCreateProduct((prev) => ({
-                    ...prev,
-                    hasUnit: !prev?.hasUnit,
-                    unitValue: prev?.hasUnit ? "" : prev?.unitValue || "",
-                    unit: prev?.hasUnit ? "Pcs" : prev?.unit || "Pcs",
-                  }))
-                }
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
-                  createProduct?.hasUnit ? "bg-indigo-600" : "bg-slate-300"
-                }`}
-              >
-                <span className="sr-only">Toggle Unit</span>
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out ${
-                    createProduct?.hasUnit ? "translate-x-6" : "translate-x-1"
-                  }`}
-                />
-              </button>
-            </div>
-
-            {createProduct?.hasUnit && (
-              <div className="bg-white rounded-xl border border-slate-100 m-1 p-4 space-y-3 shadow-sm">
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  {t.unit_details || "Unit Details"}
-                </label>
-
-                <div className="flex gap-2">
-                  <input
-                    type="number"
-                    min="1"
-                    value={createProduct?.unitValue || ""}
-                    onChange={(e) =>
-                      setCreateProduct((prev) => ({
-                        ...prev,
-                        unitValue: e.target.value,
-                      }))
-                    }
-                    placeholder="30"
-                    className="h-11 flex-1 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-                  />
-
-                  <Select
-                    options={[
-                      "Pcs",
-                      "Kg",
-                      "Liter",
-                      "Ml",
-                      "Gram",
-                      "Box",
-                      "Dozen",
-                    ].map((unit) => ({
-                      value: unit,
-                      label: unit,
-                    }))}
-                    value={{
-                      value: createProduct?.unit || "Pcs",
-                      label: createProduct?.unit || "Pcs",
-                    }}
-                    onChange={(selected) =>
-                      setCreateProduct((prev) => ({
-                        ...prev,
-                        unit: selected?.value || "Pcs",
-                      }))
-                    }
-                    styles={selectStyles}
-                    className="w-32 text-black"
-                  />
-                </div>
-              </div>
-            )}
           </div>
 
           <div>
@@ -1428,10 +1405,11 @@ const StockAdjustmentTable = () => {
         isOpen={isModalOpen3}
         onClose={handleModalClose3}
         title={t.stock_out || "Stock Out"}
+        maxWidth="max-w-4xl"
       >
         <form
           onSubmit={handleCreateProduct1}
-          className="space-y-4 max-h-[70vh] overflow-y-auto px-1 custom-scrollbar"
+          className="space-y-4 overflow-x-hidden px-1"
         >
           {/* <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
@@ -1472,92 +1450,6 @@ const StockAdjustmentTable = () => {
               }
               className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
             />
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-1">
-            <div className="flex items-center justify-between px-4 py-3">
-              <div>
-                <span className="text-sm font-black text-slate-700 uppercase tracking-tight">
-                  {t.unit_settings || "Unit Settings"}
-                </span>
-                <p className="text-[10px] font-bold text-slate-400">
-                  {t.enable_if_needed || "Enable if needed"}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() =>
-                  setCreateProduct((prev) => ({
-                    ...prev,
-                    hasUnit: !prev?.hasUnit,
-                    unitValue: prev?.hasUnit ? "" : prev?.unitValue || "",
-                    unit: prev?.hasUnit ? "Pcs" : prev?.unit || "Pcs",
-                  }))
-                }
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
-                  createProduct?.hasUnit ? "bg-indigo-600" : "bg-slate-300"
-                }`}
-              >
-                <span className="sr-only">Toggle Unit</span>
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out ${
-                    createProduct?.hasUnit ? "translate-x-6" : "translate-x-1"
-                  }`}
-                />
-              </button>
-            </div>
-
-            {createProduct?.hasUnit && (
-              <div className="bg-white rounded-xl border border-slate-100 m-1 p-4 space-y-3 shadow-sm">
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  {t.unit_details || "Unit Details"}
-                </label>
-
-                <div className="flex gap-2">
-                  <input
-                    type="number"
-                    min="1"
-                    value={createProduct?.unitValue || ""}
-                    onChange={(e) =>
-                      setCreateProduct((prev) => ({
-                        ...prev,
-                        unitValue: e.target.value,
-                      }))
-                    }
-                    placeholder="30"
-                    className="h-11 flex-1 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-                  />
-
-                  <Select
-                    options={[
-                      "Pcs",
-                      "Kg",
-                      "Ml",
-                      "Liter",
-                      "Gram",
-                      "Box",
-                      "Dozen",
-                    ].map((unit) => ({
-                      value: unit,
-                      label: unit,
-                    }))}
-                    value={{
-                      value: createProduct?.unit || "Pcs",
-                      label: createProduct?.unit || "Pcs",
-                    }}
-                    onChange={(selected) =>
-                      setCreateProduct((prev) => ({
-                        ...prev,
-                        unit: selected?.value || "Pcs",
-                      }))
-                    }
-                    styles={selectStyles}
-                    className="w-32 text-black"
-                  />
-                </div>
-              </div>
-            )}
           </div>
 
           <div>

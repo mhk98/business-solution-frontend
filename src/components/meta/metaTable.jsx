@@ -660,6 +660,7 @@ import { Edit, Plus, Trash2, Notebook, Facebook } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import Modal from "../common/Modal";
+import DateRangeFilter from "../common/DateRangeFilter";
 import {
   useDeleteMetaMutation,
   useGetAllMetaQuery,
@@ -951,27 +952,14 @@ const MetaTable = () => {
 
       {/* ✅ Filters Row (WITH Per Page dropdown LIKE SCREENSHOT) */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end mb-6">
-        <div className="flex flex-col">
-          <label className="text-sm text-slate-600 mb-1">From</label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-900 outline-none
-                       focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
-          />
-        </div>
-
-        <div className="flex flex-col">
-          <label className="text-sm text-slate-600 mb-1">To</label>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-900 outline-none
-                       focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
-          />
-        </div>
+        <DateRangeFilter
+          startDate={startDate}
+          endDate={endDate}
+          onStartDateChange={setStartDate}
+          onEndDateChange={setEndDate}
+          compact
+          className="md:col-span-2"
+        />
 
         {/* ✅ Per Page Dropdown (same position like your screenshot) */}
         <div className="flex flex-col">

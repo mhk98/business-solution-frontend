@@ -14,6 +14,7 @@ import { translations } from "../../utils/translations";
 import { useGetAllItemWithoutQueryQuery } from "../../features/item/item";
 import { useGetAllItemMasterQuery } from "../../features/manufactureStock/manufactureStock";
 import { useGetAllManufactureStockQuery } from "../../features/manufactureStockBalance/manufactureStockBalance";
+import { useGetAllManufacturerWithoutQueryQuery } from "../../features/manufacturer/manufacturer";
 
 const ManufactureStockTable = ({ stockType = "item" }) => {
   const { language } = useLayout();
@@ -23,6 +24,7 @@ const ManufactureStockTable = ({ stockType = "item" }) => {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [productName, setProductName] = useState("");
+  const [manufacturerId, setManufacturerId] = useState("");
 
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
@@ -44,7 +46,7 @@ const ManufactureStockTable = ({ stockType = "item" }) => {
   useEffect(() => {
     setCurrentPage(1);
     setStartPage(1);
-  }, [startDate, endDate, productName, itemsPerPage]);
+  }, [startDate, endDate, productName, manufacturerId, itemsPerPage]);
 
   const endPage = Math.min(startPage + pagesPerSet - 1, totalPages);
 
@@ -64,6 +66,11 @@ const ManufactureStockTable = ({ stockType = "item" }) => {
   const { data: allProductsRes, isLoading: isLoadingAllProducts } =
     useGetAllItemWithoutQueryQuery();
   const productsData = allProductsRes?.data || [];
+  const { data: allManufacturersRes, isLoading: isLoadingManufacturers } =
+    useGetAllManufacturerWithoutQueryQuery(undefined, {
+      skip: !isManufactureStock,
+    });
+  const manufacturersData = allManufacturersRes?.data || [];
 
   const productDropdownOptions = useMemo(() => {
     return (productsData || []).map((p) => ({
@@ -71,6 +78,13 @@ const ManufactureStockTable = ({ stockType = "item" }) => {
       label: p.name,
     }));
   }, [productsData]);
+
+  const manufacturerDropdownOptions = useMemo(() => {
+    return (manufacturersData || []).map((manufacturer) => ({
+      value: String(manufacturer.Id),
+      label: manufacturer.name,
+    }));
+  }, [manufacturersData]);
 
   // const productNameMap = useMemo(() => {
   //   const m = new Map();
@@ -93,12 +107,21 @@ const ManufactureStockTable = ({ stockType = "item" }) => {
       startDate: startDate || undefined,
       endDate: endDate || undefined,
       name: productName || undefined,
+      manufacturerId: isManufactureStock ? manufacturerId || undefined : undefined,
     };
     Object.keys(args).forEach((k) => {
       if (!args[k]) delete args[k];
     });
     return args;
-  }, [currentPage, itemsPerPage, startDate, endDate, productName]);
+  }, [
+    currentPage,
+    itemsPerPage,
+    startDate,
+    endDate,
+    productName,
+    manufacturerId,
+    isManufactureStock,
+  ]);
 
   const itemStockQuery = useGetAllItemMasterQuery(queryArgs, {
     skip: isManufactureStock,
@@ -196,7 +219,11 @@ const ManufactureStockTable = ({ stockType = "item" }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-10 bg-slate-50/50 p-6 rounded-3xl border border-slate-100 items-end">
+      <div
+        className={`grid grid-cols-1 sm:grid-cols-2 gap-4 mb-10 bg-slate-50/50 p-6 rounded-3xl border border-slate-100 items-end ${
+          isManufactureStock ? "xl:grid-cols-5" : "md:grid-cols-4"
+        }`}
+      >
         <div className="flex flex-col">
           <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
             {t.per_page_label}
@@ -233,10 +260,35 @@ const ManufactureStockTable = ({ stockType = "item" }) => {
           />
         </div>
 
+        {isManufactureStock && (
+          <div className="flex flex-col">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
+              Manufacturer
+            </label>
+            <Select
+              options={manufacturerDropdownOptions}
+              value={
+                manufacturerDropdownOptions.find(
+                  (option) => option.value === manufacturerId,
+                ) || null
+              }
+              onChange={(selected) => setManufacturerId(selected?.value || "")}
+              placeholder={
+                isLoadingManufacturers ? t.syncing : "Select manufacturer"
+              }
+              isClearable
+              isDisabled={isLoadingManufacturers}
+              styles={selectStyles}
+              className="text-black"
+            />
+          </div>
+        )}
+
         <button
           className="h-11 bg-slate-100 hover:bg-slate-200 text-slate-600 transition rounded-xl px-4 text-sm font-bold flex items-center justify-center gap-2 active:scale-95 border border-slate-200"
           onClick={() => {
             setProductName("");
+            setManufacturerId("");
             setStartDate("");
             setEndDate("");
           }}

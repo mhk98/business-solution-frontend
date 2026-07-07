@@ -15,6 +15,7 @@ import {
 import Select from "react-select";
 import toast from "react-hot-toast";
 import HrmWorkspace from "./HrmWorkspace";
+import DateRangeFilter from "../common/DateRangeFilter";
 import {
   useCreateEmployeeWorkReportMutation,
   useDeleteEmployeeWorkReportMutation,
@@ -274,14 +275,11 @@ const EmployeeWorkReportManager = () => {
     reports.length > 0 &&
     reports.every((row) => selectedReportIds.includes(row.Id));
 
-  const totals = reports.reduce(
-    (acc, row) => ({
-      totalAssign: acc.totalAssign + Number(row.totalAssign || 0),
-      totalOrder: acc.totalOrder + Number(row.totalOrder || 0),
-      totalAmount: acc.totalAmount + Number(row.totalAmount || 0),
-    }),
-    { totalAssign: 0, totalOrder: 0, totalAmount: 0 },
-  );
+  const totals = {
+    totalAssign: Number(reportMeta?.totalAssign || 0),
+    totalOrder: Number(reportMeta?.totalOrder || 0),
+    totalAmount: Number(reportMeta?.totalAmount || 0),
+  };
 
   const stats = [
     {
@@ -640,18 +638,14 @@ const EmployeeWorkReportManager = () => {
                 className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
               />
             </label>
-            <input
-              type="date"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
-            />
-            <input
-              type="date"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
-            />
+              <DateRangeFilter
+                startDate={fromDate}
+                endDate={toDate}
+                onStartDateChange={setFromDate}
+                onEndDateChange={setToDate}
+                compact
+                className="sm:col-span-2"
+              />
           </div>
 
           <div className="mt-5 max-h-[58vh] max-w-full overflow-auto rounded-2xl border border-slate-200">

@@ -31,6 +31,7 @@ import {
   useInsertCategoryMutation,
 } from "../../features/category/category";
 import Modal from "../common/Modal";
+import DateRangeFilter from "../common/DateRangeFilter";
 import { useLayout } from "../../context/LayoutContext";
 import { translations } from "../../utils/translations";
 import { useGetAllSupplierWithoutQueryQuery } from "../../features/supplier/supplier";
@@ -962,6 +963,7 @@ const CashInOutTable = () => {
     blob: null,
     url: "",
     filename: "",
+    title: "Voucher",
   });
 
   const closeReportPreview = () => {
@@ -979,7 +981,13 @@ const CashInOutTable = () => {
 
   const closeVoucherPreview = () => {
     if (voucherPreview.url) URL.revokeObjectURL(voucherPreview.url);
-    setVoucherPreview({ open: false, blob: null, url: "", filename: "" });
+    setVoucherPreview({
+      open: false,
+      blob: null,
+      url: "",
+      filename: "",
+      title: "Voucher",
+    });
   };
 
   const handleReportPdf = async () => {
@@ -1037,117 +1045,234 @@ const CashInOutTable = () => {
   };
 
   const createVoucherPdf = (row) => {
-    const voucherNo = `CIO-${row?.Id ?? row?.id ?? "ROW"}-${String(Date.now()).slice(-6)}`;
+    const recordId = row?.Id ?? row?.id ?? 1;
+    const isCashOut = row?.paymentStatus === "CashOut";
+    const getAlphabetSerial = (value) => {
+      let number = Math.max(Number(value) || 1, 1);
+      let serial = "";
+      while (number > 0) {
+        number -= 1;
+        serial = String.fromCharCode(65 + (number % 26)) + serial;
+        number = Math.floor(number / 26);
+      }
+      return serial;
+    };
+    const voucherSerial = isCashOut
+      ? String(recordId).padStart(4, "0")
+      : getAlphabetSerial(recordId);
+    const voucherNo = `KM-${voucherSerial}`;
+    const voucherTitle = isCashOut ? "Cash Out Voucher" : "Cash In Voucher";
+    const receiverName = row?.supplier?.name || row?.supplierName || "-";
     const amount = Number(row?.amount || 0).toLocaleString("en-US", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
     const pdf = new jsPDF("p", "mm", "a4");
     const pageWidth = pdf.internal.pageSize.getWidth();
-    const margin = 16;
-    let y = 18;
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 18;
+    const contentWidth = pageWidth - margin * 2;
+    let y = 22;
+
+    pdf.setDrawColor(55, 65, 81);
+    pdf.setLineWidth(0.35);
+    pdf.rect(margin - 4, 14, contentWidth + 8, pageHeight - 30);
 
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(18);
+    pdf.setTextColor(17, 24, 39);
+    pdf.setFontSize(21);
     pdf.text("KAFELA MART", margin, y);
-    pdf.setFontSize(13);
-    pdf.text("Cash In/Out Voucher", pageWidth - margin, y, {
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(9);
+    pdf.setTextColor(75, 85, 99);
+    pdf.text("Control Panel Voucher", margin, y + 7);
+
+    pdf.setTextColor(15, 23, 42);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(15);
+    pdf.text(voucherTitle.toUpperCase(), pageWidth - margin, y, {
+      align: "right",
+    });
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(8);
+    pdf.setTextColor(75, 85, 99);
+    pdf.text(`Date: ${row?.date || "-"}`, pageWidth - margin, y + 7, {
       align: "right",
     });
 
-    y += 8;
-    pdf.setDrawColor(226, 232, 240);
+    y += 18;
+    pdf.setDrawColor(156, 163, 175);
+    pdf.setLineWidth(0.25);
     pdf.line(margin, y, pageWidth - margin, y);
 
     y += 10;
-    pdf.setFontSize(10);
+    pdf.setDrawColor(31, 41, 55);
+    pdf.setLineWidth(0.25);
+    pdf.rect(margin, y, 62, 13);
+    pdf.setTextColor(75, 85, 99);
     pdf.setFont("helvetica", "normal");
-    pdf.text(`Voucher No: ${voucherNo}`, margin, y);
-    pdf.text(`Date: ${row?.date || "-"}`, pageWidth - margin, y, {
-      align: "right",
+    pdf.setFontSize(8);
+    pdf.text("Voucher No", margin + 4, y + 5);
+    pdf.setTextColor(17, 24, 39);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(10);
+    pdf.text(voucherNo, margin + 4, y + 10);
+
+    pdf.rect(pageWidth - margin - 42, y, 42, 13);
+    pdf.setTextColor(17, 24, 39);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(11);
+    pdf.text(isCashOut ? "CASH OUT" : "CASH IN", pageWidth - margin - 21, y + 8.5, {
+      align: "center",
     });
 
-    const details = [
-      ["Book", bookName || "-"],
+    y += 24;
+    const detailRows = [
+      ["From", bookName || "-"],
+      ["Receiver", receiverName],
       ["Category", row?.category || "-"],
-      ["Payment Status", row?.paymentStatus || "-"],
       ["Payment Mode", row?.paymentMode || "-"],
       ["Bank", row?.paymentMode === "Bank" ? row?.bankName || "-" : "-"],
       [
         "Bank Account",
         row?.paymentMode === "Bank" ? row?.bankAccount || "-" : "-",
       ],
-      ["Supplier", row?.supplier?.name || row?.supplierName || "-"],
-      [
-        "Loan",
-        row?.loan?.name ||
-          row?.lender ||
-          row?.loanName ||
-          row?.loan_person_name ||
-          row?.loanPersonName ||
-          "-",
-      ],
-      ["Status", row?.status || "Active"],
     ];
+    const detailsRowHeight = 10;
+    const detailsHeaderHeight = 13;
+    const detailsBoxHeight =
+      detailsHeaderHeight + detailRows.length * detailsRowHeight;
 
-    y += 10;
+    pdf.setDrawColor(156, 163, 175);
+    pdf.setLineWidth(0.25);
+    pdf.rect(margin, y, contentWidth, detailsBoxHeight);
+
+    pdf.setTextColor(17, 24, 39);
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(12);
-    pdf.text("Transaction Details", margin, y);
+    pdf.setFontSize(11);
+    pdf.text("Transaction Details", margin + 5, y + 8.5);
 
-    y += 7;
-    pdf.setFontSize(10);
-    details.forEach(([label, value]) => {
+    pdf.setDrawColor(209, 213, 219);
+    pdf.line(margin, y + detailsHeaderHeight, pageWidth - margin, y + detailsHeaderHeight);
+
+    const labelColumnWidth = 48;
+    const labelX = margin + 5;
+    const valueX = margin + labelColumnWidth + 5;
+    let rowTop = y + detailsHeaderHeight;
+
+    pdf.setFontSize(8);
+    detailRows.forEach(([label, value], index) => {
+      const textY = rowTop + 6.5;
+      if (index > 0) {
+        pdf.setDrawColor(229, 231, 235);
+        pdf.line(margin, rowTop, pageWidth - margin, rowTop);
+      }
+      pdf.setDrawColor(229, 231, 235);
+      pdf.line(margin + labelColumnWidth, rowTop, margin + labelColumnWidth, rowTop + detailsRowHeight);
       pdf.setFont("helvetica", "bold");
-      pdf.text(`${label}:`, margin, y);
+      pdf.setTextColor(55, 65, 81);
+      pdf.text(label, labelX, textY);
       pdf.setFont("helvetica", "normal");
-      pdf.text(String(value), margin + 42, y);
-      y += 7;
+      pdf.setTextColor(17, 24, 39);
+      pdf.text(
+        pdf.splitTextToSize(String(value), contentWidth - labelColumnWidth - 12),
+        valueX,
+        textY,
+      );
+      rowTop += detailsRowHeight;
     });
 
-    y += 3;
-    pdf.setDrawColor(226, 232, 240);
-    pdf.line(margin, y, pageWidth - margin, y);
-
-    y += 10;
+    y += detailsBoxHeight + 12;
+    const amountBoxHeight = 22;
+    pdf.setDrawColor(31, 41, 55);
+    pdf.setLineWidth(0.35);
+    pdf.rect(margin, y, contentWidth, amountBoxHeight);
+    pdf.setTextColor(75, 85, 99);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(9);
+    pdf.text("Paid Amount", margin + 6, y + 9);
+    pdf.setTextColor(17, 24, 39);
+    const amountRightX = pageWidth - margin - 6;
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(14);
-    pdf.text("Amount", margin, y);
-    pdf.text(`${amount} BDT`, pageWidth - margin, y, { align: "right" });
+    pdf.setFontSize(8);
+    const currency = "BDT";
+    const currencyWidth = pdf.getTextWidth(currency);
+    pdf.text(currency, amountRightX, y + 14, {
+      align: "right",
+    });
+    pdf.setFontSize(19);
+    pdf.text(amount, amountRightX - currencyWidth - 3, y + 15, {
+      align: "right",
+    });
 
-    y += 12;
+    y += amountBoxHeight + 18;
+    pdf.setTextColor(17, 24, 39);
+    pdf.setFont("helvetica", "bold");
     pdf.setFontSize(11);
     pdf.text("Note", margin, y);
+
     y += 7;
+    const noteBoxY = y;
+    const noteBoxHeight = 24;
+    pdf.setDrawColor(156, 163, 175);
+    pdf.setLineWidth(0.25);
+    pdf.rect(margin, noteBoxY, contentWidth, noteBoxHeight);
+    pdf.setDrawColor(31, 41, 55);
+    pdf.setLineWidth(0.45);
+    pdf.line(margin, noteBoxY, margin, noteBoxY + noteBoxHeight);
     pdf.setFont("helvetica", "normal");
+    pdf.setTextColor(55, 65, 81);
+    pdf.setFontSize(9);
     const noteLines = pdf.splitTextToSize(
       String(row?.remarks || row?.note || "-"),
-      pageWidth - margin * 2,
+      contentWidth - 14,
     );
-    pdf.text(noteLines, margin, y);
+    pdf.text(noteLines.slice(0, 3), margin + 7, noteBoxY + 9);
 
-    y = Math.max(y + noteLines.length * 6 + 20, 250);
-    pdf.setDrawColor(203, 213, 225);
-    pdf.line(margin, y, margin + 55, y);
-    pdf.line(pageWidth - margin - 55, y, pageWidth - margin, y);
-    y += 6;
-    pdf.setFontSize(9);
-    pdf.text("Prepared By", margin, y);
-    pdf.text("Approved By", pageWidth - margin - 55, y);
+    y = noteBoxY + noteBoxHeight + 22;
+    pdf.setDrawColor(75, 85, 99);
+    pdf.setLineWidth(0.2);
+    pdf.setTextColor(55, 65, 81);
+    const signatureWidth = 44;
+    const signatureGap = 18;
+    const signatureGroupWidth = signatureWidth * 3 + signatureGap * 2;
+    const preparedX = (pageWidth - signatureGroupWidth) / 2;
+    const approvedX = preparedX + (signatureWidth + signatureGap) * 2;
+    [
+      [preparedX, "Prepared By"],
+      [preparedX + signatureWidth + signatureGap, "Checked By"],
+      [approvedX, "Approved By"],
+    ].forEach(([x, label]) => {
+      pdf.line(x, y, x + signatureWidth, y);
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(9);
+      pdf.text(label, x + signatureWidth / 2, y + 7, { align: "center" });
+    });
+
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(8);
+    pdf.setTextColor(107, 114, 128);
+    pdf.text(
+      "This voucher is generated electronically from Kafela Mart accounts system.",
+      pageWidth / 2,
+      y + 20,
+      { align: "center" },
+    );
 
     return {
       pdf,
       filename: `${voucherNo}.pdf`,
+      title: voucherTitle,
     };
   };
 
   const handleVoucherOpen = (row) => {
     try {
       if (voucherPreview.url) URL.revokeObjectURL(voucherPreview.url);
-      const { pdf, filename } = createVoucherPdf(row);
+      const { pdf, filename, title } = createVoucherPdf(row);
       const blob = pdf.output("blob");
       const url = URL.createObjectURL(blob);
-      setVoucherPreview({ open: true, blob, url, filename });
+      setVoucherPreview({ open: true, blob, url, filename, title });
     } catch (error) {
       console.error("Voucher preview failed:", error);
       toast.error("Voucher preview failed!");
@@ -1459,27 +1584,14 @@ const CashInOutTable = () => {
 
       {/* Filters */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-7 gap-4 items-end mb-6 w-full [&>*]:min-w-0">
-        <div className="flex flex-col">
-          <label className="text-sm text-slate-600 mb-1">{t.from}</label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="h-11 px-3 rounded-xl border border-slate-200 bg-white text-slate-900 outline-none
-                       focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
-          />
-        </div>
-
-        <div className="flex flex-col">
-          <label className="text-sm text-slate-600 mb-1">{t.to}</label>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="h-11 px-3 rounded-xl border border-slate-200 bg-white text-slate-900 outline-none
-                       focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
-          />
-        </div>
+        <DateRangeFilter
+          startDate={startDate}
+          endDate={endDate}
+          onStartDateChange={setStartDate}
+          onEndDateChange={setEndDate}
+          compact
+          className="md:col-span-2"
+        />
 
         <div className="flex flex-col">
           <label className="text-sm text-slate-600 mb-1">
@@ -3046,7 +3158,7 @@ const CashInOutTable = () => {
       <Modal
         isOpen={voucherPreview.open}
         onClose={closeVoucherPreview}
-        title="Cash In/Out Voucher"
+        title={voucherPreview.title || "Voucher"}
         maxWidth="max-w-4xl"
       >
         <div className="space-y-4">
@@ -3073,11 +3185,11 @@ const CashInOutTable = () => {
                 data={voucherPreview.url}
                 type="application/pdf"
                 className="h-full w-full"
-                aria-label="Cash In/Out Voucher Preview"
+                aria-label={`${voucherPreview.title || "Voucher"} Preview`}
               >
                 <iframe
                   src={voucherPreview.url}
-                  title="Cash In/Out Voucher Preview"
+                  title={`${voucherPreview.title || "Voucher"} Preview`}
                   className="h-full w-full"
                 />
               </object>

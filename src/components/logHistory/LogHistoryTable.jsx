@@ -13,6 +13,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import Select from "react-select";
 import Pagination from "../common/Pagination";
+import DateRangeFilter from "../common/DateRangeFilter";
 
 const API_BASE_URL = `${import.meta.env.VITE_API_URL}/api/v1`;
 
@@ -401,42 +402,18 @@ const LogHistoryTable = () => {
           />
         </div>
 
-        <div className="flex flex-col">
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
-            From
-          </label>
-          <label className="relative">
-            <input
-              type="date"
-              value={startDate}
-              onChange={handleStartDateChange}
-              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 pr-10 text-sm font-semibold text-slate-700 outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100"
-            />
-            <Calendar
-              size={16}
-              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-            />
-          </label>
-        </div>
-
-        <div className="flex flex-col">
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
-            To
-          </label>
-          <label className="relative">
-            <input
-              type="date"
-              value={endDate}
-              min={startDate || undefined}
-              onChange={handleEndDateChange}
-              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 pr-10 text-sm font-semibold text-slate-700 outline-none transition focus:border-indigo-200 focus:ring-4 focus:ring-indigo-100"
-            />
-            <Calendar
-              size={16}
-              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
-            />
-          </label>
-        </div>
+        <DateRangeFilter
+          startDate={startDate}
+          endDate={endDate}
+          onStartDateChange={(value) =>
+            handleStartDateChange({ target: { value } })
+          }
+          onEndDateChange={(value) =>
+            handleEndDateChange({ target: { value } })
+          }
+          compact
+          className="md:col-span-2"
+        />
 
         <div className="flex flex-col">
           <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">

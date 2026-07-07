@@ -14,6 +14,7 @@ export const mixerApi = baseApi.injectEndpoints({
         { type: "Mixer", id: "LIST" },
         { type: "InventoryOverview", id: "LIST" },
         { type: "ItemMaster", id: "LIST" },
+        { type: "Manufacturer", id: "LIST" },
       ],
     }),
 
@@ -26,6 +27,7 @@ export const mixerApi = baseApi.injectEndpoints({
         { type: "Mixer", id: "LIST" },
         { type: "InventoryOverview", id: "LIST" },
         { type: "ItemMaster", id: "LIST" },
+        { type: "Manufacturer", id: "LIST" },
       ],
     }),
 
@@ -40,6 +42,7 @@ export const mixerApi = baseApi.injectEndpoints({
         { type: "Mixer", id: arg.id },
         { type: "InventoryOverview", id: "LIST" },
         { type: "ItemMaster", id: "LIST" },
+        { type: "Manufacturer", id: "LIST" },
       ],
     }),
 

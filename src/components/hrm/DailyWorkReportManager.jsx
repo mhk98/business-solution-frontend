@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import DateRangeFilter from "../common/DateRangeFilter";
 import HrmWorkspace from "./HrmWorkspace";
 import {
   useCreateDailyWorkReportMutation,
@@ -1021,17 +1022,13 @@ const AdminReviewPanel = ({
           label: status,
         }))}
       />
-      <input
-        type="date"
-        value={filters.fromDate}
-        onChange={(e) => onFilterChange.setFromDate(e.target.value)}
-        className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-black"
-      />
-      <input
-        type="date"
-        value={filters.toDate}
-        onChange={(e) => onFilterChange.setToDate(e.target.value)}
-        className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-black"
+      <DateRangeFilter
+        startDate={filters.fromDate}
+        endDate={filters.toDate}
+        onStartDateChange={onFilterChange.setFromDate}
+        onEndDateChange={onFilterChange.setToDate}
+        compact
+        className="md:col-span-2"
       />
     </div>
 

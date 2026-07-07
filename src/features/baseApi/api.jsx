@@ -73,6 +73,7 @@ export const baseApi = createApi({
     "ItemMaster",
     "ItemRequisition",
     "StockAdjustment",
+    "StockMovement",
     "DamageRepairingStock",
     "EmployeeList",
     "KPI",

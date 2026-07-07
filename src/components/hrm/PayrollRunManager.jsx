@@ -42,12 +42,13 @@ const PayrollRunManager = () => {
   const [updateRun] = useUpdatePayrollRunMutation();
 
   const rows = data?.data || [];
+  const totalRuns = data?.meta?.count || 0;
   const selectedRun = runDetailsRes?.data;
 
   const stats = [
     {
       name: "Payroll Runs",
-      value: rows.length,
+      value: totalRuns,
       icon: Wallet,
       iconBg: "#EEF2FF",
       iconColor: "#4338CA",

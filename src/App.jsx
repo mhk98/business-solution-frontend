@@ -72,12 +72,14 @@ const CreditLedgerPage = lazy(() => import("./pages/CreditLedgerPage"));
 const LogHistoryPage = lazy(() => import("./pages/LogHistoryPage"));
 const ManufacturePage = lazy(() => import("./pages/ManufacturePage"));
 const ManufacturerPage = lazy(() => import("./pages/ManufacturerPage"));
+const ManufacturerHistoryPage = lazy(() => import("./pages/ManufacturerHistoryPage"));
 const ItemStockPage = lazy(() => import("./pages/ItemStockPage"));
 const ItemPurchasePage = lazy(() => import("./pages/ItemPurchasePage"));
 const ItemsPage = lazy(() => import("./pages/ItemsPage"));
 const ManufactureStockPage = lazy(() => import("./pages/ManufactureStockPage"));
 const MixerPage = lazy(() => import("./pages/MixerPage"));
 const StockAdjustmentPage = lazy(() => import("./pages/StockAdjustmentPage"));
+const StockMovementPage = lazy(() => import("./pages/StockMovementPage"));
 const DamageRepairingStockPage = lazy(() => import("./pages/DamageRepairingStockPage"));
 const DailyProfitLossPage = lazy(() => import("./pages/DailyProfitLossPage"));
 const DailyProfitLossUserPage = lazy(() => import("./pages/DailyProfitLossUserPage"));
@@ -172,7 +174,9 @@ function App() {
                 <Route path="/manufacture-stock" element={<AuthedRoute><ManufactureStockPage /></AuthedRoute>} />
                 <Route path="/manufacture" element={<AuthedRoute><ManufacturePage /></AuthedRoute>} />
                 <Route path="/manufacturer" element={<AuthedRoute><ManufacturerPage /></AuthedRoute>} />
+                <Route path="/manufacturer/:id" element={<AuthedRoute><ManufacturerHistoryPage /></AuthedRoute>} />
                 <Route path="/stock-adjustment" element={<AuthedRoute><StockAdjustmentPage /></AuthedRoute>} />
+                <Route path="/stock-movement" element={<AuthedRoute><StockMovementPage /></AuthedRoute>} />
                 <Route path="/mixer" element={<AuthedRoute><MixerPage /></AuthedRoute>} />
                 <Route path="/stock-product" element={<AuthedRoute><InventoryOverviewPage /></AuthedRoute>} />
                 <Route path="/stock-alert" element={<AuthedRoute><StockAlertPage /></AuthedRoute>} />
