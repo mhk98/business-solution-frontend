@@ -328,10 +328,10 @@ const LogisticWorkReportManager = () => {
           </div>
 
           <div
-            className={`mt-5 grid gap-3 ${
+            className={`mt-5 grid items-start gap-3 ${
               canManageReports
-                ? "lg:grid-cols-[260px_1fr_160px_160px]"
-                : "lg:grid-cols-[1fr_160px_160px]"
+                ? "xl:grid-cols-[260px_minmax(260px,1fr)_minmax(320px,520px)]"
+                : "xl:grid-cols-[minmax(260px,1fr)_minmax(320px,520px)]"
             }`}
           >
             {canManageReports && (
@@ -345,7 +345,7 @@ const LogisticWorkReportManager = () => {
                 styles={selectStyles}
               />
             )}
-            <label className="relative block">
+            <label className="relative block h-11 self-start">
               <Search
                 size={16}
                 className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
@@ -357,14 +357,16 @@ const LogisticWorkReportManager = () => {
                 className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
               />
             </label>
-              <DateRangeFilter
-                startDate={fromDate}
-                endDate={toDate}
-                onStartDateChange={setFromDate}
-                onEndDateChange={setToDate}
-                compact
-                className="sm:col-span-2"
-              />
+            <DateRangeFilter
+              startDate={fromDate}
+              endDate={toDate}
+              onStartDateChange={setFromDate}
+              onEndDateChange={setToDate}
+              defaultFilter="last30"
+              label=""
+              compact
+              className="min-w-0 self-start"
+            />
           </div>
 
           <div className="mt-5 max-w-full overflow-x-auto rounded-2xl border border-slate-200">

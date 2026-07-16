@@ -10,6 +10,7 @@ import jsPDF from "jspdf";
 import { useGetAllProductWithoutQueryQuery } from "../../features/product/product";
 import { useInsertPosReportMutation } from "../../features/posReport/posReport";
 import { useGetAllInventoryOverviewQuery } from "../../features/inventoryOverview/inventoryOverview";
+import DocumentBrand from "../common/DocumentBrand";
 
 export default function SellPosTable() {
   const [cart, setCart] = useState([]);
@@ -1227,12 +1228,7 @@ function InvoiceModal({ open, onClose, invoice, invoiceRef, onPrint }) {
                   </div>
                 </div>
 
-                <div className="text-right">
-                  <div className="text-sm font-semibold text-slate-900">
-                    Kafela Mart
-                  </div>
-                  <div className="text-xs text-slate-600">POS Sale Invoice</div>
-                </div>
+                <DocumentBrand subtitle="POS Sale Invoice" />
               </div>
 
               <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">

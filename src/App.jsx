@@ -67,6 +67,8 @@ const WarehousePage = lazy(() => import("./pages/WarehousePage"));
 const SupplierHistoryPage = lazy(() => import("./pages/SupplierHistoryPage"));
 const LoanPage = lazy(() => import("./pages/LoanPage"));
 const LoanHistoryPage = lazy(() => import("./pages/LoanHistoryPage"));
+const OwnerPage = lazy(() => import("./pages/OwnerPage"));
+const OwnerHistoryPage = lazy(() => import("./pages/OwnerHistoryPage"));
 const OwnerTransactionPage = lazy(() => import("./pages/OwnerTransactionPage"));
 const CreditLedgerPage = lazy(() => import("./pages/CreditLedgerPage"));
 const LogHistoryPage = lazy(() => import("./pages/LogHistoryPage"));
@@ -76,6 +78,13 @@ const ManufacturerHistoryPage = lazy(() => import("./pages/ManufacturerHistoryPa
 const ItemStockPage = lazy(() => import("./pages/ItemStockPage"));
 const ItemPurchasePage = lazy(() => import("./pages/ItemPurchasePage"));
 const ItemsPage = lazy(() => import("./pages/ItemsPage"));
+const PackagingItemPage = lazy(() => import("./pages/PackagingItemPage"));
+const PackagingItemPurchasePage = lazy(() => import("./pages/PackagingItemPurchasePage"));
+const PackagingItemStockPage = lazy(() => import("./pages/PackagingItemStockPage"));
+const PackagingManufacturerPage = lazy(() => import("./pages/PackagingManufacturerPage"));
+const PackagingFactoryPage = lazy(() => import("./pages/PackagingFactoryPage"));
+const PackagingFactoryStockPage = lazy(() => import("./pages/PackagingFactoryStockPage"));
+const PackagingMixerPage = lazy(() => import("./pages/PackagingMixerPage"));
 const ManufactureStockPage = lazy(() => import("./pages/ManufactureStockPage"));
 const MixerPage = lazy(() => import("./pages/MixerPage"));
 const StockAdjustmentPage = lazy(() => import("./pages/StockAdjustmentPage"));
@@ -87,6 +96,11 @@ const DailyWorkReportPage = lazy(() => import("./pages/DailyWorkReportPage"));
 const EmployeeWorkReportPage = lazy(() => import("./pages/EmployeeWorkReportPage"));
 const LogisticWorkReportPage = lazy(() => import("./pages/LogisticWorkReportPage"));
 const LogisticUpdatePage = lazy(() => import("./pages/LogisticUpdatePage"));
+const ShifaOverviewPage = lazy(() => import("./pages/ShifaOverviewPage"));
+const ShifaCallHistoryPage = lazy(() => import("./pages/ShifaCallHistoryPage"));
+const ShifaStartingSituationPage = lazy(() => import("./pages/ShifaStartingSituationPage"));
+const ShifaProblemHistoryPage = lazy(() => import("./pages/ShifaProblemHistoryPage"));
+const ShifaPatientUpdatePage = lazy(() => import("./pages/ShifaPatientUpdatePage"));
 const EmployeeMasterPage = lazy(() => import("./pages/EmployeeMasterPage"));
 const EmployeeProfilePage = lazy(() => import("./pages/EmployeeProfilePage"));
 const DepartmentPage = lazy(() => import("./pages/DepartmentPage"));
@@ -162,11 +176,23 @@ function App() {
                 <Route path="/hrm/employee-work-reports" element={<AuthedRoute><EmployeeWorkReportPage /></AuthedRoute>} />
                 <Route path="/hrm/logistic-work-reports" element={<AuthedRoute><LogisticWorkReportPage /></AuthedRoute>} />
                 <Route path="/hrm/logistic-updates" element={<AuthedRoute><LogisticUpdatePage /></AuthedRoute>} />
+                <Route path="/shifa/overview" element={<AuthedRoute><ShifaOverviewPage /></AuthedRoute>} />
+                <Route path="/shifa/call-history" element={<AuthedRoute><ShifaCallHistoryPage /></AuthedRoute>} />
+                <Route path="/shifa/starting-situation" element={<AuthedRoute><ShifaStartingSituationPage /></AuthedRoute>} />
+                <Route path="/shifa/problem-history" element={<AuthedRoute><ShifaProblemHistoryPage /></AuthedRoute>} />
+                <Route path="/shifa/patient-update" element={<AuthedRoute><ShifaPatientUpdatePage /></AuthedRoute>} />
                 <Route path="/employee-kpi" element={<AuthedRoute><EmployeeKPIPage /></AuthedRoute>} />
                 <Route path="/employee" element={<AuthedRoute><EmployeePage /></AuthedRoute>} />
                 <Route path="/pos-sell" element={<AuthedRoute><POSPage /></AuthedRoute>} />
                 <Route path="/pos-report" element={<AuthedRoute><PosReportPage /></AuthedRoute>} />
                 <Route path="/inventory-overview" element={<AuthedRoute><InventoryDashboardPage /></AuthedRoute>} />
+                <Route path="/packaging-item" element={<AuthedRoute><PackagingItemPage /></AuthedRoute>} />
+                <Route path="/packaging-item-purchase" element={<AuthedRoute><PackagingItemPurchasePage /></AuthedRoute>} />
+                <Route path="/packaging-item-stock" element={<AuthedRoute><PackagingItemStockPage /></AuthedRoute>} />
+                <Route path="/packaging-manufacturer" element={<AuthedRoute><PackagingManufacturerPage /></AuthedRoute>} />
+                <Route path="/packaging-factory" element={<AuthedRoute><PackagingFactoryPage /></AuthedRoute>} />
+                <Route path="/packaging-factory-stock" element={<AuthedRoute><PackagingFactoryStockPage /></AuthedRoute>} />
+                <Route path="/packaging-mixer" element={<AuthedRoute><PackagingMixerPage /></AuthedRoute>} />
                 <Route path="/item" element={<AuthedRoute><ItemsPage /></AuthedRoute>} />
                 <Route path="/item-stock" element={<AuthedRoute><ItemStockPage /></AuthedRoute>} />
                 <Route path="/item-requisition" element={<AuthedRoute><ItemRequisitionPage /></AuthedRoute>} />
@@ -201,6 +227,8 @@ function App() {
                 <Route path="/petty-cash" element={<AuthedRoute><PettyCashPage /></AuthedRoute>} />
                 <Route path="/loan" element={<AuthedRoute><LoanPage /></AuthedRoute>} />
                 <Route path="/loan/:lender" element={<AuthedRoute><LoanHistoryPage /></AuthedRoute>} />
+                <Route path="/owner" element={<AuthedRoute><OwnerPage /></AuthedRoute>} />
+                <Route path="/owner/:id" element={<AuthedRoute><OwnerHistoryPage /></AuthedRoute>} />
                 <Route path="/owner-transaction" element={<AuthedRoute><OwnerTransactionPage /></AuthedRoute>} />
                 <Route path="/credit-ledger" element={<AuthedRoute><CreditLedgerPage /></AuthedRoute>} />
                 <Route path="/log-history" element={<AuthedRoute><LogHistoryPage /></AuthedRoute>} />

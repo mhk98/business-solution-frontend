@@ -410,7 +410,9 @@ const InventoryOverviewTable = () => {
                     </div>
                     <div className="mt-1 flex flex-wrap gap-2 text-xs font-bold text-slate-600">
                       <span>Current: {Number(item.currentQuantity || 0)}</span>
-                      <span>Expected: {Number(item.expectedQuantity || 0)}</span>
+                      <span>
+                        Expected: {Number(item.expectedQuantity || 0)}
+                      </span>
                       <span
                         className={
                           Number(item.diff || 0) > 0
@@ -498,8 +500,8 @@ const InventoryOverviewTable = () => {
                     <td className="px-6 py-5 whitespace-nowrap">
                       <div className="flex items-center gap-2 text-sm font-medium text-slate-500 group-hover:text-indigo-600">
                         <Calendar size={14} className="opacity-40" />
-                        {rp.createdAt
-                          ? new Date(rp.createdAt).toLocaleDateString(
+                        {rp.updatedAt
+                          ? new Date(rp.updatedAt).toLocaleDateString(
                               undefined,
                               {
                                 day: "numeric",
@@ -574,7 +576,8 @@ const InventoryOverviewTable = () => {
                                   </span>
                                   {formatMoney(
                                     getUnitPrice(
-                                      variant.purchase_price || unitPurchasePrice,
+                                      variant.purchase_price ||
+                                        unitPurchasePrice,
                                     ),
                                   )}
                                 </div>
@@ -583,7 +586,9 @@ const InventoryOverviewTable = () => {
                                     Unit Sell
                                   </span>
                                   {formatMoney(
-                                    getUnitPrice(variant.sale_price || unitSalePrice),
+                                    getUnitPrice(
+                                      variant.sale_price || unitSalePrice,
+                                    ),
                                   )}
                                 </div>
                               </div>

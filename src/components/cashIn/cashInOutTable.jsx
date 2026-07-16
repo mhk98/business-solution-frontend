@@ -43,6 +43,12 @@ import {
   useGetAllBankAccountWithoutQueryQuery,
   useInsertBankAccountMutation,
 } from "../../features/bankAccount/bankAccount";
+import { useGetAllLogoQuery } from "../../features/logo/logo";
+import {
+  DEFAULT_COMPANY_NAME,
+  buildAssetUrl,
+  drawPdfBrandBlock,
+} from "../../utils/pdfBranding";
 
 const STATIC_CATEGORIES = [
   "Office Expense",
@@ -115,6 +121,7 @@ const CashInOutTable = () => {
   const [endDate, setEndDate] = useState("");
   const [filterPaymentMode, setFilterPaymentMode] = useState("");
   const [filterPaymentStatus, setFilterPaymentStatus] = useState("");
+  const [filterVoucherNo, setFilterVoucherNo] = useState("");
 
   // ✅ Category states
   const [categories, setCategories] = useState([]);
@@ -189,6 +196,7 @@ const CashInOutTable = () => {
     filterPaymentStatus,
     filterCategory,
     filterLoanId,
+    filterVoucherNo,
   ]);
 
   useEffect(() => {
@@ -275,6 +283,7 @@ const CashInOutTable = () => {
       bookId: id,
       category: filterCategory || undefined,
       loanId: filterLoanId || undefined,
+      voucherNo: filterVoucherNo || undefined,
       paymentMode: filterPaymentMode || undefined,
       paymentStatus: filterPaymentStatus || undefined,
       searchTerm: debouncedSearchTerm || undefined, // ensure it's included in the query
@@ -296,14 +305,16 @@ const CashInOutTable = () => {
     filterPaymentStatus,
     filterCategory,
     filterLoanId,
-    searchTerm,
+    filterVoucherNo,
+    debouncedSearchTerm,
   ]);
 
   const { data, isLoading, isError, error, refetch } = useGetAllCashInOutQuery(
     queryArgs,
     // { skip: shouldSkip },
   );
-
+  const { data: logoData } = useGetAllLogoQuery();
+  const logoUrl = buildAssetUrl(logoData?.data?.file);
   useEffect(() => {
     if (isError) console.error("Error:", error);
     if (!isLoading && data) {
@@ -318,7 +329,9 @@ const CashInOutTable = () => {
     () =>
       loans.filter(
         (loan) =>
-          String(loan.status || "Active").trim().toLowerCase() === "active",
+          String(loan.status || "Active")
+            .trim()
+            .toLowerCase() === "active",
       ),
     [loans],
   );
@@ -721,6 +734,7 @@ const CashInOutTable = () => {
 
       // Form data preparation for submission
       const formData = new FormData();
+      formData.append("voucherPrefix", "KM-");
       formData.append("paymentMode", createProduct.paymentMode);
       formData.append("paymentStatus", "CashIn");
       formData.append("date", createProduct.date);
@@ -820,6 +834,7 @@ const CashInOutTable = () => {
 
       // Form data preparation for submission
       const formData = new FormData();
+      formData.append("voucherPrefix", "KM-");
       formData.append("paymentMode", createProduct.paymentMode);
       formData.append("paymentStatus", "CashOut");
       formData.append("date", createProduct.date);
@@ -941,13 +956,17 @@ const CashInOutTable = () => {
   };
 
   const clearFilters = () => {
+    setSearchTerm("");
     setStartDate("");
     setEndDate("");
     setFilterPaymentMode("");
     setFilterPaymentStatus("");
     setFilterCategory("");
     setFilterLoanId("");
+    setFilterVoucherNo("");
     setSupplier("");
+    setCurrentPage(1);
+    setStartPage(1);
   };
 
   // report states
@@ -1044,89 +1063,101 @@ const CashInOutTable = () => {
     }
   };
 
-  const createVoucherPdf = (row) => {
-    const recordId = row?.Id ?? row?.id ?? 1;
+  const createVoucherPdf = async (row) => {
+    const voucherNo = row?.voucherNo || "-";
+    const voucherTitle = "Cash Memo";
     const isCashOut = row?.paymentStatus === "CashOut";
-    const getAlphabetSerial = (value) => {
-      let number = Math.max(Number(value) || 1, 1);
-      let serial = "";
-      while (number > 0) {
-        number -= 1;
-        serial = String.fromCharCode(65 + (number % 26)) + serial;
-        number = Math.floor(number / 26);
-      }
-      return serial;
-    };
-    const voucherSerial = isCashOut
-      ? String(recordId).padStart(4, "0")
-      : getAlphabetSerial(recordId);
-    const voucherNo = `KM-${voucherSerial}`;
-    const voucherTitle = isCashOut ? "Cash Out Voucher" : "Cash In Voucher";
-    const receiverName = row?.supplier?.name || row?.supplierName || "-";
+    const rowSupplier = suppliers.find(
+      (item) => String(item.Id) === String(row?.supplierId),
+    );
+    const receiverName =
+      row?.supplier?.name ||
+      row?.supplierName ||
+      rowSupplier?.name ||
+      rowSupplier?.supplierName ||
+      "-";
     const amount = Number(row?.amount || 0).toLocaleString("en-US", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
-    const pdf = new jsPDF("p", "mm", "a4");
+    const voucherWidthMm = 5.75 * 25.4;
+    const voucherHeightMm = 8.25 * 25.4;
+    const pdf = new jsPDF({
+      orientation: "p",
+      unit: "mm",
+      format: [voucherWidthMm, voucherHeightMm],
+    });
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
-    const margin = 18;
+    const margin = 10;
     const contentWidth = pageWidth - margin * 2;
-    let y = 22;
+    let y = 13;
 
     pdf.setDrawColor(55, 65, 81);
     pdf.setLineWidth(0.35);
-    pdf.rect(margin - 4, 14, contentWidth + 8, pageHeight - 30);
+    pdf.rect(margin - 3, 8, contentWidth + 6, pageHeight - 16);
 
-    pdf.setFont("helvetica", "bold");
-    pdf.setTextColor(17, 24, 39);
-    pdf.setFontSize(21);
-    pdf.text("KAFELA MART", margin, y);
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(9);
-    pdf.setTextColor(75, 85, 99);
-    pdf.text("Control Panel Voucher", margin, y + 7);
+    const headerTopY = y;
+    const headerBottomY = headerTopY + 26;
+
+    await drawPdfBrandBlock({
+      pdf,
+      logoUrl,
+      companyName: DEFAULT_COMPANY_NAME,
+      x: margin + 2,
+      topY: headerTopY,
+      logoMaxWidth: 48,
+      logoMaxHeight: 12.5,
+      companySize: 9.2,
+      subtitle: "Control Panel Cash Memo",
+      subtitleSize: 8.2,
+    });
 
     pdf.setTextColor(15, 23, 42);
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(15);
-    pdf.text(voucherTitle.toUpperCase(), pageWidth - margin, y, {
+    pdf.setFontSize(12.5);
+    pdf.text(voucherTitle.toUpperCase(), pageWidth - margin, headerTopY + 8, {
       align: "right",
     });
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(8);
-    pdf.setTextColor(75, 85, 99);
-    pdf.text(`Date: ${row?.date || "-"}`, pageWidth - margin, y + 7, {
+    pdf.setTextColor(102, 102, 102);
+    pdf.text(`Date: ${row?.date || "-"}`, pageWidth - margin, headerTopY + 15, {
       align: "right",
     });
 
-    y += 18;
+    y = headerBottomY;
     pdf.setDrawColor(156, 163, 175);
     pdf.setLineWidth(0.25);
     pdf.line(margin, y, pageWidth - margin, y);
 
-    y += 10;
+    y += 8;
     pdf.setDrawColor(31, 41, 55);
     pdf.setLineWidth(0.25);
-    pdf.rect(margin, y, 62, 13);
+    pdf.rect(margin, y, 46, 11);
     pdf.setTextColor(75, 85, 99);
     pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(8);
-    pdf.text("Voucher No", margin + 4, y + 5);
+    pdf.setFontSize(8.5);
+    pdf.text("Voucher No", margin + 3, y + 4.2);
     pdf.setTextColor(17, 24, 39);
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(10);
-    pdf.text(voucherNo, margin + 4, y + 10);
+    pdf.text(voucherNo, margin + 3, y + 8.4);
 
-    pdf.rect(pageWidth - margin - 42, y, 42, 13);
+    pdf.rect(pageWidth - margin - 34, y, 34, 11);
     pdf.setTextColor(17, 24, 39);
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(11);
-    pdf.text(isCashOut ? "CASH OUT" : "CASH IN", pageWidth - margin - 21, y + 8.5, {
-      align: "center",
-    });
+    pdf.setFontSize(9);
+    pdf.text(
+      isCashOut ? "CASH OUT" : "CASH IN",
+      pageWidth - margin - 17,
+      y + 7.4,
+      {
+        align: "center",
+      },
+    );
 
-    y += 24;
+    y += 20;
     const detailRows = [
       ["From", bookName || "-"],
       ["Receiver", receiverName],
@@ -1138,8 +1169,8 @@ const CashInOutTable = () => {
         row?.paymentMode === "Bank" ? row?.bankAccount || "-" : "-",
       ],
     ];
-    const detailsRowHeight = 10;
-    const detailsHeaderHeight = 13;
+    const detailsRowHeight = 7.5;
+    const detailsHeaderHeight = 10;
     const detailsBoxHeight =
       detailsHeaderHeight + detailRows.length * detailsRowHeight;
 
@@ -1149,71 +1180,84 @@ const CashInOutTable = () => {
 
     pdf.setTextColor(17, 24, 39);
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(11);
-    pdf.text("Transaction Details", margin + 5, y + 8.5);
+    pdf.setFontSize(9.8);
+    pdf.text("Transaction Details", margin + 4, y + 6.7);
 
     pdf.setDrawColor(209, 213, 219);
-    pdf.line(margin, y + detailsHeaderHeight, pageWidth - margin, y + detailsHeaderHeight);
+    pdf.line(
+      margin,
+      y + detailsHeaderHeight,
+      pageWidth - margin,
+      y + detailsHeaderHeight,
+    );
 
-    const labelColumnWidth = 48;
-    const labelX = margin + 5;
-    const valueX = margin + labelColumnWidth + 5;
+    const labelColumnWidth = 38;
+    const labelX = margin + 4;
+    const valueX = margin + labelColumnWidth + 4;
     let rowTop = y + detailsHeaderHeight;
 
-    pdf.setFontSize(8);
+    pdf.setFontSize(8.4);
     detailRows.forEach(([label, value], index) => {
-      const textY = rowTop + 6.5;
+      const textY = rowTop + 5;
       if (index > 0) {
         pdf.setDrawColor(229, 231, 235);
         pdf.line(margin, rowTop, pageWidth - margin, rowTop);
       }
       pdf.setDrawColor(229, 231, 235);
-      pdf.line(margin + labelColumnWidth, rowTop, margin + labelColumnWidth, rowTop + detailsRowHeight);
+      pdf.line(
+        margin + labelColumnWidth,
+        rowTop,
+        margin + labelColumnWidth,
+        rowTop + detailsRowHeight,
+      );
       pdf.setFont("helvetica", "bold");
       pdf.setTextColor(55, 65, 81);
       pdf.text(label, labelX, textY);
       pdf.setFont("helvetica", "normal");
       pdf.setTextColor(17, 24, 39);
       pdf.text(
-        pdf.splitTextToSize(String(value), contentWidth - labelColumnWidth - 12),
+        pdf.splitTextToSize(
+          String(value),
+          contentWidth - labelColumnWidth - 12,
+        ),
         valueX,
         textY,
       );
       rowTop += detailsRowHeight;
     });
 
-    y += detailsBoxHeight + 12;
-    const amountBoxHeight = 22;
+    y += detailsBoxHeight + 7;
+    const amountBoxHeight = 16;
     pdf.setDrawColor(31, 41, 55);
     pdf.setLineWidth(0.35);
     pdf.rect(margin, y, contentWidth, amountBoxHeight);
     pdf.setTextColor(75, 85, 99);
     pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(9);
-    pdf.text("Paid Amount", margin + 6, y + 9);
+    pdf.setFontSize(9.6);
+    pdf.text("Paid Amount", margin + 4, y + 8);
     pdf.setTextColor(17, 24, 39);
     const amountRightX = pageWidth - margin - 6;
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(8);
+    pdf.setFontSize(6.5);
     const currency = "BDT";
     const currencyWidth = pdf.getTextWidth(currency);
-    pdf.text(currency, amountRightX, y + 14, {
+    pdf.text(currency, amountRightX, y + 10.5, {
       align: "right",
     });
-    pdf.setFontSize(19);
-    pdf.text(amount, amountRightX - currencyWidth - 3, y + 15, {
+    pdf.setFontSize(15);
+    pdf.text(amount, amountRightX - currencyWidth - 2, y + 11.3, {
       align: "right",
     });
 
-    y += amountBoxHeight + 18;
+    y += amountBoxHeight + 11;
     pdf.setTextColor(17, 24, 39);
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(11);
+    pdf.setFontSize(9);
     pdf.text("Note", margin, y);
 
-    y += 7;
+    y += 5;
     const noteBoxY = y;
-    const noteBoxHeight = 24;
+    const noteBoxHeight = 18;
     pdf.setDrawColor(156, 163, 175);
     pdf.setLineWidth(0.25);
     pdf.rect(margin, noteBoxY, contentWidth, noteBoxHeight);
@@ -1227,14 +1271,14 @@ const CashInOutTable = () => {
       String(row?.remarks || row?.note || "-"),
       contentWidth - 14,
     );
-    pdf.text(noteLines.slice(0, 3), margin + 7, noteBoxY + 9);
+    pdf.text(noteLines.slice(0, 3), margin + 5, noteBoxY + 7);
 
-    y = noteBoxY + noteBoxHeight + 22;
+    y = noteBoxY + noteBoxHeight + 15;
     pdf.setDrawColor(75, 85, 99);
     pdf.setLineWidth(0.2);
     pdf.setTextColor(55, 65, 81);
-    const signatureWidth = 44;
-    const signatureGap = 18;
+    const signatureWidth = 30;
+    const signatureGap = 12;
     const signatureGroupWidth = signatureWidth * 3 + signatureGap * 2;
     const preparedX = (pageWidth - signatureGroupWidth) / 2;
     const approvedX = preparedX + (signatureWidth + signatureGap) * 2;
@@ -1245,17 +1289,17 @@ const CashInOutTable = () => {
     ].forEach(([x, label]) => {
       pdf.line(x, y, x + signatureWidth, y);
       pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(9);
-      pdf.text(label, x + signatureWidth / 2, y + 7, { align: "center" });
+      pdf.setFontSize(8);
+      pdf.text(label, x + signatureWidth / 2, y + 5.5, { align: "center" });
     });
 
     pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(8);
+    pdf.setFontSize(7.2);
     pdf.setTextColor(107, 114, 128);
     pdf.text(
       "This voucher is generated electronically from Kafela Mart accounts system.",
       pageWidth / 2,
-      y + 20,
+      pageHeight - 5,
       { align: "center" },
     );
 
@@ -1266,10 +1310,10 @@ const CashInOutTable = () => {
     };
   };
 
-  const handleVoucherOpen = (row) => {
+  const handleVoucherOpen = async (row) => {
     try {
       if (voucherPreview.url) URL.revokeObjectURL(voucherPreview.url);
-      const { pdf, filename, title } = createVoucherPdf(row);
+      const { pdf, filename, title } = await createVoucherPdf(row);
       const blob = pdf.output("blob");
       const url = URL.createObjectURL(blob);
       setVoucherPreview({ open: true, blob, url, filename, title });
@@ -1363,7 +1407,9 @@ const CashInOutTable = () => {
     if (!loan) return null;
     return (
       <div className="mt-2 grid grid-cols-1 gap-1 rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 sm:grid-cols-3">
-        <span>নিয়েছি: ৳{Number(loan.totalLoanTaken || 0).toLocaleString()}</span>
+        <span>
+          নিয়েছি: ৳{Number(loan.totalLoanTaken || 0).toLocaleString()}
+        </span>
         <span>পরিশোধ: ৳{Number(loan.totalLoanPaid || 0).toLocaleString()}</span>
         <span>পাবে: ৳{Number(loan.netBalance || 0).toLocaleString()}</span>
       </div>
@@ -1583,7 +1629,7 @@ const CashInOutTable = () => {
       </div>
 
       {/* Filters */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-7 gap-4 items-end mb-6 w-full [&>*]:min-w-0">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-9 gap-4 items-end mb-6 w-full [&>*]:min-w-0">
         <DateRangeFilter
           startDate={startDate}
           endDate={endDate}
@@ -1669,6 +1715,20 @@ const CashInOutTable = () => {
           />
         </div>
         <div className="flex flex-col">
+          <label className="text-sm text-slate-600 mb-1">Voucher No</label>
+          <input
+            value={filterVoucherNo}
+            onChange={(e) => {
+              setFilterVoucherNo(e.target.value);
+              setCurrentPage(1);
+              setStartPage(1);
+            }}
+            placeholder="HG-0034"
+            className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 shadow-sm"
+          />
+        </div>
+
+        <div className="flex flex-col">
           <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
             {t.supplier}
           </label>
@@ -1706,9 +1766,12 @@ const CashInOutTable = () => {
             className="text-black"
           />
         </div>
-        <div className="sm:col-span-2 xl:col-span-7">
+        <div className="flex flex-col">
+          <label className="text-sm text-transparent mb-1 select-none">
+            Clear
+          </label>
           <button
-            className="h-11 w-full bg-white border border-slate-200 hover:bg-slate-50 text-slate-800 transition rounded-xl px-4 text-sm font-semibold"
+            className="h-11 w-full bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-700 transition rounded-xl px-4 text-sm font-semibold"
             onClick={clearFilters}
             type="button"
           >
@@ -2274,9 +2337,7 @@ const CashInOutTable = () => {
 
           {isLoanCategory(currentProduct?.category) && (
             <div>
-              <label className="block text-sm text-slate-600 mb-1">
-                Loan
-              </label>
+              <label className="block text-sm text-slate-600 mb-1">Loan</label>
               <Select
                 options={loanSelectOptions}
                 value={

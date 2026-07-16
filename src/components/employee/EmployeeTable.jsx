@@ -37,6 +37,11 @@ import {
 import { useGetAllDepartmentsQuery } from "../../features/department/department";
 import { useGetAllDesignationsQuery } from "../../features/designation/designation";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
+import { useGetAllLogoQuery } from "../../features/logo/logo";
+import {
+  DEFAULT_COMPANY_NAME,
+  buildAssetUrl,
+} from "../../utils/pdfBranding";
 
 const isActiveEmployee = (employee) =>
   String(employee?.status || "")
@@ -443,6 +448,8 @@ const EmployeeTable = () => {
     useGetAllDepartmentsQuery({ page: 1, limit: 500 });
   const { data: designationsData, isLoading: isDesignationsLoading } =
     useGetAllDesignationsQuery({ page: 1, limit: 500 });
+  const { data: logoData } = useGetAllLogoQuery();
+  const payrollLogoUrl = buildAssetUrl(logoData?.data?.file);
 
   // ----------------------------
   // Options
@@ -1237,6 +1244,17 @@ const EmployeeTable = () => {
               filter: none !important;
               outline: none !important;
             }
+            #invoiceCapture .salary-brand-name,
+            #invoiceCapture .salary-title-block h3 {
+              color: #111827 !important;
+            }
+            #invoiceCapture .salary-brand-subtitle,
+            #invoiceCapture .salary-title-block p {
+              color: #525252 !important;
+            }
+            #invoiceCapture .salary-brand-phone {
+              color: #737373 !important;
+            }
           `;
           clonedDoc.head.appendChild(style);
         },
@@ -1315,6 +1333,65 @@ const EmployeeTable = () => {
             }
             #invoiceCapture table { page-break-inside: avoid; break-inside: avoid; }
             #invoiceCapture tr { page-break-inside: avoid; break-inside: avoid; }
+            #invoiceCapture .salary-statement-header {
+              display: flex !important;
+              align-items: center !important;
+              justify-content: space-between !important;
+              gap: 40px !important;
+              margin-bottom: 36px !important;
+            }
+            #invoiceCapture .salary-branding-block {
+              display: flex !important;
+              flex-direction: column !important;
+              align-items: flex-start !important;
+              min-width: 0 !important;
+            }
+            #invoiceCapture .salary-brand-logo {
+              width: auto !important;
+              height: 68px !important;
+              max-width: 220px !important;
+              object-fit: contain !important;
+              margin: 0 0 10px !important;
+            }
+            #invoiceCapture .salary-brand-name {
+              color: #111827 !important;
+              font-size: 28px !important;
+              line-height: 1.05 !important;
+              font-weight: 900 !important;
+              margin: 0 !important;
+            }
+            #invoiceCapture .salary-brand-subtitle {
+              color: #525252 !important;
+              font-size: 14px !important;
+              line-height: 1.35 !important;
+              font-weight: 600 !important;
+              margin: 8px 0 0 !important;
+            }
+            #invoiceCapture .salary-brand-phone {
+              color: #737373 !important;
+              font-size: 14px !important;
+              line-height: 1.35 !important;
+              font-weight: 400 !important;
+              margin: 6px 0 0 !important;
+            }
+            #invoiceCapture .salary-title-block {
+              flex: 0 0 auto !important;
+              text-align: right !important;
+            }
+            #invoiceCapture .salary-title-block h3 {
+              color: #111827 !important;
+              font-size: 27px !important;
+              line-height: 1.12 !important;
+              font-weight: 900 !important;
+              margin: 0 !important;
+            }
+            #invoiceCapture .salary-title-block p {
+              color: #525252 !important;
+              font-size: 14px !important;
+              line-height: 1.35 !important;
+              font-weight: 600 !important;
+              margin: 8px 0 0 !important;
+            }
             @media print {
               html,
               body {
@@ -1329,8 +1406,9 @@ const EmployeeTable = () => {
                 padding: 8mm !important;
                 zoom: 1;
               }
-              #invoiceCapture > .flex:first-child {
-                margin-bottom: 24px !important;
+              #invoiceCapture > .flex:first-child,
+              #invoiceCapture .salary-statement-header {
+                margin-bottom: 30px !important;
               }
               #invoiceCapture > .grid {
                 margin-bottom: 24px !important;
@@ -1436,33 +1514,26 @@ const EmployeeTable = () => {
     return date.toLocaleDateString("en-GB");
   };
 
-  const handleDownloadSelectedSheet = () => {
-    if (!selectedEmployees.length) {
-      toast.error("Please select employees first!");
-      return;
-    }
-
-    const rows = selectedEmployees.map((emp, idx) => ({
+  const getSelectedPayrollRows = () =>
+    selectedEmployees.map((emp, idx) => ({
       SL: idx + 1,
       Date: formatExportDate(emp.date || emp.createdAt),
       Employee: emp.name || "-",
       "Employee ID": emp.employee_id || "-",
       "Basic Salary": Number(emp.basic_salary || 0),
       Incentive: Number(emp.incentive || 0),
-      "Festival Bonus": Number(emp.festival_bonus || 0),
-      "Holiday Days": Number(emp.holiday_payment || 0),
       Advance: Number(emp.advance || 0),
-      Late: Number(emp.late || 0),
-      "Early Leave": Number(emp.early_leave || 0),
-      Absent: Number(emp.absent || 0),
-      "Friday Absent": Number(emp.friday_absent || 0),
-      "Unapproval Absent": Number(emp.unapproval_absent || 0),
       "Total Salary": Number(emp.total_salary || 0),
       "Net Salary": Number(emp.net_salary || 0),
-      Status: emp.status || "-",
-      Note: emp.note || "",
-      Remarks: emp.remarks || "",
     }));
+
+  const handleDownloadSelectedSheet = () => {
+    if (!selectedEmployees.length) {
+      toast.error("Please select employees first!");
+      return;
+    }
+
+    const rows = getSelectedPayrollRows();
 
     const worksheet = XLSX.utils.json_to_sheet(rows);
     worksheet["!cols"] = [
@@ -1472,19 +1543,10 @@ const EmployeeTable = () => {
       { wch: 14 },
       { wch: 14 },
       { wch: 12 },
-      { wch: 13 },
-      { wch: 14 },
       { wch: 12 },
-      { wch: 8 },
-      { wch: 12 },
-      { wch: 10 },
-      { wch: 14 },
-      { wch: 18 },
       { wch: 14 },
       { wch: 14 },
       { wch: 12 },
-      { wch: 28 },
-      { wch: 28 },
     ];
 
     const workbook = XLSX.utils.book_new();
@@ -1493,6 +1555,272 @@ const EmployeeTable = () => {
     const fileDate = new Date().toISOString().slice(0, 10);
     XLSX.writeFile(workbook, `selected-payroll-${fileDate}.xlsx`);
     toast.success("Selected payroll sheet downloaded!");
+  };
+
+  const drawPayrollSheetSignatures = (pdf) => {
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const signatureY = pageHeight - 16;
+    const signatureWidth = 48;
+    const signatureGap = 22;
+    const groupWidth = signatureWidth * 3 + signatureGap * 2;
+    const startX = (pageWidth - groupWidth) / 2;
+
+    [
+      [startX, "Prepared By"],
+      [startX + signatureWidth + signatureGap, "Checked By"],
+      [startX + (signatureWidth + signatureGap) * 2, "Approved By"],
+    ].forEach(([x, label]) => {
+      pdf.setDrawColor(71, 85, 105);
+      pdf.line(x, signatureY, x + signatureWidth, signatureY);
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(7);
+      pdf.text(label, x + signatureWidth / 2, signatureY + 4.5, {
+        align: "center",
+      });
+    });
+  };
+
+  const handleDownloadSelectedPdf = async () => {
+    if (!selectedEmployees.length) {
+      toast.error("Please select employees first!");
+      return;
+    }
+
+    const autoTable = (await import("jspdf-autotable")).default;
+    const rows = getSelectedPayrollRows();
+    const pdf = new jsPDF("l", "mm", "a4");
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const generatedAt = new Date().toLocaleDateString("en-GB");
+    const columns = [
+      "SL",
+      "Date",
+      "Employee",
+      "Employee ID",
+      "Basic Salary",
+      "Incentive",
+      "Advance",
+      "Total Salary",
+      "Net Salary",
+    ];
+
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(14);
+    pdf.text(DEFAULT_COMPANY_NAME, 12, 12);
+    pdf.setFontSize(12);
+    pdf.text("Selected Payroll Sheet", pageWidth / 2, 12, { align: "center" });
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(8);
+    pdf.text(`Date: ${generatedAt}`, pageWidth - 12, 12, { align: "right" });
+    pdf.text(`Total Selected: ${rows.length}`, pageWidth - 12, 17, {
+      align: "right",
+    });
+
+    autoTable(pdf, {
+      startY: 22,
+      head: [columns],
+      body: rows.map((row) => columns.map((column) => row[column] ?? "")),
+      theme: "grid",
+      margin: { left: 8, right: 8, bottom: 26 },
+      styles: {
+        font: "helvetica",
+        fontSize: 7.2,
+        cellPadding: 1.5,
+        overflow: "linebreak",
+        valign: "middle",
+        textColor: [15, 23, 42],
+        lineColor: [203, 213, 225],
+        lineWidth: 0.1,
+      },
+      headStyles: {
+        fillColor: [241, 245, 249],
+        textColor: [51, 65, 85],
+        fontStyle: "bold",
+      },
+      columnStyles: {
+        0: { cellWidth: 10, halign: "center" },
+        1: { cellWidth: 24 },
+        2: { cellWidth: 60 },
+        3: { cellWidth: 28 },
+        4: { cellWidth: 24, halign: "right" },
+        5: { cellWidth: 24, halign: "right" },
+        6: { cellWidth: 24, halign: "right" },
+        7: { cellWidth: 24, halign: "right" },
+        8: { cellWidth: 24, halign: "right" },
+      },
+      didDrawPage: () => {
+        drawPayrollSheetSignatures(pdf);
+      },
+    });
+
+    const fileDate = new Date().toISOString().slice(0, 10);
+    pdf.save(`selected-payroll-${fileDate}.pdf`);
+    toast.success("Selected payroll PDF sheet downloaded!");
+  };
+
+  const handlePrintSelectedSheet = () => {
+    if (!selectedEmployees.length) {
+      toast.error("Please select employees first!");
+      return;
+    }
+
+    const printWindow = window.open("", "_blank", "width=1200,height=800");
+    if (!printWindow) {
+      toast.error("Popup blocked! Allow popups then try again.");
+      return;
+    }
+
+    const rows = getSelectedPayrollRows();
+    const columns = [
+      "SL",
+      "Date",
+      "Employee",
+      "Employee ID",
+      "Basic Salary",
+      "Incentive",
+      "Advance",
+      "Total Salary",
+      "Net Salary",
+    ];
+
+    const escapeHtml = (value) =>
+      String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+
+    const tableRows = rows
+      .map(
+        (row) => `
+          <tr>
+            ${columns
+              .map((column) => `<td>${escapeHtml(row[column])}</td>`)
+              .join("")}
+          </tr>
+        `,
+      )
+      .join("");
+
+    printWindow.document.open();
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Selected Payroll Sheet</title>
+          <style>
+            @page { size: A4 landscape; margin: 8mm; }
+            * { box-sizing: border-box; }
+            body {
+              margin: 0;
+              font-family: Arial, sans-serif;
+              color: #0f172a;
+              background: #fff;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            .sheet-page {
+              min-height: 194mm;
+              display: flex;
+              flex-direction: column;
+            }
+            .sheet-header {
+              display: flex;
+              align-items: flex-start;
+              justify-content: space-between;
+              gap: 24px;
+              margin-bottom: 10px;
+            }
+            h1 {
+              margin: 0;
+              font-size: 18px;
+              line-height: 1.2;
+            }
+            h2 {
+              margin: 0;
+              font-size: 16px;
+              text-align: center;
+            }
+            .meta {
+              margin: 0;
+              font-size: 11px;
+              text-align: right;
+              color: #475569;
+              white-space: nowrap;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              table-layout: fixed;
+              font-size: 9px;
+            }
+            th, td {
+              border: 1px solid #cbd5e1;
+              padding: 3px 4px;
+              vertical-align: middle;
+              word-break: break-word;
+            }
+            th {
+              background: #f1f5f9;
+              color: #334155;
+              font-weight: 700;
+            }
+            td:nth-child(1),
+            td:nth-child(n+5):nth-child(-n+9) {
+              text-align: right;
+            }
+            .signatures {
+              display: grid;
+              grid-template-columns: repeat(3, 1fr);
+              gap: 34px;
+              margin-top: auto;
+              padding-top: 34px;
+              page-break-inside: avoid;
+            }
+            .signature {
+              border-top: 1px solid #475569;
+              padding-top: 6px;
+              text-align: center;
+              font-size: 11px;
+              font-weight: 700;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="sheet-page">
+            <div class="sheet-header">
+              <div>
+                <h1>${escapeHtml(DEFAULT_COMPANY_NAME)}</h1>
+                <p class="meta" style="text-align:left;">Payroll sheet</p>
+              </div>
+              <h2>Selected Payroll Sheet</h2>
+              <div>
+                <p class="meta">Date: ${escapeHtml(new Date().toLocaleDateString("en-GB"))}</p>
+                <p class="meta">Total Selected: ${rows.length}</p>
+              </div>
+            </div>
+            <table>
+              <thead>
+                <tr>${columns.map((column) => `<th>${escapeHtml(column)}</th>`).join("")}</tr>
+              </thead>
+              <tbody>${tableRows}</tbody>
+            </table>
+            <div class="signatures">
+              <div class="signature">Prepared By</div>
+              <div class="signature">Checked By</div>
+              <div class="signature">Approved By</div>
+            </div>
+          </div>
+          <script>
+            window.onload = function() {
+              window.focus();
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   //
@@ -1519,6 +1847,16 @@ const EmployeeTable = () => {
     };
 
     const money = (n) => Number(n || 0).toLocaleString();
+    const brandHtml = payrollLogoUrl
+      ? `
+            <img
+              class="brand-logo"
+              src="${escapeHtml(payrollLogoUrl)}"
+              alt="${escapeHtml(DEFAULT_COMPANY_NAME)}"
+            />
+            <h1>${escapeHtml(DEFAULT_COMPANY_NAME)}</h1>
+          `
+      : `<h1>${escapeHtml(DEFAULT_COMPANY_NAME)}</h1>`;
 
     const sessionSuffix = String(Date.now()).slice(-6);
 
@@ -1533,7 +1871,7 @@ const EmployeeTable = () => {
         <div class="invoice-container invoice-page">
           <div class="invoice-header">
             <div class="left-header">
-              <h1>Kafela Mart</h1>
+              ${brandHtml}
               <p class="sub">Official Salary Statement</p>
               <p class="phone">Phone: +880 9647-555333</p>
             </div>
@@ -1630,6 +1968,10 @@ const EmployeeTable = () => {
               <p class="sig-value">${escapeHtml(emp?.name || "-")}</p>
             </div>
             <div class="signature-box">
+              <p class="sig-label">Checked By</p>
+              <p class="sig-value">Accounts</p>
+            </div>
+            <div class="signature-box">
               <p class="sig-label">Authorized By</p>
               <p class="sig-value">Kafela Mart Management</p>
             </div>
@@ -1682,46 +2024,67 @@ const EmployeeTable = () => {
           .invoice-header {
             display: flex;
             justify-content: space-between;
+            align-items: center;
+            gap: 40px;
+            margin-bottom: 38px;
+          }
+
+          .left-header {
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
             align-items: flex-start;
-            margin-bottom: 34px;
+          }
+
+          .brand-logo {
+            display: block;
+            width: auto;
+            height: 72px;
+            max-width: 220px;
+            object-fit: contain;
+            margin: 0 0 10px;
           }
 
           .left-header h1 {
             margin: 0;
-            font-size: 30px;
+            font-size: 28px;
+            line-height: 1.05;
             font-weight: 800;
-            color: #4f46e5;
+            color: #0f172a;
           }
 
           .sub {
-            margin: 4px 0 0;
-            font-size: 16px;
-            font-weight: 700;
-            color: #64748b;
+            margin: 7px 0 0;
+            font-size: 14px;
+            font-weight: 600;
+            color: #525252;
           }
 
           .phone {
             margin: 6px 0 0;
-            font-size: 16px;
-            color: #94a3b8;
+            font-size: 14px;
+            font-weight: 400;
+            color: #737373;
           }
 
           .right-header {
             text-align: right;
+            flex: 0 0 auto;
           }
 
           .right-header h2 {
             margin: 0;
-            font-size: 26px;
+            font-size: 27px;
+            line-height: 1.12;
             font-weight: 800;
             color: #0f172a;
           }
 
           .right-header p {
-            margin: 4px 0 0;
-            font-size: 16px;
-            font-weight: 700;
-            color: #64748b;
+            margin: 7px 0 0;
+            font-size: 14px;
+            font-weight: 600;
+            color: #525252;
           }
 
           .employee-box {
@@ -1854,15 +2217,16 @@ const EmployeeTable = () => {
             border-radius: 8px;
             padding: 16px 20px;
             font-size: 16px;
+            font-weight: 700;
             line-height: 1.5rem;
-            color: #64748b;
+            color: #000000;
             white-space: pre-wrap;
           }
 
           .signature-section {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 64px;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 36px;
             margin-top: 38px;
             page-break-inside: avoid;
             break-inside: avoid;
@@ -2011,6 +2375,24 @@ const EmployeeTable = () => {
           >
             <Download size={18} />
             {t.download_sheet || "Download Sheet"} ({selectedIds.length})
+          </button>
+
+          <button
+            className="inline-flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl disabled:opacity-60 shadow-sm"
+            onClick={handleDownloadSelectedPdf}
+            disabled={selectedIds.length === 0}
+          >
+            <FileText size={18} />
+            {t.download_pdf || "Download PDF"} ({selectedIds.length})
+          </button>
+
+          <button
+            className="inline-flex items-center justify-center gap-2 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-xl border border-slate-200 disabled:opacity-60 shadow-sm"
+            onClick={handlePrintSelectedSheet}
+            disabled={selectedIds.length === 0}
+          >
+            <Printer size={18} />
+            {t.print_sheet || "Print Sheet"} ({selectedIds.length})
           </button>
 
           <button
@@ -3147,15 +3529,23 @@ const EmployeeTable = () => {
             ref={invoiceRef}
             className="bg-white text-slate-900 rounded-2xl p-10 border border-slate-200 shadow-sm"
           >
-            <div className="flex justify-between items-start mb-9">
-              <div>
-                <h3 className="text-3xl font-black text-indigo-600 mb-2">
-                  Kafela Mart
-                </h3>
-                <p className="text-base font-bold text-slate-500">
+            <div className="salary-statement-header flex justify-between items-center gap-10 mb-10">
+              <div className="salary-branding-block min-w-0 flex flex-col items-start">
+                {payrollLogoUrl ? (
+                  <img
+                    src={payrollLogoUrl}
+                    alt={DEFAULT_COMPANY_NAME}
+                    crossOrigin="anonymous"
+                    className="salary-brand-logo h-[68px] max-w-[220px] object-contain mb-3"
+                  />
+                ) : null}
+                <div className="salary-brand-name text-[28px] leading-none font-black text-slate-900">
+                  {DEFAULT_COMPANY_NAME}
+                </div>
+                <div className="salary-brand-subtitle mt-2 text-sm font-semibold text-neutral-600">
                   Official Salary Statement
-                </p>
-                <p className="text-base text-slate-400 mt-2">
+                </div>
+                <p className="salary-brand-phone mt-1.5 text-sm font-normal text-neutral-500">
                   Phone: +880 9647-555333
                 </p>
               </div>
@@ -3170,14 +3560,14 @@ const EmployeeTable = () => {
                 <p className="text-xs text-slate-400 mt-2">Phone: +880 9647-555333</p>
               </div> */}
 
-              <div className="text-right">
-                <h3 className="text-2xl font-black text-slate-900 mb-4 tracking-tight">
+              <div className="salary-title-block text-right shrink-0">
+                <h3 className="text-[27px] leading-tight font-black text-slate-900 tracking-tight">
                   {t.salary_statement || "INVOICE"}
                 </h3>
-                <p className="text-base font-bold text-slate-500">
+                <p className="mt-3 text-sm font-semibold text-neutral-600">
                   Date: {new Date().toLocaleDateString()}
                 </p>
-                <p className="text-base font-bold text-slate-500 mt-2">
+                <p className="mt-1.5 text-sm font-semibold text-neutral-600">
                   ID: {invoiceEmployee?.employee_id}-
                   {String(Date.now()).slice(-6)}
                 </p>
@@ -3326,7 +3716,7 @@ const EmployeeTable = () => {
               <h4 className="text-sm font-black uppercase tracking-widest text-slate-500 mb-3">
                 {t.remarks || "Remarks"}
               </h4>
-              <div className="rounded-lg border border-slate-200 px-5 py-4 text-base font-medium text-slate-500">
+              <div className="rounded-lg border border-slate-200 px-5 py-4 text-base font-bold text-black">
                 {getInvoiceRemarks(invoiceEmployee)}
               </div>
             </div>
@@ -3447,28 +3837,36 @@ const EmployeeTable = () => {
                     idx !== selectedEmployees.length - 1 ? "mb-8" : ""
                   }`}
                 >
-                  <div className="flex justify-between items-start mb-9">
-                    <div>
-                      <h3 className="text-3xl font-black text-indigo-600 mb-2">
-                        Kafela Mart
-                      </h3>
-                      <p className="text-base font-bold text-slate-500">
+                  <div className="salary-statement-header flex justify-between items-center gap-10 mb-10">
+                    <div className="salary-branding-block min-w-0 flex flex-col items-start">
+                      {payrollLogoUrl ? (
+                        <img
+                          src={payrollLogoUrl}
+                          alt={DEFAULT_COMPANY_NAME}
+                          crossOrigin="anonymous"
+                          className="salary-brand-logo h-[68px] max-w-[220px] object-contain mb-3"
+                        />
+                      ) : null}
+                      <div className="salary-brand-name text-[28px] leading-none font-black text-slate-900">
+                        {DEFAULT_COMPANY_NAME}
+                      </div>
+                      <div className="salary-brand-subtitle mt-2 text-sm font-semibold text-neutral-600">
                         {t.official_salary_statement ||
                           "Official Salary Statement"}
-                      </p>
-                      <p className="text-base text-slate-400 mt-2">
+                      </div>
+                      <p className="salary-brand-phone mt-1.5 text-sm font-normal text-neutral-500">
                         Phone: +880 9647-555333
                       </p>
                     </div>
 
-                    <div className="text-right">
-                      <h3 className="text-2xl font-black text-slate-900 mb-4 tracking-tight">
+                    <div className="salary-title-block text-right shrink-0">
+                      <h3 className="text-[27px] leading-tight font-black text-slate-900 tracking-tight">
                         {t.salary_statement || "INVOICE"}
                       </h3>
-                      <p className="text-base font-bold text-slate-500">
+                      <p className="mt-3 text-sm font-semibold text-neutral-600">
                         {t.date}: {new Date().toLocaleDateString()}
                       </p>
-                      <p className="text-base font-bold text-slate-500 mt-2">
+                      <p className="mt-1.5 text-sm font-semibold text-neutral-600">
                         ID: {emp?.employee_id}-{String(Date.now()).slice(-6)}
                       </p>
                     </div>
@@ -3621,18 +4019,27 @@ const EmployeeTable = () => {
                     <h4 className="text-sm font-black uppercase tracking-widest text-slate-500 mb-3">
                       {t.remarks || "Remarks"}
                     </h4>
-                    <div className="rounded-lg border border-slate-200 px-5 py-4 text-base font-medium text-slate-500">
+                    <div className="rounded-lg border border-slate-200 px-5 py-4 text-base font-bold text-black">
                       {getInvoiceRemarks(emp)}
                     </div>
                   </div>
 
-                  <div className="mt-10 grid grid-cols-2 gap-16">
+                  <div className="mt-10 grid grid-cols-3 gap-10">
                     <div className="text-center pt-4 border-t border-slate-200">
                       <p className="text-sm font-black text-slate-500 uppercase tracking-widest mb-4">
                         {t.received_by || "Received By"}
                       </p>
                       <p className="text-lg font-bold text-slate-900">
                         {emp?.name}
+                      </p>
+                    </div>
+
+                    <div className="text-center pt-4 border-t border-slate-200">
+                      <p className="text-sm font-black text-slate-500 uppercase tracking-widest mb-4">
+                        {t.checked_by || "Checked By"}
+                      </p>
+                      <p className="text-lg font-bold text-slate-900">
+                        {t.accounts || "Accounts"}
                       </p>
                     </div>
 

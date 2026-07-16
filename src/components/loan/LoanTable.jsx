@@ -1,5 +1,14 @@
 import { motion } from "framer-motion";
-import { Edit, HandCoins, Plus, Search, Trash2 } from "lucide-react";
+import {
+  Edit,
+  FileSpreadsheet,
+  FileText,
+  HandCoins,
+  Plus,
+  Printer,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
@@ -11,15 +20,29 @@ import {
 } from "../../features/loan/loan";
 import useDebounce from "../../hooks/useDebounce";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
+import DateRangeFilter, {
+  getDatePresetRange,
+} from "../common/DateRangeFilter";
 import Modal from "../common/Modal";
 
 const formatAmount = (value) => Number(value || 0).toLocaleString();
+const EXPORT_COLUMNS = [
+  { label: "Name", key: "name" },
+  { label: "Loan নিয়েছি", key: "totalLoanTaken" },
+  { label: "পরিশোধ", key: "totalLoanPaid" },
+  { label: "কত পাবে", key: "netBalance" },
+  { label: "Status", key: "status" },
+];
 
 const emptyForm = { name: "", note: "", status: "Active" };
 
 const LoanTable = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 400);
+  const defaultDateRange = getDatePresetRange("last30");
+  const [startDate, setStartDate] = useState(defaultDateRange.from);
+  const [endDate, setEndDate] = useState(defaultDateRange.to);
+  const [dateFilterType, setDateFilterType] = useState("last30");
   const [currentPage, setCurrentPage] = useState(1);
   const [startPage, setStartPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -35,6 +58,20 @@ const LoanTable = () => {
     page: currentPage,
     limit: itemsPerPage,
     searchTerm: debouncedSearchTerm || undefined,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
+  });
+  const exportLimit = Math.max(
+    Number(data?.meta?.count || 0),
+    data?.data?.length || 0,
+    1,
+  );
+  const { data: exportData } = useGetAllLoanQuery({
+    page: 1,
+    limit: exportLimit,
+    searchTerm: debouncedSearchTerm || undefined,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
   });
   const [insertLoan, { isLoading: isCreating }] = useInsertLoanMutation();
   const [updateLoan, { isLoading: isUpdating }] = useUpdateLoanMutation();
@@ -42,6 +79,8 @@ const LoanTable = () => {
 
   const rows = data?.data || [];
   const meta = data?.meta || {};
+  const exportRows = exportData?.data || rows;
+  const exportMeta = exportData?.meta || meta;
   const isSaving = isCreating || isUpdating;
 
   useEffect(() => {
@@ -59,6 +98,190 @@ const LoanTable = () => {
     }),
     [meta],
   );
+
+  useEffect(() => {
+    setCurrentPage(1);
+    setStartPage(1);
+  }, [debouncedSearchTerm, startDate, endDate]);
+
+  const dateRangeLabel = useMemo(() => {
+    if (startDate && endDate) return `${startDate} to ${endDate}`;
+    if (startDate) return `From ${startDate}`;
+    if (endDate) return `Until ${endDate}`;
+    return "All Data";
+  }, [startDate, endDate]);
+
+  const exportSummary = useMemo(
+    () => ({
+      totalLoanTaken: exportMeta.totalLoanTaken || 0,
+      totalLoanPaid: exportMeta.totalLoanPaid ?? exportMeta.totalLoanGiven ?? 0,
+      netBalance: exportMeta.netBalance || 0,
+    }),
+    [exportMeta],
+  );
+
+  const escapeHtml = (value) =>
+    String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+
+  const getExportCellValue = (row, key) => {
+    if (["totalLoanTaken", "totalLoanPaid", "netBalance"].includes(key)) {
+      return Number(row[key] || 0);
+    }
+    return row[key] || "";
+  };
+
+  const getExportRows = () =>
+    exportRows.map((row) =>
+      EXPORT_COLUMNS.reduce(
+        (acc, column) => ({
+          ...acc,
+          [column.label]: getExportCellValue(row, column.key),
+        }),
+        {},
+      ),
+    );
+
+  const getExportFileName = (extension) => {
+    const from = startDate || "all";
+    const to = endDate || "data";
+    return `loan-history-${from}-${to}.${extension}`;
+  };
+
+  const requireExportRows = () => {
+    if (exportRows.length) return true;
+    toast.error("No loan data found for this date range.");
+    return false;
+  };
+
+  const handleDownloadSheet = async () => {
+    if (!requireExportRows()) return;
+
+    try {
+      const XLSX = await import("xlsx");
+      const worksheetRows = [
+        { Field: "Report", Value: "Loan History" },
+        { Field: "Date Range", Value: dateRangeLabel },
+        { Field: "Total Loan নিয়েছি", Value: exportSummary.totalLoanTaken },
+        { Field: "Total পরিশোধ", Value: exportSummary.totalLoanPaid },
+        { Field: "কত পাবে", Value: exportSummary.netBalance },
+        {},
+        ...getExportRows(),
+      ];
+      const worksheet = XLSX.utils.json_to_sheet(worksheetRows, {
+        skipHeader: false,
+      });
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Loan History");
+      XLSX.writeFile(workbook, getExportFileName("xlsx"));
+    } catch (err) {
+      toast.error("Google Sheet download failed.");
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!requireExportRows()) return;
+
+    try {
+      const { jsPDF } = await import("jspdf");
+      const autoTable = (await import("jspdf-autotable")).default;
+      const doc = new jsPDF({ orientation: "landscape" });
+
+      doc.setFontSize(16);
+      doc.text("Loan History", 14, 16);
+      doc.setFontSize(10);
+      doc.text(`Date Range: ${dateRangeLabel}`, 14, 23);
+      doc.text(`Total Loan: ${formatAmount(exportSummary.totalLoanTaken)}`, 14, 30);
+      doc.text(`Total Paid: ${formatAmount(exportSummary.totalLoanPaid)}`, 82, 30);
+      doc.text(`Net Balance: ${formatAmount(exportSummary.netBalance)}`, 145, 30);
+
+      autoTable(doc, {
+        startY: 38,
+        head: [EXPORT_COLUMNS.map((column) => column.label)],
+        body: exportRows.map((row) =>
+          EXPORT_COLUMNS.map((column) => {
+            const value = getExportCellValue(row, column.key);
+            return typeof value === "number" ? formatAmount(value) : value;
+          }),
+        ),
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [79, 70, 229] },
+      });
+
+      doc.save(getExportFileName("pdf"));
+    } catch (err) {
+      toast.error("PDF download failed.");
+    }
+  };
+
+  const handlePrint = () => {
+    if (!requireExportRows()) return;
+
+    const headerMarkup = EXPORT_COLUMNS.map(
+      (column) => `<th>${escapeHtml(column.label)}</th>`,
+    ).join("");
+    const rowsMarkup = exportRows
+      .map(
+        (row) => `
+          <tr>
+            ${EXPORT_COLUMNS.map((column) => {
+              const value = getExportCellValue(row, column.key);
+              return `<td>${escapeHtml(
+                typeof value === "number" ? formatAmount(value) : value,
+              )}</td>`;
+            }).join("")}
+          </tr>`,
+      )
+      .join("");
+
+    const printWindow = window.open("", "_blank", "width=1200,height=800");
+    if (!printWindow) {
+      toast.error("Please allow popups to print loan history.");
+      return;
+    }
+
+    printWindow.document.write(`
+      <!doctype html>
+      <html>
+        <head>
+          <title>Loan History</title>
+          <style>
+            body { font-family: Arial, sans-serif; color: #0f172a; padding: 24px; }
+            h1 { font-size: 22px; margin: 0 0 6px; }
+            .muted { color: #475569; margin: 0 0 16px; }
+            .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 18px; }
+            .summary div { border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px; }
+            .summary span { display: block; color: #64748b; font-size: 11px; margin-bottom: 4px; }
+            .summary strong { font-size: 16px; }
+            table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; }
+            th { background: #f1f5f9; font-weight: 700; }
+            @media print { body { padding: 0; } }
+          </style>
+        </head>
+        <body>
+          <h1>Loan History</h1>
+          <p class="muted">Date Range: ${escapeHtml(dateRangeLabel)}</p>
+          <div class="summary">
+            <div><span>Total Loan নিয়েছি</span><strong>${escapeHtml(formatAmount(exportSummary.totalLoanTaken))}</strong></div>
+            <div><span>Total পরিশোধ</span><strong>${escapeHtml(formatAmount(exportSummary.totalLoanPaid))}</strong></div>
+            <div><span>কত পাবে</span><strong>${escapeHtml(formatAmount(exportSummary.netBalance))}</strong></div>
+          </div>
+          <table>
+            <thead><tr>${headerMarkup}</tr></thead>
+            <tbody>${rowsMarkup}</tbody>
+          </table>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  };
 
   const openCreateModal = () => {
     setEditingLoan(null);
@@ -149,7 +372,7 @@ const LoanTable = () => {
         <SummaryCard label="কত পাবে" value={summary.netBalance} tone="indigo" />
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
         <div className="relative w-full sm:max-w-[520px]">
           <input
             value={searchTerm}
@@ -166,14 +389,51 @@ const LoanTable = () => {
             size={18}
           />
         </div>
-        <button
-          type="button"
-          onClick={openCreateModal}
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white hover:bg-indigo-700"
-        >
-          <Plus size={18} />
-          Add Loan
-        </button>
+        <DateRangeFilter
+          startDate={startDate}
+          endDate={endDate}
+          onStartDateChange={setStartDate}
+          onEndDateChange={setEndDate}
+          onFilterTypeChange={(type) => setDateFilterType(type)}
+          defaultFilter={dateFilterType}
+          compact
+          className="w-full xl:max-w-sm"
+          selectWrapperClassName="w-full"
+        />
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={handleDownloadSheet}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-semibold text-emerald-700 hover:bg-emerald-100"
+          >
+            <FileSpreadsheet size={17} />
+            Google Sheet
+          </button>
+          <button
+            type="button"
+            onClick={handleDownloadPdf}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700 hover:bg-rose-100"
+          >
+            <FileText size={17} />
+            PDF
+          </button>
+          <button
+            type="button"
+            onClick={handlePrint}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            <Printer size={17} />
+            Print
+          </button>
+          <button
+            type="button"
+            onClick={openCreateModal}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white hover:bg-indigo-700"
+          >
+            <Plus size={18} />
+            Add Lender
+          </button>
+        </div>
       </div>
 
       <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200">
@@ -315,7 +575,7 @@ const LoanTable = () => {
       <Modal
         isOpen={isModalOpen}
         onClose={closeModal}
-        title={editingLoan ? "Edit Loan" : "Add Loan"}
+        title={editingLoan ? "Edit Lender" : "Add Lender"}
         maxWidth="max-w-lg"
       >
         <form onSubmit={handleSave} className="space-y-4">

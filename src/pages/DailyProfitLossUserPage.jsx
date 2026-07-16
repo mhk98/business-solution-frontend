@@ -375,10 +375,7 @@ const DailyProfitLossUserPage = () => {
       ),
     totalOrder:
       calcMeta.totalOrder ??
-      allCalcReports.reduce(
-        (sum, row) => sum + Number(row.totalOrder || 0),
-        0,
-      ),
+      allCalcReports.reduce((sum, row) => sum + Number(row.totalOrder || 0), 0),
     totalAmount:
       calcMeta.totalAmount ??
       allCalcReports.reduce(
@@ -598,7 +595,7 @@ const DailyProfitLossUserPage = () => {
         ? allCalcReports
             .map(
               (r) => `<tr>
-                <td>${escapeHtml(r.reportDate || "-")}</td>
+                <td class="date-cell">${escapeHtml(r.reportDate || "-")}</td>
                 <td>${escapeHtml(r.employee?.name || r.name || "-")}</td>
                 <td>${safeNumber(r.failedReceived)}</td>
                 <td>${safeNumber(r.pendingReceived)}</td>
@@ -625,7 +622,7 @@ const DailyProfitLossUserPage = () => {
               const pl = safeNumber(hr?.profitLoss);
               const plColor = pl >= 0 ? "#059669" : "#dc2626";
               return `<tr>
-                <td>${escapeHtml(formatDate(hr?.createdAt))}</td>
+                <td class="date-cell">${escapeHtml(formatDate(hr?.createdAt))}</td>
                 <td>${escapeHtml(hr?.salesType || "-")}</td>
                 <td class="amount">${escapeHtml(formatCurrency(hr?.revenue))}</td>
                 <td class="amount">${escapeHtml(formatCurrency(hr?.return))}</td>
@@ -650,6 +647,7 @@ const DailyProfitLossUserPage = () => {
             table { width: 100%; border-collapse: collapse; margin-top: 6px; }
             th, td { border: 1px solid #e2e8f0; padding: 8px 10px; text-align: left; }
             th { background: #f8fafc; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; font-size: 10px; color: #475569; }
+            .date-cell { min-width: 68px; white-space: nowrap; }
             .amount { font-weight: 700; }
             .breakdown { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 8px; }
             .breakdown-item { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; }
@@ -828,7 +826,10 @@ const DailyProfitLossUserPage = () => {
       setStartPage(currentPage);
     } else if (currentPage > endPage) {
       setStartPage(
-        Math.max(1, Math.floor((currentPage - 1) / pagesPerSet) * pagesPerSet + 1),
+        Math.max(
+          1,
+          Math.floor((currentPage - 1) / pagesPerSet) * pagesPerSet + 1,
+        ),
       );
     }
   }, [currentPage, startPage, endPage, pagesPerSet]);
@@ -1034,15 +1035,19 @@ const DailyProfitLossUserPage = () => {
                                     )
                                   : column.key === "reportDate"
                                     ? row.reportDate || "-"
-                                    : Number(row[column.key] || 0).toLocaleString();
+                                    : Number(
+                                        row[column.key] || 0,
+                                      ).toLocaleString();
 
                             return (
                               <td
                                 key={column.key}
                                 className={`px-4 py-3 ${
-                                  ["name", "totalOrder", "totalAmount"].includes(
-                                    column.key,
-                                  )
+                                  [
+                                    "name",
+                                    "totalOrder",
+                                    "totalAmount",
+                                  ].includes(column.key)
                                     ? "font-semibold text-slate-900"
                                     : ""
                                 }`}

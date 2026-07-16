@@ -54,6 +54,14 @@ export const manufacturerApi = baseApi.injectEndpoints({
       refetchOnMountOrArgChange: true,
     }),
 
+    getSingleManufacturer: build.query({
+      query: (id) => ({
+        url: `manufacturer/${id}`,
+      }),
+      providesTags: (result, error, id) => [{ type: "Manufacturer", id }],
+      refetchOnMountOrArgChange: true,
+    }),
+
     getManufacturerTransactions: build.query({
       query: ({ id, page = 1, limit = 20 }) => ({
         url: `manufacturer/${id}/transactions`,
@@ -88,6 +96,7 @@ export const {
   useDeleteManufacturerMutation,
   useUpdateManufacturerMutation,
   useGetAllManufacturerWithoutQueryQuery,
+  useGetSingleManufacturerQuery,
   useGetManufacturerTransactionsQuery,
   usePayManufacturerAmountMutation,
 } = manufacturerApi;

@@ -11,17 +11,17 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { useMemo, useRef, useState } from "react";
+import { useReactToPrint } from "react-to-print";
 import toast from "react-hot-toast";
 import Select from "react-select";
 import Modal from "../common/Modal";
 import DateRangeFilter from "../common/DateRangeFilter";
+import DocumentBrand from "../common/DocumentBrand";
 import { useGetAllItemWithoutQueryQuery } from "../../features/item/item";
+import { useGetAllLogoQuery } from "../../features/logo/logo";
 import { useGetAllSupplierWithoutQueryQuery } from "../../features/supplier/supplier";
-import { useGetAllBookWithoutQueryQuery } from "../../features/book/book";
-import { useGetAllBankAccountWithoutQueryQuery } from "../../features/bankAccount/bankAccount";
 import {
   useDeleteItemRequisitionMutation,
   useGetAllItemRequisitionQuery,
@@ -29,14 +29,15 @@ import {
   useUpdateItemRequisitionMutation,
 } from "../../features/itemRequisition/itemRequisition";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
+import {
+  DEFAULT_COMPANY_NAME,
+  buildAssetUrl,
+  drawPdfBrandBlock,
+} from "../../utils/pdfBranding";
 
 const initialForm = {
   itemId: "",
   supplierId: "",
-  bookId: "",
-  paymentMode: "",
-  bankName: "",
-  bankAccount: "",
   quantity: "",
   amount: "",
   date: new Date().toISOString().slice(0, 10),
@@ -46,6 +47,7 @@ const initialForm = {
 };
 
 const FILE_SERVER_BASE_URL = import.meta.env.VITE_API_URL || "";
+const ITEM_REQUISITION_VOUCHER_PREFIX = "IR";
 
 const statusOptionsByRole = {
   superAdmin: ["Pending", "Approved"],
@@ -108,6 +110,12 @@ const buildFileUrl = (filePath) => {
   return encodeURI(`${safeBaseUrl}${safePath}`);
 };
 
+const formatVoucherNo = (id, prefix = ITEM_REQUISITION_VOUCHER_PREFIX) => {
+  const numericId = Number(id || 0);
+  const serial = Number.isFinite(numericId) && numericId > 0 ? numericId : 1;
+  return `${prefix}-${String(serial).padStart(4, "0")}`;
+};
+
 const appendFormValue = (formData, key, value) => {
   if (value === undefined || value === null || value === "") return;
   formData.append(key, value);
@@ -129,6 +137,15 @@ const ItemRequisitionTable = () => {
   const [voucherData, setVoucherData] = useState(null);
   const voucherRef = useRef(null);
 
+  const printVoucher = useReactToPrint({
+    content: () => voucherRef.current,
+    contentRef: voucherRef,
+    documentTitle: voucherData?.voucherNo
+      ? String(voucherData.voucherNo)
+      : "item-requisition-voucher",
+    removeAfterPrint: true,
+  });
+
   const role = localStorage.getItem("role");
   const statusOptions = statusOptionsByRole[role] || [];
 
@@ -148,8 +165,7 @@ const ItemRequisitionTable = () => {
     useGetAllItemRequisitionQuery(queryArgs);
   const { data: itemData } = useGetAllItemWithoutQueryQuery();
   const { data: supplierData } = useGetAllSupplierWithoutQueryQuery();
-  const { data: bookData } = useGetAllBookWithoutQueryQuery();
-  const { data: bankData } = useGetAllBankAccountWithoutQueryQuery();
+  const { data: logoData } = useGetAllLogoQuery();
 
   const [insertItemRequisition, { isLoading: isCreating }] =
     useInsertItemRequisitionMutation();
@@ -169,20 +185,12 @@ const ItemRequisitionTable = () => {
     () => makeOptions(supplierData?.data || []),
     [supplierData],
   );
-  const bookOptions = useMemo(
-    () => makeOptions(bookData?.data || []),
-    [bookData],
-  );
-  const bankOptions = useMemo(
-    () =>
-      makeOptions(bankData?.data || [], (row) =>
-        [row.bankName || row.name, row.accountNumber || row.accountNo]
-          .filter(Boolean)
-          .join(" - "),
-      ),
-    [bankData],
-  );
-
+  const logoUrl = useMemo(() => {
+    const logoRecord = Array.isArray(logoData?.data)
+      ? logoData.data[0]
+      : logoData?.data;
+    return buildAssetUrl(logoRecord?.file);
+  }, [logoData]);
   const resetForm = () => {
     setForm(initialForm);
     setEditingRecord(null);
@@ -198,10 +206,6 @@ const ItemRequisitionTable = () => {
     setForm({
       itemId: record.itemId || "",
       supplierId: record.supplierId || "",
-      bookId: record.bookId || "",
-      paymentMode: record.paymentMode || "",
-      bankName: record.bankName || "",
-      bankAccount: record.bankAccount || "",
       quantity: record.quantity || "",
       amount: record.amount || "",
       date: record.date || new Date().toISOString().slice(0, 10),
@@ -221,9 +225,6 @@ const ItemRequisitionTable = () => {
     setForm((prev) => ({
       ...prev,
       [key]: value,
-      ...(key === "paymentMode" && value !== "Bank"
-        ? { bankName: "", bankAccount: "" }
-        : {}),
     }));
   };
 
@@ -251,17 +252,13 @@ const ItemRequisitionTable = () => {
 
   const openVoucher = (record) => {
     setVoucherData({
-      voucherNo: `IRQ-${record.Id}-${String(Date.now()).slice(-6)}`,
+      voucherNo: formatVoucherNo(record.Id),
       date: record.date || record.createdAt || new Date().toISOString().slice(0, 10),
       item: record.item?.name || record.name || "N/A",
       supplier: record.supplier?.name || "N/A",
       procurement: record.procurement || "N/A",
       quantity: Number(record.quantity || 0),
       amount: Number(record.amount || 0),
-      paymentMode: record.paymentMode || "N/A",
-      book: record.book?.name || "N/A",
-      bankName: record.bankName || "N/A",
-      bankAccount: record.bankAccount || "N/A",
       status: record.status || "Pending",
       note: record.note || "—",
     });
@@ -270,37 +267,164 @@ const ItemRequisitionTable = () => {
 
   const downloadVoucherPdf = async () => {
     try {
-      if (!voucherRef.current) return;
+      if (!voucherData) return;
 
-      const canvas = await html2canvas(voucherRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-        logging: false,
-      });
-
-      const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF("p", "mm", "a4");
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
-      const imgProps = pdf.getImageProperties(imgData);
-      const imgWidth = pageWidth;
-      const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
+      const margin = 16;
+      const contentWidth = pageWidth - margin * 2;
+      let y = 18;
 
-      let heightLeft = imgHeight;
-      let position = 0;
+      pdf.setDrawColor(226, 232, 240);
+      pdf.setLineWidth(0.35);
+      pdf.rect(margin - 4, 12, contentWidth + 8, pageHeight - 24);
 
-      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
+      pdf.setFont("helvetica", "bold");
+      pdf.setTextColor(15, 23, 42);
+      pdf.setFontSize(20);
+      pdf.text("ITEM REQUISITION", margin, y + 8);
 
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
-      }
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(9.5);
+      pdf.setTextColor(71, 85, 105);
+      pdf.text(`Voucher No: ${voucherData.voucherNo || "N/A"}`, margin, y + 16);
+      pdf.text(`Date: ${formatDate(voucherData.date)}`, margin, y + 22);
 
-      pdf.save(`${voucherData?.voucherNo || "item-requisition-voucher"}.pdf`);
+      await drawPdfBrandBlock({
+        pdf,
+        logoUrl,
+        companyName: DEFAULT_COMPANY_NAME,
+        x: pageWidth - margin - 42,
+        topY: y,
+        logoMaxWidth: 42,
+        logoMaxHeight: 16,
+        companySize: 9,
+        subtitle: "Item Requisition Voucher",
+        subtitleSize: 7,
+      });
+
+      y += 34;
+
+      const drawBox = (x, topY, width, height, title, rows) => {
+        pdf.setDrawColor(203, 213, 225);
+        pdf.setLineWidth(0.25);
+        pdf.rect(x, topY, width, height);
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(15, 23, 42);
+        pdf.setFontSize(10);
+        pdf.text(title, x + 4, topY + 8);
+
+        let rowY = topY + 17;
+        rows.forEach(([label, value]) => {
+          pdf.setFont("helvetica", "normal");
+          pdf.setTextColor(71, 85, 105);
+          pdf.setFontSize(9.2);
+          pdf.text(String(label), x + 4, rowY);
+          pdf.setFont("helvetica", "bold");
+          pdf.setTextColor(15, 23, 42);
+          const safeValue = String(
+            value === undefined || value === null || value === "" ? "N/A" : value,
+          );
+          pdf.text(
+            pdf.splitTextToSize(safeValue, width - 42).slice(0, 1),
+            x + width - 4,
+            rowY,
+            { align: "right" },
+          );
+          rowY += 7;
+        });
+      };
+
+      const boxGap = 6;
+      const boxWidth = (contentWidth - boxGap) / 2;
+      drawBox(margin, y, boxWidth, 38, "Requisition Details", [
+        ["Procurement", voucherData.procurement],
+        ["Supplier", voucherData.supplier],
+        ["Status", voucherData.status],
+      ]);
+      drawBox(margin + boxWidth + boxGap, y, boxWidth, 38, "Item Summary", [
+        ["Item", voucherData.item],
+        ["Quantity", Number(voucherData.quantity || 0).toFixed(0)],
+        [
+          "Amount",
+          `${Number(voucherData.amount || 0).toLocaleString("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })} BDT`,
+        ],
+      ]);
+
+      y += 48;
+      const noteHeight = 34;
+      pdf.setDrawColor(203, 213, 225);
+      pdf.rect(margin, y, contentWidth, noteHeight);
+      pdf.setFont("helvetica", "bold");
+      pdf.setTextColor(15, 23, 42);
+      pdf.setFontSize(10);
+      pdf.text("Note", margin + 4, y + 8);
+      pdf.setFont("helvetica", "normal");
+      pdf.setTextColor(51, 65, 85);
+      pdf.setFontSize(9);
+      pdf.text(
+        pdf.splitTextToSize(String(voucherData.note || "-"), contentWidth - 8).slice(
+          0,
+          3,
+        ),
+        margin + 4,
+        y + 17,
+      );
+
+      y += noteHeight + 10;
+      const totalBoxWidth = 88;
+      const totalBoxX = pageWidth - margin - totalBoxWidth;
+      pdf.setDrawColor(203, 213, 225);
+      pdf.rect(totalBoxX, y, totalBoxWidth, 24);
+      pdf.setFont("helvetica", "normal");
+      pdf.setTextColor(71, 85, 105);
+      pdf.setFontSize(9.5);
+      pdf.text("Total Quantity", totalBoxX + 5, y + 8);
+      pdf.setTextColor(15, 23, 42);
+      pdf.setFont("helvetica", "bold");
+      pdf.text(
+        Number(voucherData.quantity || 0).toFixed(0),
+        totalBoxX + totalBoxWidth - 5,
+        y + 8,
+        { align: "right" },
+      );
+      pdf.setDrawColor(226, 232, 240);
+      pdf.line(totalBoxX, y + 12, totalBoxX + totalBoxWidth, y + 12);
+      pdf.text("Grand Total", totalBoxX + 5, y + 20);
+      pdf.text(
+        `${Number(voucherData.amount || 0).toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })} BDT`,
+        totalBoxX + totalBoxWidth - 5,
+        y + 20,
+        { align: "right" },
+      );
+
+      y += 58;
+      const signatureWidth = 42;
+      const signatureGap = 20;
+      const groupWidth = signatureWidth * 3 + signatureGap * 2;
+      const startX = (pageWidth - groupWidth) / 2;
+      pdf.setDrawColor(100, 116, 139);
+      pdf.setLineWidth(0.25);
+      [
+        [startX, "Prepared By"],
+        [startX + signatureWidth + signatureGap, "Checked By"],
+        [startX + (signatureWidth + signatureGap) * 2, "Approved By"],
+      ].forEach(([x, label]) => {
+        pdf.line(x, y, x + signatureWidth, y);
+        pdf.setFont("helvetica", "bold");
+        pdf.setTextColor(51, 65, 85);
+        pdf.setFontSize(8);
+        pdf.text(label, x + signatureWidth / 2, y + 6, { align: "center" });
+      });
+
+      pdf.save(`${voucherData.voucherNo || "item-requisition-voucher"}.pdf`);
     } catch (error) {
       console.error("Voucher download failed:", error);
       toast.error("Voucher download failed");
@@ -681,14 +805,20 @@ const ItemRequisitionTable = () => {
         maxWidth="max-w-3xl"
       >
         <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
-          <label className="space-y-2 md:col-span-2">
+          <label className="space-y-2">
             <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
               Item
             </span>
             <Select
               options={itemOptions}
               value={makeSelectValue(itemOptions, form.itemId)}
-              onChange={(option) => updateForm("itemId", option?.value || "")}
+              onChange={(option) =>
+                setForm((prev) => ({
+                  ...prev,
+                  itemId: option?.value || "",
+                }))
+              }
+              isClearable
               placeholder="Select manufacture item..."
               classNamePrefix="react-select"
               className="bg-white text-black"
@@ -750,79 +880,6 @@ const ItemRequisitionTable = () => {
               className="bg-white text-black"
             />
           </label>
-
-          <label className="space-y-2">
-            <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
-              Book
-            </span>
-            <Select
-              options={bookOptions}
-              value={makeSelectValue(bookOptions, form.bookId)}
-              onChange={(option) => updateForm("bookId", option?.value || "")}
-              isClearable
-              placeholder="Select book..."
-              classNamePrefix="react-select"
-              className="bg-white text-black"
-            />
-          </label>
-
-          <label className="space-y-2">
-            <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
-              Payment Mode
-            </span>
-            <select
-              value={form.paymentMode}
-              onChange={(event) =>
-                updateForm("paymentMode", event.target.value)
-              }
-              className="h-11 bg-white w-full rounded-xl border border-slate-200 px-4 text-sm text-slate-800 outline-none focus:border-indigo-400"
-            >
-              <option value="">Select mode</option>
-              <option value="Cash">Cash</option>
-              <option value="Bank">Bank</option>
-              <option value="Bkash">Bkash</option>
-              <option value="Nagad">Nagad</option>
-              <option value="Rocket">Rocket</option>
-              <option value="Card">Card</option>
-            </select>
-          </label>
-
-          {form.paymentMode === "Bank" ? (
-            <>
-              <label className="space-y-2">
-                <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
-                  Bank
-                </span>
-                <Select
-                  options={bankOptions}
-                  value={makeSelectValue(bankOptions, form.bankAccount)}
-                  onChange={(option) => {
-                    updateForm("bankAccount", option?.value || "");
-                    updateForm(
-                      "bankName",
-                      option?.row?.bankName || option?.row?.name || "",
-                    );
-                  }}
-                  isClearable
-                  placeholder="Select bank..."
-                  classNamePrefix="react-select"
-                />
-              </label>
-              <label className="space-y-2">
-                <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
-                  Bank Name
-                </span>
-                <input
-                  type="text"
-                  value={form.bankName}
-                  onChange={(event) =>
-                    updateForm("bankName", event.target.value)
-                  }
-                  className="h-11 bg-white w-full rounded-xl border border-slate-200 px-4 text-sm text-slate-800 outline-none focus:border-indigo-400"
-                />
-              </label>
-            </>
-          ) : null}
 
           <label className="space-y-2 md:col-span-2">
             <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
@@ -907,6 +964,8 @@ const ItemRequisitionTable = () => {
         onClose={() => setVoucherOpen(false)}
         voucher={voucherData}
         voucherRef={voucherRef}
+        logoUrl={logoUrl}
+        onPrint={printVoucher}
         onDownload={downloadVoucherPdf}
       />
     </motion.div>
@@ -918,6 +977,8 @@ function ItemRequisitionVoucherModal({
   onClose,
   voucher,
   voucherRef,
+  logoUrl,
+  onPrint,
   onDownload,
 }) {
   if (!open) return null;
@@ -932,6 +993,14 @@ function ItemRequisitionVoucherModal({
               Item Requisition Voucher
             </div>
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onPrint}
+                disabled={!voucher}
+                className="h-10 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+              >
+                Print
+              </button>
               <button
                 type="button"
                 onClick={onDownload}
@@ -973,14 +1042,11 @@ function ItemRequisitionVoucherModal({
                     </span>
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-sm font-semibold text-slate-900">
-                    Kafela Mart
-                  </div>
-                  <div className="text-xs text-slate-600">
-                    Item Requisition Voucher
-                  </div>
-                </div>
+                <DocumentBrand
+                  subtitle="Item Requisition Voucher"
+                  logoUrl={logoUrl}
+                  logoClassName="ml-auto h-14 max-w-40 object-contain"
+                />
               </div>
 
               <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -988,24 +1054,14 @@ function ItemRequisitionVoucherModal({
                   <VoucherRow label="Procurement" value={voucher?.procurement} />
                   <VoucherRow label="Supplier" value={voucher?.supplier} />
                   <VoucherRow label="Status" value={voucher?.status} />
-                  <VoucherRow label="Payment" value={voucher?.paymentMode} />
                 </VoucherBox>
 
                 <VoucherBox title="Item Summary">
                   <VoucherRow label="Item" value={voucher?.item} />
                   <VoucherRow label="Quantity" value={voucher?.quantity} />
-                  <VoucherRow label="Book" value={voucher?.book} />
                   <VoucherRow label="Amount" value={formatMoney(voucher?.amount)} />
                 </VoucherBox>
               </div>
-
-              {voucher?.paymentMode === "Bank" ? (
-                <div className="mt-5 rounded-lg border border-slate-200 p-4 text-sm text-slate-700">
-                  <div className="font-semibold text-slate-900">Bank Details</div>
-                  <VoucherRow label="Bank Name" value={voucher?.bankName} />
-                  <VoucherRow label="Account" value={voucher?.bankAccount} />
-                </div>
-              ) : null}
 
               <div className="mt-5 rounded-lg border border-slate-200 p-4">
                 <div className="mb-1 text-sm font-semibold text-slate-900">
@@ -1034,10 +1090,27 @@ function ItemRequisitionVoucherModal({
                   </div>
                 </div>
               </div>
+
+              <VoucherSignatures />
             </div>
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function VoucherSignatures() {
+  return (
+    <div className="mt-12 grid grid-cols-3 gap-8 px-4 text-center">
+      {["Prepared By", "Checked By", "Approved By"].map((label) => (
+        <div key={label} className="pt-6">
+          <div className="border-t border-slate-400" />
+          <div className="mt-2 text-xs font-semibold text-slate-700">
+            {label}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

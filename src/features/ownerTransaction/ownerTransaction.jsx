@@ -50,6 +50,11 @@ export const ownerTransactionApi = createApi({
       providesTags: ["Owner"],
       refetchOnMountOrArgChange: true,
     }),
+    getSingleOwner: build.query({
+      query: (id) => ({ url: `/owner/${id}` }),
+      providesTags: ["Owner"],
+      refetchOnMountOrArgChange: true,
+    }),
     insertOwnerTransaction: build.mutation({
       query: (data) => ({
         url: "/owner-transaction/create",
@@ -110,6 +115,7 @@ export const {
   useDeleteOwnerMutation,
   useGetAllOwnerQuery,
   useGetAllOwnerWithoutQueryQuery,
+  useGetSingleOwnerQuery,
   useInsertOwnerTransactionMutation,
   useUpdateOwnerTransactionMutation,
   useDeleteOwnerTransactionMutation,

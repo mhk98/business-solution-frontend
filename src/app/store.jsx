@@ -141,6 +141,13 @@ import { damageStockApi } from "../features/damageStock/damageStock";
 import { supplierHistoryApi } from "../features/supplierHistory/supplierHistory";
 import { manufactureApi } from "../features/manufacture/manufacture";
 import { itemApi } from "../features/item/item";
+import { packagingItemApi } from "../features/packagingItem/packagingItem";
+import { packagingItemPurchaseApi } from "../features/packagingItemPurchase/packagingItemPurchase";
+import { packagingItemStockApi } from "../features/packagingItemStock/packagingItemStock";
+import { packagingManufacturerApi } from "../features/packagingManufacturer/packagingManufacturer";
+import { packagingFactoryApi } from "../features/packagingFactory/packagingFactory";
+import { packagingFactoryStockApi } from "../features/packagingFactoryStock/packagingFactoryStock";
+import { packagingMixerApi } from "../features/packagingMixer/packagingMixer";
 import { itemRequisitionApi } from "../features/itemRequisition/itemRequisition";
 import { mixerApi } from "../features/mixer/mixer";
 import { itemMasterApi } from "../features/manufactureStock/manufactureStock";
@@ -166,6 +173,7 @@ import { dailyWorkReportApi } from "../features/dailyWorkReport/dailyWorkReport"
 import { employeeWorkReportApi } from "../features/employeeWorkReport/employeeWorkReport";
 import { logisticWorkReportApi } from "../features/logisticWorkReport/logisticWorkReport";
 import { logisticUpdateApi } from "../features/logisticUpdate/logisticUpdate";
+import { shifaReportApi } from "../features/shifaReport/shifaReport";
 import { assetsApi } from "../features/assets/assets";
 import { noticeApi } from "../features/notice/notice";
 import { taskApi } from "../features/task/task";
@@ -202,6 +210,13 @@ const apis = [
   marketingBookApi,
   marketingExpenseApi,
   profitLossApi,
+  packagingItemApi,
+  packagingItemPurchaseApi,
+  packagingItemStockApi,
+  packagingManufacturerApi,
+  packagingFactoryApi,
+  packagingFactoryStockApi,
+  packagingMixerApi,
   itemApi,
   itemRequisitionApi,
   supplierApi,
@@ -235,6 +250,7 @@ const apis = [
   employeeWorkReportApi,
   logisticWorkReportApi,
   logisticUpdateApi,
+  shifaReportApi,
   notificationApi,
   noticeApi,
   chargeSettingApi,

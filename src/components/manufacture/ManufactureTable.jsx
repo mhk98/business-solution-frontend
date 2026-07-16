@@ -24,6 +24,7 @@ import {
   useInsertManufactureMutation,
   useUpdateManufactureMutation,
 } from "../../features/manufacture/manufacture";
+import { useInsertSupplierHistoryMutation } from "../../features/supplierHistory/supplierHistory";
 import { useGetAllItemWithoutQueryQuery } from "../../features/item/item";
 import { useGetAllSupplierWithoutQueryQuery } from "../../features/supplier/supplier";
 
@@ -37,17 +38,25 @@ const createItemLine = () => ({
 
 const initialCreateProduct = {
   items: [createItemLine()],
+  otherCost: "",
   supplierId: "",
   note: "",
   date: new Date().toISOString().slice(0, 10),
 };
 
-const unitOptions = ["Pcs", "Kg", "Ml", "Gram", "Yard", "Inch", "Feet"].map(
-  (unit) => ({
-    value: unit,
-    label: unit,
-  }),
-);
+const unitOptions = [
+  "Pcs",
+  "Kg",
+  "Liter",
+  "Ml",
+  "Gram",
+  "Yard",
+  "Inch",
+  "Feet",
+].map((unit) => ({
+  value: unit,
+  label: unit,
+}));
 
 const ManufactureTable = () => {
   const { language } = useLayout();
@@ -268,6 +277,7 @@ const ManufactureTable = () => {
   const [insertManufacture] = useInsertManufactureMutation();
   const [updateManufacture] = useUpdateManufactureMutation();
   const [deleteManufacture] = useDeleteManufactureMutation();
+  const [insertSupplierHistory] = useInsertSupplierHistoryMutation();
 
   const handleAddProduct = () => setIsModalOpen1(true);
 
@@ -298,6 +308,9 @@ const ManufactureTable = () => {
     const parsedUnitValue = Number(unitValue || 0);
     return parsedUnitCost * (parsedUnitValue > 0 ? parsedUnitValue : 1);
   };
+
+  const getDisplayedTotalCost = (unitCost, unitValue) =>
+    Number(unitCost || 0) * Number(unitValue || 0);
 
   const updateCreateItem = (index, changes) => {
     setCreateProduct((prev) => ({
@@ -333,6 +346,16 @@ const ManufactureTable = () => {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
+
+  const allItemTotalCost = useMemo(() => {
+    const itemsTotal = (createProduct.items || []).reduce(
+      (total, item) =>
+        total + getDisplayedTotalCost(item.unitCost, item.unitValue),
+      0,
+    );
+
+    return itemsTotal + Number(createProduct.otherCost || 0);
+  }, [createProduct.items, createProduct.otherCost]);
 
   const handleEditClick = (rp) => {
     setCurrentProduct({
@@ -422,6 +445,15 @@ const ManufactureTable = () => {
       );
 
       if (responses.every((res) => res?.success !== false)) {
+        if (Number(allItemTotalCost || 0) > 0) {
+          await insertSupplierHistory({
+            supplierId: Number(createProduct.supplierId),
+            amount: allItemTotalCost,
+            status: "Unpaid",
+            date: createProduct.date || new Date().toISOString().slice(0, 10),
+          }).unwrap();
+        }
+
         toast.success("Successfully created!");
         setIsModalOpen1(false);
         setCreateProduct(initialCreateProduct);
@@ -979,7 +1011,8 @@ const ManufactureTable = () => {
                 <div className="flex gap-2">
                   <input
                     type="number"
-                    min="1"
+                    min="0.01"
+                    step="0.01"
                     value={currentProduct?.unitValue || ""}
                     onChange={(e) =>
                       setCurrentProduct((prev) => ({
@@ -995,6 +1028,7 @@ const ManufactureTable = () => {
                     options={[
                       "Pcs",
                       "Kg",
+                      "Liter",
                       "Ml",
                       "Gram",
                       "Yard",
@@ -1118,17 +1152,24 @@ const ManufactureTable = () => {
           className="space-y-4 overflow-x-hidden px-1"
         >
           <div>
-            <div className="sticky top-0 z-20 -mx-1 mb-3 flex items-center justify-between gap-3 border-b border-slate-100 bg-white/95 px-1 py-2 backdrop-blur">
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
-                {t.select_item || "Select Item"}
-              </label>
-              <button
-                type="button"
-                onClick={addCreateItem}
-                className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-indigo-100 bg-indigo-50 px-3 text-xs font-bold text-indigo-600 hover:bg-indigo-100 transition active:scale-95"
-              >
-                <Plus size={14} /> Add Item
-              </button>
+            <div className="sticky top-0 z-20 -mx-1 mb-3 flex flex-col gap-3 border-b border-slate-100 bg-white/95 px-1 py-2 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={addCreateItem}
+                  className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-indigo-100 bg-indigo-50 px-3 text-xs font-bold text-indigo-600 hover:bg-indigo-100 transition active:scale-95"
+                >
+                  <Plus size={14} /> Add Item
+                </button>
+              </div>
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-2 sm:justify-end">
+                <span className="text-[10px] font-black uppercase tracking-wider text-indigo-500">
+                  All Item Total Cost
+                </span>
+                <span className="text-sm font-black text-indigo-700">
+                  ৳{formatMoney(allItemTotalCost)}
+                </span>
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -1137,7 +1178,7 @@ const ManufactureTable = () => {
                   key={index}
                   className="rounded-2xl border border-slate-200 bg-slate-50/50 p-3"
                 >
-                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(240px,1.25fr)_minmax(260px,1fr)_minmax(150px,0.65fr)_44px] lg:items-end">
+                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(240px,1.25fr)_minmax(260px,1fr)_minmax(150px,0.65fr)_minmax(130px,0.55fr)_44px] lg:items-end">
                     <div className="min-w-0">
                       <label className="mb-1.5 ml-1 block text-[10px] font-black uppercase tracking-wider text-slate-500">
                         {t.item || "Item"}
@@ -1192,7 +1233,8 @@ const ManufactureTable = () => {
                       <div className="grid grid-cols-[minmax(0,1fr)_128px] gap-2">
                         <input
                           type="number"
-                          min="1"
+                          min="0.01"
+                          step="0.01"
                           value={item.unitValue || ""}
                           onChange={(e) =>
                             updateCreateItem(index, {
@@ -1239,6 +1281,18 @@ const ManufactureTable = () => {
                       />
                     </div>
 
+                    <div className="min-w-0">
+                      <label className="mb-1.5 ml-1 block text-[10px] font-black uppercase tracking-wider text-slate-500">
+                        Total Cost
+                      </label>
+                      <div className="flex h-11 w-full items-center rounded-xl border border-indigo-100 bg-indigo-50 px-4 text-sm font-black text-indigo-700">
+                        ৳
+                        {formatMoney(
+                          getDisplayedTotalCost(item.unitCost, item.unitValue),
+                        )}
+                      </div>
+                    </div>
+
                     <div className="flex lg:justify-end">
                       {(createProduct.items || []).length > 1 ? (
                         <button
@@ -1257,6 +1311,26 @@ const ManufactureTable = () => {
                 </div>
               ))}
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+              Other Cost
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={createProduct.otherCost || ""}
+              onChange={(event) =>
+                setCreateProduct((prev) => ({
+                  ...prev,
+                  otherCost: event.target.value,
+                }))
+              }
+              placeholder="0.00"
+              className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+            />
           </div>
 
           <div>

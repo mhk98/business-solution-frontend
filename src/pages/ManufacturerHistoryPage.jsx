@@ -11,15 +11,22 @@ import {
   Wallet,
 } from "lucide-react";
 import jsPDF from "jspdf";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { useNavigate, useParams } from "react-router-dom";
 
 import Header from "../components/common/Header";
 import {
   useGetManufacturerTransactionsQuery,
+  useGetSingleManufacturerQuery,
   usePayManufacturerAmountMutation,
 } from "../features/manufacturer/manufacturer";
+import { useGetAllLogoQuery } from "../features/logo/logo";
+import {
+  DEFAULT_COMPANY_NAME,
+  buildAssetUrl,
+  drawPdfBrandBlock,
+} from "../utils/pdfBranding";
 
 const formatMoney = (value) =>
   `৳${Number(value || 0).toLocaleString(undefined, {
@@ -45,9 +52,16 @@ const formatDate = (value) => {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-const createManufacturerPaymentVoucherPdf = ({ transaction, manufacturer }) => {
+const firstFilled = (...values) =>
+  values.find((value) => String(value || "").trim()) || "";
+
+const createManufacturerPaymentInvoicePdf = async ({
+  transaction,
+  manufacturer,
+  logoUrl,
+}) => {
   const recordId = transaction?.Id ?? transaction?.id ?? 1;
-  const voucherNo = `MWP-${String(recordId).padStart(4, "0")}`;
+  const invoiceNo = `MWI-${String(recordId).padStart(4, "0")}`;
   const amount = Number(transaction?.credit || 0).toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -57,35 +71,39 @@ const createManufacturerPaymentVoucherPdf = ({ transaction, manufacturer }) => {
   const pageHeight = pdf.internal.pageSize.getHeight();
   const margin = 18;
   const contentWidth = pageWidth - margin * 2;
-  let y = 22;
+  let y = 20;
 
   pdf.setDrawColor(55, 65, 81);
   pdf.setLineWidth(0.35);
   pdf.rect(margin - 4, 14, contentWidth + 8, pageHeight - 30);
 
-  pdf.setFont("helvetica", "bold");
-  pdf.setTextColor(17, 24, 39);
-  pdf.setFontSize(21);
-  pdf.text("KAFELA MART", margin, y);
-  pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(9);
-  pdf.setTextColor(75, 85, 99);
-  pdf.text("Manufacturer Payment Voucher", margin, y + 7);
+  await drawPdfBrandBlock({
+    pdf,
+    logoUrl,
+    companyName: DEFAULT_COMPANY_NAME,
+    x: margin + 2,
+    topY: y,
+    logoMaxWidth: 62,
+    logoMaxHeight: 17.5,
+    companySize: 12.5,
+    subtitle: "Manufacturer Payment Invoice",
+    subtitleSize: 9.2,
+  });
 
-  pdf.setTextColor(15, 23, 42);
+  pdf.setTextColor(17, 24, 39);
   pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(15);
-  pdf.text("MANUFACTURER PAYMENT VOUCHER", pageWidth - margin, y, {
+  pdf.setFontSize(15.5);
+  pdf.text("MANUFACTURER PAYMENT INVOICE", pageWidth - margin, y + 12, {
     align: "right",
   });
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(8);
-  pdf.setTextColor(75, 85, 99);
-  pdf.text(`Date: ${transaction?.date || "-"}`, pageWidth - margin, y + 7, {
+  pdf.setTextColor(107, 114, 128);
+  pdf.text(`Date: ${transaction?.date || "-"}`, pageWidth - margin, y + 19, {
     align: "right",
   });
 
-  y += 18;
+  y += 36;
   pdf.setDrawColor(156, 163, 175);
   pdf.setLineWidth(0.25);
   pdf.line(margin, y, pageWidth - margin, y);
@@ -97,11 +115,11 @@ const createManufacturerPaymentVoucherPdf = ({ transaction, manufacturer }) => {
   pdf.setTextColor(75, 85, 99);
   pdf.setFont("helvetica", "normal");
   pdf.setFontSize(8);
-  pdf.text("Voucher No", margin + 4, y + 5);
+  pdf.text("Invoice No", margin + 4, y + 5);
   pdf.setTextColor(17, 24, 39);
   pdf.setFont("helvetica", "bold");
   pdf.setFontSize(10);
-  pdf.text(voucherNo, margin + 4, y + 10);
+  pdf.text(invoiceNo, margin + 4, y + 10);
 
   pdf.rect(pageWidth - margin - 48, y, 48, 13);
   pdf.setFontSize(10);
@@ -110,14 +128,24 @@ const createManufacturerPaymentVoucherPdf = ({ transaction, manufacturer }) => {
   y += 24;
   const manufacturerName =
     manufacturer?.name || transaction?.manufacturerName || "Manufacturer";
+  const manufacturerPhone = firstFilled(
+    manufacturer?.phone,
+    manufacturer?.Phone,
+    manufacturer?.mobile,
+    manufacturer?.Mobile,
+  );
+  const manufacturerAddress = firstFilled(
+    manufacturer?.address,
+    manufacturer?.Address,
+  );
   const detailRows = [
     ["Manufacturer", manufacturerName],
     ["Payment Type", "Manufacturer Wage Payment"],
     ["Reference", transaction?.description || "-"],
-    ["Phone", manufacturer?.phone || "-"],
-    ["Address", manufacturer?.address || "-"],
+    ["Phone", manufacturerPhone || "-"],
+    ["Address", manufacturerAddress || "-"],
   ];
-  const detailsRowHeight = 10;
+  const detailsRowHeight = 11.5;
   const detailsHeaderHeight = 13;
   const detailsBoxHeight =
     detailsHeaderHeight + detailRows.length * detailsRowHeight;
@@ -137,9 +165,9 @@ const createManufacturerPaymentVoucherPdf = ({ transaction, manufacturer }) => {
   const valueX = margin + labelColumnWidth + 5;
   let rowTop = y + detailsHeaderHeight;
 
-  pdf.setFontSize(8);
+  pdf.setFontSize(9);
   detailRows.forEach(([label, value], index) => {
-    const textY = rowTop + 6.5;
+    const textY = rowTop + 7.2;
     if (index > 0) {
       pdf.setDrawColor(229, 231, 235);
       pdf.line(margin, rowTop, pageWidth - margin, rowTop);
@@ -156,6 +184,7 @@ const createManufacturerPaymentVoucherPdf = ({ transaction, manufacturer }) => {
     pdf.text(label, labelX, textY);
     pdf.setFont("helvetica", "normal");
     pdf.setTextColor(17, 24, 39);
+    pdf.setFontSize(9);
     pdf.text(
       pdf.splitTextToSize(String(value), contentWidth - labelColumnWidth - 12),
       valueX,
@@ -171,7 +200,7 @@ const createManufacturerPaymentVoucherPdf = ({ transaction, manufacturer }) => {
   pdf.rect(margin, y, contentWidth, amountBoxHeight);
   pdf.setTextColor(75, 85, 99);
   pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(9);
+  pdf.setFontSize(10);
   pdf.text("Paid Amount", margin + 6, y + 9);
   pdf.setTextColor(17, 24, 39);
   const amountRightX = pageWidth - margin - 6;
@@ -202,7 +231,7 @@ const createManufacturerPaymentVoucherPdf = ({ transaction, manufacturer }) => {
   pdf.line(margin, noteBoxY, margin, noteBoxY + noteBoxHeight);
   pdf.setFont("helvetica", "normal");
   pdf.setTextColor(55, 65, 81);
-  pdf.setFontSize(9);
+  pdf.setFontSize(10);
   const noteLines = pdf.splitTextToSize(
     String(transaction?.note || "-"),
     contentWidth - 14,
@@ -232,13 +261,13 @@ const createManufacturerPaymentVoucherPdf = ({ transaction, manufacturer }) => {
   pdf.setFontSize(8);
   pdf.setTextColor(107, 114, 128);
   pdf.text(
-    "This voucher is generated electronically from Kafela Mart accounts system.",
+    "This invoice is generated electronically from Kafela Mart accounts system.",
     pageWidth / 2,
     y + 20,
     { align: "center" },
   );
 
-  return { pdf, filename: `${voucherNo}.pdf` };
+  return { pdf, filename: `${invoiceNo}.pdf` };
 };
 
 const ManufacturerHistoryPage = () => {
@@ -248,6 +277,8 @@ const ManufacturerHistoryPage = () => {
   const [paymentForm, setPaymentForm] = useState({
     amount: "",
     date: today(),
+    phone: "",
+    address: "",
     note: "",
   });
 
@@ -255,10 +286,16 @@ const ManufacturerHistoryPage = () => {
     { id, page, limit: 20 },
     { skip: !id },
   );
+  const { data: singleManufacturerData } = useGetSingleManufacturerQuery(id, {
+    skip: !id,
+  });
+  const { data: logoData } = useGetAllLogoQuery();
+  const logoUrl = buildAssetUrl(logoData?.data?.file);
   const [payManufacturerAmount, payState] = usePayManufacturerAmountMutation();
 
   const rows = data?.data || [];
   const rawManufacturer = data?.manufacturer || {};
+  const latestManufacturer = singleManufacturerData?.data || {};
   const rawSummary = data?.summary || {};
   const rowSummary = useMemo(
     () =>
@@ -299,12 +336,35 @@ const ManufacturerHistoryPage = () => {
   const manufacturer = useMemo(
     () => ({
       ...rawManufacturer,
-      name: rawManufacturer.name || rows[0]?.manufacturerName || "Manufacturer",
-      phone: rawManufacturer.phone || "",
-      address: rawManufacturer.address || "",
+      ...latestManufacturer,
+      name:
+        latestManufacturer.name ||
+        rawManufacturer.name ||
+        rows[0]?.manufacturerName ||
+        "Manufacturer",
+      phone: firstFilled(
+        latestManufacturer.phone,
+        latestManufacturer.Phone,
+        rawManufacturer.phone,
+        rawManufacturer.Phone,
+      ),
+      address: firstFilled(
+        latestManufacturer.address,
+        latestManufacturer.Address,
+        rawManufacturer.address,
+        rawManufacturer.Address,
+      ),
     }),
-    [rawManufacturer, rows],
+    [latestManufacturer, rawManufacturer, rows],
   );
+
+  useEffect(() => {
+    setPaymentForm((prev) => ({
+      ...prev,
+      phone: prev.phone || manufacturer.phone || "",
+      address: prev.address || manufacturer.address || "",
+    }));
+  }, [manufacturer.phone, manufacturer.address]);
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil((data?.meta?.count || 0) / 20)),
     [data?.meta?.count],
@@ -325,7 +385,13 @@ const ManufacturerHistoryPage = () => {
 
       if (res?.success !== false) {
         toast.success("Payment saved successfully");
-        setPaymentForm({ amount: "", date: today(), note: "" });
+        setPaymentForm((prev) => ({
+          amount: "",
+          date: today(),
+          phone: prev.phone,
+          address: prev.address,
+          note: "",
+        }));
         setPage(1);
         refetch?.();
       }
@@ -334,29 +400,33 @@ const ManufacturerHistoryPage = () => {
     }
   };
 
-  const buildPaymentVoucher = (transaction) =>
-    createManufacturerPaymentVoucherPdf({ transaction, manufacturer });
+  const buildPaymentInvoice = (transaction) =>
+    createManufacturerPaymentInvoicePdf({
+      transaction,
+      manufacturer,
+      logoUrl,
+    });
 
-  const handleVoucherDownload = (transaction) => {
+  const handleInvoiceDownload = async (transaction) => {
     try {
-      const { pdf, filename } = buildPaymentVoucher(transaction);
+      const { pdf, filename } = await buildPaymentInvoice(transaction);
       pdf.save(filename);
     } catch (err) {
-      console.error("Voucher download failed:", err);
-      toast.error("Voucher download failed");
+      console.error("Invoice download failed:", err);
+      toast.error("Invoice download failed");
     }
   };
 
-  const handleVoucherPrint = (transaction) => {
+  const handleInvoicePrint = async (transaction) => {
     try {
-      const { pdf } = buildPaymentVoucher(transaction);
+      const { pdf } = await buildPaymentInvoice(transaction);
       const blob = pdf.output("blob");
       const url = URL.createObjectURL(blob);
       const printWindow = window.open(url, "_blank");
 
       if (!printWindow) {
         URL.revokeObjectURL(url);
-        toast.error("Please allow popup to print voucher.");
+        toast.error("Please allow popup to print invoice.");
         return;
       }
 
@@ -366,8 +436,8 @@ const ManufacturerHistoryPage = () => {
         setTimeout(() => URL.revokeObjectURL(url), 1000);
       });
     } catch (err) {
-      console.error("Voucher print failed:", err);
-      toast.error("Voucher print failed");
+      console.error("Invoice print failed:", err);
+      toast.error("Invoice print failed");
     }
   };
 
@@ -477,6 +547,23 @@ const ManufacturerHistoryPage = () => {
                   placeholder="Enter paid amount"
                 />
               </div>
+              <div className="lg:w-64">
+                <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
+                  Phone
+                </label>
+                <input
+                  type="text"
+                  value={paymentForm.phone}
+                  onChange={(e) =>
+                    setPaymentForm((prev) => ({
+                      ...prev,
+                      phone: e.target.value,
+                    }))
+                  }
+                  className="h-12 border border-slate-200 rounded-2xl px-4 w-full text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition font-bold"
+                  placeholder="Phone number"
+                />
+              </div>
               <div className="lg:w-48">
                 <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
                   Date
@@ -499,6 +586,17 @@ const ManufacturerHistoryPage = () => {
               </button>
             </div>
             <textarea
+              value={paymentForm.address}
+              onChange={(e) =>
+                setPaymentForm((prev) => ({
+                  ...prev,
+                  address: e.target.value,
+                }))
+              }
+              className="mt-4 min-h-16 border border-slate-200 rounded-2xl px-4 py-3 w-full text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition font-medium resize-y"
+              placeholder="Manufacturer address..."
+            />
+            <textarea
               value={paymentForm.note}
               onChange={(e) =>
                 setPaymentForm((prev) => ({ ...prev, note: e.target.value }))
@@ -520,7 +618,7 @@ const ManufacturerHistoryPage = () => {
                       "Unpaid/Debit",
                       "Paid/Credit",
                       "Note",
-                      "Voucher",
+                      "Invoice",
                     ].map((heading) => (
                       <th
                         key={heading}
@@ -559,17 +657,17 @@ const ManufacturerHistoryPage = () => {
                           <div className="flex items-center gap-2">
                             <button
                               type="button"
-                              onClick={() => handleVoucherPrint(row)}
+                              onClick={() => handleInvoicePrint(row)}
                               className="h-9 w-9 inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600 active:scale-95"
-                              title="Print voucher"
+                              title="Print invoice"
                             >
                               <Printer size={15} />
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleVoucherDownload(row)}
+                              onClick={() => handleInvoiceDownload(row)}
                               className="h-9 w-9 inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-600 active:scale-95"
-                              title="Download voucher"
+                              title="Download invoice"
                             >
                               <Download size={15} />
                             </button>

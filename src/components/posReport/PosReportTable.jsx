@@ -965,6 +965,7 @@ import {
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 import Modal from "../common/Modal";
 import DateRangeFilter from "../common/DateRangeFilter";
+import DocumentBrand from "../common/DocumentBrand";
 
 const parseMaybeJsonArray = (value) => {
   if (Array.isArray(value)) return value;
@@ -2217,8 +2218,13 @@ function PosInvoiceView({ report }) {
   return (
     <>
       <div className="flex justify-between items-start">
-        <div>
-          <h3 className="text-xl font-bold">Kafela Mart</h3>
+        <div className="text-left">
+          <DocumentBrand
+            align="left"
+            subtitle=""
+            logoClassName="h-10 max-w-36 object-contain"
+            nameClassName="text-xl font-bold text-slate-900"
+          />
           <p className="text-sm text-slate-600">Address line</p>
           <p className="text-sm text-slate-600">Phone: +880 9647-555333</p>
         </div>

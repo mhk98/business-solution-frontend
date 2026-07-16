@@ -1632,7 +1632,7 @@ const IntransiteProductTable = () => {
         <div className="flex items-center justify-between sm:justify-end gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2 shadow-sm">
           <div className="flex items-center gap-2 text-slate-700">
             <RotateCcw size={18} className="text-amber-500" />
-            <span className="text-sm">Total Intransit Return</span>
+            <span className="text-sm">Total Intransit</span>
           </div>
           <span className="text-slate-900 font-semibold tabular-nums">
             {isLoading ? "Loading..." : (data?.meta?.totalQuantity ?? 0)}
@@ -2244,28 +2244,30 @@ const IntransiteProductTable = () => {
                             bulkAddForm.receivedId && stockQuantity <= 0;
                           return (
                             <>
-                        <label className="mb-1.5 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
-                          Quantity
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={bulkAddForm.quantity}
-                          onChange={(e) =>
-                            setBulkAddForm((prev) => ({
-                              ...prev,
-                              quantity: e.target.value,
-                            }))
-                          }
-                          disabled={!bulkAddForm.receivedId || isOutOfStock}
-                          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10 disabled:bg-slate-100 disabled:text-slate-400"
-                        />
-                        {bulkAddForm.receivedId && (
-                          <p className="mt-1 text-[10px] text-slate-400">
-                            Stock: {Number(stockQuantity || 0)}
-                          </p>
-                        )}
+                              <label className="mb-1.5 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
+                                Quantity
+                              </label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={bulkAddForm.quantity}
+                                onChange={(e) =>
+                                  setBulkAddForm((prev) => ({
+                                    ...prev,
+                                    quantity: e.target.value,
+                                  }))
+                                }
+                                disabled={
+                                  !bulkAddForm.receivedId || isOutOfStock
+                                }
+                                className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-indigo-300 focus:ring-4 focus:ring-indigo-500/10 disabled:bg-slate-100 disabled:text-slate-400"
+                              />
+                              {bulkAddForm.receivedId && (
+                                <p className="mt-1 text-[10px] text-slate-400">
+                                  Stock: {Number(stockQuantity || 0)}
+                                </p>
+                              )}
                             </>
                           );
                         })()}
@@ -2305,12 +2307,15 @@ const IntransiteProductTable = () => {
                                   row.size,
                                 )
                               : bulkAddColorOptions;
-                            const stockQuantity = getInventoryVariantStockQuantity(
-                              selectedBulkAddInventoryItem,
-                              row,
-                            );
+                            const stockQuantity =
+                              getInventoryVariantStockQuantity(
+                                selectedBulkAddInventoryItem,
+                                row,
+                              );
                             const isOutOfStockVariant =
-                              row.size && stockQuantity !== null && stockQuantity <= 0;
+                              row.size &&
+                              stockQuantity !== null &&
+                              stockQuantity <= 0;
 
                             return (
                               <div
@@ -2571,11 +2576,13 @@ const IntransiteProductTable = () => {
                             className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                             placeholder=""
                           />
-                          {currentItem?.receivedId && row.size && stockQuantity !== null && (
-                            <p className="mt-1 text-[10px] text-slate-400">
-                              Stock: {Number(stockQuantity || 0)}
-                            </p>
-                          )}
+                          {currentItem?.receivedId &&
+                            row.size &&
+                            stockQuantity !== null && (
+                              <p className="mt-1 text-[10px] text-slate-400">
+                                Stock: {Number(stockQuantity || 0)}
+                              </p>
+                            )}
                         </div>
 
                         <button
@@ -2648,23 +2655,28 @@ const IntransiteProductTable = () => {
 
                 return (
                   <>
-              <label className="block text-sm text-slate-700">Quantity</label>
-              <input
-                type="number"
-                step="0.01"
-                value={currentItem.quantity ?? ""}
-                onChange={(e) =>
-                  setCurrentItem((p) => ({ ...p, quantity: e.target.value }))
-                }
-                disabled={isOutOfStock}
-                className="h-11 border border-slate-200 rounded-xl px-3 w-full mt-1 text-slate-900 bg-white outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
-              />
-              {currentItem?.receivedId &&
-                !hasConfiguredVariants(currentItem?.variantRows) && (
-                  <p className="mt-1 text-[10px] text-slate-400">
-                    Stock: {Number(stockQuantity || 0)}
-                  </p>
-                )}
+                    <label className="block text-sm text-slate-700">
+                      Quantity
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={currentItem.quantity ?? ""}
+                      onChange={(e) =>
+                        setCurrentItem((p) => ({
+                          ...p,
+                          quantity: e.target.value,
+                        }))
+                      }
+                      disabled={isOutOfStock}
+                      className="h-11 border border-slate-200 rounded-xl px-3 w-full mt-1 text-slate-900 bg-white outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                    />
+                    {currentItem?.receivedId &&
+                      !hasConfiguredVariants(currentItem?.variantRows) && (
+                        <p className="mt-1 text-[10px] text-slate-400">
+                          Stock: {Number(stockQuantity || 0)}
+                        </p>
+                      )}
                   </>
                 );
               })()}
@@ -2923,32 +2935,32 @@ const IntransiteProductTable = () => {
 
                                   return (
                                     <>
-                                <div>
-                                  <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                    Qty
-                                  </label>
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    value={item.payload?.quantity ?? ""}
-                                    onChange={(event) =>
-                                      updateCreateItem(
-                                        itemIndex,
-                                        "quantity",
-                                        event.target.value,
-                                      )
-                                    }
-                                    disabled={isOutOfStock}
-                                    className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
-                                    placeholder=""
-                                  />
-                                  {invItem ? (
-                                      <p className="mt-1 text-[10px] text-slate-400">
-                                        Stock: {Number(stockQuantity || 0)}
-                                      </p>
-                                    ) : null}
-                                </div>
+                                      <div>
+                                        <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                          Qty
+                                        </label>
+                                        <input
+                                          type="number"
+                                          step="0.01"
+                                          min="0"
+                                          value={item.payload?.quantity ?? ""}
+                                          onChange={(event) =>
+                                            updateCreateItem(
+                                              itemIndex,
+                                              "quantity",
+                                              event.target.value,
+                                            )
+                                          }
+                                          disabled={isOutOfStock}
+                                          className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                                          placeholder=""
+                                        />
+                                        {invItem ? (
+                                          <p className="mt-1 text-[10px] text-slate-400">
+                                            Stock: {Number(stockQuantity || 0)}
+                                          </p>
+                                        ) : null}
+                                      </div>
                                     </>
                                   );
                                 })()}
@@ -3162,11 +3174,13 @@ const IntransiteProductTable = () => {
                           className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                           placeholder=""
                         />
-                        {selectedCreateInventoryItem && row.size && stockQuantity !== null && (
-                          <p className="mt-1 text-[10px] text-slate-400">
-                            Stock: {Number(stockQuantity || 0)}
-                          </p>
-                        )}
+                        {selectedCreateInventoryItem &&
+                          row.size &&
+                          stockQuantity !== null && (
+                            <p className="mt-1 text-[10px] text-slate-400">
+                              Stock: {Number(stockQuantity || 0)}
+                            </p>
+                          )}
                       </div>
                       <button
                         type="button"

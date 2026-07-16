@@ -26,6 +26,7 @@ import { useGetAllWirehouseWithoutQueryQuery } from "../../features/wirehouse/wi
 import { useGetAllBankAccountWithoutQueryQuery } from "../../features/bankAccount/bankAccount";
 import Modal from "../common/Modal";
 import DateRangeFilter from "../common/DateRangeFilter";
+import DocumentBrand from "../common/DocumentBrand";
 import {
   useGetAllProductWithoutQueryQuery,
   useGetSingleReceivedProductByIdQuery,
@@ -4033,14 +4034,7 @@ function RequisitionInvoiceModal({
                   </div>
                 </div>
 
-                <div className="text-right">
-                  <div className="text-sm font-semibold text-slate-900">
-                    Kafela Mart
-                  </div>
-                  <div className="text-xs text-slate-600">
-                    Purchase Requisition Invoice
-                  </div>
-                </div>
+                <DocumentBrand subtitle="Purchase Requisition Invoice" />
               </div>
 
               <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">

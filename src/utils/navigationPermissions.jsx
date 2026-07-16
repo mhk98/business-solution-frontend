@@ -38,6 +38,7 @@ import {
   CircleDollarSign,
   Factory,
   History,
+  FileText,
   CreditCard,
   WalletCards,
 } from "lucide-react";
@@ -74,6 +75,14 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "auto_profit_loss",
     "profit_loss_user",
     "manufacture",
+    "packaging",
+    "packaging_item",
+    "packaging_item_stock",
+    "packaging_item_purchase",
+    "packaging_manufacturer",
+    "packaging_factory",
+    "packaging_factory_stock",
+    "packaging_mixer",
     "item",
     "item_stock",
     "item_purchase",
@@ -111,6 +120,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "petty_cash_requisition",
     "petty_cash",
     "loan",
+    "owner",
     "owner_transaction",
     "credit_ledger",
     "log_history",
@@ -137,6 +147,12 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "leave_management",
     "cs_work_reports",
     "logistic_work_reports",
+    "shifa",
+    "shifa_overview",
+    "shifa_call_history",
+    "shifa_starting_situation",
+    "shifa_problem_history",
+    "shifa_patient_update",
     "payroll_management",
     "payslip",
     "hr_payroll",
@@ -162,8 +178,16 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "auto_profit_loss",
     "profit_loss_user",
     "manufacture",
+    "packaging",
     "manufacture_menu",
     "manufacturer",
+    "packaging_item",
+    "packaging_item_stock",
+    "packaging_item_purchase",
+    "packaging_manufacturer",
+    "packaging_factory",
+    "packaging_factory_stock",
+    "packaging_mixer",
     "item_stock",
     "item_purchase",
     "item_requisition",
@@ -195,6 +219,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "petty_cash_requisition",
     "petty_cash",
     "loan",
+    "owner",
     "owner_transaction",
     "credit_ledger",
     "log_history",
@@ -221,6 +246,12 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "leave_management",
     "cs_work_reports",
     "logistic_work_reports",
+    "shifa",
+    "shifa_overview",
+    "shifa_call_history",
+    "shifa_starting_situation",
+    "shifa_problem_history",
+    "shifa_patient_update",
     "payroll_management",
     "payslip",
     "hr_payroll",
@@ -259,8 +290,16 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "stock_product",
     "stock_alert",
     "manufacture",
+    "packaging",
     "manufacture_menu",
     "manufacturer",
+    "packaging_item",
+    "packaging_item_stock",
+    "packaging_item_purchase",
+    "packaging_manufacturer",
+    "packaging_factory",
+    "packaging_factory_stock",
+    "packaging_mixer",
     "item_stock",
     "item_purchase",
     "manufacture_stock",
@@ -297,6 +336,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "petty_cash_requisition",
     "petty_cash",
     "loan",
+    "owner",
     "owner_transaction",
     "credit_ledger",
     "log_history",
@@ -330,13 +370,30 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "employee_profile",
     "cs_work_reports",
     "logistic_work_reports",
+    "shifa",
+    "shifa_overview",
+    "shifa_call_history",
+    "shifa_starting_situation",
+    "shifa_problem_history",
+    "shifa_patient_update",
     "notifications",
     "tasks",
     "profile",
   ],
   logistics: ["logistic_work_reports", "notifications", "tasks", "profile"],
   up: ["notifications", "tasks", "profile"],
-  cs: ["cs_work_reports", "notifications", "tasks", "profile"],
+  cs: [
+    "cs_work_reports",
+    "shifa",
+    "shifa_overview",
+    "shifa_call_history",
+    "shifa_starting_situation",
+    "shifa_problem_history",
+    "shifa_patient_update",
+    "notifications",
+    "tasks",
+    "profile",
+  ],
   staff: ["notifications", "tasks", "profile"],
   user: ["tasks", "profile"],
 };
@@ -459,6 +516,64 @@ export const SIDEBAR_ITEMS = [
         color: "#f97316",
         href: "/profit-loss-user",
         roles: ["superAdmin", "admin", "marketer"],
+      },
+    ],
+  },
+  {
+    name: "Packaging",
+    key: "packaging",
+    icon: Package,
+    color: "#0ea5e9",
+    roles: ["superAdmin", "admin", "inventor"],
+    children: [
+      {
+        name: "Packaging Item",
+        key: "packaging_item",
+        icon: PackagePlus,
+        href: "/packaging-item",
+        roles: ["superAdmin", "admin", "inventor"],
+      },
+      {
+        name: "Packaging Item Stock",
+        key: "packaging_item_stock",
+        icon: Boxes,
+        href: "/packaging-item-stock",
+        roles: ["superAdmin", "admin", "inventor"],
+      },
+      {
+        name: "Packaging Item Purchase",
+        key: "packaging_item_purchase",
+        icon: Cog,
+        href: "/packaging-item-purchase",
+        roles: ["superAdmin", "admin", "inventor"],
+      },
+      {
+        name: "Packaging Manufacturer",
+        key: "packaging_manufacturer",
+        icon: Factory,
+        href: "/packaging-manufacturer",
+        roles: ["superAdmin", "admin", "inventor"],
+      },
+      {
+        name: "Packaging Factory Stock",
+        key: "packaging_factory_stock",
+        icon: Boxes,
+        href: "/packaging-factory-stock",
+        roles: ["superAdmin", "admin", "inventor"],
+      },
+      {
+        name: "Packaging Factory",
+        key: "packaging_factory",
+        icon: Factory,
+        href: "/packaging-factory",
+        roles: ["superAdmin", "admin", "inventor"],
+      },
+      {
+        name: "Packaging Mixer",
+        key: "packaging_mixer",
+        icon: FlaskConical,
+        href: "/packaging-mixer",
+        roles: ["superAdmin", "admin", "inventor"],
       },
     ],
   },
@@ -749,11 +864,19 @@ export const SIDEBAR_ITEMS = [
         roles: ["superAdmin", "admin", "accountant"],
       },
       {
-        name: "Loan",
+        name: "Loan History",
         key: "loan",
         icon: HandCoins,
         href: "/loan",
         matchPaths: ["/loan/"],
+        roles: ["superAdmin", "admin", "accountant"],
+      },
+      {
+        name: "Owner",
+        key: "owner",
+        icon: User,
+        href: "/owner",
+        matchPaths: ["/owner/"],
         roles: ["superAdmin", "admin", "accountant"],
       },
       {
@@ -1020,6 +1143,50 @@ export const SIDEBAR_ITEMS = [
     ],
   },
   {
+    name: "Shifa",
+    key: "shifa",
+    icon: ClipboardCheck,
+    color: "#0f766e",
+    roles: ["superAdmin", "admin", "cs", "employee"],
+    children: [
+      {
+        name: "Overview",
+        key: "shifa_overview",
+        icon: BarChart3,
+        href: "/shifa/overview",
+        roles: ["superAdmin", "admin", "cs", "employee"],
+      },
+      {
+        name: "Call History",
+        key: "shifa_call_history",
+        icon: History,
+        href: "/shifa/call-history",
+        roles: ["superAdmin", "admin", "cs", "employee"],
+      },
+      {
+        name: "Starting Situation",
+        key: "shifa_starting_situation",
+        icon: ClipboardList,
+        href: "/shifa/starting-situation",
+        roles: ["superAdmin", "admin", "cs", "employee"],
+      },
+      {
+        name: "Problem History",
+        key: "shifa_problem_history",
+        icon: FileText,
+        href: "/shifa/problem-history",
+        roles: ["superAdmin", "admin", "cs", "employee"],
+      },
+      {
+        name: "Patient Update",
+        key: "shifa_patient_update",
+        icon: RefreshCcw,
+        href: "/shifa/patient-update",
+        roles: ["superAdmin", "admin", "cs", "employee"],
+      },
+    ],
+  },
+  {
     name: "Payroll",
     key: "hr_payroll",
     icon: CircleDollarSign,
@@ -1224,6 +1391,38 @@ const normalizeRolePermissionMap = (value) => {
       normalizedKeys.add("auto_profit_loss");
     }
 
+    if (defaultKeys.includes("packaging")) {
+      normalizedKeys.add("packaging");
+    }
+
+    if (defaultKeys.includes("packaging_item")) {
+      normalizedKeys.add("packaging_item");
+    }
+
+    if (defaultKeys.includes("packaging_item_stock")) {
+      normalizedKeys.add("packaging_item_stock");
+    }
+
+    if (defaultKeys.includes("packaging_item_purchase")) {
+      normalizedKeys.add("packaging_item_purchase");
+    }
+
+    if (defaultKeys.includes("packaging_manufacturer")) {
+      normalizedKeys.add("packaging_manufacturer");
+    }
+
+    if (defaultKeys.includes("packaging_factory")) {
+      normalizedKeys.add("packaging_factory");
+    }
+
+    if (defaultKeys.includes("packaging_factory_stock")) {
+      normalizedKeys.add("packaging_factory_stock");
+    }
+
+    if (defaultKeys.includes("packaging_mixer")) {
+      normalizedKeys.add("packaging_mixer");
+    }
+
     if (defaultKeys.includes("stock_alert")) {
       normalizedKeys.add("stock_alert");
     }
@@ -1240,6 +1439,10 @@ const normalizeRolePermissionMap = (value) => {
       normalizedKeys.add("owner_transaction");
     }
 
+    if (defaultKeys.includes("owner")) {
+      normalizedKeys.add("owner");
+    }
+
     if (defaultKeys.includes("cs_work_reports")) {
       normalizedKeys.add("cs_work_reports");
     }
@@ -1247,6 +1450,19 @@ const normalizeRolePermissionMap = (value) => {
     if (defaultKeys.includes("logistic_work_reports")) {
       normalizedKeys.add("logistic_work_reports");
     }
+
+    [
+      "shifa",
+      "shifa_overview",
+      "shifa_call_history",
+      "shifa_starting_situation",
+      "shifa_problem_history",
+      "shifa_patient_update",
+    ].forEach((permission) => {
+      if (defaultKeys.includes(permission)) {
+        normalizedKeys.add(permission);
+      }
+    });
 
     if (normalizedKeys.has("logistic_work_reports")) {
       normalizedKeys.add("logistic_update");

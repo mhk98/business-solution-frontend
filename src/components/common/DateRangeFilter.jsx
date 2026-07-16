@@ -124,9 +124,11 @@ const DateRangeFilter = ({
       <div
         className={`flex min-w-0 flex-col ${compact ? "w-full" : "sm:w-48"} ${selectWrapperClassName}`}
       >
-        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1.5">
-          {label}
-        </label>
+        {label ? (
+          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1.5">
+            {label}
+          </label>
+        ) : null}
         <select
           value={selectedFilter}
           onChange={(e) => handleFilterChange(e.target.value)}

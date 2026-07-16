@@ -3,33 +3,32 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   Edit,
-  Plus,
   Search,
   Trash2,
-  UserRound,
   WalletCards,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
+import Select from "react-select";
 import { useGetAllBookWithoutQueryQuery } from "../../features/book/book";
 import {
-  useDeleteOwnerMutation,
   useDeleteOwnerTransactionMutation,
-  useGetAllOwnerQuery,
+  useGetAllOwnerWithoutQueryQuery,
   useGetAllOwnerTransactionQuery,
-  useInsertOwnerMutation,
   useInsertOwnerTransactionMutation,
-  useUpdateOwnerMutation,
   useUpdateOwnerTransactionMutation,
 } from "../../features/ownerTransaction/ownerTransaction";
 import useDebounce from "../../hooks/useDebounce";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 import Modal from "../common/Modal";
+import DateRangeFilter, {
+  getDatePresetRange,
+} from "../common/DateRangeFilter";
 
 const formatAmount = (value) => `৳${Number(value || 0).toLocaleString()}`;
 const today = () => new Date().toISOString().slice(0, 10);
 
-const ownerEmptyForm = { name: "", note: "", status: "Active" };
+const defaultDateRange = getDatePresetRange("");
 const transactionEmptyForm = {
   ownerId: "",
   bookId: "",
@@ -40,34 +39,32 @@ const transactionEmptyForm = {
   status: "Active",
 };
 
-const OwnerTransactionTable = () => {
+const OwnerTransactionTable = ({ ownerId: fixedOwnerId = "", ownerName = "" }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 400);
+  const [startDate, setStartDate] = useState(defaultDateRange.from);
+  const [endDate, setEndDate] = useState(defaultDateRange.to);
+  const [dateFilterType, setDateFilterType] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [ownerModalOpen, setOwnerModalOpen] = useState(false);
   const [transactionModalOpen, setTransactionModalOpen] = useState(false);
-  const [editingOwner, setEditingOwner] = useState(null);
   const [editingTransaction, setEditingTransaction] = useState(null);
-  const [ownerForm, setOwnerForm] = useState(ownerEmptyForm);
   const [transactionForm, setTransactionForm] = useState(transactionEmptyForm);
 
   const itemsPerPage = 10;
 
   const { data: bookRes } = useGetAllBookWithoutQueryQuery();
-  const { data: ownerRes, isLoading: ownersLoading } = useGetAllOwnerQuery({
-    page: 1,
-    limit: 100,
-  });
+  const { data: ownerRes, isLoading: ownersLoading } =
+    useGetAllOwnerWithoutQueryQuery();
   const { data, isLoading, isError, error } = useGetAllOwnerTransactionQuery({
     page: currentPage,
     limit: itemsPerPage,
     searchTerm: debouncedSearchTerm || undefined,
+    startDate: startDate || undefined,
+    endDate: endDate || undefined,
+    ownerId: fixedOwnerId || undefined,
   });
 
-  const [insertOwner, { isLoading: creatingOwner }] = useInsertOwnerMutation();
-  const [updateOwner, { isLoading: updatingOwner }] = useUpdateOwnerMutation();
-  const [deleteOwner] = useDeleteOwnerMutation();
   const [insertTransaction, { isLoading: creatingTransaction }] =
     useInsertOwnerTransactionMutation();
   const [updateTransaction, { isLoading: updatingTransaction }] =
@@ -78,8 +75,16 @@ const OwnerTransactionTable = () => {
   const owners = ownerRes?.data || [];
   const rows = data?.data || [];
   const meta = data?.meta || {};
-  const ownerSaving = creatingOwner || updatingOwner;
   const transactionSaving = creatingTransaction || updatingTransaction;
+  const ownerOptions = useMemo(
+    () =>
+      owners.map((owner) => ({
+        value: String(owner.Id),
+        label: owner.name,
+        owner,
+      })),
+    [owners],
+  );
 
   useEffect(() => {
     if (isError) console.error("Error fetching owner transactions", error);
@@ -88,37 +93,19 @@ const OwnerTransactionTable = () => {
     }
   }, [error, isError, isLoading, meta.count]);
 
-  const ownerSummary = useMemo(
-    () =>
-      owners.reduce(
-        (acc, owner) => ({
-          deposit: acc.deposit + Number(owner.totalDeposit || 0),
-          withdraw: acc.withdraw + Number(owner.totalWithdraw || 0),
-        }),
-        { deposit: 0, withdraw: 0 },
-      ),
-    [owners],
-  );
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearchTerm, fixedOwnerId, startDate, endDate]);
 
-  const openOwnerCreate = () => {
-    setEditingOwner(null);
-    setOwnerForm(ownerEmptyForm);
-    setOwnerModalOpen(true);
-  };
-
-  const openOwnerEdit = (owner) => {
-    setEditingOwner(owner);
-    setOwnerForm({
-      name: owner.name || "",
-      note: owner.note || "",
-      status: owner.status || "Active",
-    });
-    setOwnerModalOpen(true);
-  };
+  useEffect(() => {
+    if (startDate && endDate && startDate > endDate) {
+      setEndDate(startDate);
+    }
+  }, [startDate, endDate]);
 
   const openTransactionCreate = (type = "Deposit") => {
     setEditingTransaction(null);
-    setTransactionForm({ ...transactionEmptyForm, type });
+    setTransactionForm({ ...transactionEmptyForm, ownerId: fixedOwnerId || "", type });
     setTransactionModalOpen(true);
   };
 
@@ -136,40 +123,10 @@ const OwnerTransactionTable = () => {
     setTransactionModalOpen(true);
   };
 
-  const closeOwnerModal = () => {
-    setOwnerModalOpen(false);
-    setEditingOwner(null);
-    setOwnerForm(ownerEmptyForm);
-  };
-
   const closeTransactionModal = () => {
     setTransactionModalOpen(false);
     setEditingTransaction(null);
     setTransactionForm(transactionEmptyForm);
-  };
-
-  const handleOwnerSave = async (event) => {
-    event.preventDefault();
-    const payload = {
-      name: ownerForm.name.trim(),
-      note: ownerForm.note.trim(),
-      status: ownerForm.status || "Active",
-    };
-    if (!payload.name) return toast.error("Owner name is required!");
-
-    try {
-      const res = editingOwner
-        ? await updateOwner({ id: editingOwner.Id, data: payload }).unwrap()
-        : await insertOwner(payload).unwrap();
-      if (res?.success) {
-        toast.success(editingOwner ? "Owner updated!" : "Owner added!");
-        closeOwnerModal();
-      } else {
-        toast.error(res?.message || "Save failed!");
-      }
-    } catch (err) {
-      toast.error(err?.data?.message || "Save failed!");
-    }
   };
 
   const handleTransactionSave = async (event) => {
@@ -210,22 +167,6 @@ const OwnerTransactionTable = () => {
     }
   };
 
-  const handleOwnerDelete = async (owner) => {
-    const confirmed = await requestDeleteConfirmation({
-      title: "Delete owner?",
-      itemName: owner.name,
-    });
-    if (!confirmed) return;
-
-    try {
-      const res = await deleteOwner(owner.Id).unwrap();
-      if (res?.success) toast.success("Owner deleted!");
-      else toast.error(res?.message || "Delete failed!");
-    } catch (err) {
-      toast.error(err?.data?.message || "Delete failed!");
-    }
-  };
-
   const handleTransactionDelete = async (row) => {
     const confirmed = await requestDeleteConfirmation({
       title: "Delete transaction?",
@@ -252,81 +193,35 @@ const OwnerTransactionTable = () => {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <SummaryCard
           label="Total Deposit"
-          value={meta.totalDeposit ?? ownerSummary.deposit}
+          value={meta.totalDeposit}
           tone="emerald"
           icon={<ArrowDownLeft size={18} />}
         />
         <SummaryCard
           label="Total Withdraw"
-          value={meta.totalWithdraw ?? ownerSummary.withdraw}
+          value={meta.totalWithdraw}
           tone="rose"
           icon={<ArrowUpRight size={18} />}
         />
         <SummaryCard
           label="Net Owner Balance"
           value={
-            meta.netBalance ??
-            Number(ownerSummary.deposit || 0) - Number(ownerSummary.withdraw || 0)
+            meta.netBalance
           }
           tone="indigo"
           icon={<WalletCards size={18} />}
         />
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[360px_1fr]">
-        <section className="rounded-2xl border border-slate-200 bg-white">
-          <div className="flex items-center justify-between border-b border-slate-100 p-4">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900">Owners</h2>
-              <p className="text-sm text-slate-500">Create, edit and delete</p>
-            </div>
-            <button
-              type="button"
-              onClick={openOwnerCreate}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700"
-            >
-              <Plus size={16} />
-              Owner
-            </button>
+      <div className="mt-6">
+        {ownerName ? (
+          <div className="mb-4 rounded-2xl border border-indigo-100 bg-indigo-50/70 px-5 py-4">
+            <p className="text-xs font-black uppercase tracking-widest text-indigo-500">
+              Owner History
+            </p>
+            <h2 className="mt-1 text-xl font-bold text-slate-900">{ownerName}</h2>
           </div>
-          <div className="max-h-[540px] divide-y divide-slate-100 overflow-auto">
-            {owners.map((owner) => (
-              <div key={owner.Id} className="flex items-center gap-3 p-4">
-                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
-                  <UserRound size={18} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-slate-900">
-                    {owner.name}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    Balance {formatAmount(owner.netBalance)}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => openOwnerEdit(owner)}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-indigo-600 hover:bg-indigo-50"
-                >
-                  <Edit size={15} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleOwnerDelete(owner)}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-rose-600 hover:bg-rose-50"
-                >
-                  <Trash2 size={15} />
-                </button>
-              </div>
-            ))}
-            {!ownersLoading && owners.length === 0 && (
-              <div className="p-8 text-center text-sm text-slate-500">
-                No owner found
-              </div>
-            )}
-          </div>
-        </section>
-
+        ) : null}
         <section className="min-w-0 rounded-2xl border border-slate-200 bg-white">
           <div className="flex flex-col gap-3 border-b border-slate-100 p-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="relative w-full lg:max-w-md">
@@ -336,7 +231,7 @@ const OwnerTransactionTable = () => {
                   setSearchTerm(e.target.value);
                   setCurrentPage(1);
                 }}
-                placeholder="Search transaction..."
+                placeholder="Search by owner, book, amount..."
                 className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 pr-11 text-sm text-slate-700 outline-none focus:border-indigo-200 focus:ring-2 focus:ring-indigo-500/20"
               />
               <Search
@@ -344,6 +239,17 @@ const OwnerTransactionTable = () => {
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400"
               />
             </div>
+            <DateRangeFilter
+              startDate={startDate}
+              endDate={endDate}
+              onStartDateChange={setStartDate}
+              onEndDateChange={setEndDate}
+              onFilterTypeChange={(type) => setDateFilterType(type)}
+              defaultFilter={dateFilterType}
+              compact
+              className="w-full lg:max-w-sm"
+              selectWrapperClassName="w-full"
+            />
             <div className="flex flex-wrap gap-3">
               <button
                 type="button"
@@ -453,42 +359,6 @@ const OwnerTransactionTable = () => {
       </div>
 
       <Modal
-        isOpen={ownerModalOpen}
-        onClose={closeOwnerModal}
-        title={editingOwner ? "Edit Owner" : "Add Owner"}
-        maxWidth="max-w-lg"
-      >
-        <form onSubmit={handleOwnerSave} className="space-y-4">
-          <FormInput
-            label="Owner Name"
-            value={ownerForm.name}
-            onChange={(value) => setOwnerForm((p) => ({ ...p, name: value }))}
-            placeholder="Owner name"
-          />
-          <FormSelect
-            label="Status"
-            value={ownerForm.status}
-            onChange={(value) => setOwnerForm((p) => ({ ...p, status: value }))}
-            options={[
-              { value: "Active", label: "Active" },
-              { value: "Inactive", label: "Inactive" },
-            ]}
-          />
-          <FormTextarea
-            label="Note"
-            value={ownerForm.note}
-            onChange={(value) => setOwnerForm((p) => ({ ...p, note: value }))}
-            placeholder="Optional note"
-          />
-          <ModalActions
-            onCancel={closeOwnerModal}
-            loading={ownerSaving}
-            submitLabel="Save"
-          />
-        </form>
-      </Modal>
-
-      <Modal
         isOpen={transactionModalOpen}
         onClose={closeTransactionModal}
         title={
@@ -499,18 +369,19 @@ const OwnerTransactionTable = () => {
         maxWidth="max-w-2xl"
       >
         <form onSubmit={handleTransactionSave} className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <FormSelect
-            label="Owner"
-            value={transactionForm.ownerId}
-            onChange={(value) =>
-              setTransactionForm((p) => ({ ...p, ownerId: value }))
-            }
-            options={owners.map((owner) => ({
-              value: owner.Id,
-              label: owner.name,
-            }))}
-            placeholder="Select Owner"
-          />
+          {fixedOwnerId ? (
+            <FormInput label="Owner" value={ownerName || "Selected Owner"} onChange={() => {}} />
+          ) : (
+            <FormReactSelect
+              label="Owner"
+              value={transactionForm.ownerId}
+              onChange={(value) =>
+                setTransactionForm((p) => ({ ...p, ownerId: value }))
+              }
+              options={ownerOptions}
+              placeholder={ownersLoading ? "Loading owners..." : "Select Owner"}
+            />
+          )}
           <FormSelect
             label="Book"
             value={transactionForm.bookId}
@@ -634,6 +505,38 @@ const TableCell = ({ children, strong = false }) => (
 const fieldClass =
   "h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-indigo-200 focus:ring-2 focus:ring-indigo-500/20";
 
+const selectStyles = {
+  control: (base, state) => ({
+    ...base,
+    minHeight: 44,
+    borderRadius: 12,
+    borderColor: state.isFocused ? "#c7d2fe" : "#e2e8f0",
+    boxShadow: state.isFocused ? "0 0 0 2px rgba(99, 102, 241, 0.18)" : "none",
+    backgroundColor: "#ffffff",
+    "&:hover": { borderColor: state.isFocused ? "#c7d2fe" : "#cbd5e1" },
+  }),
+  valueContainer: (base) => ({ ...base, padding: "0 12px" }),
+  input: (base) => ({ ...base, color: "#0f172a" }),
+  singleValue: (base) => ({ ...base, color: "#0f172a", fontSize: 14 }),
+  placeholder: (base) => ({ ...base, color: "#94a3b8", fontSize: 14 }),
+  menu: (base) => ({
+    ...base,
+    borderRadius: 12,
+    overflow: "hidden",
+    zIndex: 60,
+  }),
+  option: (base, state) => ({
+    ...base,
+    backgroundColor: state.isSelected
+      ? "#4f46e5"
+      : state.isFocused
+        ? "#eef2ff"
+        : "#ffffff",
+    color: state.isSelected ? "#ffffff" : "#0f172a",
+    fontSize: 14,
+  }),
+};
+
 const FormInput = ({ label, value, onChange, placeholder, type = "text" }) => (
   <label className="block">
     <span className="mb-1 block text-sm font-semibold text-slate-600">
@@ -645,6 +548,24 @@ const FormInput = ({ label, value, onChange, placeholder, type = "text" }) => (
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
       className={fieldClass}
+    />
+  </label>
+);
+
+const FormReactSelect = ({ label, value, onChange, options, placeholder }) => (
+  <label className="block">
+    <span className="mb-1 block text-sm font-semibold text-slate-600">
+      {label}
+    </span>
+    <Select
+      value={options.find((option) => option.value === String(value)) || null}
+      onChange={(selected) => onChange(selected?.value || "")}
+      options={options}
+      placeholder={placeholder}
+      isClearable
+      isSearchable
+      styles={selectStyles}
+      classNamePrefix="react-select"
     />
   </label>
 );

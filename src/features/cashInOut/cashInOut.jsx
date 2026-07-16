@@ -63,6 +63,7 @@ export const cashInOutApi = baseApi.injectEndpoints({
           category,
           lender,
           loanId,
+          voucherNo,
           bookId,
         } = arg;
 
@@ -78,6 +79,7 @@ export const cashInOutApi = baseApi.injectEndpoints({
           category,
           lender,
           loanId,
+          voucherNo,
         };
 
         Object.keys(params).forEach((k) => {

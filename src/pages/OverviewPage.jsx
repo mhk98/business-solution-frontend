@@ -238,11 +238,12 @@ const OverviewPage = () => {
       const productId = item?.productId ?? item?.receivedId ?? item?.Id;
       const productName = item?.name || item?.product?.name || "Intransit Item";
       const quantity = Number(item?.quantity || 0);
-      const salePrice = Number(item?.sale_price || item?.salePrice || 0);
-      const purchasePrice = Number(
-        item?.purchase_price || item?.purchasePrice || 0,
-      );
-      const revenue = quantity * (salePrice || purchasePrice);
+      const stockSalePrice =
+        item?.InventoryMaster?.sale_price ??
+        item?.inventoryMaster?.sale_price ??
+        item?.product?.sale_price ??
+        0;
+      const revenue = quantity * Number(stockSalePrice || 0);
       const key = productId != null ? `id-${productId}` : productName;
       const existing = productMap.get(key) || {
         productId,

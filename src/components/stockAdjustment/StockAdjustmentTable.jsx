@@ -701,7 +701,8 @@ const StockAdjustmentTable = () => {
                 <div className="grid grid-cols-[minmax(0,1fr)_128px] gap-2">
                   <input
                     type="number"
-                    min="1"
+                    min="0.01"
+                    step="0.01"
                     value={item.unitValue || ""}
                     onChange={(e) =>
                       updateCreateItem(index, { unitValue: e.target.value })
@@ -1175,7 +1176,8 @@ const StockAdjustmentTable = () => {
                 <div className="flex gap-2">
                   <input
                     type="number"
-                    min="1"
+                    min="0.01"
+                    step="0.01"
                     value={currentProduct?.unitValue || ""}
                     onChange={(e) =>
                       setCurrentProduct((prev) => ({

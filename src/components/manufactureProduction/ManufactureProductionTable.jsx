@@ -39,9 +39,16 @@ const initialForm = {
   note: "",
 };
 
-const unitOptions = ["Pcs", "Kg", "Ml", "Gram", "Yard", "Inch", "Feet"].map(
-  (unit) => ({ value: unit, label: unit }),
-);
+const unitOptions = [
+  "Pcs",
+  "Kg",
+  "Liter",
+  "Ml",
+  "Gram",
+  "Yard",
+  "Inch",
+  "Feet",
+].map((unit) => ({ value: unit, label: unit }));
 
 const selectStyles = {
   control: (base, state) => ({
@@ -563,7 +570,8 @@ const ManufactureProductionTable = () => {
                         <div className="grid grid-cols-[minmax(0,1fr)_128px] gap-2">
                           <input
                             type="number"
-                            min="1"
+                            min="0.01"
+                            step="0.01"
                             value={item.unitValue || ""}
                             onChange={(e) =>
                               updateCreateItem(index, {
@@ -615,7 +623,8 @@ const ManufactureProductionTable = () => {
             <div className="grid grid-cols-1 sm:grid-cols-[1fr_130px] gap-3">
               <input
                 type="number"
-                min="1"
+                min="0.01"
+                step="0.01"
                 value={form.unitValue}
                 onChange={(e) =>
                   setForm({ ...form, unitValue: e.target.value })
