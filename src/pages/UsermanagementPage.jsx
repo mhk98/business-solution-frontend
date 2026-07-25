@@ -6,7 +6,7 @@ const UsermanagementPage = () => {
     <div className="flex-1 relative z-10 ">
       <Header title="User Management" />
 
-      <main className="max-w-8xl mx-auto py-6 px-4 lg:px-8 bg-slate-50 min-h-[calc(100vh-64px)] ">
+      <main className="max-w-8xl mx-auto min-h-[calc(100vh-64px)] bg-slate-50 px-3 py-4 sm:px-4 sm:py-5 lg:px-8 lg:py-6">
         <UserManagementTable />
       </main>
     </div>

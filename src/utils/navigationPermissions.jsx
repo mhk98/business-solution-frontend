@@ -104,6 +104,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "received_product",
     "received_return",
     "intransit_product",
+    "courier_no_entry",
     "sales_return",
     "damage_management",
     "damage_stock",
@@ -206,6 +207,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "received_product",
     "received_return",
     "intransit_product",
+    "courier_no_entry",
     "sales_return",
     "damage_management",
     "damage_stock",
@@ -312,6 +314,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "received_product",
     "received_return",
     "intransit_product",
+    "courier_no_entry",
     "sales_return",
     "damage_management",
     "damage_stock",
@@ -735,6 +738,13 @@ export const SIDEBAR_ITEMS = [
         href: "/intransit-product",
         roles: ["superAdmin", "admin", "inventor"],
       },
+      {
+        name: "Courier No Entry",
+        key: "courier_no_entry",
+        icon: ScanSearch,
+        href: "/courier-no-entry",
+        roles: ["superAdmin", "admin", "inventor"],
+      },
 
       {
         name: "Sales Return",
@@ -1143,7 +1153,7 @@ export const SIDEBAR_ITEMS = [
     ],
   },
   {
-    name: "Shifa",
+    name: "Nobobi Shifa",
     key: "shifa",
     icon: ClipboardCheck,
     color: "#0f766e",
@@ -1429,6 +1439,10 @@ const normalizeRolePermissionMap = (value) => {
 
     if (defaultKeys.includes("stock_movement")) {
       normalizedKeys.add("stock_movement");
+    }
+
+    if (defaultKeys.includes("courier_no_entry")) {
+      normalizedKeys.add("courier_no_entry");
     }
 
     if (defaultKeys.includes("loan")) {

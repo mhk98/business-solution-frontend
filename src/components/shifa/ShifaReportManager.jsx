@@ -27,7 +27,7 @@ const thirtyDaysAgo = new Date(Date.now() - 29 * 24 * 60 * 60 * 1000)
 export const SHIFA_REPORT_CONFIG = {
   call_history: {
     title: "Call History",
-    eyebrow: "Shifa",
+    eyebrow: "Nobobi Shifa",
     permissionKey: "shifa_call_history",
     path: "/shifa/call-history",
     primaryField: "callHistory",
@@ -36,7 +36,7 @@ export const SHIFA_REPORT_CONFIG = {
   },
   starting_situation: {
     title: "Starting Situation",
-    eyebrow: "Shifa",
+    eyebrow: "Nobobi Shifa",
     permissionKey: "shifa_starting_situation",
     path: "/shifa/starting-situation",
     primaryField: "startingSituation",
@@ -45,7 +45,7 @@ export const SHIFA_REPORT_CONFIG = {
   },
   problem_history: {
     title: "Problem History",
-    eyebrow: "Shifa",
+    eyebrow: "Nobobi Shifa",
     permissionKey: "shifa_problem_history",
     path: "/shifa/problem-history",
     primaryField: "problemHistory",
@@ -54,7 +54,7 @@ export const SHIFA_REPORT_CONFIG = {
   },
   patient_update: {
     title: "Patient Update",
-    eyebrow: "Shifa",
+    eyebrow: "Nobobi Shifa",
     permissionKey: "shifa_patient_update",
     path: "/shifa/patient-update",
     primaryField: "patientUpdate",
@@ -259,13 +259,13 @@ const ShifaReportManager = ({ reportType }) => {
         : await createReport(payload).unwrap();
 
       if (res?.success) {
-        toast.success(editingId ? "Shifa report updated" : "Shifa report submitted");
+        toast.success(editingId ? "Nobobi Shifa report updated" : "Nobobi Shifa report submitted");
         resetForm();
         setIsReportModalOpen(false);
         refetchReports();
       }
     } catch (err) {
-      toast.error(err?.data?.message || err?.error || "Failed to save shifa report");
+      toast.error(err?.data?.message || err?.error || "Failed to save Nobobi Shifa report");
     }
   };
 
@@ -311,18 +311,18 @@ const ShifaReportManager = ({ reportType }) => {
   };
 
   const handleDelete = async (row) => {
-    const ok = window.confirm("Delete this shifa report?");
+    const ok = window.confirm("Delete this Nobobi Shifa report?");
     if (!ok) return;
 
     try {
       const res = await deleteReport(row.Id).unwrap();
       if (res?.success) {
-        toast.success("Shifa report deleted");
+        toast.success("Nobobi Shifa report deleted");
         if (editingId === row.Id) resetForm();
         refetchReports();
       }
     } catch (err) {
-      toast.error(err?.data?.message || "Failed to delete shifa report");
+      toast.error(err?.data?.message || "Failed to delete Nobobi Shifa report");
     }
   };
 
@@ -444,7 +444,7 @@ const ShifaReportManager = ({ reportType }) => {
               {!isLoading && reports.length === 0 && (
                 <tr>
                   <td colSpan={tableColSpan} className="px-4 py-10 text-center text-slate-500">
-                    No shifa report found.
+                    No Nobobi Shifa report found.
                   </td>
                 </tr>
               )}

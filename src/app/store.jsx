@@ -101,6 +101,7 @@ import { errorMiddleware } from "./errorMiddleware";
 
 import { authApi } from "../features/auth/auth";
 import { inTransitProductApi } from "../features/inTransitProduct/inTransitProduct";
+import { courierNoEntryApi } from "../features/courierNoEntry/courierNoEntry";
 import { returnProductApi } from "../features/returnProduct/returnProduct";
 import { assetsPurchaseApi } from "../features/assetsPurchase/assetsPurchase";
 import { assetsStockApi } from "../features/assetsStock/assetsStock";
@@ -187,6 +188,7 @@ const apis = [
   inventoryOverviewApi,
   receivedProductApi,
   inTransitProductApi,
+  courierNoEntryApi,
   returnProductApi,
   purchaseReturnProductApi,
   damageProductApi,

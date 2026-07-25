@@ -18,6 +18,7 @@ const ProfilePage = lazy(() => import("./pages/ProfilePage"));
 const ReceivedProductPage = lazy(() => import("./pages/ReceivedProductPage"));
 const ReturnProductPage = lazy(() => import("./pages/ReturnProductPage"));
 const InTransitProductPage = lazy(() => import("./pages/InTransitProductPage"));
+const CourierNoEntryPage = lazy(() => import("./pages/CourierNoEntryPage"));
 const MetaPage = lazy(() => import("./pages/MetaPage"));
 const GooglePage = lazy(() => import("./pages/GooglePage"));
 const TiktokPage = lazy(() => import("./pages/TiktokPage"));
@@ -210,6 +211,7 @@ function App() {
                 <Route path="/purchase-requisition" element={<AuthedRoute><PurchaseRequisitionPage /></AuthedRoute>} />
                 <Route path="/purchase-product" element={<AuthedRoute><ReceivedProductPage /></AuthedRoute>} />
                 <Route path="/intransit-product" element={<AuthedRoute><InTransitProductPage /></AuthedRoute>} />
+                <Route path="/courier-no-entry" element={<AuthedRoute><CourierNoEntryPage /></AuthedRoute>} />
                 <Route path="/sales-return" element={<AuthedRoute><ReturnProductPage /></AuthedRoute>} />
                 <Route path="/purchase-return" element={<AuthedRoute><PurchaseReturnProductPage /></AuthedRoute>} />
                 <Route path="/damage-stock" element={<AuthedRoute><DamageStockPage /></AuthedRoute>} />

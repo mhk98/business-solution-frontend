@@ -96,20 +96,28 @@ const toneClasses = {
   rose: "bg-rose-50 text-rose-600 border-rose-100",
 };
 
-const makeChartData = (fields, totals = {}) =>
+const makeChartData = (fields, totals = {}, comparisonTotal = 0) =>
   fields.map((field) => ({
     name: field.label,
     value: Number(totals[field.key] || 0),
+    percent:
+      comparisonTotal > 0
+        ? (Number(totals[field.key] || 0) / comparisonTotal) * 100
+        : 0,
   }));
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
 
   const item = payload[0];
+  const percent = Number(item.payload?.percent || 0);
   return (
     <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-lg">
       <p className="font-bold text-slate-900">{label || item.name}</p>
       <p className="text-slate-600">Count: {Number(item.value || 0).toLocaleString()}</p>
+      <p className="text-slate-600">
+        Total phone called: {percent.toFixed(1)}%
+      </p>
     </div>
   );
 };
@@ -137,15 +145,17 @@ const ShifaOverview = () => {
   const isLoading = canManageReports ? allReports.isLoading : myReports.isLoading;
   const totals = response?.meta?.totals || {};
   const totalReports = Number(response?.meta?.count || 0);
+  const totalPhoneCalled = Number(totals.phoneCalled || 0);
 
   const sections = useMemo(
     () =>
       Object.entries(SECTION_FIELDS).map(([key, config]) => ({
         key,
         ...config,
-        data: makeChartData(config.fields, totals),
+        comparisonTotal: totalPhoneCalled,
+        data: makeChartData(config.fields, totals, totalPhoneCalled),
       })),
-    [totals],
+    [totals, totalPhoneCalled],
   );
 
   return (
@@ -154,7 +164,7 @@ const ShifaOverview = () => {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.24em] text-indigo-500">
-              Shifa
+              Nobobi Shifa
             </p>
             <h2 className="mt-2 text-2xl font-black text-slate-900">
               Overview
@@ -199,7 +209,23 @@ const ShifaOverview = () => {
 const ChartCard = ({ section, isLoading }) => {
   const Icon = section.icon;
   const total = section.data.reduce((sum, item) => sum + item.value, 0);
+  const comparisonTotal = Number(section.comparisonTotal || 0);
   const hasData = total > 0;
+  const pieData = useMemo(() => {
+    if (section.chart !== "pie") return section.data;
+    const remaining = Math.max(0, comparisonTotal - total);
+    if (!remaining) return section.data;
+
+    return [
+      ...section.data,
+      {
+        name: "বাকি ফোন",
+        value: remaining,
+        percent: comparisonTotal > 0 ? (remaining / comparisonTotal) * 100 : 0,
+        isRemainder: true,
+      },
+    ];
+  }, [comparisonTotal, section.chart, section.data, total]);
 
   return (
     <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -219,10 +245,10 @@ const ChartCard = ({ section, isLoading }) => {
         </div>
         <div className="text-right">
           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-            Total
+            Total Phone Called
           </p>
           <p className="text-lg font-black text-slate-900">
-            {isLoading ? "..." : total.toLocaleString()}
+            {isLoading ? "..." : comparisonTotal.toLocaleString()}
           </p>
         </div>
       </div>
@@ -241,18 +267,22 @@ const ChartCard = ({ section, isLoading }) => {
             <PieChart>
               <Tooltip content={<CustomTooltip />} />
               <Pie
-                data={section.data}
+                data={pieData}
                 dataKey="value"
                 nameKey="name"
                 cx="50%"
                 cy="50%"
                 outerRadius={105}
-                label={({ name, percent, value }) =>
-                  `${name}: ${value} (${(percent * 100).toFixed(1)}%)`
-                }
+                label={({ name, payload, value }) => {
+                  if (payload?.isRemainder) return "";
+                  return `${name}: ${value} (${Number(payload?.percent || 0).toFixed(1)}%)`;
+                }}
               >
-                {section.data.map((_, index) => (
-                  <Cell key={index} fill={COLORS[index % COLORS.length]} />
+                {pieData.map((item, index) => (
+                  <Cell
+                    key={index}
+                    fill={item.isRemainder ? "#e2e8f0" : COLORS[index % COLORS.length]}
+                  />
                 ))}
               </Pie>
             </PieChart>
@@ -269,7 +299,11 @@ const ChartCard = ({ section, isLoading }) => {
                 height={70}
                 tick={{ fontSize: 11, fill: "#64748b", fontWeight: 700 }}
               />
-              <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#64748b" }} />
+              <YAxis
+                allowDecimals={false}
+                domain={[0, Math.max(comparisonTotal, 1)]}
+                tick={{ fontSize: 11, fill: "#64748b" }}
+              />
               <Tooltip content={<CustomTooltip />} />
               <Bar dataKey="value" radius={[8, 8, 0, 0]} fill="#4f46e5">
                 {section.data.map((_, index) => (

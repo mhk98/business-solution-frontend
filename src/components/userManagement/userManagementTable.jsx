@@ -27,6 +27,7 @@ import {
 } from "../../utils/navigationPermissions";
 import Modal from "../common/Modal";
 import useDebounce from "../../hooks/useDebounce";
+import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 
 const API_BASE = import.meta.env.VITE_API_URL;
 const DOCUMENT_LABELS = {
@@ -389,15 +390,15 @@ const UserManagementTable = () => {
   return (
     <>
       <motion.div
-        className="bg-white/90 backdrop-blur-md shadow-[0_10px_30px_rgba(15,23,42,0.08)] rounded-2xl p-6 border border-slate-200 mb-8"
+        className="mb-8 rounded-2xl border border-slate-200 bg-white/90 p-3 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-md sm:p-4 lg:p-6"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15 }}
       >
         {/* Top bar */}
-        <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-4">
           {/* Search */}
-          <div className="relative w-full max-w-[520px]">
+          <div className="relative w-full sm:max-w-[520px]">
             <input
               value={searchTerm}
               onChange={(e) => {
@@ -406,7 +407,7 @@ const UserManagementTable = () => {
                 setStartPage(1);
               }}
               placeholder="Search by email / phone / name..."
-              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 pr-12 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
+              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 pr-12 text-sm text-slate-700 outline-none focus:border-indigo-200 focus:ring-2 focus:ring-indigo-500/20"
             />
             <Search
               className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500"
@@ -418,7 +419,7 @@ const UserManagementTable = () => {
           <button
             onClick={handleAdd}
             type="button"
-            className="inline-flex h-11 px-5 mt-12 items-center justify-center gap-2 rounded-xl bg-indigo-600 text-sm font-semibold text-white hover:bg-indigo-700 shadow-sm"
+            className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 sm:w-auto"
           >
             <Plus size={18} />
             Add New User
@@ -426,7 +427,7 @@ const UserManagementTable = () => {
         </div>
 
         {/* List */}
-        <div className="mt-8">
+        <div className="mt-5 sm:mt-8">
           {isLoading && <div className="text-slate-600">Loading...</div>}
 
           {!isLoading &&
@@ -438,11 +439,11 @@ const UserManagementTable = () => {
               return (
                 <div
                   key={item.Id}
-                  className="flex items-center justify-between border-b border-slate-200 py-5 hover:bg-slate-50 rounded-xl px-3 transition"
+                  className="flex flex-col gap-4 rounded-xl border-b border-slate-200 px-2 py-4 transition hover:bg-slate-50 sm:px-3 sm:py-5 lg:flex-row lg:items-center lg:justify-between"
                 >
                   {/* Left */}
-                  <div className="flex items-center gap-5">
-                    <div className="h-11 w-11 rounded-full overflow-hidden bg-indigo-50 flex items-center justify-center border border-slate-200">
+                  <div className="flex min-w-0 items-start gap-3 sm:gap-5">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-indigo-50">
                       {img ? (
                         <img
                           src={img}
@@ -454,14 +455,14 @@ const UserManagementTable = () => {
                       )}
                     </div>
 
-                    <div>
-                      <div className="text-[16px] font-semibold text-slate-900">
+                    <div className="min-w-0">
+                      <div className="break-words text-[15px] font-semibold leading-snug text-slate-900 sm:text-[16px]">
                         {(item.FirstName || "-") + " " + (item.LastName || "")}
                       </div>
-                      <div className="mt-1 text-sm text-slate-600">
+                      <div className="mt-1 break-all text-sm text-slate-600">
                         {item.Email || "-"}
                       </div>
-                      <div className="mt-1 text-xs text-slate-500">
+                      <div className="mt-1 text-xs leading-relaxed text-slate-500">
                         Role: {getRoleLabel(item.role)} • Status:{" "}
                         <span
                           className={
@@ -481,7 +482,7 @@ const UserManagementTable = () => {
                   </div>
 
                   {/* Right */}
-                  <div className="flex items-center gap-2 pr-2 flex-wrap justify-end">
+                  <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end lg:pr-2">
                     {canManageStatus && (
                       <>
                         <button
@@ -523,18 +524,24 @@ const UserManagementTable = () => {
                     <button
                       onClick={() => handleEdit(item)}
                       type="button"
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg hover:bg-indigo-50 transition"
+                      className="inline-flex h-9 items-center justify-center rounded-lg border border-transparent hover:bg-indigo-50 sm:w-9 sm:border-0 transition"
                       title="Edit"
                     >
+                      <span className="mr-2 text-xs font-semibold text-indigo-600 sm:hidden">
+                        Edit
+                      </span>
                       <Pencil className="text-indigo-600" size={18} />
                     </button>
 
                     <button
                       onClick={() => handleDelete(item.Id)}
                       type="button"
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg hover:bg-rose-50 transition"
+                      className="inline-flex h-9 items-center justify-center rounded-lg border border-transparent hover:bg-rose-50 sm:w-9 sm:border-0 transition"
                       title="Delete"
                     >
+                      <span className="mr-2 text-xs font-semibold text-rose-600 sm:hidden">
+                        Delete
+                      </span>
                       <Trash2 className="text-rose-600" size={18} />
                     </button>
                   </div>
@@ -548,11 +555,11 @@ const UserManagementTable = () => {
         </div>
 
         {/* Pagination */}
-        <div className="flex items-center justify-center flex-wrap gap-2 mt-6">
+        <div className="mt-6 flex items-center justify-center gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
           <button
             onClick={handlePreviousSet}
             disabled={startPage === 1}
-            className="px-4 py-2 text-slate-700 bg-white border border-slate-200 rounded-xl disabled:opacity-60 hover:bg-slate-50 transition"
+            className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 sm:px-4"
           >
             Prev
           </button>
@@ -565,7 +572,7 @@ const UserManagementTable = () => {
               <button
                 key={pageNum}
                 onClick={() => handlePageChange(pageNum)}
-                className={`px-4 py-2 rounded-xl border transition ${
+                className={`shrink-0 rounded-xl border px-3 py-2 text-sm transition sm:px-4 ${
                   active
                     ? "bg-indigo-600 text-white border-indigo-600"
                     : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
@@ -579,7 +586,7 @@ const UserManagementTable = () => {
           <button
             onClick={handleNextSet}
             disabled={endPage === totalPages}
-            className="px-4 py-2 text-slate-700 bg-white border border-slate-200 rounded-xl disabled:opacity-60 hover:bg-slate-50 transition"
+            className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50 disabled:opacity-60 sm:px-4"
           >
             Next
           </button>
@@ -653,17 +660,17 @@ const UserManagementTable = () => {
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-6 border-t border-slate-100 mt-6">
+          <div className="mt-6 flex flex-col-reverse gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:justify-end">
             <button
               type="button"
-              className="px-6 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-sm hover:bg-slate-50 transition active:scale-95"
+              className="rounded-xl border border-slate-200 px-6 py-2.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50 active:scale-95"
               onClick={closeEdit}
             >
               Cancel
             </button>
             <button
               type="button"
-              className="px-10 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-700 transition shadow-md shadow-indigo-100 disabled:opacity-50 active:scale-95"
+              className="rounded-xl bg-indigo-600 px-10 py-2.5 text-sm font-bold text-white shadow-md shadow-indigo-100 transition hover:bg-indigo-700 active:scale-95 disabled:opacity-50"
               onClick={handleUpdate}
               disabled={updating}
             >
@@ -740,7 +747,7 @@ const UserManagementTable = () => {
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-6 border-t border-slate-100 mt-6">
+          <div className="mt-6 flex flex-col-reverse gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:justify-end">
             <button
               type="button"
               className="px-6 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-bold text-sm hover:bg-slate-50 transition active:scale-95"
@@ -777,7 +784,7 @@ const Input = ({ label, value, onChange, type = "text" }) => (
 );
 
 const DocumentFields = ({ mode, previewUrls, currentValues, onFileChange }) => (
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
     {Object.entries(DOCUMENT_LABELS).map(([field, label]) => {
       const existingPath = currentValues?.[field];
       const previewUrl = previewUrls?.[field];
@@ -785,7 +792,7 @@ const DocumentFields = ({ mode, previewUrls, currentValues, onFileChange }) => (
       return (
         <div
           key={field}
-          className="rounded-2xl border border-slate-200 p-4 bg-slate-50/70"
+          className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 sm:p-4"
         >
           <label className="block text-sm font-medium text-slate-700 mb-2">
             {label}
@@ -794,7 +801,7 @@ const DocumentFields = ({ mode, previewUrls, currentValues, onFileChange }) => (
             type="file"
             accept={isImageField ? "image/*,.pdf" : ".pdf,image/*"}
             onChange={(e) => onFileChange(field, e)}
-            className="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-1 file:text-xs file:font-semibold file:text-slate-700 hover:file:bg-slate-200"
+            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-900 outline-none transition file:mr-2 file:rounded-lg file:border-0 file:bg-slate-100 file:px-2 file:py-1 file:text-xs file:font-semibold file:text-slate-700 hover:file:bg-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 sm:px-4 sm:text-sm sm:file:mr-3 sm:file:px-3"
           />
           <div className="mt-3 text-xs text-slate-500">
             {mode === "create"

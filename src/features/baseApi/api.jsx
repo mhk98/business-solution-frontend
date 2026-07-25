@@ -58,6 +58,7 @@ export const baseApi = createApi({
     "ReceivedProduct",
     "PurchaseReturn",
     "InTransitProduct",
+    "CourierNoEntry",
     "ReturnProduct",
     "DamageProduct",
     "DamageRepair",

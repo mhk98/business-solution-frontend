@@ -16,9 +16,24 @@ export const overviewApi = baseApi.injectEndpoints({
       providesTags: [{ type: "Overview", id: "LIST" }],
       refetchOnMountOrArgChange: true,
     }),
+    getOverviewDashboard: build.query({
+      query: (arg = {}) => {
+        const params = { ...arg };
+        Object.keys(params).forEach((k) => {
+          if (params[k] === undefined || params[k] === null || params[k] === "")
+            delete params[k];
+        });
+
+        return { url: "/overview/dashboard", params };
+      },
+
+      providesTags: [{ type: "Overview", id: "DASHBOARD" }],
+      refetchOnMountOrArgChange: true,
+    }),
   }),
 
   overrideExisting: false,
 });
 
-export const { useGetOverviewSummaryQuery } = overviewApi;
+export const { useGetOverviewSummaryQuery, useGetOverviewDashboardQuery } =
+  overviewApi;

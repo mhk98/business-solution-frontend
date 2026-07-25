@@ -357,11 +357,33 @@ const ManufactureTable = () => {
     return itemsTotal + Number(createProduct.otherCost || 0);
   }, [createProduct.items, createProduct.otherCost]);
 
+  const getRecordItemId = (row) =>
+    row?.itemId ??
+    row?.item_id ??
+    row?.ItemId ??
+    row?.item?.Id ??
+    row?.item?.id ??
+    row?.Item?.Id ??
+    row?.Item?.id ??
+    "";
+
+  const getRecordSupplierId = (row) =>
+    row?.supplierId ??
+    row?.supplier_id ??
+    row?.SupplierId ??
+    row?.supplier?.Id ??
+    row?.supplier?.id ??
+    row?.Supplier?.Id ??
+    row?.Supplier?.id ??
+    "";
+
   const handleEditClick = (rp) => {
     setCurrentProduct({
       ...rp,
-      itemId: rp.itemId ? String(rp.itemId) : "",
-      supplierId: rp.supplierId ? String(rp.supplierId) : "",
+      itemId: getRecordItemId(rp) ? String(getRecordItemId(rp)) : "",
+      supplierId: getRecordSupplierId(rp)
+        ? String(getRecordSupplierId(rp))
+        : "",
       date: rp.date ?? "",
       note: rp.note ?? "",
       unitCost: getUnitCost(rp) || "",
@@ -377,8 +399,10 @@ const ManufactureTable = () => {
   const handleEditClick1 = (rp) => {
     setCurrentProduct({
       ...rp,
-      itemId: rp.itemId ? String(rp.itemId) : "",
-      supplierId: rp.supplierId ? String(rp.supplierId) : "",
+      itemId: getRecordItemId(rp) ? String(getRecordItemId(rp)) : "",
+      supplierId: getRecordSupplierId(rp)
+        ? String(getRecordSupplierId(rp))
+        : "",
       date: rp.date ?? "",
       note: rp.note ?? "",
       unitCost: getUnitCost(rp) || "",

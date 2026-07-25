@@ -464,21 +464,25 @@ const PackagingFactoryTable = () => {
           <tbody className="divide-y divide-slate-100">
             {rows.map((row) => (
               <tr key={row.Id}>
-                <td className="px-6 py-5 text-sm">
+                <td className="px-6 py-5 text-sm text-slate-600">
                   {row.date || row.createdAt?.slice(0, 10)}
                 </td>
-                <td className="px-6 py-5 text-sm font-bold">{row.name}</td>
-                <td className="px-6 py-5 text-sm">
+                <td className="px-6 py-5 text-sm text-slate-600 font-bold">
+                  {row.name}
+                </td>
+                <td className="px-6 py-5 text-sm text-slate-600">
                   {row.manufacturerName || "N/A"}
                 </td>
-                <td className="px-6 py-5 text-sm">
+                <td className="px-6 py-5 text-sm text-slate-600">
                   {Number(row.unitValue || 0)} {row.unit || "Pcs"}
                 </td>
-                <td className="px-6 py-5 text-sm">{money(getUnitCost(row))}</td>
-                <td className="px-6 py-5 text-sm font-bold">
+                <td className="px-6 py-5 text-sm text-slate-600">
+                  {money(getUnitCost(row))}
+                </td>
+                <td className="px-6 py-5 text-sm text-slate-600 font-bold">
                   {money(row.cost)}
                 </td>
-                <td className="px-6 py-5">
+                <td className="px-6 py-5 text-slate-600">
                   {canManage && (
                     <div className="flex gap-2">
                       <button

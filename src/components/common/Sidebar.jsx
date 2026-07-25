@@ -1,7 +1,5 @@
 import {
   ChevronDown,
-  PanelLeftClose,
-  PanelLeftOpen,
   Search,
   X,
 } from "lucide-react";
@@ -40,7 +38,6 @@ const Tooltip = ({ show, text }) => {
 const Sidebar = () => {
   const {
     isSidebarOpen,
-    toggleSidebar,
     isMobileMenuOpen,
     toggleMobileMenu,
     language,
@@ -239,30 +236,17 @@ const Sidebar = () => {
                       initial={{ opacity: 0, x: -8 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -8 }}
-                      className="flex-1"
+                      className="min-w-0 flex-1"
                     >
-                      <div className="text-slate-900 font-semibold leading-tight">
+                      <div className="truncate text-slate-900 font-semibold leading-tight">
                         Kafela Mart
                       </div>
-                      <div className="text-xs text-slate-500">
-                        {t.control_panel}
+                      <div className="whitespace-nowrap text-[11px] leading-tight text-slate-500">
+                        {t.inventory_management}
                       </div>
                     </motion.div>
                   ) : null}
                 </AnimatePresence>
-
-                <button
-                  onClick={toggleSidebar}
-                  className="hidden lg:flex h-10 w-10 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 items-center justify-center transition"
-                  type="button"
-                  title={isSidebarOpen ? "Collapse" : "Expand"}
-                >
-                  {isSidebarOpen ? (
-                    <PanelLeftClose size={18} />
-                  ) : (
-                    <PanelLeftOpen size={18} />
-                  )}
-                </button>
 
                 {/* Mobile Close Button */}
                 <button

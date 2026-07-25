@@ -22,6 +22,8 @@ import {
   useSendProfitLossInvoiceMutation,
 } from "../../features/profitLoss/profitLoss";
 
+const DEFAULT_PROFIT_LOSS_INVOICE_EMAIL = "ndhrubotara7@gmail.com";
+
 const safeNumber = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -46,6 +48,14 @@ const escapeHtml = (value) =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+
+const getStoredAuthUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem("authUser") || "{}");
+  } catch {
+    return {};
+  }
+};
 
 const getProductName = (item) =>
   item?.name ||
@@ -171,6 +181,15 @@ const salesTypeOptions = [
 ];
 
 const DailyProfitLossTable = () => {
+  const role = localStorage.getItem("role");
+  const isSuperAdmin = role === "superAdmin";
+  const authUser = getStoredAuthUser();
+  const currentUserEmail = String(
+    authUser?.Email || authUser?.email || localStorage.getItem("email") || "",
+  ).toLowerCase();
+  const canSeeProfitLossActions =
+    currentUserEmail === DEFAULT_PROFIT_LOSS_INVOICE_EMAIL;
+
   const {
     data: receivedRes,
     isLoading: receivedLoading,
@@ -246,6 +265,14 @@ const DailyProfitLossTable = () => {
     1,
     Math.ceil(totalProfitLossCount / itemsPerPage),
   );
+  const savedHistoryHeadings = [
+    "Date",
+    "Sales Type",
+    "Products",
+    "Purchase",
+    ...(isSuperAdmin ? ["Sale", "Return", "Cost", "Profit/Loss"] : []),
+    "Action",
+  ];
 
   useEffect(() => {
     setSelectedRows((prev) => {
@@ -449,7 +476,7 @@ const DailyProfitLossTable = () => {
     if (!window.confirm("Delete this saved profit/loss record?")) return;
 
     try {
-      const res = await deleteProfitLoss(id).unwrap();
+      const res = await deleteProfitLoss({ id, mode: "product" }).unwrap();
       if (res?.success) {
         toast.success("Profit/Loss history deleted");
       } else {
@@ -1143,17 +1170,7 @@ const DailyProfitLossTable = () => {
           <table className="min-w-[920px] w-full border-separate border-spacing-0">
             <thead>
               <tr className="text-left">
-                {[
-                  "Date",
-                  "Sales Type",
-                  "Products",
-                  "Purchase",
-                  "Sale",
-                  "Return",
-                  "Cost",
-                  "Profit/Loss",
-                  "Action",
-                ].map((heading) => (
+                {savedHistoryHeadings.map((heading) => (
                   <th
                     key={heading}
                     className="border-b border-slate-200 px-3 py-4 text-sm font-bold text-slate-700 first:pl-2"
@@ -1168,7 +1185,7 @@ const DailyProfitLossTable = () => {
               {profitLossLoading || profitLossFetching ? (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={savedHistoryHeadings.length}
                     className="px-3 py-16 text-center text-sm font-medium text-slate-500"
                   >
                     Loading saved profit/loss data...
@@ -1177,7 +1194,7 @@ const DailyProfitLossTable = () => {
               ) : profitLossRows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={savedHistoryHeadings.length}
                     className="px-3 py-16 text-center text-sm font-medium text-slate-500"
                   >
                     কোনো saved profit/loss data পাওয়া যায়নি।
@@ -1198,34 +1215,40 @@ const DailyProfitLossTable = () => {
                     <td className="border-b border-slate-100 px-3 py-4 text-sm font-semibold text-slate-900">
                       {formatCurrency(row?.purchase)}
                     </td>
-                    <td className="border-b border-slate-100 px-3 py-4 text-sm font-semibold text-slate-700">
-                      {formatCurrency(row?.revenue)}
-                    </td>
-                    <td className="border-b border-slate-100 px-3 py-4 text-sm font-semibold text-slate-700">
-                      {formatCurrency(row?.return)}
-                    </td>
-                    <td className="border-b border-slate-100 px-3 py-4 text-sm font-semibold text-slate-700">
-                      {formatCurrency(row?.cost)}
-                    </td>
-                    <td
-                      className={`border-b border-slate-100 px-3 py-4 text-sm font-bold ${
-                        safeNumber(row?.profitLoss) >= 0
-                          ? "text-emerald-600"
-                          : "text-rose-600"
-                      }`}
-                    >
-                      {formatCurrency(row?.profitLoss)}
-                    </td>
+                    {isSuperAdmin && (
+                      <>
+                        <td className="border-b border-slate-100 px-3 py-4 text-sm font-semibold text-slate-700">
+                          {formatCurrency(row?.revenue)}
+                        </td>
+                        <td className="border-b border-slate-100 px-3 py-4 text-sm font-semibold text-slate-700">
+                          {formatCurrency(row?.return)}
+                        </td>
+                        <td className="border-b border-slate-100 px-3 py-4 text-sm font-semibold text-slate-700">
+                          {formatCurrency(row?.cost)}
+                        </td>
+                        <td
+                          className={`border-b border-slate-100 px-3 py-4 text-sm font-bold ${
+                            safeNumber(row?.profitLoss) >= 0
+                              ? "text-emerald-600"
+                              : "text-rose-600"
+                          }`}
+                        >
+                          {formatCurrency(row?.profitLoss)}
+                        </td>
+                      </>
+                    )}
                     <td className="border-b border-slate-100 px-3 py-4">
                       <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handlePrintInvoice(row)}
-                          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                        >
-                          <Printer size={14} />
-                          Print
-                        </button>
+                        {isSuperAdmin && canSeeProfitLossActions && (
+                          <button
+                            type="button"
+                            onClick={() => handlePrintInvoice(row)}
+                            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                          >
+                            <Printer size={14} />
+                            Print
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => handleSendEmail(row)}
@@ -1234,15 +1257,19 @@ const DailyProfitLossTable = () => {
                           <Mail size={14} />
                           Email
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteProfitLossHistory(row?.Id)}
-                          disabled={isDeletingProfitLoss}
-                          className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-white px-3 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          <Trash2 size={14} />
-                          Delete
-                        </button>
+                        {canSeeProfitLossActions && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleDeleteProfitLossHistory(row?.Id)
+                            }
+                            disabled={isDeletingProfitLoss}
+                            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-white px-3 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            <Trash2 size={14} />
+                            Delete
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

@@ -9,7 +9,6 @@ import {
   Edit3,
   Mail,
   Printer,
-  RefreshCcw,
   Search,
   Trash2,
 } from "lucide-react";
@@ -32,6 +31,7 @@ import {
 } from "../features/profitLoss/profitLoss";
 
 const today = new Date().toISOString().slice(0, 10);
+const DEFAULT_PROFIT_LOSS_INVOICE_EMAIL = "ndhrubotara7@gmail.com";
 
 const REPORT_FIELDS = [
   { key: "failedGiven", label: "Failed দেওয়া হয়েছে" },
@@ -179,6 +179,39 @@ const escapeHtml = (value) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
+const getStoredAuthUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem("authUser") || "{}");
+  } catch {
+    return {};
+  }
+};
+
+const getSavedCalculationSummary = (row, fallbackSummary) => {
+  const marketingCost = safeNumber(row?.marketingSpends);
+  const otherCost = safeNumber(row?.otherExpenses);
+  const incentiveType = row?.incentiveType || fallbackSummary.incentiveType || "flat";
+  const incentiveValue = safeNumber(row?.incentiveValue ?? fallbackSummary.incentiveValue);
+  const incentiveAmount = safeNumber(row?.incentiveAmount ?? fallbackSummary.incentiveAmount);
+  const returnRate = safeNumber(row?.returnPercentage);
+  const returnDeduction = safeNumber(row?.return);
+  const revenue = safeNumber(row?.revenue);
+  const grossProfit = revenue - returnDeduction;
+
+  return {
+    revenue: revenue || fallbackSummary.revenue,
+    returnRate,
+    returnDeduction,
+    marketingCost,
+    otherCost,
+    incentiveType,
+    incentiveValue,
+    incentiveAmount,
+    grossProfit: revenue ? grossProfit : fallbackSummary.grossProfit,
+    finalProfit: safeNumber(row?.profitLoss),
+  };
+};
+
 const selectStyles = {
   control: (base, state) => ({
     ...base,
@@ -207,8 +240,21 @@ const selectStyles = {
 
 const DailyProfitLossUserPage = () => {
   const role = localStorage.getItem("role") || "user";
-  const canManageReports = ["superAdmin", "admin"].includes(role);
+  const isSuperAdmin = role === "superAdmin";
+  const canManageReports = ["superAdmin", "admin", "marketer"].includes(role);
   const currentUserId = Number(localStorage.getItem("userId") || 0);
+  const authUser = getStoredAuthUser();
+  const currentUserEmail = String(
+    authUser?.Email || authUser?.email || localStorage.getItem("email") || "",
+  )
+    .trim()
+    .toLowerCase();
+  const canSeeSensitiveSummary =
+    currentUserEmail === DEFAULT_PROFIT_LOSS_INVOICE_EMAIL;
+  const canSendProfitLossInvoiceEmail =
+    currentUserEmail === DEFAULT_PROFIT_LOSS_INVOICE_EMAIL;
+  const canManageProfitLossHistoryActions =
+    currentUserEmail === DEFAULT_PROFIT_LOSS_INVOICE_EMAIL;
   const pageSize = 10;
   const historyPageSize = 10;
 
@@ -230,7 +276,8 @@ const DailyProfitLossUserPage = () => {
   const [marketingSpends, setMarketingSpends] = useState(0);
   const [otherExpenses, setOtherExpenses] = useState(0);
   const [returnPercentage, setReturnPercentage] = useState(0);
-  const [calculationDate, setCalculationDate] = useState(today);
+  const [incentiveType, setIncentiveType] = useState("flat");
+  const [incentiveValue, setIncentiveValue] = useState(0);
   const [salesType, setSalesType] = useState(null);
 
   // Profit/Loss history state
@@ -427,8 +474,13 @@ const DailyProfitLossUserPage = () => {
     const returnDeduction = (revenue * returnRate) / 100;
     const mktCost = safeNumber(marketingSpends);
     const otherCost = safeNumber(otherExpenses);
-    const extraCost = mktCost + otherCost;
     const grossProfit = revenue - returnDeduction;
+    const incentiveInput = safeNumber(incentiveValue);
+    const incentiveAmount =
+      incentiveType === "percentage"
+        ? (Math.max(grossProfit, 0) * incentiveInput) / 100
+        : incentiveInput;
+    const extraCost = mktCost + otherCost + incentiveAmount;
     const finalProfit = grossProfit - extraCost;
 
     return {
@@ -437,6 +489,9 @@ const DailyProfitLossUserPage = () => {
       returnDeduction,
       mktCost,
       otherCost,
+      incentiveType,
+      incentiveValue: incentiveInput,
+      incentiveAmount,
       extraCost,
       grossProfit,
       finalProfit,
@@ -448,6 +503,8 @@ const DailyProfitLossUserPage = () => {
     returnPercentage,
     marketingSpends,
     otherExpenses,
+    incentiveType,
+    incentiveValue,
   ]);
 
   // ── Handlers ──
@@ -518,11 +575,16 @@ const DailyProfitLossUserPage = () => {
   };
 
   const handleDeleteProfitLossHistory = async (id) => {
+    if (!canManageProfitLossHistoryActions) {
+      toast.error("You are not allowed to delete this record");
+      return;
+    }
+
     const ok = window.confirm("Delete this saved profit/loss record?");
     if (!ok) return;
 
     try {
-      const res = await deleteProfitLoss(id).unwrap();
+      const res = await deleteProfitLoss({ id, mode: "user" }).unwrap();
       if (res?.success) {
         toast.success("Profit/Loss history deleted");
       } else {
@@ -537,7 +599,8 @@ const DailyProfitLossUserPage = () => {
     setMarketingSpends(0);
     setOtherExpenses(0);
     setReturnPercentage(0);
-    setCalculationDate(today);
+    setIncentiveType("flat");
+    setIncentiveValue(0);
     setSalesType(null);
   };
 
@@ -550,6 +613,10 @@ const DailyProfitLossUserPage = () => {
       toast.error("Please select a sales type");
       return;
     }
+    if (!fromDate || !toDate) {
+      toast.error("Please select a date filter first");
+      return;
+    }
 
     const payload = {
       mode: "user",
@@ -557,10 +624,20 @@ const DailyProfitLossUserPage = () => {
       purchase: 0,
       revenue: Math.round(summary.revenue),
       return: Math.round(summary.returnDeduction),
+      marketingSpends: safeNumber(marketingSpends),
+      otherExpenses: safeNumber(otherExpenses),
+      incentiveType,
+      incentiveValue: safeNumber(incentiveValue),
+      incentiveAmount: Math.round(summary.incentiveAmount),
+      returnPercentage: summary.returnRate,
       cost: Math.round(summary.extraCost),
       profitLoss: Math.round(summary.finalProfit),
       salesType: salesType.value,
-      date: calculationDate,
+      date: fromDate,
+      note:
+        fromDate === toDate
+          ? `Calculation date: ${fromDate}`
+          : `Calculation date range: ${fromDate} to ${toDate}`,
     };
 
     try {
@@ -578,6 +655,11 @@ const DailyProfitLossUserPage = () => {
 
   // ── Invoice handlers ──
   const handlePrintInvoice = (row) => {
+    if (!canManageProfitLossHistoryActions) {
+      toast.error("You are not allowed to print this invoice");
+      return;
+    }
+
     const printWindow = window.open("", "_blank", "width=1200,height=820");
     if (!printWindow) {
       toast.error("Please allow popups to print the invoice");
@@ -589,6 +671,7 @@ const DailyProfitLossUserPage = () => {
     const invoiceSalesType = escapeHtml(
       row?.salesType || salesType?.value || "-",
     );
+    const invoiceSummary = getSavedCalculationSummary(row, summary);
 
     const reportRowsHtml =
       allCalcReports.length > 0
@@ -615,24 +698,6 @@ const DailyProfitLossUserPage = () => {
             .join("")
         : `<tr><td colspan="15" style="text-align:center;padding:20px;color:#94a3b8;">কোনো employee report নেই</td></tr>`;
 
-    const historyRowsHtml =
-      profitLossRows.length > 0
-        ? profitLossRows
-            .map((hr) => {
-              const pl = safeNumber(hr?.profitLoss);
-              const plColor = pl >= 0 ? "#059669" : "#dc2626";
-              return `<tr>
-                <td class="date-cell">${escapeHtml(formatDate(hr?.createdAt))}</td>
-                <td>${escapeHtml(hr?.salesType || "-")}</td>
-                <td class="amount">${escapeHtml(formatCurrency(hr?.revenue))}</td>
-                <td class="amount">${escapeHtml(formatCurrency(hr?.return))}</td>
-                <td class="amount">${escapeHtml(formatCurrency(hr?.cost))}</td>
-                <td class="amount" style="color:${plColor}">${escapeHtml(formatCurrency(hr?.profitLoss))}</td>
-              </tr>`;
-            })
-            .join("")
-        : `<tr><td colspan="6" style="text-align:center;padding:20px;color:#94a3b8;">কোনো saved history নেই</td></tr>`;
-
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
@@ -644,6 +709,13 @@ const DailyProfitLossUserPage = () => {
             h1 { font-size: 24px; font-weight: 700; margin: 0 0 4px; }
             h2 { font-size: 15px; font-weight: 700; margin: 28px 0 10px; color: #1e293b; padding-bottom: 6px; border-bottom: 2px solid #e2e8f0; }
             .meta { color: #475569; font-size: 12px; margin-bottom: 3px; }
+            .invoice-header { display: table; width: 100%; background: #11204a; color: #fff; padding: 22px 24px; border-radius: 12px 12px 0 0; margin-bottom: 22px; }
+            .invoice-title { display: table-cell; vertical-align: top; }
+            .invoice-title h1 { color: #fff; margin: 0 0 6px; }
+            .invoice-title .subtitle { color: #dbeafe; font-size: 13px; font-weight: 700; }
+            .invoice-meta { display: table-cell; vertical-align: top; text-align: right; min-width: 250px; }
+            .invoice-meta .meta { color: #e0e7ff; font-size: 12px; margin-bottom: 5px; }
+            .invoice-meta strong { color: #fff; }
             table { width: 100%; border-collapse: collapse; margin-top: 6px; }
             th, td { border: 1px solid #e2e8f0; padding: 8px 10px; text-align: left; }
             th { background: #f8fafc; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; font-size: 10px; color: #475569; }
@@ -660,11 +732,50 @@ const DailyProfitLossUserPage = () => {
           </style>
         </head>
         <body>
-          <h1>Profit/Loss Invoice (By User)</h1>
-          <div class="meta">Invoice No: ${escapeHtml(invoiceNo)}</div>
-          <div class="meta">Date: ${escapeHtml(invoiceDate)}</div>
-          <div class="meta">Sales Type: ${invoiceSalesType}</div>
-          <div class="meta">Date Range: ${escapeHtml(fromDate || "-")} to ${escapeHtml(toDate || "-")}</div>
+          <div class="invoice-header">
+            <div class="invoice-title">
+              <h1>Kafela Mart Accounts</h1>
+              <div class="subtitle">Profit &amp; Loss Invoice (By User)</div>
+            </div>
+            <div class="invoice-meta">
+              <div class="meta"><strong>Invoice No:</strong> ${escapeHtml(invoiceNo)}</div>
+              <div class="meta"><strong>Date:</strong> ${escapeHtml(invoiceDate)}</div>
+              <div class="meta"><strong>Sales Type:</strong> ${invoiceSalesType}</div>
+              <div class="meta"><strong>Date Range:</strong> ${escapeHtml(fromDate || "-")} to ${escapeHtml(toDate || "-")}</div>
+            </div>
+          </div>
+
+          <h2>Calculation Breakdown</h2>
+          <div class="breakdown">
+            <div class="breakdown-item">
+              <div class="lbl">Total Amount</div>
+              <div class="val">${escapeHtml(formatCurrency(invoiceSummary.revenue))}</div>
+            </div>
+            <div class="breakdown-item">
+              <div class="lbl">Marketing Spends</div>
+              <div class="val">${escapeHtml(formatCurrency(invoiceSummary.marketingCost))}</div>
+            </div>
+            <div class="breakdown-item">
+              <div class="lbl">Other Expenses</div>
+              <div class="val">${escapeHtml(formatCurrency(invoiceSummary.otherCost))}</div>
+            </div>
+            <div class="breakdown-item">
+              <div class="lbl">Incentive${invoiceSummary.incentiveType === "percentage" ? ` (${invoiceSummary.incentiveValue.toFixed(2)}%)` : ""}</div>
+              <div class="val">${escapeHtml(formatCurrency(invoiceSummary.incentiveAmount))}</div>
+            </div>
+            <div class="breakdown-item">
+              <div class="lbl">Return (${invoiceSummary.returnRate.toFixed(2)}%)</div>
+              <div class="val">${escapeHtml(formatCurrency(invoiceSummary.returnDeduction))}</div>
+            </div>
+            <div class="breakdown-item span2">
+              <div class="lbl">Gross Profit</div>
+              <div class="val">${escapeHtml(formatCurrency(invoiceSummary.grossProfit))}</div>
+            </div>
+            <div class="breakdown-item span2">
+              <div class="lbl">Net Profit/Loss</div>
+              <div class="val ${invoiceSummary.finalProfit >= 0 ? "profit" : "loss"}">${escapeHtml(formatCurrency(invoiceSummary.finalProfit))}</div>
+            </div>
+          </div>
 
           <h2>Employee Reports</h2>
           <table>
@@ -679,44 +790,6 @@ const DailyProfitLossUserPage = () => {
             <tbody>${reportRowsHtml}</tbody>
           </table>
 
-          <h2>Calculation Breakdown</h2>
-          <div class="breakdown">
-            <div class="breakdown-item">
-              <div class="lbl">Total Amount</div>
-              <div class="val">${escapeHtml(formatCurrency(summary.revenue))}</div>
-            </div>
-            <div class="breakdown-item">
-              <div class="lbl">Marketing Spends</div>
-              <div class="val">${escapeHtml(formatCurrency(summary.mktCost))}</div>
-            </div>
-            <div class="breakdown-item">
-              <div class="lbl">Other Expenses</div>
-              <div class="val">${escapeHtml(formatCurrency(summary.otherCost))}</div>
-            </div>
-            <div class="breakdown-item">
-              <div class="lbl">Return (${summary.returnRate.toFixed(2)}%)</div>
-              <div class="val">${escapeHtml(formatCurrency(summary.returnDeduction))}</div>
-            </div>
-            <div class="breakdown-item span2">
-              <div class="lbl">Gross Profit</div>
-              <div class="val">${escapeHtml(formatCurrency(summary.grossProfit))}</div>
-            </div>
-            <div class="breakdown-item span2">
-              <div class="lbl">Net Profit/Loss</div>
-              <div class="val ${summary.finalProfit >= 0 ? "profit" : "loss"}">${escapeHtml(formatCurrency(summary.finalProfit))}</div>
-            </div>
-          </div>
-
-          <h2>Saved Profit/Loss History</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th><th>Sales Type</th><th>Sale</th>
-                <th>Return</th><th>Cost</th><th>Profit/Loss</th>
-              </tr>
-            </thead>
-            <tbody>${historyRowsHtml}</tbody>
-          </table>
         </body>
       </html>
     `);
@@ -726,28 +799,8 @@ const DailyProfitLossUserPage = () => {
     printWindow.print();
   };
 
-  const handleSendEmail = (row) => {
-    setSelectedInvoiceRow(row);
-    setClientEmail("");
-    setIsEmailModalOpen(true);
-  };
-
-  const handleCloseEmailModal = () => {
-    setIsEmailModalOpen(false);
-    setSelectedInvoiceRow(null);
-    setClientEmail("");
-  };
-
-  const handleSubmitInvoiceEmail = async () => {
-    if (!clientEmail.trim()) {
-      toast.error("Please enter client email");
-      return;
-    }
-    if (!selectedInvoiceRow) {
-      toast.error("No invoice selected");
-      return;
-    }
-
+  const buildInvoicePayload = (row, recipientEmail) => {
+    const invoiceSummary = getSavedCalculationSummary(row, summary);
     const employeeReportDetails = allCalcReports.map((r) => ({
       reportDate: r.reportDate || "-",
       name: r.employee?.name || r.name || "-",
@@ -769,50 +822,102 @@ const DailyProfitLossUserPage = () => {
     const savedHistoryDetails = profitLossRows.map((hr) => ({
       date: formatDate(hr?.createdAt),
       salesType: hr?.salesType || "-",
-      revenue: safeNumber(hr?.revenue),
-      return: safeNumber(hr?.return),
-      cost: safeNumber(hr?.cost),
-      profitLoss: safeNumber(hr?.profitLoss),
+      ...(isSuperAdmin || recipientEmail === DEFAULT_PROFIT_LOSS_INVOICE_EMAIL
+        ? {
+            revenue: safeNumber(hr?.revenue),
+            return: safeNumber(hr?.return),
+            cost: safeNumber(hr?.cost),
+            profitLoss: safeNumber(hr?.profitLoss),
+          }
+        : {}),
     }));
 
-    const payload = {
-      clientEmail: clientEmail.trim(),
-      invoiceNumber: `PL-${selectedInvoiceRow?.Id || Date.now()}`,
+    return {
+      clientEmail: recipientEmail,
+      invoiceNumber: `PL-${row?.Id || Date.now()}`,
       companyName: "Kafela Mart Accounts",
       reportTitle: "Profit & Loss Invoice (By User)",
-      reportDate: selectedInvoiceRow?.createdAt,
-      profitLossId: selectedInvoiceRow?.Id,
-      salesType: selectedInvoiceRow?.salesType || "",
-      products: safeNumber(selectedInvoiceRow?.products),
-      purchase: safeNumber(selectedInvoiceRow?.purchase),
-      revenue: safeNumber(selectedInvoiceRow?.revenue),
-      return: safeNumber(selectedInvoiceRow?.return),
-      cost: safeNumber(selectedInvoiceRow?.cost),
-      profitLoss: safeNumber(selectedInvoiceRow?.profitLoss),
+      reportDate: row?.createdAt,
+      profitLossId: row?.Id,
+      salesType: row?.salesType || "",
       employeeReports: employeeReportDetails,
-      calculationSummary: {
-        revenue: summary.revenue,
-        returnRate: summary.returnRate,
-        returnDeduction: summary.returnDeduction,
-        marketingCost: summary.mktCost,
-        otherCost: summary.otherCost,
-        grossProfit: summary.grossProfit,
-        finalProfit: summary.finalProfit,
-      },
       savedHistory: savedHistoryDetails,
+      calculationSummary: {
+        revenue: invoiceSummary.revenue,
+        returnRate: invoiceSummary.returnRate,
+        returnDeduction: invoiceSummary.returnDeduction,
+        marketingCost: invoiceSummary.marketingCost,
+        otherCost: invoiceSummary.otherCost,
+        incentiveType: invoiceSummary.incentiveType,
+        incentiveValue: invoiceSummary.incentiveValue,
+        incentiveAmount: invoiceSummary.incentiveAmount,
+        grossProfit: invoiceSummary.grossProfit,
+        finalProfit: invoiceSummary.finalProfit,
+      },
+      ...(isSuperAdmin || recipientEmail === DEFAULT_PROFIT_LOSS_INVOICE_EMAIL
+        ? {
+            products: safeNumber(row?.products),
+            purchase: safeNumber(row?.purchase),
+            revenue: safeNumber(row?.revenue),
+            return: safeNumber(row?.return),
+            cost: safeNumber(row?.cost),
+            profitLoss: safeNumber(row?.profitLoss),
+          }
+        : {}),
     };
+  };
 
+  const sendInvoiceEmail = async (row, recipientEmail, { closeModal } = {}) => {
+    if (!row) {
+      toast.error("No invoice selected");
+      return;
+    }
+
+    const payload = buildInvoicePayload(row, recipientEmail);
     try {
       const res = await sendProfitLossInvoice(payload).unwrap();
       if (res?.success) {
         toast.success("Invoice sent successfully");
-        handleCloseEmailModal();
+        if (closeModal) handleCloseEmailModal();
       } else {
         toast.error(res?.message || "Failed to send invoice");
       }
     } catch (error) {
       toast.error(error?.data?.message || "Failed to send invoice");
     }
+  };
+
+  const handleSendEmail = (row) => {
+    if (!canSendProfitLossInvoiceEmail) {
+      sendInvoiceEmail(row, DEFAULT_PROFIT_LOSS_INVOICE_EMAIL);
+      return;
+    }
+
+    setSelectedInvoiceRow(row);
+    setClientEmail("");
+    setIsEmailModalOpen(true);
+  };
+
+  const handleCloseEmailModal = () => {
+    setIsEmailModalOpen(false);
+    setSelectedInvoiceRow(null);
+    setClientEmail("");
+  };
+
+  const handleSubmitInvoiceEmail = async () => {
+    if (!canSendProfitLossInvoiceEmail) {
+      return;
+    }
+
+    const recipientEmail = clientEmail.trim();
+    if (!recipientEmail) {
+      toast.error("Please enter client email");
+      return;
+    }
+
+    await sendInvoiceEmail(selectedInvoiceRow, recipientEmail, {
+      closeModal: true,
+    });
   };
 
   // ── Effects ──
@@ -1148,23 +1253,7 @@ const DailyProfitLossUserPage = () => {
           </section>
 
           {/* ── Calculation Section ── */}
-          <div className="grid gap-6 lg:grid-cols-5">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h3 className="text-lg font-bold text-slate-900">
-                Calculation Date
-              </h3>
-              <p className="mt-1 text-sm text-slate-500">
-                Select the date for this profit/loss calculation and saved
-                history.
-              </p>
-              <input
-                type="date"
-                value={calculationDate}
-                onChange={(e) => setCalculationDate(e.target.value)}
-                className="mt-4 h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
-              />
-            </div>
-
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-5">
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h3 className="text-lg font-bold text-slate-900">
                 Marketing Spends
@@ -1221,6 +1310,31 @@ const DailyProfitLossUserPage = () => {
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 className="text-lg font-bold text-slate-900">Incentive</h3>
+              <p className="mt-1 text-sm text-slate-500">
+                Flat amount অথবা gross profit percentage deduct করুন।
+              </p>
+              <div className="mt-4 grid grid-cols-[120px_1fr] gap-3">
+                <select
+                  value={incentiveType}
+                  onChange={(e) => setIncentiveType(e.target.value)}
+                  className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
+                >
+                  <option value="flat">Flat</option>
+                  <option value="percentage">Percent</option>
+                </select>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={incentiveValue}
+                  onChange={(e) => setIncentiveValue(e.target.value)}
+                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
+                />
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h3 className="text-lg font-bold text-slate-900">Actions</h3>
               <Select
                 value={salesType}
@@ -1250,17 +1364,25 @@ const DailyProfitLossUserPage = () => {
           </div>
 
           {/* ── Summary Bar ── */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700">
-              Gross Profit:{" "}
-              <span
-                className={
-                  summary.grossProfit >= 0 ? "text-emerald-600" : "text-red-600"
-                }
-              >
-                {formatCurrency(summary.grossProfit)}
-              </span>
-            </div>
+          <div
+            className={`grid gap-4 sm:grid-cols-2 ${
+              canSeeSensitiveSummary ? "lg:grid-cols-5" : "lg:grid-cols-2"
+            }`}
+          >
+            {canSeeSensitiveSummary && (
+              <div className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700">
+                Gross Profit:{" "}
+                <span
+                  className={
+                    summary.grossProfit >= 0
+                      ? "text-emerald-600"
+                      : "text-red-600"
+                  }
+                >
+                  {formatCurrency(summary.grossProfit)}
+                </span>
+              </div>
+            )}
             <div className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700">
               Marketing Spends: {formatCurrency(summary.mktCost)}
             </div>
@@ -1268,9 +1390,14 @@ const DailyProfitLossUserPage = () => {
               Other Expenses: {formatCurrency(summary.otherCost)}
             </div>
             <div className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700">
-              Return Deduction ({summary.returnRate.toFixed(2)}%):{" "}
-              {formatCurrency(summary.returnDeduction)}
+              Incentive: {formatCurrency(summary.incentiveAmount)}
             </div>
+            {canSeeSensitiveSummary && (
+              <div className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700">
+                Return Deduction ({summary.returnRate.toFixed(2)}%):{" "}
+                {formatCurrency(summary.returnDeduction)}
+              </div>
+            )}
           </div>
 
           {/* ── Saved Profit/Loss History ── */}
@@ -1321,10 +1448,14 @@ const DailyProfitLossUserPage = () => {
                   <tr>
                     <th className="px-4 py-3">Date</th>
                     <th className="px-4 py-3">Sales Type</th>
-                    <th className="px-4 py-3">Sale</th>
-                    <th className="px-4 py-3">Return</th>
-                    <th className="px-4 py-3">Cost</th>
-                    <th className="px-4 py-3">Profit/Loss</th>
+                    {isSuperAdmin && (
+                      <>
+                        <th className="px-4 py-3">Sale</th>
+                        <th className="px-4 py-3">Return</th>
+                        <th className="px-4 py-3">Cost</th>
+                        <th className="px-4 py-3">Profit/Loss</th>
+                      </>
+                    )}
                     <th className="px-4 py-3">Action</th>
                   </tr>
                 </thead>
@@ -1332,7 +1463,7 @@ const DailyProfitLossUserPage = () => {
                   {profitLossLoading && (
                     <tr>
                       <td
-                        colSpan={7}
+                        colSpan={isSuperAdmin ? 7 : 3}
                         className="px-4 py-10 text-center text-slate-500"
                       >
                         Loading history...
@@ -1342,7 +1473,7 @@ const DailyProfitLossUserPage = () => {
                   {!profitLossLoading && profitLossRows.length === 0 && (
                     <tr>
                       <td
-                        colSpan={7}
+                        colSpan={isSuperAdmin ? 7 : 3}
                         className="px-4 py-10 text-center text-slate-500"
                       >
                         No saved profit/loss records found.
@@ -1356,46 +1487,55 @@ const DailyProfitLossUserPage = () => {
                           {formatDate(row.date || row.createdAt)}
                         </td>
                         <td className="px-4 py-3">{row.salesType || "-"}</td>
-                        <td className="px-4 py-3 font-semibold">
-                          {formatCurrency(row.revenue)}
-                        </td>
-                        <td className="px-4 py-3 font-semibold">
-                          {formatCurrency(row.return)}
-                        </td>
-                        <td className="px-4 py-3 font-semibold">
-                          {formatCurrency(row.cost)}
-                        </td>
-                        <td
-                          className={`px-4 py-3 font-bold ${safeNumber(row.profitLoss) >= 0 ? "text-emerald-600" : "text-red-600"}`}
-                        >
-                          {formatCurrency(row.profitLoss)}
-                        </td>
+                        {isSuperAdmin && (
+                          <>
+                            <td className="px-4 py-3 font-semibold">
+                              {formatCurrency(row.revenue)}
+                            </td>
+                            <td className="px-4 py-3 font-semibold">
+                              {formatCurrency(row.return)}
+                            </td>
+                            <td className="px-4 py-3 font-semibold">
+                              {formatCurrency(row.cost)}
+                            </td>
+                            <td
+                              className={`px-4 py-3 font-bold ${safeNumber(row.profitLoss) >= 0 ? "text-emerald-600" : "text-red-600"}`}
+                            >
+                              {formatCurrency(row.profitLoss)}
+                            </td>
+                          </>
+                        )}
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => handlePrintInvoice(row)}
-                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
-                            >
-                              <Printer size={14} /> Print
-                            </button>
+                            {canManageProfitLossHistoryActions && (
+                              <button
+                                type="button"
+                                onClick={() => handlePrintInvoice(row)}
+                                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
+                              >
+                                <Printer size={14} /> Print
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => handleSendEmail(row)}
-                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100"
+                              disabled={sendingEmail}
+                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
                             >
                               <Mail size={14} /> Email
                             </button>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleDeleteProfitLossHistory(row?.Id)
-                              }
-                              disabled={deletingProfitLoss}
-                              className="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              <Trash2 size={14} /> Delete
-                            </button>
+                            {canManageProfitLossHistoryActions && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleDeleteProfitLossHistory(row?.Id)
+                                }
+                                disabled={deletingProfitLoss}
+                                className="inline-flex items-center gap-1 rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                <Trash2 size={14} /> Delete
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1552,7 +1692,9 @@ const DailyProfitLossUserPage = () => {
       )}
 
       {/* ── Email Invoice Modal ── */}
-      {isEmailModalOpen && selectedInvoiceRow && (
+      {canSendProfitLossInvoiceEmail &&
+        isEmailModalOpen &&
+        selectedInvoiceRow && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
             <h3 className="text-lg font-bold text-slate-900">
@@ -1569,14 +1711,16 @@ const DailyProfitLossUserPage = () => {
                 <p className="text-slate-600">
                   Sales Type: {selectedInvoiceRow.salesType || "-"}
                 </p>
-                <p className="text-slate-600">
-                  Profit/Loss:{" "}
-                  <span
-                    className={`font-bold ${safeNumber(selectedInvoiceRow.profitLoss) >= 0 ? "text-emerald-600" : "text-red-600"}`}
-                  >
-                    {formatCurrency(selectedInvoiceRow.profitLoss)}
-                  </span>
-                </p>
+                {isSuperAdmin && (
+                  <p className="text-slate-600">
+                    Profit/Loss:{" "}
+                    <span
+                      className={`font-bold ${safeNumber(selectedInvoiceRow.profitLoss) >= 0 ? "text-emerald-600" : "text-red-600"}`}
+                    >
+                      {formatCurrency(selectedInvoiceRow.profitLoss)}
+                    </span>
+                  </p>
+                )}
               </div>
               <label className="block">
                 <div className="mb-2 text-sm font-semibold text-slate-700">

@@ -96,6 +96,26 @@ const getLineTotal = (item) =>
 const getAllPackagingItemCost = (items = []) =>
   items.reduce((total, item) => total + getLineTotal(item), 0);
 
+const getRecordPackagingItemId = (row) =>
+  row?.packagingItemId ??
+  row?.packaging_item_id ??
+  row?.PackagingItemId ??
+  row?.packagingItem?.Id ??
+  row?.packagingItem?.id ??
+  row?.PackagingItem?.Id ??
+  row?.PackagingItem?.id ??
+  "";
+
+const getRecordSupplierId = (row) =>
+  row?.supplierId ??
+  row?.supplier_id ??
+  row?.SupplierId ??
+  row?.supplier?.Id ??
+  row?.supplier?.id ??
+  row?.Supplier?.Id ??
+  row?.Supplier?.id ??
+  "";
+
 const formatMoney = (value) =>
   Number(value || 0).toLocaleString("en-US", {
     minimumFractionDigits: 2,
@@ -735,9 +755,11 @@ const PackagingItemPurchaseTable = () => {
                           onClick={() => {
                             setCurrentRow({
                               ...row,
-                              packagingItemId: String(row.packagingItemId),
-                              supplierId: row.supplierId
-                                ? String(row.supplierId)
+                              packagingItemId: getRecordPackagingItemId(row)
+                                ? String(getRecordPackagingItemId(row))
+                                : "",
+                              supplierId: getRecordSupplierId(row)
+                                ? String(getRecordSupplierId(row))
                                 : "",
                               unitCost: getUnitCost(row),
                             });

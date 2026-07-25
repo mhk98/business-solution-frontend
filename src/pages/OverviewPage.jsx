@@ -21,6 +21,7 @@ import { useLayout } from "../context/LayoutContext";
 import { translations } from "../utils/translations";
 import { useGetInventoryOverviewLowStockQuery } from "../features/inventoryOverview/inventoryOverview";
 import { useGetAllInTransitProductQuery } from "../features/inTransitProduct/inTransitProduct";
+import InventoryDashboardOverview from "../components/overview/InventoryDashboardOverview";
 
 const safeNumber = (value) => {
   const parsed = Number(value);
@@ -44,7 +45,7 @@ const getLastTrendDaysRange = (days) => {
   };
 };
 
-const OverviewPage = () => {
+export const LegacyOverviewPage = () => {
   const { language } = useLayout();
   const t = translations[language] || translations.EN;
   const authUser = useMemo(() => {
@@ -1023,4 +1024,4 @@ const OverviewPage = () => {
   );
 };
 
-export default OverviewPage;
+export default InventoryDashboardOverview;
