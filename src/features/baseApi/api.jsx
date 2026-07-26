@@ -81,6 +81,7 @@ export const baseApi = createApi({
     "AdsCampaignKPI",
     "AdsAccount",
     "ProfitLoss",
+    "MasterPermission",
   ],
 
   endpoints: () => ({}),

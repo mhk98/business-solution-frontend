@@ -38,10 +38,7 @@ import { useGetAllDepartmentsQuery } from "../../features/department/department"
 import { useGetAllDesignationsQuery } from "../../features/designation/designation";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 import { useGetAllLogoQuery } from "../../features/logo/logo";
-import {
-  DEFAULT_COMPANY_NAME,
-  buildAssetUrl,
-} from "../../utils/pdfBranding";
+import { DEFAULT_COMPANY_NAME, buildAssetUrl } from "../../utils/pdfBranding";
 
 const isActiveEmployee = (employee) =>
   String(employee?.status || "")
@@ -298,7 +295,8 @@ const EmployeeTable = () => {
   };
 
   const getInvoiceRemarks = (employee) =>
-    employee?.remarks || "Thank you for your dedication and valuable contribution.";
+    employee?.remarks ||
+    "Thank you for your dedication and valuable contribution.";
 
   const applyPreJoiningDays = (employee, value) => {
     const preJoiningDays = Math.max(Math.min(Number(value) || 0, 30), 0);
@@ -2918,12 +2916,12 @@ const EmployeeTable = () => {
               onChange={(v) => updateCurrentField("joining_date", v)}
             />
 
-            <Field
+            {/* <Field
               label="Pre Joining Days:"
               type="number"
               value={currentEmployee?.pre_joining_days}
               onChange={(v) => updateCurrentField("pre_joining_days", v)}
-            />
+            /> */}
 
             <Field
               label="Payable Days:"
@@ -3319,12 +3317,12 @@ const EmployeeTable = () => {
               onChange={(v) => updateCreateField("joining_date", v)}
             />
 
-            <Field
+            {/* <Field
               label="Pre Joining Days:"
               type="number"
               value={createEmployee.pre_joining_days}
               onChange={(v) => updateCreateField("pre_joining_days", v)}
-            />
+            /> */}
 
             <Field
               label="Payable Days:"

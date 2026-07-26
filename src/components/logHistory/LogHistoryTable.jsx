@@ -122,7 +122,7 @@ const getMethodBadgeClass = (method) => {
 
 const getTodayDate = () => new Date().toISOString().slice(0, 10);
 
-const LogHistoryTable = () => {
+const LogHistoryTable = ({ moduleFilter = "", title = "Log History" }) => {
   const [userOptions, setUserOptions] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [logs, setLogs] = useState([]);
@@ -186,6 +186,7 @@ const LogHistoryTable = () => {
       if (userId) params.set("userId", String(userId));
       if (filters.startDate) params.set("startDate", filters.startDate);
       if (filters.endDate) params.set("endDate", filters.endDate);
+      if (moduleFilter) params.set("module", moduleFilter);
 
       const response = await axios.get(
         `${API_BASE_URL}/user-log-history?${params.toString()}`,
@@ -238,7 +239,14 @@ const LogHistoryTable = () => {
       page: currentPage,
       limit: pageSize,
     });
-  }, [selectedUser?.value, startDate, endDate, currentPage, pageSize]);
+  }, [
+    selectedUser?.value,
+    startDate,
+    endDate,
+    currentPage,
+    pageSize,
+    moduleFilter,
+  ]);
 
   const handleUserChange = (selectedOption) => {
     setSelectedUser(selectedOption);
@@ -288,11 +296,11 @@ const LogHistoryTable = () => {
       <div className="flex flex-col gap-4 sm:gap-5 lg:flex-row lg:items-center justify-between mb-6 sm:mb-8">
         <div className="min-w-0">
           <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-            Log History
+            {title}
           </h2>
           <p className="text-slate-500 text-sm mt-1 font-medium max-w-2xl">
             Review user activity, request outcomes, and recent system actions
-            from one place
+            {moduleFilter ? " for this menu" : " from one place"}
           </p>
         </div>
 

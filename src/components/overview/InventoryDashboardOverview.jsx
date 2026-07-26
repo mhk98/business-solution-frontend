@@ -28,6 +28,7 @@ import DateRangeFilter, {
 } from "../../components/common/DateRangeFilter";
 import { useGetOverviewDashboardQuery } from "../../features/overview/overview";
 import Header from "../common/Header";
+import { useCanUseMasterPermission } from "../../utils/masterPermissions";
 
 const safeNumber = (value) => {
   const parsed = Number(value);
@@ -122,23 +123,9 @@ const EmptyState = ({ text }) => (
   </div>
 );
 
-const SENSITIVE_OVERVIEW_EMAIL = "ndhrubotara7@gmail.com";
-
-const getStoredAuthUser = () => {
-  try {
-    return JSON.parse(localStorage.getItem("authUser") || "{}");
-  } catch {
-    return {};
-  }
-};
-
 const InventoryDashboardOverview = () => {
-  const authUser = getStoredAuthUser();
-  const currentUserEmail = String(
-    authUser?.Email || authUser?.email || localStorage.getItem("email") || "",
-  ).toLowerCase();
-  const canSeeSensitiveOverview =
-    currentUserEmail === SENSITIVE_OVERVIEW_EMAIL;
+  const { canUseMasterPermission: canSeeSensitiveOverview } =
+    useCanUseMasterPermission();
   const defaultRange = useMemo(() => getDatePresetRange("last30"), []);
   const [from, setFrom] = useState(defaultRange.from);
   const [to, setTo] = useState(defaultRange.to);

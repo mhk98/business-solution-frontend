@@ -39,9 +39,14 @@ import {
   Factory,
   History,
   FileText,
+  FileSpreadsheet,
   CreditCard,
   WalletCards,
 } from "lucide-react";
+import {
+  REPORT_CATALOG,
+  REPORT_PERMISSION_KEYS,
+} from "./reports/reportCatalog";
 
 export const ROLE_OPTIONS = [
   { value: "superAdmin", label: "Super Admin" },
@@ -115,6 +120,8 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "pos_panel",
     "sell",
     "pos_report",
+    "reports",
+    ...REPORT_PERMISSION_KEYS,
     "accounting",
     "accounting_supplier",
     "book",
@@ -135,6 +142,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "delivery_advance",
     "delivery_charge",
     "role_permissions",
+    "master_permission",
     "hrm",
     "employee_management",
     "department_management",
@@ -215,6 +223,8 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "damage_repairing_stock",
     "damage_repairing",
     "damage_repaired",
+    "reports",
+    ...REPORT_PERMISSION_KEYS,
     "accounting",
     "accounting_supplier",
     "book",
@@ -235,6 +245,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "delivery_advance",
     "delivery_charge",
     "role_permissions",
+    "master_permission",
     "hrm",
     "employee_management",
     "department_management",
@@ -1012,6 +1023,14 @@ export const SIDEBAR_ITEMS = [
         href: "/settings/role-permissions",
         roles: ["superAdmin", "admin"],
       },
+      {
+        name: "Master Permission",
+        key: "master_permission",
+        icon: ShieldCheck,
+        href: "/settings/master-permission",
+        roles: ["superAdmin", "admin"],
+        masterOnly: true,
+      },
     ],
   },
   {
@@ -1258,6 +1277,20 @@ export const SIDEBAR_ITEMS = [
     roles: ["superAdmin", "admin"],
   },
   {
+    name: "Reports",
+    key: "reports",
+    icon: FileSpreadsheet,
+    color: "#2563eb",
+    roles: ["superAdmin", "admin"],
+    children: REPORT_CATALOG.map((report) => ({
+      name: report.label,
+      key: `report_${report.key.replaceAll("-", "_")}`,
+      icon: FileText,
+      href: `/reports/${report.key}`,
+      roles: ["superAdmin", "admin"],
+    })),
+  },
+  {
     name: "Profile",
     key: "profile",
     icon: User,
@@ -1300,6 +1333,62 @@ const LEGACY_PERMISSION_EXPANSIONS = {
 };
 
 const getCanonicalPermissionKey = (key) => PERMISSION_KEY_ALIASES[key] || key;
+
+const toKebabCase = (value) =>
+  String(value || "")
+    .trim()
+    .replace(/_/g, "-")
+    .toLowerCase();
+
+const getHrefModuleKey = (href) => {
+  if (!href || href === "/") return "";
+  return String(href).replace(/^\/+/, "").split("/")[0].toLowerCase();
+};
+
+const getMenuLogModules = (item) => {
+  const modules = new Set();
+  const addModuleCandidates = (entry) => {
+    if (!entry) return;
+    [entry.key, toKebabCase(entry.key), getHrefModuleKey(entry.href)]
+      .filter(Boolean)
+      .forEach((moduleKey) => modules.add(moduleKey));
+  };
+
+  addModuleCandidates(item);
+  item.children?.forEach(addModuleCandidates);
+
+  return Array.from(modules);
+};
+
+const appendMenuLogHistoryChild = (item, allowedKeys) => {
+  if (!item.children?.length || !allowedKeys.has("log_history")) return item;
+  if (item.key === "log_history") return item;
+  if (item.children.some((child) => child.key === `${item.key}_log_history`)) {
+    return item;
+  }
+
+  const modules = getMenuLogModules(item);
+  if (!modules.length) return item;
+
+  const params = new URLSearchParams({
+    module: modules.join(","),
+    menu: item.name,
+  });
+
+  return {
+    ...item,
+    children: [
+      ...item.children,
+      {
+        name: "Log History",
+        key: `${item.key}_log_history`,
+        icon: History,
+        href: `/log-history?${params.toString()}`,
+        roles: item.roles,
+      },
+    ],
+  };
+};
 
 const flattenSidebarKeys = (items = []) =>
   items.flatMap((item) => [
@@ -1386,6 +1475,9 @@ const normalizeRolePermissionMap = (value) => {
       if (defaultKeys.includes("delivery_charge")) {
         normalizedKeys.add("delivery_charge");
       }
+      if (defaultKeys.includes("master_permission")) {
+        normalizedKeys.add("master_permission");
+      }
     }
 
     const defaultKeys = DEFAULT_ROLE_PERMISSION_MAP[role] || [];
@@ -1399,6 +1491,13 @@ const normalizeRolePermissionMap = (value) => {
 
     if (defaultKeys.includes("auto_profit_loss")) {
       normalizedKeys.add("auto_profit_loss");
+    }
+
+    if (defaultKeys.includes("reports")) {
+      normalizedKeys.add("reports");
+      REPORT_PERMISSION_KEYS.forEach((permissionKey) => {
+        normalizedKeys.add(permissionKey);
+      });
     }
 
     if (defaultKeys.includes("packaging")) {
@@ -1664,7 +1763,7 @@ export const filterSidebarItemsByRole = (role, items = SIDEBAR_ITEMS) => {
     );
 
     if (visibleChildren.length > 0) {
-      acc.push({ ...item, children: visibleChildren });
+      acc.push(appendMenuLogHistoryChild({ ...item, children: visibleChildren }, allowedKeys));
     }
 
     return acc;

@@ -29,9 +29,13 @@ import {
   useDeleteProfitLossMutation,
   useSendProfitLossInvoiceMutation,
 } from "../features/profitLoss/profitLoss";
+import {
+  DEFAULT_MASTER_PERMISSION_EMAIL,
+  useCanUseMasterPermission,
+} from "../utils/masterPermissions";
 
 const today = new Date().toISOString().slice(0, 10);
-const DEFAULT_PROFIT_LOSS_INVOICE_EMAIL = "ndhrubotara7@gmail.com";
+const DEFAULT_PROFIT_LOSS_INVOICE_EMAIL = DEFAULT_MASTER_PERMISSION_EMAIL;
 
 const REPORT_FIELDS = [
   { key: "failedGiven", label: "Failed দেওয়া হয়েছে" },
@@ -179,14 +183,6 @@ const escapeHtml = (value) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
-const getStoredAuthUser = () => {
-  try {
-    return JSON.parse(localStorage.getItem("authUser") || "{}");
-  } catch {
-    return {};
-  }
-};
-
 const getSavedCalculationSummary = (row, fallbackSummary) => {
   const marketingCost = safeNumber(row?.marketingSpends);
   const otherCost = safeNumber(row?.otherExpenses);
@@ -243,18 +239,10 @@ const DailyProfitLossUserPage = () => {
   const isSuperAdmin = role === "superAdmin";
   const canManageReports = ["superAdmin", "admin", "marketer"].includes(role);
   const currentUserId = Number(localStorage.getItem("userId") || 0);
-  const authUser = getStoredAuthUser();
-  const currentUserEmail = String(
-    authUser?.Email || authUser?.email || localStorage.getItem("email") || "",
-  )
-    .trim()
-    .toLowerCase();
-  const canSeeSensitiveSummary =
-    currentUserEmail === DEFAULT_PROFIT_LOSS_INVOICE_EMAIL;
-  const canSendProfitLossInvoiceEmail =
-    currentUserEmail === DEFAULT_PROFIT_LOSS_INVOICE_EMAIL;
-  const canManageProfitLossHistoryActions =
-    currentUserEmail === DEFAULT_PROFIT_LOSS_INVOICE_EMAIL;
+  const { canUseMasterPermission } = useCanUseMasterPermission();
+  const canSeeSensitiveSummary = canUseMasterPermission;
+  const canSendProfitLossInvoiceEmail = canUseMasterPermission;
+  const canManageProfitLossHistoryActions = canUseMasterPermission;
   const pageSize = 10;
   const historyPageSize = 10;
 
@@ -822,7 +810,7 @@ const DailyProfitLossUserPage = () => {
     const savedHistoryDetails = profitLossRows.map((hr) => ({
       date: formatDate(hr?.createdAt),
       salesType: hr?.salesType || "-",
-      ...(isSuperAdmin || recipientEmail === DEFAULT_PROFIT_LOSS_INVOICE_EMAIL
+      ...(isSuperAdmin || canSeeSensitiveSummary
         ? {
             revenue: safeNumber(hr?.revenue),
             return: safeNumber(hr?.return),
@@ -854,7 +842,7 @@ const DailyProfitLossUserPage = () => {
         grossProfit: invoiceSummary.grossProfit,
         finalProfit: invoiceSummary.finalProfit,
       },
-      ...(isSuperAdmin || recipientEmail === DEFAULT_PROFIT_LOSS_INVOICE_EMAIL
+      ...(isSuperAdmin || canSeeSensitiveSummary
         ? {
             products: safeNumber(row?.products),
             purchase: safeNumber(row?.purchase),

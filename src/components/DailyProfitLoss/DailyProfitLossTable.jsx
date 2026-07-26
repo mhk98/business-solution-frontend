@@ -21,8 +21,12 @@ import {
   useDeleteProfitLossMutation,
   useSendProfitLossInvoiceMutation,
 } from "../../features/profitLoss/profitLoss";
+import {
+  DEFAULT_MASTER_PERMISSION_EMAIL,
+  useCanUseMasterPermission,
+} from "../../utils/masterPermissions";
 
-const DEFAULT_PROFIT_LOSS_INVOICE_EMAIL = "ndhrubotara7@gmail.com";
+const DEFAULT_PROFIT_LOSS_INVOICE_EMAIL = DEFAULT_MASTER_PERMISSION_EMAIL;
 
 const safeNumber = (value) => {
   const parsed = Number(value);
@@ -48,14 +52,6 @@ const escapeHtml = (value) =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
-
-const getStoredAuthUser = () => {
-  try {
-    return JSON.parse(localStorage.getItem("authUser") || "{}");
-  } catch {
-    return {};
-  }
-};
 
 const getProductName = (item) =>
   item?.name ||
@@ -183,12 +179,8 @@ const salesTypeOptions = [
 const DailyProfitLossTable = () => {
   const role = localStorage.getItem("role");
   const isSuperAdmin = role === "superAdmin";
-  const authUser = getStoredAuthUser();
-  const currentUserEmail = String(
-    authUser?.Email || authUser?.email || localStorage.getItem("email") || "",
-  ).toLowerCase();
-  const canSeeProfitLossActions =
-    currentUserEmail === DEFAULT_PROFIT_LOSS_INVOICE_EMAIL;
+  const { canUseMasterPermission: canSeeProfitLossActions } =
+    useCanUseMasterPermission();
 
   const {
     data: receivedRes,

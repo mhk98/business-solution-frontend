@@ -12,8 +12,12 @@ import {
 } from "../../features/profitLoss/profitLoss";
 import DateRangeFilter from "../common/DateRangeFilter";
 import Modal from "../common/Modal";
+import {
+  DEFAULT_MASTER_PERMISSION_EMAIL,
+  useCanUseMasterPermission,
+} from "../../utils/masterPermissions";
 
-const DEFAULT_PROFIT_LOSS_INVOICE_EMAIL = "ndhrubotara7@gmail.com";
+const DEFAULT_PROFIT_LOSS_INVOICE_EMAIL = DEFAULT_MASTER_PERMISSION_EMAIL;
 
 const safeNumber = (value) => {
   const parsed = Number(value);
@@ -46,14 +50,6 @@ const escapeHtml = (value) =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
-
-const getStoredAuthUser = () => {
-  try {
-    return JSON.parse(localStorage.getItem("authUser") || "{}");
-  } catch {
-    return {};
-  }
-};
 
 const getProductKey = (row) =>
   String(row?.productId ?? row?.receivedId ?? row?.name ?? row?.Id ?? "");
@@ -104,14 +100,9 @@ const AutoProfitLossTable = () => {
   const [selectedInvoiceRow, setSelectedInvoiceRow] = useState(null);
   const [clientEmail, setClientEmail] = useState("");
   const itemsPerPage = 10;
-  const authUser = getStoredAuthUser();
-  const currentUserEmail = String(
-    authUser?.Email || authUser?.email || localStorage.getItem("email") || "",
-  ).toLowerCase();
-  const canSeeSensitiveProfitLoss =
-    currentUserEmail === DEFAULT_PROFIT_LOSS_INVOICE_EMAIL;
-  const canOpenInvoiceEmailModal =
-    currentUserEmail === DEFAULT_PROFIT_LOSS_INVOICE_EMAIL;
+  const { canUseMasterPermission } = useCanUseMasterPermission();
+  const canSeeSensitiveProfitLoss = canUseMasterPermission;
+  const canOpenInvoiceEmailModal = canUseMasterPermission;
 
   const reportQueryArgs = useMemo(
     () => ({
@@ -166,7 +157,9 @@ const AutoProfitLossTable = () => {
     (inTransitRes?.data || []).forEach((row) =>
       addRowToGroup(grouped, row, "inTransit"),
     );
-    (returnRes?.data || []).forEach((row) => addRowToGroup(grouped, row, "return"));
+    (returnRes?.data || []).forEach((row) =>
+      addRowToGroup(grouped, row, "return"),
+    );
 
     return Array.from(grouped.values())
       .map((item) => {
@@ -175,7 +168,10 @@ const AutoProfitLossTable = () => {
           item.inTransitPurchase - item.returnPurchase,
           0,
         );
-        const netRevenue = Math.max(item.inTransitRevenue - item.returnRevenue, 0);
+        const netRevenue = Math.max(
+          item.inTransitRevenue - item.returnRevenue,
+          0,
+        );
 
         return {
           ...item,
@@ -219,9 +215,7 @@ const AutoProfitLossTable = () => {
         ? (Math.max(totals.grossProfit, 0) * incentiveInput) / 100
         : incentiveInput;
     const extraCost =
-      safeNumber(marketingSpends) +
-      safeNumber(otherExpenses) +
-      incentiveAmount;
+      safeNumber(marketingSpends) + safeNumber(otherExpenses) + incentiveAmount;
     return {
       ...totals,
       marketingCost: safeNumber(marketingSpends),
@@ -232,7 +226,13 @@ const AutoProfitLossTable = () => {
       extraCost,
       finalProfit: totals.grossProfit - extraCost,
     };
-  }, [incentiveType, incentiveValue, marketingSpends, otherExpenses, sourceRows]);
+  }, [
+    incentiveType,
+    incentiveValue,
+    marketingSpends,
+    otherExpenses,
+    sourceRows,
+  ]);
 
   const historyRows = profitLossRes?.data || [];
   const totalHistoryCount = safeNumber(
@@ -317,9 +317,12 @@ const AutoProfitLossTable = () => {
     }));
 
   const getInvoiceSummary = (row) => {
-    const invoiceGrossProfit = safeNumber(row?.profitLoss) + safeNumber(row?.cost);
+    const invoiceGrossProfit =
+      safeNumber(row?.profitLoss) + safeNumber(row?.cost);
     const invoiceIncentiveType = row?.incentiveType || incentiveType;
-    const invoiceIncentiveValue = safeNumber(row?.incentiveValue ?? incentiveValue);
+    const invoiceIncentiveValue = safeNumber(
+      row?.incentiveValue ?? incentiveValue,
+    );
     const invoiceIncentiveAmount =
       row?.incentiveAmount != null
         ? safeNumber(row.incentiveAmount)
@@ -564,7 +567,10 @@ const AutoProfitLossTable = () => {
               onClick={handleRefresh}
               className="mt-auto inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
             >
-              <RefreshCcw size={16} className={isFetching ? "animate-spin" : ""} />
+              <RefreshCcw
+                size={16}
+                className={isFetching ? "animate-spin" : ""}
+              />
               Refresh
             </button>
           </div>

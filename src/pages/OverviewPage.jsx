@@ -22,6 +22,7 @@ import { translations } from "../utils/translations";
 import { useGetInventoryOverviewLowStockQuery } from "../features/inventoryOverview/inventoryOverview";
 import { useGetAllInTransitProductQuery } from "../features/inTransitProduct/inTransitProduct";
 import InventoryDashboardOverview from "../components/overview/InventoryDashboardOverview";
+import { useCanUseMasterPermission } from "../utils/masterPermissions";
 
 const safeNumber = (value) => {
   const parsed = Number(value);
@@ -48,20 +49,8 @@ const getLastTrendDaysRange = (days) => {
 export const LegacyOverviewPage = () => {
   const { language } = useLayout();
   const t = translations[language] || translations.EN;
-  const authUser = useMemo(() => {
-    try {
-      return JSON.parse(localStorage.getItem("authUser") || "null");
-    } catch {
-      return null;
-    }
-  }, []);
-  const currentUserEmail = String(
-    authUser?.email || authUser?.Email || localStorage.getItem("email") || "",
-  )
-    .trim()
-    .toLowerCase();
-  const canViewPrivateOverview =
-    currentUserEmail === "ndhrubotara7@gmail.com";
+  const { canUseMasterPermission: canViewPrivateOverview } =
+    useCanUseMasterPermission();
   const defaultRange = useMemo(() => getDatePresetRange("last30"), []);
   const [from, setFrom] = useState(defaultRange.from);
   const [to, setTo] = useState(defaultRange.to);

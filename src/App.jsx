@@ -49,6 +49,7 @@ const TaskPage = lazy(() => import("./pages/TaskPage"));
 const SalaryPage = lazy(() => import("./pages/SalaryPage"));
 const LogoPage = lazy(() => import("./pages/LogoPage"));
 const RolePermissionsPage = lazy(() => import("./pages/RolePermissionsPage"));
+const MasterPermissionPage = lazy(() => import("./pages/MasterPermissionPage"));
 const DamageRepairPage = lazy(() => import("./pages/DamageRepairPage"));
 const DamageRepairedPage = lazy(() => import("./pages/DamageRepairedPage"));
 const PurchaseRequisitionPage = lazy(() => import("./pages/purchaseRequisitionPage"));
@@ -121,6 +122,7 @@ const PayslipPage = lazy(() => import("./pages/PayslipPage"));
 const EmployeeListPage = lazy(() => import("./pages/EmployeeListPage"));
 const EmployeeKPIPage = lazy(() => import("./pages/EmployeeKPIPage"));
 const ChatPage = lazy(() => import("./pages/ChatPage"));
+const ReportsPage = lazy(() => import("./pages/ReportsPage"));
 
 const PageLoader = () => (
   <div className="flex items-center justify-center min-h-[60vh]">
@@ -220,6 +222,8 @@ function App() {
                 <Route path="/damage-repair" element={<AuthedRoute><DamageRepairPage /></AuthedRoute>} />
                 <Route path="/damage-repaired" element={<AuthedRoute><DamageRepairedPage /></AuthedRoute>} />
                 <Route path="/confirm-order" element={<AuthedRoute><ConfirmOrderPage /></AuthedRoute>} />
+                <Route path="/reports" element={<AuthedRoute><ReportsPage /></AuthedRoute>} />
+                <Route path="/reports/:reportKey" element={<AuthedRoute><ReportsPage /></AuthedRoute>} />
                 <Route path="/meta" element={<AuthedRoute><MetaPage /></AuthedRoute>} />
                 <Route path="/google" element={<AuthedRoute><GooglePage /></AuthedRoute>} />
                 <Route path="/tiktok" element={<AuthedRoute><TiktokPage /></AuthedRoute>} />
@@ -263,6 +267,7 @@ function App() {
                 <Route path="/settings/delivery-advance" element={<AuthedRoute><ChargeSettingsPage chargeType="deliveryAdvance" /></AuthedRoute>} />
                 <Route path="/settings/delivery-charge" element={<AuthedRoute><ChargeSettingsPage chargeType="delivery" /></AuthedRoute>} />
                 <Route path="/settings/role-permissions" element={<AuthedRoute><RolePermissionsPage /></AuthedRoute>} />
+                <Route path="/settings/master-permission" element={<AuthedRoute><MasterPermissionPage /></AuthedRoute>} />
                 <Route path="/notifications" element={<AuthedRoute><NotificationPage /></AuthedRoute>} />
                 <Route path="/chat" element={<AuthedRoute><ChatPage /></AuthedRoute>} />
                 <Route path="/profile" element={<AuthedRoute><ProfilePage /></AuthedRoute>} />
