@@ -60,6 +60,7 @@ const UserManagementTable = () => {
 
   // Search
   const [searchTerm, setSearchTerm] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 400);
 
   // Pagination
@@ -104,9 +105,14 @@ const UserManagementTable = () => {
     page: currentPage,
     limit: itemsPerPage,
     searchTerm: debouncedSearchTerm || undefined,
+    role: roleFilter || undefined,
   });
 
   const users = useMemo(() => data?.data ?? [], [data]);
+  const visibleRoleOptions = useMemo(
+    () => getVisibleRoleOptions(actorRole),
+    [actorRole],
+  );
 
   useEffect(() => {
     if (isError) {
@@ -398,21 +404,40 @@ const UserManagementTable = () => {
         {/* Top bar */}
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-4">
           {/* Search */}
-          <div className="relative w-full sm:max-w-[520px]">
-            <input
-              value={searchTerm}
+          <div className="flex w-full flex-col gap-3 sm:max-w-[760px] sm:flex-row">
+            <div className="relative w-full sm:max-w-[520px]">
+              <input
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1);
+                  setStartPage(1);
+                }}
+                placeholder="Search by email / phone / name..."
+                className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 pr-12 text-sm text-slate-700 outline-none focus:border-indigo-200 focus:ring-2 focus:ring-indigo-500/20"
+              />
+              <Search
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500"
+                size={18}
+              />
+            </div>
+
+            <select
+              value={roleFilter}
               onChange={(e) => {
-                setSearchTerm(e.target.value);
+                setRoleFilter(e.target.value);
                 setCurrentPage(1);
                 setStartPage(1);
               }}
-              placeholder="Search by email / phone / name..."
-              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 pr-12 text-sm text-slate-700 outline-none focus:border-indigo-200 focus:ring-2 focus:ring-indigo-500/20"
-            />
-            <Search
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500"
-              size={18}
-            />
+              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-indigo-200 focus:ring-2 focus:ring-indigo-500/20 sm:w-56"
+            >
+              <option value="">All Roles</option>
+              {visibleRoleOptions.map((role) => (
+                <option key={role.value} value={role.value}>
+                  {role.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Add button */}
@@ -642,7 +667,7 @@ const UserManagementTable = () => {
                 className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
                 required
               >
-                {getVisibleRoleOptions(actorRole).map((role) => (
+                {visibleRoleOptions.map((role) => (
                   <option key={role.value} value={role.value}>
                     {role.label}
                   </option>
@@ -729,7 +754,7 @@ const UserManagementTable = () => {
                 required
               >
                 <option value="">Select Role</option>
-                {getVisibleRoleOptions(actorRole).map((role) => (
+                {visibleRoleOptions.map((role) => (
                   <option key={role.value} value={role.value}>
                     {role.label}
                   </option>

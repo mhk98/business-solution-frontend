@@ -186,9 +186,14 @@ const escapeHtml = (value) =>
 const getSavedCalculationSummary = (row, fallbackSummary) => {
   const marketingCost = safeNumber(row?.marketingSpends);
   const otherCost = safeNumber(row?.otherExpenses);
-  const incentiveType = row?.incentiveType || fallbackSummary.incentiveType || "flat";
-  const incentiveValue = safeNumber(row?.incentiveValue ?? fallbackSummary.incentiveValue);
-  const incentiveAmount = safeNumber(row?.incentiveAmount ?? fallbackSummary.incentiveAmount);
+  const incentiveType =
+    row?.incentiveType || fallbackSummary.incentiveType || "flat";
+  const incentiveValue = safeNumber(
+    row?.incentiveValue ?? fallbackSummary.incentiveValue,
+  );
+  const incentiveAmount = safeNumber(
+    row?.incentiveAmount ?? fallbackSummary.incentiveAmount,
+  );
   const returnRate = safeNumber(row?.returnPercentage);
   const returnDeduction = safeNumber(row?.return);
   const revenue = safeNumber(row?.revenue);
@@ -1683,66 +1688,66 @@ const DailyProfitLossUserPage = () => {
       {canSendProfitLossInvoiceEmail &&
         isEmailModalOpen &&
         selectedInvoiceRow && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-bold text-slate-900">
-              Send Invoice Email
-            </h3>
-            <div className="mt-4 space-y-3">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
-                <p className="font-semibold text-slate-900">
-                  Invoice #{`PL-${selectedInvoiceRow.Id}`}
-                </p>
-                <p className="mt-1 text-slate-600">
-                  Date: {formatDate(selectedInvoiceRow.createdAt)}
-                </p>
-                <p className="text-slate-600">
-                  Sales Type: {selectedInvoiceRow.salesType || "-"}
-                </p>
-                {isSuperAdmin && (
-                  <p className="text-slate-600">
-                    Profit/Loss:{" "}
-                    <span
-                      className={`font-bold ${safeNumber(selectedInvoiceRow.profitLoss) >= 0 ? "text-emerald-600" : "text-red-600"}`}
-                    >
-                      {formatCurrency(selectedInvoiceRow.profitLoss)}
-                    </span>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
+              <h3 className="text-lg font-bold text-slate-900">
+                Send Invoice Email
+              </h3>
+              <div className="mt-4 space-y-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
+                  <p className="font-semibold text-slate-900">
+                    Invoice #{`PL-${selectedInvoiceRow.Id}`}
                   </p>
-                )}
-              </div>
-              <label className="block">
-                <div className="mb-2 text-sm font-semibold text-slate-700">
-                  Client Email
+                  <p className="mt-1 text-slate-600">
+                    Date: {formatDate(selectedInvoiceRow.createdAt)}
+                  </p>
+                  <p className="text-slate-600">
+                    Sales Type: {selectedInvoiceRow.salesType || "-"}
+                  </p>
+                  {isSuperAdmin && (
+                    <p className="text-slate-600">
+                      Profit/Loss:{" "}
+                      <span
+                        className={`font-bold ${safeNumber(selectedInvoiceRow.profitLoss) >= 0 ? "text-emerald-600" : "text-red-600"}`}
+                      >
+                        {formatCurrency(selectedInvoiceRow.profitLoss)}
+                      </span>
+                    </p>
+                  )}
                 </div>
-                <input
-                  type="email"
-                  value={clientEmail}
-                  onChange={(e) => setClientEmail(e.target.value)}
-                  placeholder="Enter client email"
-                  className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
-                />
-              </label>
-              <div className="flex justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={handleCloseEmailModal}
-                  className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSubmitInvoiceEmail}
-                  disabled={sendingEmail}
-                  className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
-                >
-                  {sendingEmail ? "Sending..." : "Send Email"}
-                </button>
+                <label className="block">
+                  <div className="mb-2 text-sm font-semibold text-slate-700">
+                    Client Email
+                  </div>
+                  <input
+                    type="email"
+                    value={clientEmail}
+                    onChange={(e) => setClientEmail(e.target.value)}
+                    placeholder="Enter client email"
+                    className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
+                  />
+                </label>
+                <div className="flex justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={handleCloseEmailModal}
+                    className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSubmitInvoiceEmail}
+                    disabled={sendingEmail}
+                    className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
+                  >
+                    {sendingEmail ? "Sending..." : "Send Email"}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
     </div>
   );
 };

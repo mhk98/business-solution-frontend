@@ -198,9 +198,9 @@ export const authApi = createApi({
     }),
 
     getAllUser: build.query({
-      query: ({ page, limit, searchTerm }) => ({
+      query: ({ page, limit, searchTerm, role }) => ({
         url: "/user",
-        params: { page, limit, searchTerm },
+        params: { page, limit, searchTerm, role },
       }),
       providesTags: ["auth"],
       refetchOnMountOrArgChange: true,

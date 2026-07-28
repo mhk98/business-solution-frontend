@@ -1108,9 +1108,9 @@ const CashInOutTable = () => {
       topY: headerTopY,
       logoMaxWidth: 48,
       logoMaxHeight: 12.5,
-      companySize: 9.2,
+      companySize: 10,
       subtitle: "Control Panel Cash Memo",
-      subtitleSize: 8.2,
+      subtitleSize: 9.2,
     });
 
     pdf.setTextColor(15, 23, 42);
@@ -1120,7 +1120,7 @@ const CashInOutTable = () => {
       align: "right",
     });
     pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(8);
+    pdf.setFontSize(9);
     pdf.setTextColor(102, 102, 102);
     pdf.text(`Date: ${row?.date || "-"}`, pageWidth - margin, headerTopY + 15, {
       align: "right",
@@ -1137,17 +1137,17 @@ const CashInOutTable = () => {
     pdf.rect(margin, y, 46, 11);
     pdf.setTextColor(75, 85, 99);
     pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(8.5);
+    pdf.setFontSize(9.4);
     pdf.text("Voucher No", margin + 3, y + 4.2);
     pdf.setTextColor(17, 24, 39);
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(10);
+    pdf.setFontSize(10.8);
     pdf.text(voucherNo, margin + 3, y + 8.4);
 
     pdf.rect(pageWidth - margin - 34, y, 34, 11);
     pdf.setTextColor(17, 24, 39);
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(9);
+    pdf.setFontSize(9.8);
     pdf.text(
       isCashOut ? "CASH OUT" : "CASH IN",
       pageWidth - margin - 17,
@@ -1169,7 +1169,7 @@ const CashInOutTable = () => {
         row?.paymentMode === "Bank" ? row?.bankAccount || "-" : "-",
       ],
     ];
-    const detailsRowHeight = 7.5;
+    const detailsRowHeight = 8;
     const detailsHeaderHeight = 10;
     const detailsBoxHeight =
       detailsHeaderHeight + detailRows.length * detailsRowHeight;
@@ -1180,7 +1180,7 @@ const CashInOutTable = () => {
 
     pdf.setTextColor(17, 24, 39);
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(9.8);
+    pdf.setFontSize(10.6);
     pdf.text("Transaction Details", margin + 4, y + 6.7);
 
     pdf.setDrawColor(209, 213, 219);
@@ -1196,7 +1196,7 @@ const CashInOutTable = () => {
     const valueX = margin + labelColumnWidth + 4;
     let rowTop = y + detailsHeaderHeight;
 
-    pdf.setFontSize(8.4);
+    pdf.setFontSize(9.2);
     detailRows.forEach(([label, value], index) => {
       const textY = rowTop + 5;
       if (index > 0) {
@@ -1233,7 +1233,7 @@ const CashInOutTable = () => {
     pdf.rect(margin, y, contentWidth, amountBoxHeight);
     pdf.setTextColor(75, 85, 99);
     pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(9.6);
+    pdf.setFontSize(10.6);
     pdf.text("Paid Amount", margin + 4, y + 8);
     pdf.setTextColor(17, 24, 39);
     const amountRightX = pageWidth - margin - 6;
@@ -1252,7 +1252,7 @@ const CashInOutTable = () => {
     y += amountBoxHeight + 11;
     pdf.setTextColor(17, 24, 39);
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(9);
+    pdf.setFontSize(9.8);
     pdf.text("Note", margin, y);
 
     y += 5;
@@ -1266,14 +1266,14 @@ const CashInOutTable = () => {
     pdf.line(margin, noteBoxY, margin, noteBoxY + noteBoxHeight);
     pdf.setFont("helvetica", "normal");
     pdf.setTextColor(55, 65, 81);
-    pdf.setFontSize(9);
+    pdf.setFontSize(10);
     const noteLines = pdf.splitTextToSize(
       String(row?.remarks || row?.note || "-"),
       contentWidth - 14,
     );
     pdf.text(noteLines.slice(0, 3), margin + 5, noteBoxY + 7);
 
-    y = noteBoxY + noteBoxHeight + 15;
+    y = noteBoxY + noteBoxHeight + 11;
     pdf.setDrawColor(75, 85, 99);
     pdf.setLineWidth(0.2);
     pdf.setTextColor(55, 65, 81);
@@ -1289,19 +1289,9 @@ const CashInOutTable = () => {
     ].forEach(([x, label]) => {
       pdf.line(x, y, x + signatureWidth, y);
       pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(8);
-      pdf.text(label, x + signatureWidth / 2, y + 5.5, { align: "center" });
+      pdf.setFontSize(8.8);
+      pdf.text(label, x + signatureWidth / 2, y + 4.8, { align: "center" });
     });
-
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(7.2);
-    pdf.setTextColor(107, 114, 128);
-    pdf.text(
-      "This voucher is generated electronically from Kafela Mart accounts system.",
-      pageWidth / 2,
-      pageHeight - 5,
-      { align: "center" },
-    );
 
     return {
       pdf,

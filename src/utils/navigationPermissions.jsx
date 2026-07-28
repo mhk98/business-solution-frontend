@@ -53,6 +53,8 @@ export const ROLE_OPTIONS = [
   { value: "admin", label: "Admin" },
   { value: "marketer", label: "Marketer" },
   { value: "leader", label: "Leader" },
+  { value: "leaderCs", label: "Leader CS" },
+  { value: "leaderLogistics", label: "Leader Logistics" },
   { value: "inventor", label: "Inventor" },
   { value: "accountant", label: "Accountant" },
   { value: "hr", label: "HR" },
@@ -156,12 +158,6 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "leave_management",
     "cs_work_reports",
     "logistic_work_reports",
-    "shifa",
-    "shifa_overview",
-    "shifa_call_history",
-    "shifa_starting_situation",
-    "shifa_problem_history",
-    "shifa_patient_update",
     "payroll_management",
     "payslip",
     "hr_payroll",
@@ -259,12 +255,6 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "leave_management",
     "cs_work_reports",
     "logistic_work_reports",
-    "shifa",
-    "shifa_overview",
-    "shifa_call_history",
-    "shifa_starting_situation",
-    "shifa_problem_history",
-    "shifa_patient_update",
     "payroll_management",
     "payslip",
     "hr_payroll",
@@ -1316,10 +1306,20 @@ const DAILY_WORK_REPORTS_DEFAULT_REMOVED_STORAGE_KEY =
   "daily-work-reports-default-permission-removed";
 const NON_ADMIN_DEFAULT_PERMISSIONS_REMOVED_STORAGE_KEY =
   "non-admin-default-permissions-removed";
+const SHIFA_DEFAULT_REMOVED_STORAGE_KEY = "shifa-default-permission-removed";
 const PERMISSION_EVENT = "role-permissions-updated";
 const PERMISSION_KEY_ALIASES = {
   employee_profile: "employee_list",
 };
+
+const SHIFA_PERMISSION_KEYS = new Set([
+  "shifa",
+  "shifa_overview",
+  "shifa_call_history",
+  "shifa_starting_situation",
+  "shifa_problem_history",
+  "shifa_patient_update",
+]);
 
 const ROLES_WITH_LEGACY_DAILY_WORK_REPORTS_DEFAULT = new Set([
   "superAdmin",
@@ -1564,19 +1564,6 @@ const normalizeRolePermissionMap = (value) => {
       normalizedKeys.add("logistic_work_reports");
     }
 
-    [
-      "shifa",
-      "shifa_overview",
-      "shifa_call_history",
-      "shifa_starting_situation",
-      "shifa_problem_history",
-      "shifa_patient_update",
-    ].forEach((permission) => {
-      if (defaultKeys.includes(permission)) {
-        normalizedKeys.add(permission);
-      }
-    });
-
     if (normalizedKeys.has("logistic_work_reports")) {
       normalizedKeys.add("logistic_update");
     }
@@ -1630,6 +1617,16 @@ const removeNonAdminPermissionsFromMap = (permissionMap = {}) =>
   Object.entries(permissionMap).reduce((acc, [role, keys]) => {
     acc[role] =
       DEFAULT_PERMISSION_ROLES.has(role) && Array.isArray(keys) ? keys : [];
+    return acc;
+  }, {});
+
+const removeShifaDefaultPermissionsFromMap = (permissionMap = {}) =>
+  Object.entries(permissionMap).reduce((acc, [role, keys]) => {
+    acc[role] = Array.isArray(keys)
+      ? keys.filter(
+          (key) => !SHIFA_PERMISSION_KEYS.has(getCanonicalPermissionKey(key)),
+        )
+      : keys;
     return acc;
   }, {});
 
@@ -1703,6 +1700,25 @@ const migrateStoredNonAdminDefaultPermissions = () => {
   }
 };
 
+const migrateStoredShifaDefaultPermissions = () => {
+  if (typeof window === "undefined") return;
+  if (localStorage.getItem(SHIFA_DEFAULT_REMOVED_STORAGE_KEY)) return;
+
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+    if (parsed && typeof parsed === "object") {
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(removeShifaDefaultPermissionsFromMap(parsed)),
+      );
+    }
+  } catch (error) {
+    console.error("Failed to migrate shifa menu permissions", error);
+  } finally {
+    localStorage.setItem(SHIFA_DEFAULT_REMOVED_STORAGE_KEY, "true");
+  }
+};
+
 export const getStoredRolePermissions = () => {
   if (typeof window === "undefined") return {};
 
@@ -1710,6 +1726,7 @@ export const getStoredRolePermissions = () => {
     migrateStoredOverviewDefaultPermission();
     migrateStoredDailyWorkReportsDefaultPermission();
     migrateStoredNonAdminDefaultPermissions();
+    migrateStoredShifaDefaultPermissions();
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
     return normalizeRolePermissionMap(parsed);
   } catch (error) {

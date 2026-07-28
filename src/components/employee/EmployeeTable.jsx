@@ -45,6 +45,15 @@ const isActiveEmployee = (employee) =>
     .trim()
     .toLowerCase() === "active";
 
+const getEmployeeCode = (employee) =>
+  String(
+    employee?.employee_id ??
+      employee?.employeeCode ??
+      employee?.employeeProfile?.employee_id ??
+      employee?.employeeProfile?.employeeCode ??
+      "",
+  ).trim();
+
 const EmployeeTable = () => {
   const { language } = useLayout();
   const t = translations[language] || translations.EN;
@@ -455,7 +464,7 @@ const EmployeeTable = () => {
   const buildEmployeeOption = (employee) => {
     const id = employee?.Id ?? employee?.id ?? "";
     const name = employee?.name || "";
-    const employeeNo = employee?.employee_id || "";
+    const employeeNo = getEmployeeCode(employee);
 
     if (!id || !name) return null;
 
@@ -477,7 +486,7 @@ const EmployeeTable = () => {
     return employeeListRows
       .map((employee) => {
         const id = employee.Id ?? employee.id ?? "";
-        const employeeNo = employee.employee_id || "";
+        const employeeNo = getEmployeeCode(employee);
         const key = id
           ? `employee-list-${id}`
           : employeeNo
@@ -502,7 +511,7 @@ const EmployeeTable = () => {
       .map((employee) => {
         const id = employee.Id ?? employee.id ?? "";
         const name = employee.name || "";
-        const employeeNo = employee.employee_id || "";
+        const employeeNo = getEmployeeCode(employee);
         const key = id
           ? `employee-list-${id}`
           : employeeNo
@@ -541,7 +550,7 @@ const EmployeeTable = () => {
   const getEmployeeListByEmployeeNo = (employeeNo) =>
     employeeListRows.find(
       (employee) =>
-        String(employee?.employee_id ?? "") === String(employeeNo || ""),
+        getEmployeeCode(employee) === String(employeeNo || "").trim(),
     );
 
   const buildPayrollPlaceholder = (employee) => {
@@ -553,7 +562,7 @@ const EmployeeTable = () => {
       Id: `employee-list-${employee.Id ?? employee.id}`,
       __isPayrollPlaceholder: true,
       name: employee.name || "",
-      employee_id: employee.employee_id || "",
+      employee_id: getEmployeeCode(employee),
       employeeListId: employee.Id ?? employee.id ?? "",
       departmentId: employee.departmentId || "",
       designationId: employee.designationId || "",
@@ -747,7 +756,7 @@ const EmployeeTable = () => {
       departmentId: selected?.departmentId || "",
       designationId: selected?.designationId || "",
       employeeListId: selected?.id || "",
-      employee_id: selected?.employee_id || "",
+      employee_id: selected?.employee_id || getEmployeeCode(selected?.employee),
       joining_date: selected?.joiningDate || "",
       pre_joining_days: "",
       payable_days: "",
@@ -848,9 +857,9 @@ const EmployeeTable = () => {
         employee.designationId ?? employee.employeeProfile?.designationId ?? "",
       employeeListId:
         employee.employeeListId ??
-        getEmployeeInternalId(String(employee.employee_id ?? "").trim()) ??
+        getEmployeeInternalId(getEmployeeCode(employee)) ??
         "",
-      employee_id: employee.employee_id ?? "",
+      employee_id: getEmployeeCode(employee),
       joining_date:
         employee.joining_date ?? employee.employeeProfile?.joiningDate ?? "",
       pre_joining_days: employee.pre_joining_days ?? "",
@@ -887,7 +896,7 @@ const EmployeeTable = () => {
     const normalized = {
       ...employee,
       name: employee.name ?? "",
-      employee_id: employee.employee_id ?? "",
+      employee_id: getEmployeeCode(employee),
       note: employee.note ?? "",
       remarks: employee.remarks ?? "",
       userId: userId,
