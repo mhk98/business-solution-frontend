@@ -284,6 +284,7 @@ const CashInOutTable = () => {
       category: filterCategory || undefined,
       loanId: filterLoanId || undefined,
       voucherNo: filterVoucherNo || undefined,
+      supplierId: supplier || undefined,
       paymentMode: filterPaymentMode || undefined,
       paymentStatus: filterPaymentStatus || undefined,
       searchTerm: debouncedSearchTerm || undefined, // ensure it's included in the query
@@ -306,6 +307,7 @@ const CashInOutTable = () => {
     filterCategory,
     filterLoanId,
     filterVoucherNo,
+    supplier,
     debouncedSearchTerm,
   ]);
 
@@ -1729,7 +1731,11 @@ const CashInOutTable = () => {
                 (o) => String(o.value) === String(supplier),
               ) || null
             }
-            onChange={(selected) => setSupplier(selected?.value || "")}
+            onChange={(selected) => {
+              setSupplier(selected?.value || "");
+              setCurrentPage(1);
+              setStartPage(1);
+            }}
             placeholder={t.search}
             isClearable
             styles={selectStyles}

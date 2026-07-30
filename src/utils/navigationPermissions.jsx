@@ -42,6 +42,7 @@ import {
   FileSpreadsheet,
   CreditCard,
   WalletCards,
+  Fingerprint,
 } from "lucide-react";
 import {
   REPORT_CATALOG,
@@ -1064,6 +1065,13 @@ export const SIDEBAR_ITEMS = [
         key: "team_management",
         icon: Users,
         href: "/hrm/teams",
+        roles: ["superAdmin", "admin", "accountant"],
+      },
+      {
+        name: "Attendance",
+        key: "attendance",
+        icon: Fingerprint,
+        href: "/hrm/attendance",
         roles: ["superAdmin", "admin", "accountant"],
       },
 

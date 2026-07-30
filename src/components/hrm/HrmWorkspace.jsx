@@ -3,6 +3,7 @@ import {
   CircleDollarSign,
   ClipboardCheck,
   ClipboardList,
+  Fingerprint,
   Layers3,
   RefreshCcw,
   ShieldCheck,
@@ -51,6 +52,13 @@ const SECTION_ITEMS = [
     href: "/hrm/teams",
     match: ["/hrm/teams"],
     icon: Users2,
+  },
+  {
+    group: "HRM",
+    label: "Attendance",
+    href: "/hrm/attendance",
+    match: ["/hrm/attendance"],
+    icon: Fingerprint,
   },
   // {
   //   group: "HRM",

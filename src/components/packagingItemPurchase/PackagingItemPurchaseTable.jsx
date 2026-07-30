@@ -41,6 +41,7 @@ const emptyForm = {
   unitValue: "",
   unitCost: "",
   items: [emptyPurchaseItem],
+  othersCost: "",
   supplierId: "",
   date: new Date().toISOString().slice(0, 10),
   note: "",
@@ -93,8 +94,9 @@ const getUnitCost = (row) => {
 const getLineTotal = (item) =>
   Number(item?.unitValue || 0) * Number(item?.unitCost || 0);
 
-const getAllPackagingItemCost = (items = []) =>
-  items.reduce((total, item) => total + getLineTotal(item), 0);
+const getAllPackagingItemCost = (items = [], othersCost = 0) =>
+  items.reduce((total, item) => total + getLineTotal(item), 0) +
+  Number(othersCost || 0);
 
 const getRecordPackagingItemId = (row) =>
   row?.packagingItemId ??
@@ -204,7 +206,8 @@ const PackagingItemPurchaseTable = () => {
     unitValue: Number(value.unitValue || 0),
     unitCost: Number(value.unitCost || 0),
     cost: getLineTotal(value),
-    totalCost: getLineTotal(value),
+    othersCost: Number(value.othersCost || 0),
+    totalCost: getAllPackagingItemCost([value], value.othersCost),
     date: value.date || new Date().toISOString().slice(0, 10),
     note: value.note || "",
   });
@@ -213,6 +216,7 @@ const PackagingItemPurchaseTable = () => {
     supplierId: value.supplierId ? Number(value.supplierId) : null,
     date: value.date || new Date().toISOString().slice(0, 10),
     note: value.note || "",
+    othersCost: Number(value.othersCost || 0),
     items: (value.items || []).map((item) => ({
       packagingItemId: Number(item.packagingItemId),
       unit: item.unit || "Pcs",
@@ -343,7 +347,9 @@ const PackagingItemPurchaseTable = () => {
           <span className="text-[11px] uppercase tracking-widest">
             All Packaging Item Cost
           </span>
-          <span>৳{formatMoney(getAllPackagingItemCost(form.items))}</span>
+          <span>
+            ৳{formatMoney(getAllPackagingItemCost(form.items, form.othersCost))}
+          </span>
         </div>
       </div>
 
@@ -439,6 +445,22 @@ const PackagingItemPurchaseTable = () => {
             </button>
           </div>
         ))}
+      </div>
+
+      <div>
+        <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
+          Others Cost
+        </label>
+        <input
+          type="number"
+          min="0"
+          step="any"
+          value={form.othersCost}
+          onChange={(e) => setForm({ ...form, othersCost: e.target.value })}
+          placeholder="0"
+          className="h-12 bg-white border border-slate-200 rounded-2xl px-4 w-full text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500"
+          style={{ backgroundColor: "#ffffff", colorScheme: "light" }}
+        />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -584,8 +606,25 @@ const PackagingItemPurchaseTable = () => {
             Total Cost
           </label>
           <div className="h-12 flex items-center px-4 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-700 font-black">
-            ৳{formatMoney(getLineTotal(value))}
+            ৳{formatMoney(getAllPackagingItemCost([value], value.othersCost))}
           </div>
+        </div>
+        <div>
+          <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
+            Others Cost
+          </label>
+          <input
+            type="number"
+            min="0"
+            step="any"
+            value={value.othersCost || ""}
+            onChange={(e) =>
+              setValue({ ...value, othersCost: e.target.value })
+            }
+            placeholder="0"
+            className="h-12 bg-white border border-slate-200 rounded-2xl px-4 w-full text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500"
+            style={{ backgroundColor: "#ffffff", colorScheme: "light" }}
+          />
         </div>
         <div>
           <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
@@ -762,6 +801,7 @@ const PackagingItemPurchaseTable = () => {
                                 ? String(getRecordSupplierId(row))
                                 : "",
                               unitCost: getUnitCost(row),
+                              othersCost: row.othersCost || 0,
                             });
                             setIsEditOpen(true);
                           }}

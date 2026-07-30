@@ -400,235 +400,238 @@ export const LegacyOverviewPage = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.45, delay: 0.02 }}
               >
-            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-orange-100 bg-orange-50 text-orange-600">
-                  <TrendingUp size={18} />
+                <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-orange-100 bg-orange-50 text-orange-600">
+                      <TrendingUp size={18} />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-black text-slate-900">
+                        Profit & Loss
+                      </h3>
+                      <p className="text-xs font-medium text-slate-400">
+                        Intransit sales minus returns, COD and delivery charges,
+                        plus advance payment
+                      </p>
+                    </div>
+                  </div>
+                  <span className="rounded-full border border-slate-100 bg-slate-50 px-3 py-1 text-xs font-black uppercase tracking-[0.12em] text-slate-500">
+                    {isLoading ? "Loading..." : "Live Summary"}
+                  </span>
                 </div>
-                <div>
-                  <h3 className="text-base font-black text-slate-900">
-                    Profit & Loss
-                  </h3>
-                  <p className="text-xs font-medium text-slate-400">
-                    Intransit sales minus returns, COD and delivery charges,
-                    plus advance payment
-                  </p>
-                </div>
-              </div>
-              <span className="rounded-full border border-slate-100 bg-slate-50 px-3 py-1 text-xs font-black uppercase tracking-[0.12em] text-slate-500">
-                {isLoading ? "Loading..." : "Live Summary"}
-              </span>
-            </div>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-              {[
-                [
-                  "Net Revenue",
-                  profitLossSummary.netRevenue,
-                  "text-indigo-700",
-                ],
-                [
-                  "Net Purchase",
-                  profitLossSummary.netPurchase,
-                  "text-amber-700",
-                ],
-                [
-                  "Gross Profit",
-                  profitLossSummary.grossProfit,
-                  profitLossSummary.grossProfit >= 0
-                    ? "text-emerald-600"
-                    : "text-rose-600",
-                ],
-                [
-                  "Others Expense",
-                  profitLossSummary.othersExpense,
-                  "text-slate-700",
-                ],
-                [
-                  "Net Profit/Loss",
-                  profitLossSummary.netProfitLoss,
-                  profitLossSummary.netProfitLoss >= 0
-                    ? "text-emerald-600"
-                    : "text-rose-600",
-                ],
-              ].map(([label, value, tone]) => (
-                <div
-                  key={label}
-                  className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4"
-                >
-                  <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    {label}
-                  </div>
-                  <div className={`mt-2 text-xl font-black ${tone}`}>
-                    {isLoading ? "..." : formatCurrency(value)}
-                  </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                  {[
+                    [
+                      "Net Revenue",
+                      profitLossSummary.netRevenue,
+                      "text-indigo-700",
+                    ],
+                    [
+                      "Net Purchase",
+                      profitLossSummary.netPurchase,
+                      "text-amber-700",
+                    ],
+                    [
+                      "Gross Profit",
+                      profitLossSummary.grossProfit,
+                      profitLossSummary.grossProfit >= 0
+                        ? "text-emerald-600"
+                        : "text-rose-600",
+                    ],
+                    [
+                      "Others Expense",
+                      profitLossSummary.othersExpense,
+                      "text-slate-700",
+                    ],
+                    [
+                      "Net Profit/Loss",
+                      profitLossSummary.netProfitLoss,
+                      profitLossSummary.netProfitLoss >= 0
+                        ? "text-emerald-600"
+                        : "text-rose-600",
+                    ],
+                  ].map(([label, value, tone]) => (
+                    <div
+                      key={label}
+                      className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4"
+                    >
+                      <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                        {label}
+                      </div>
+                      <div className={`mt-2 text-xl font-black ${tone}`}>
+                        {isLoading ? "..." : formatCurrency(value)}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
               </motion.div>
 
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-10">
-            <motion.div
-              className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6"
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.45, delay: 0.03 }}
-            >
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-11 h-11 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-600 border border-amber-100">
-                  <ClipboardList size={18} />
-                </div>
-                <div>
-                  <h3 className="text-base font-black text-slate-900">
-                    Approval Queue
-                  </h3>
-                  <p className="text-xs font-medium text-slate-400">
-                    Items waiting for admin action
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {[
-                  ["Purchase Requisition", pendingPurchaseRequisitionCount],
-                  ["Petty Cash Requisition", pendingPettyCashRequisitionCount],
-                  [
-                    "Assets Purchase Requisition",
-                    pendingAssetsRequisitionCount,
-                  ],
-                ].map(([label, value]) => (
-                  <div
-                    key={label}
-                    className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/70 px-4 py-3"
-                  >
-                    <span className="text-sm font-semibold text-slate-600">
-                      {label}
-                    </span>
-                    <span className="text-lg font-black text-slate-900">
-                      {isLoading ? "..." : value}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-
-            <motion.div
-              className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6"
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.45, delay: 0.06 }}
-            >
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-11 h-11 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 border border-emerald-100">
-                  <Wallet size={18} />
-                </div>
-                <div>
-                  <h3 className="text-base font-black text-slate-900">
-                    Cash Snapshot
-                  </h3>
-                  <p className="text-xs font-medium text-slate-400">
-                    Real-time working cash position
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div className="rounded-2xl bg-emerald-50/60 border border-emerald-100 p-4">
-                  <div className="text-[11px] font-black uppercase tracking-widest text-emerald-600">
-                    Net Position
-                  </div>
-                  <div className="mt-2 text-2xl font-black text-slate-900">
-                    {isLoading
-                      ? "..."
-                      : `৳${netCashPosition.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-2xl border border-slate-100 p-4">
-                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                      Cash In
+                <motion.div
+                  className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6"
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.45, delay: 0.03 }}
+                >
+                  <div className="flex items-center gap-3 mb-5">
+                    <div className="w-11 h-11 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-600 border border-amber-100">
+                      <ClipboardList size={18} />
                     </div>
-                    <div className="mt-2 text-lg font-black text-emerald-600">
-                      {isLoading
-                        ? "..."
-                        : `৳${totalCashInAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+                    <div>
+                      <h3 className="text-base font-black text-slate-900">
+                        Approval Queue
+                      </h3>
+                      <p className="text-xs font-medium text-slate-400">
+                        Items waiting for admin action
+                      </p>
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-slate-100 p-4">
-                    <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                      Cash Out
+
+                  <div className="space-y-3">
+                    {[
+                      ["Purchase Requisition", pendingPurchaseRequisitionCount],
+                      [
+                        "Petty Cash Requisition",
+                        pendingPettyCashRequisitionCount,
+                      ],
+                      [
+                        "Assets Purchase Requisition",
+                        pendingAssetsRequisitionCount,
+                      ],
+                    ].map(([label, value]) => (
+                      <div
+                        key={label}
+                        className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/70 px-4 py-3"
+                      >
+                        <span className="text-sm font-semibold text-slate-600">
+                          {label}
+                        </span>
+                        <span className="text-lg font-black text-slate-900">
+                          {isLoading ? "..." : value}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+
+                <motion.div
+                  className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6"
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.45, delay: 0.06 }}
+                >
+                  <div className="flex items-center gap-3 mb-5">
+                    <div className="w-11 h-11 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 border border-emerald-100">
+                      <Wallet size={18} />
                     </div>
-                    <div className="mt-2 text-lg font-black text-rose-600">
-                      {isLoading
-                        ? "..."
-                        : `৳${totalCashOutAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+                    <div>
+                      <h3 className="text-base font-black text-slate-900">
+                        Cash Snapshot
+                      </h3>
+                      <p className="text-xs font-medium text-slate-400">
+                        Real-time working cash position
+                      </p>
                     </div>
                   </div>
-                </div>
-              </div>
-            </motion.div>
 
-            <motion.div
-              className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6"
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.45, delay: 0.09 }}
-            >
-              <div className="flex items-center gap-3 mb-5">
-                <div className="w-11 h-11 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-600 border border-rose-100">
-                  <Receipt size={18} />
-                </div>
-                <div>
-                  <h3 className="text-base font-black text-slate-900">
-                    Inventory Snapshot
-                  </h3>
-                  <p className="text-xs font-medium text-slate-400">
-                    Receivables, liabilities and stock value
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                {[
-                  [
-                    "Product Stock",
-                    `৳${inventoryOverview.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-                    totalInventoryQuantity,
-                  ],
-                  [
-                    "Damage Stock",
-                    `৳${totalDamageStockPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-                    totalDamageStockQuantity,
-                  ],
-                  [
-                    "Repairing Stock",
-                    `৳${totalRepairingStockPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-                    totalRepairingStockQuantity,
-                  ],
-                ].map(([label, value, quantity]) => (
-                  <div
-                    key={label}
-                    className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/70 px-4 py-3"
-                  >
-                    <span className="text-sm font-semibold text-slate-600">
-                      {label}
-                    </span>
-                    <span className="text-right">
-                      <span className="block text-sm font-black text-slate-900">
-                        {isLoading ? "..." : value}
-                      </span>
-                      <span className="block text-xs font-semibold text-slate-400">
-                        Qty:{" "}
+                  <div className="space-y-4">
+                    <div className="rounded-2xl bg-emerald-50/60 border border-emerald-100 p-4">
+                      <div className="text-[11px] font-black uppercase tracking-widest text-emerald-600">
+                        Net Position
+                      </div>
+                      <div className="mt-2 text-2xl font-black text-slate-900">
                         {isLoading
                           ? "..."
-                          : Number(quantity || 0).toLocaleString()}
-                      </span>
-                    </span>
+                          : `৳${netCashPosition.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-2xl border border-slate-100 p-4">
+                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                          Cash In
+                        </div>
+                        <div className="mt-2 text-lg font-black text-emerald-600">
+                          {isLoading
+                            ? "..."
+                            : `৳${totalCashInAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl border border-slate-100 p-4">
+                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                          Cash Out
+                        </div>
+                        <div className="mt-2 text-lg font-black text-rose-600">
+                          {isLoading
+                            ? "..."
+                            : `৳${totalCashOutAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                ))}
-              </div>
-            </motion.div>
+                </motion.div>
+
+                <motion.div
+                  className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6"
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.45, delay: 0.09 }}
+                >
+                  <div className="flex items-center gap-3 mb-5">
+                    <div className="w-11 h-11 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-600 border border-rose-100">
+                      <Receipt size={18} />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-black text-slate-900">
+                        Inventory Snapshot
+                      </h3>
+                      <p className="text-xs font-medium text-slate-400">
+                        Receivables, liabilities and stock value
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    {[
+                      [
+                        "Product Stock",
+                        `৳${inventoryOverview.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+                        totalInventoryQuantity,
+                      ],
+                      [
+                        "Damage Stock",
+                        `৳${totalDamageStockPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+                        totalDamageStockQuantity,
+                      ],
+                      [
+                        "Repairing Stock",
+                        `৳${totalRepairingStockPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+                        totalRepairingStockQuantity,
+                      ],
+                    ].map(([label, value, quantity]) => (
+                      <div
+                        key={label}
+                        className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/70 px-4 py-3"
+                      >
+                        <span className="text-sm font-semibold text-slate-600">
+                          {label}
+                        </span>
+                        <span className="text-right">
+                          <span className="block text-sm font-black text-slate-900">
+                            {isLoading ? "..." : value}
+                          </span>
+                          <span className="block text-xs font-semibold text-slate-400">
+                            Qty:{" "}
+                            {isLoading
+                              ? "..."
+                              : Number(quantity || 0).toLocaleString()}
+                          </span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
               </div>
             </>
           )}

@@ -375,7 +375,9 @@ import {
   useSingleUserQuery,
   useUserUpdateMutation,
 } from "../../features/auth/auth";
+import { isDefaultMasterPermissionEmail } from "../../utils/masterPermissions";
 import Modal from "../common/Modal";
+import ResetDataControl from "./ResetDataControl";
 
 const API_BASE = import.meta.env.VITE_API_URL;
 const DOCUMENT_LABELS = {
@@ -526,6 +528,7 @@ const UserProfile = () => {
   const avatarSrc = user?.image
     ? `${API_BASE}/${user.image}`
     : "https://i.ibb.co/2kR0w9c/user.png";
+  const canViewResetData = isDefaultMasterPermissionEmail(user?.Email);
 
   return (
     <div className="bg-white/90 backdrop-blur-md shadow-[0_10px_30px_rgba(15,23,42,0.08)] rounded-2xl p-6 border border-slate-200 mb-8">
@@ -602,6 +605,7 @@ const UserProfile = () => {
                   path={user?.[field]}
                 />
               ))}
+              {canViewResetData ? <ResetDataControl /> : null}
             </div>
           </div>
         </div>

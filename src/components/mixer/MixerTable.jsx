@@ -54,6 +54,7 @@ const initialCreateProduct = {
   warehouseId: "",
   combo: "",
   unitWage: "",
+  othersCost: "",
   purchase_price: "",
   sale_price: "",
   note: "",
@@ -940,6 +941,7 @@ const MixerTable = () => {
           : "",
       combo: rp.combo ?? "",
       unitWage: rp.unitWage ?? "",
+      othersCost: rp.othersCost ?? "",
       purchase_price: rp.purchase_price ?? "",
       sale_price: rp.sale_price ?? "",
       date: rp.date ?? "",
@@ -972,6 +974,7 @@ const MixerTable = () => {
       note: rp.note ?? "",
       cost: rp.cost ?? "",
       unitWage: rp.unitWage ?? "",
+      othersCost: rp.othersCost ?? "",
       purchase_price: rp.purchase_price ?? "",
       sale_price: rp.sale_price ?? "",
       // unitValue: rp.unitValue ?? "",
@@ -1034,6 +1037,7 @@ const MixerTable = () => {
         warehouseId: Number(createProduct.warehouseId) || null,
         combo: Number(createProduct.combo) || 0,
         unitWage: Number(createProduct.unitWage) || 0,
+        othersCost: Number(createProduct.othersCost) || 0,
         variants: getNormalizedVariantsPayload(createProduct.variantRows),
         purchase_price: Number(createProduct.purchase_price) || 0,
         sale_price: Number(createProduct.sale_price) || 0,
@@ -1110,6 +1114,7 @@ const MixerTable = () => {
         warehouseId: Number(currentProduct.warehouseId) || null,
         combo: Number(currentProduct.combo) || 0,
         unitWage: Number(currentProduct.unitWage) || 0,
+        othersCost: Number(currentProduct.othersCost) || 0,
         variants: getNormalizedVariantsPayload(currentProduct.variantRows),
         purchase_price: Number(currentProduct.purchase_price) || 0,
         sale_price: Number(currentProduct.sale_price) || 0,
@@ -1807,6 +1812,9 @@ const MixerTable = () => {
                   Unit Wage
                 </th>
                 <th className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
+                  Others Cost
+                </th>
+                <th className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
                   Wage Amount
                 </th>
                 <th className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
@@ -1855,6 +1863,10 @@ const MixerTable = () => {
 
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                     {Number(rp.unitWage || 0).toLocaleString()}
+                  </td>
+
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                    {Number(rp.othersCost || 0).toLocaleString()}
                   </td>
 
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-900">
@@ -2060,6 +2072,7 @@ const MixerTable = () => {
                   ...prev,
                   productId: selected?.value || "",
                   combo: "",
+                  othersCost: "",
                   purchase_price: "",
                   sale_price: "",
                   materialSelections: [createEmptyMaterialSelection()],
@@ -2176,6 +2189,26 @@ const MixerTable = () => {
                 }
                 className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
                 placeholder="Enter unit wage"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+                Others Cost
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={currentProduct?.othersCost || ""}
+                onChange={(e) =>
+                  setCurrentProduct((p) => ({
+                    ...p,
+                    othersCost: e.target.value,
+                  }))
+                }
+                className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+                placeholder="Enter others cost"
               />
             </div>
           </div>
@@ -2427,6 +2460,7 @@ const MixerTable = () => {
                   ...prev,
                   productId: selected?.value || "",
                   combo: "",
+                  othersCost: "",
                   purchase_price: "",
                   sale_price: "",
                   materialSelections: [createEmptyMaterialSelection()],
@@ -2793,6 +2827,26 @@ const MixerTable = () => {
                 }
                 className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
                 placeholder="Enter unit wage"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+                Others Cost
+              </label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={createProduct?.othersCost || ""}
+                onChange={(e) =>
+                  setCreateProduct((p) => ({
+                    ...p,
+                    othersCost: e.target.value,
+                  }))
+                }
+                className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+                placeholder="Enter others cost"
               />
             </div>
           </div>

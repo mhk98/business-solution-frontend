@@ -20,7 +20,10 @@ const unitOptions = ["Pcs", "Kg", "Ml", "Gram", "Yard", "Inch", "Feet"].map(
 );
 const createPackagingLine = () => ({
   packagingFactoryStockId: "",
-  unitValue: "",
+  value: "",
+  unit: "Pcs",
+  quantity: "",
+  total: "",
 });
 const emptyForm = {
   itemId: "",
@@ -30,6 +33,7 @@ const emptyForm = {
   unitValue: "",
   unitCost: "",
   wage: "",
+  othersCost: "",
   itemQuantity: "",
   date: new Date().toISOString().slice(0, 10),
   note: "",
@@ -53,6 +57,15 @@ const unitCost = (row) =>
     row?.unitCost ||
       (Number(row?.unitValue || 0) ? Number(row?.unitValue || 0) : 0),
   );
+const lineTotal = (line) => {
+  const explicitTotal = Number(line?.total || 0);
+  if (explicitTotal > 0) return explicitTotal;
+  const value = Number(line?.value || line?.unitValue || 0);
+  const quantity = Number(line?.quantity || 1);
+  return value * quantity;
+};
+const packagingItemsTotal = (items = []) =>
+  items.reduce((sum, item) => sum + lineTotal(item), 0);
 
 const PackagingMixerTable = () => {
   const role = localStorage.getItem("role");
@@ -96,14 +109,21 @@ const PackagingMixerTable = () => {
       })),
     [manufacturerRes?.data],
   );
-  const stockOptions = useMemo(
+  const selectedManufacturerStockOptions = useMemo(
     () =>
-      (stockRes?.data || []).map((x) => ({
+      (stockRes?.data || [])
+        .filter((x) => {
+          if (!form.manufacturerId) return false;
+          return String(x.manufacturerId) === String(form.manufacturerId);
+        })
+        .map((x) => ({
         value: String(x.Id),
-        label: `${x.name} - ${x.manufacturerName || "N/A"} (Stock: ${Number(x.unitValue || 0)} ${x.unit || "Pcs"})`,
+        label: `${x.name} (Stock: ${Number(x.unitValue || 0)} ${x.unit || "Pcs"})`,
         unit: x.unit || "Pcs",
+        stockQuantity: Number(x.unitValue || 0),
+        manufacturerId: x.manufacturerId,
       })),
-    [stockRes?.data],
+    [stockRes?.data, form.manufacturerId],
   );
 
   const { data, isLoading, refetch } = useGetAllPackagingMixerQuery({
@@ -124,15 +144,20 @@ const PackagingMixerTable = () => {
     itemId: Number(value.itemId),
     manufacturerId: Number(value.manufacturerId),
     packagingItems: (value.packagingItems || [])
-      .filter((x) => x.packagingFactoryStockId && Number(x.unitValue || 0) > 0)
+      .filter((x) => x.packagingFactoryStockId && lineTotal(x) > 0)
       .map((x) => ({
         packagingFactoryStockId: Number(x.packagingFactoryStockId),
-        unitValue: Number(x.unitValue),
+        value: Number(x.value || x.unitValue || 0),
+        unit: x.unit || "Pcs",
+        quantity: Number(x.quantity || 1),
+        total: lineTotal(x),
+        unitValue: lineTotal(x),
       })),
     unit: value.unit || "Pcs",
     unitValue: Number(value.unitValue || 0),
-    unitCost: Number(value.unitCost || 0),
+    unitCost: 0,
     wage: Number(value.wage || 0),
+    othersCost: Number(value.othersCost || 0),
     itemQuantity: Number(value.itemQuantity || 0),
     date: value.date,
     note: value.note || "",
@@ -151,13 +176,17 @@ const PackagingMixerTable = () => {
       packagingItems: row.packagingItems?.length
         ? row.packagingItems.map((x) => ({
             packagingFactoryStockId: String(x.packagingFactoryStockId),
-            unitValue: x.unitValue,
+            value: x.value || x.unitValue || "",
+            unit: x.unit || row.unit || "Pcs",
+            quantity: x.quantity || 1,
+            total: x.total || x.unitValue || "",
           }))
         : [createPackagingLine()],
       unit: row.unit || "Pcs",
       unitValue: row.unitValue || "",
       unitCost: row.unitCost || "",
       wage: row.wage || "",
+      othersCost: row.othersCost || "",
       itemQuantity: row.itemQuantity || "",
       date: row.date || new Date().toISOString().slice(0, 10),
       note: row.note || "",
@@ -173,8 +202,22 @@ const PackagingMixerTable = () => {
       return toast.error("Please select packaging manufacturer");
     if (!payload.packagingItems.length)
       return toast.error("Please add packaging item");
+    const overStockItem = payload.packagingItems.find((item) => {
+      const stock = selectedManufacturerStockOptions.find(
+        (option) => option.value === String(item.packagingFactoryStockId),
+      );
+      return stock && Number(item.unitValue || 0) > Number(stock.stockQuantity || 0);
+    });
+    if (overStockItem) {
+      const stock = selectedManufacturerStockOptions.find(
+        (option) => option.value === String(overStockItem.packagingFactoryStockId),
+      );
+      return toast.error(
+        `${stock?.label || "Packaging item"} stock not enough`,
+      );
+    }
     if (payload.unitValue <= 0)
-      return toast.error("Unit details must be greater than 0");
+      return toast.error("Out Item Quantity must be greater than 0");
     try {
       const res = editing
         ? await updateMixer({ id: editing.Id, data: payload }).unwrap()
@@ -287,9 +330,9 @@ const PackagingMixerTable = () => {
                 "Date",
                 "Item",
                 "Manufacturer",
-                "Unit Details",
+                "Out Item Quantity",
                 // "Unit Cost",
-                "Wage Amount",
+                "Wage Cost",
                 "Actions",
               ].map((h) => (
                 <th
@@ -380,6 +423,7 @@ const PackagingMixerTable = () => {
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
         title={editing ? "Edit Packaging Mixer" : "Add Packaging Mixer"}
+        maxWidth="max-w-6xl"
       >
         <form onSubmit={submit} className="space-y-5">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -400,7 +444,11 @@ const PackagingMixerTable = () => {
                 ) || null
               }
               onChange={(s) =>
-                setForm({ ...form, manufacturerId: s?.value || "" })
+                setForm({
+                  ...form,
+                  manufacturerId: s?.value || "",
+                  packagingItems: [createPackagingLine()],
+                })
               }
               placeholder="Select Packaging Manufacturer..."
               styles={selectStyles}
@@ -425,52 +473,131 @@ const PackagingMixerTable = () => {
                 Add Packaging Item
               </button>
             </div>
-            {form.packagingItems.map((line, index) => (
+            {form.packagingItems.map((line, index) => {
+              const selectedStock = selectedManufacturerStockOptions.find(
+                (o) => o.value === String(line.packagingFactoryStockId),
+              );
+              const computedTotal = lineTotal(line);
+              return (
               <div
                 key={index}
-                className="grid grid-cols-1 md:grid-cols-[1fr_160px_44px] gap-3"
+                className="rounded-2xl border border-slate-100 bg-slate-50/60 p-3"
               >
-                <Select
-                  options={stockOptions}
-                  value={
-                    stockOptions.find(
-                      (o) => o.value === String(line.packagingFactoryStockId),
-                    ) || null
-                  }
-                  onChange={(s) =>
-                    updateLine(index, {
-                      packagingFactoryStockId: s?.value || "",
-                    })
-                  }
-                  placeholder="Select packaging factory stock..."
-                  styles={selectStyles}
-                />
-                <input
-                  type="number"
-                  step="any"
-                  value={line.unitValue || ""}
-                  onChange={(e) =>
-                    updateLine(index, { unitValue: e.target.value })
-                  }
-                  placeholder="Quantity"
-                  className="h-11 bg-white border rounded-xl px-3"
-                />
-                <button
-                  type="button"
-                  onClick={() =>
-                    setForm({
-                      ...form,
-                      packagingItems: form.packagingItems.filter(
-                        (_, i) => i !== index,
-                      ),
-                    })
-                  }
-                  className="h-11 border rounded-xl text-red-600"
-                >
-                  ×
-                </button>
+                <div className="grid grid-cols-1 lg:grid-cols-[minmax(280px,1.7fr)_minmax(130px,0.8fr)_minmax(130px,0.75fr)_minmax(140px,0.8fr)_minmax(150px,0.9fr)_44px] gap-4 items-end">
+                  <label className="space-y-2">
+                    <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+                      Packaging Item {index + 1}
+                    </span>
+                    <Select
+                      options={selectedManufacturerStockOptions}
+                      value={selectedStock || null}
+                      onChange={(s) =>
+                        updateLine(index, {
+                          packagingFactoryStockId: s?.value || "",
+                          unit: s?.unit || "Pcs",
+                        })
+                      }
+                      placeholder={
+                        form.manufacturerId
+                          ? "Select packaging item..."
+                          : "Select manufacturer first..."
+                      }
+                      isDisabled={!form.manufacturerId}
+                      noOptionsMessage={() =>
+                        form.manufacturerId
+                          ? "No stock found for this manufacturer"
+                          : "Select manufacturer first"
+                      }
+                      styles={selectStyles}
+                    />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+                      Value
+                    </span>
+                    <input
+                      type="number"
+                      step="any"
+                      value={line.value || ""}
+                      onChange={(e) =>
+                        updateLine(index, {
+                          value: e.target.value,
+                          total:
+                            Number(e.target.value || 0) *
+                            Number(line.quantity || 0),
+                        })
+                      }
+                      placeholder="Value"
+                      className="h-11 bg-white border rounded-xl px-3 w-full"
+                    />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+                      Unit
+                    </span>
+                    <Select
+                      options={unitOptions}
+                      value={
+                        unitOptions.find((o) => o.value === line.unit) ||
+                        unitOptions[0]
+                      }
+                      onChange={(s) =>
+                        updateLine(index, { unit: s?.value || "Pcs" })
+                      }
+                      styles={selectStyles}
+                    />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+                      Quantity
+                    </span>
+                    <input
+                      type="number"
+                      step="any"
+                      value={line.quantity || ""}
+                      onChange={(e) =>
+                        updateLine(index, {
+                          quantity: e.target.value,
+                          total:
+                            Number(line.value || 0) *
+                            Number(e.target.value || 0),
+                        })
+                      }
+                      placeholder="Quantity"
+                      className="h-11 bg-white border rounded-xl px-3 w-full"
+                    />
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
+                      Total
+                    </span>
+                    <input
+                      type="number"
+                      step="any"
+                      value={Number.isFinite(computedTotal) ? computedTotal : 0}
+                      readOnly
+                      className="h-11 bg-indigo-50 border border-indigo-100 rounded-xl px-3 w-full text-indigo-700 font-black"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setForm({
+                        ...form,
+                        packagingItems:
+                          form.packagingItems.length > 1
+                            ? form.packagingItems.filter((_, i) => i !== index)
+                            : [createPackagingLine()],
+                      })
+                    }
+                    className="h-11 border rounded-xl text-red-600 bg-white"
+                  >
+                    ×
+                  </button>
+                </div>
               </div>
-            ))}
+              );
+            })}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input
@@ -478,23 +605,7 @@ const PackagingMixerTable = () => {
               step="any"
               value={form.unitValue || ""}
               onChange={(e) => setForm({ ...form, unitValue: e.target.value })}
-              placeholder="Unit Details"
-              className="h-12 bg-white border rounded-2xl px-4"
-            />
-            <Select
-              options={unitOptions}
-              value={
-                unitOptions.find((o) => o.value === form.unit) || unitOptions[0]
-              }
-              onChange={(s) => setForm({ ...form, unit: s?.value || "Pcs" })}
-              styles={selectStyles}
-            />
-            <input
-              type="number"
-              step="any"
-              value={form.unitCost || ""}
-              onChange={(e) => setForm({ ...form, unitCost: e.target.value })}
-              placeholder="Unit Cost"
+              placeholder="Out Item Quantity"
               className="h-12 bg-white border rounded-2xl px-4"
             />
             <input
@@ -504,6 +615,16 @@ const PackagingMixerTable = () => {
               onChange={(e) => setForm({ ...form, wage: e.target.value })}
               placeholder="Wage"
               className="h-12 bg-white border rounded-2xl px-4"
+            />
+            <input
+              type="number"
+              step="any"
+              value={form.othersCost || ""}
+              onChange={(e) =>
+                setForm({ ...form, othersCost: e.target.value })
+              }
+              placeholder="Others Cost"
+              className="h-12 bg-white border rounded-2xl px-4 md:col-start-2"
             />
             {/* <input type="number" step="any" value={form.itemQuantity || ""} onChange={(e) => setForm({ ...form, itemQuantity: e.target.value })} placeholder="Item Quantity" className="h-12 bg-white border rounded-2xl px-4" /> */}
             <input
@@ -520,8 +641,11 @@ const PackagingMixerTable = () => {
             className="min-h-24 bg-white border rounded-2xl px-4 py-3 w-full"
           />
           <div className="text-sm font-bold text-slate-700">
-            Wage Amount:{" "}
-            {money(Number(form.unitValue || 0) * Number(form.wage || 0))}
+            Wage Cost:{" "}
+            {money(
+              Number(form.unitValue || 0) * Number(form.wage || 0) +
+                Number(form.othersCost || 0),
+            )}
           </div>
           <div className="flex justify-end pt-4 border-t">
             <button

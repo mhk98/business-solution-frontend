@@ -115,6 +115,7 @@ const AttendanceEnrollmentPage = lazy(() => import("./pages/AttendanceEnrollment
 const AttendanceLogsPage = lazy(() => import("./pages/AttendanceLogsPage"));
 const AttendanceSummaryPage = lazy(() => import("./pages/AttendanceSummaryPage"));
 const AttendanceRegularizationPage = lazy(() => import("./pages/AttendanceRegularizationPage"));
+const StellarAttendancePage = lazy(() => import("./pages/StellarAttendancePage"));
 const LeaveTypePage = lazy(() => import("./pages/LeaveTypePage"));
 const LeaveRequestPage = lazy(() => import("./pages/LeaveRequestPage"));
 const PayrollRunPage = lazy(() => import("./pages/PayrollRunPage"));
@@ -171,6 +172,8 @@ function App() {
                 <Route path="/hrm/attendance-logs" element={<AuthedRoute><AttendanceLogsPage /></AuthedRoute>} />
                 <Route path="/hrm/attendance-summaries" element={<AuthedRoute><AttendanceSummaryPage /></AuthedRoute>} />
                 <Route path="/hrm/attendance-regularizations" element={<AuthedRoute><AttendanceRegularizationPage /></AuthedRoute>} />
+                <Route path="/hrm/attendance" element={<AuthedRoute><StellarAttendancePage /></AuthedRoute>} />
+                <Route path="/hrm/attendance/:registrationId" element={<AuthedRoute><StellarAttendancePage /></AuthedRoute>} />
                 <Route path="/hrm/leave-types" element={<AuthedRoute><LeaveTypePage /></AuthedRoute>} />
                 <Route path="/hrm/leave-requests" element={<AuthedRoute><LeaveRequestPage /></AuthedRoute>} />
                 <Route path="/hrm/payroll-runs" element={<AuthedRoute><PayrollRunPage /></AuthedRoute>} />

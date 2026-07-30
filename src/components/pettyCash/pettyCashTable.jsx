@@ -193,7 +193,7 @@ const PettyCashTable = ({ mode = "default" }) => {
     filterPaymentStatus,
     filterCategory,
     filterBook,
-    searchTerm,
+    debouncedSearchTerm,
     isRequisitionMode,
   ]);
 
@@ -1098,17 +1098,21 @@ const PettyCashTable = ({ mode = "default" }) => {
           <label className="text-sm text-slate-600 mb-1">Category:</label>
           <Select
             options={categoryOptions.map((c) => ({
-              value: c.id,
+              value: c.name,
               label: c.name,
             }))}
             value={
               categoryOptions
-                .map((c) => ({ value: c.id, label: c.name }))
+                .map((c) => ({ value: c.name, label: c.name }))
                 .find(
                   (option) => String(option.value) === String(filterCategory),
                 ) || null
             }
-            onChange={(selected) => setFilterCategory(selected?.value || "")}
+            onChange={(selected) => {
+              setFilterCategory(selected?.value || "");
+              setCurrentPage(1);
+              setStartPage(1);
+            }}
             placeholder="All"
             isClearable
             styles={selectStyles}
