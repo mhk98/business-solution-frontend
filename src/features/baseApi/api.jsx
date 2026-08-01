@@ -82,6 +82,7 @@ export const baseApi = createApi({
     "AdsAccount",
     "ProfitLoss",
     "MasterPermission",
+    "ApiGateway",
     "Attendance",
   ],
 

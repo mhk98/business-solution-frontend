@@ -29,6 +29,7 @@ import DateRangeFilter, {
 import { useGetOverviewDashboardQuery } from "../../features/overview/overview";
 import Header from "../common/Header";
 import { useCanUseMasterPermission } from "../../utils/masterPermissions";
+import { useNavigate } from "react-router-dom";
 
 const safeNumber = (value) => {
   const parsed = Number(value);
@@ -73,16 +74,16 @@ const MetricCard = ({ title, value, changePercent, icon: Icon, color }) => {
       animate={{ opacity: 1, y: 0 }}
       className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
     >
-      <div className="flex items-start gap-4">
+      <div className="flex items-start gap-3 sm:gap-4">
         <div
-          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-white shadow-sm"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-white shadow-sm sm:h-12 sm:w-12"
           style={{ background: color }}
         >
           <Icon size={21} />
         </div>
         <div className="min-w-0">
           <p className="text-sm font-semibold text-slate-600">{title}</p>
-          <p className="mt-2 text-2xl font-black tracking-tight text-slate-950">
+          <p className="mt-2 break-words text-xl font-black tracking-tight text-slate-950 sm:text-2xl">
             {value}
           </p>
           {tone === "neutral" ? (
@@ -109,7 +110,7 @@ const Panel = ({ title, action, children, className = "" }) => (
   <section
     className={`rounded-xl border border-slate-200 bg-white shadow-sm ${className}`}
   >
-    <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-4 sm:px-5">
       <h2 className="text-base font-black text-slate-950">{title}</h2>
       {action}
     </div>
@@ -124,6 +125,7 @@ const EmptyState = ({ text }) => (
 );
 
 const InventoryDashboardOverview = () => {
+  const navigate = useNavigate();
   const { canUseMasterPermission: canSeeSensitiveOverview } =
     useCanUseMasterPermission();
   const defaultRange = useMemo(() => getDatePresetRange("last30"), []);
@@ -231,16 +233,19 @@ const InventoryDashboardOverview = () => {
 
   const approvalQueue = [
     {
-      label: "Purchase Requisition",
+      label: "Item Requisition",
       value: summary.pendingPurchaseRequisitionCount,
+      href: "/item-requisition",
     },
     {
       label: "Petty Cash Requisition",
       value: summary.pendingPettyCashRequisitionCount,
+      href: "/petty-cash-requisition",
     },
     {
       label: "Assets Purchase Requisition",
       value: summary.pendingAssetsRequisitionCount,
+      href: "/assets-requisition",
     },
   ];
 
@@ -287,9 +292,9 @@ const InventoryDashboardOverview = () => {
     <div className="min-h-screen bg-slate-50 text-slate-950">
       <Header title="Dashboard" />
 
-      <main className="px-5 py-5 lg:px-8">
+      <main className="px-3 py-4 sm:px-5 sm:py-5 lg:px-8">
         <div className="mb-5 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div>
+          <div className="min-w-0">
             <h1 className="text-2xl font-black tracking-tight text-slate-950">
               Dashboard
             </h1>
@@ -298,7 +303,7 @@ const InventoryDashboardOverview = () => {
               today.
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center xl:w-auto">
             <DateRangeFilter
               startDate={from}
               endDate={to}
@@ -306,12 +311,12 @@ const InventoryDashboardOverview = () => {
               onEndDateChange={setTo}
               onFilterTypeChange={applyDateRange}
               defaultFilter="last30"
-              className="min-w-[320px]"
+              className="w-full sm:min-w-[280px] xl:w-auto"
             />
             <button
               type="button"
               onClick={() => refetch?.()}
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:text-indigo-600"
+              className="flex h-11 w-full shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:text-indigo-600 sm:w-11"
               aria-label="Refresh dashboard"
             >
               <RefreshCcw size={17} />
@@ -327,7 +332,7 @@ const InventoryDashboardOverview = () => {
 
         {canSeeSensitiveOverview && (
           <>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
+            <div className="grid grid-cols-1 gap-4 min-[520px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
               {metricCards.map((card) => (
                 <MetricCard
                   key={card.title}
@@ -341,8 +346,8 @@ const InventoryDashboardOverview = () => {
             </div>
 
             <section className="mt-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
                   <h2 className="text-base font-black text-slate-950">
                     Cash Snapshot
                   </h2>
@@ -354,27 +359,27 @@ const InventoryDashboardOverview = () => {
                   Live Summary
                 </span>
               </div>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
                 {cashCards.map((card) => {
                   const Icon = card.icon;
 
                   return (
                     <div
                       key={card.label}
-                      className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/60 px-5 py-4"
+                      className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-4 sm:px-5"
                     >
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-sm font-semibold text-slate-500">
                           {card.label}
                         </p>
                         <p
-                          className={`mt-2 text-2xl font-black tracking-tight ${card.valueClass}`}
+                          className={`mt-2 break-words text-xl font-black tracking-tight sm:text-2xl ${card.valueClass}`}
                         >
                           {isLoading ? "..." : formatCurrency(card.value, 2)}
                         </p>
                       </div>
                       <div
-                        className={`flex h-11 w-11 items-center justify-center rounded-lg border ${card.iconClass}`}
+                        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border ${card.iconClass}`}
                       >
                         <Icon size={19} />
                       </div>
@@ -394,27 +399,46 @@ const InventoryDashboardOverview = () => {
                   </span>
                 }
               >
-                <div className="h-[320px] px-3 py-5">
+                <div className="h-[240px] px-1 py-4 sm:h-[320px] sm:px-3 sm:py-5">
                   {chartData.length ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={chartData}>
                         <defs>
-                          <linearGradient id="salesCurrent" x1="0" x2="0" y1="0" y2="1">
-                            <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.24} />
-                            <stop offset="95%" stopColor="#4f46e5" stopOpacity={0} />
+                          <linearGradient
+                            id="salesCurrent"
+                            x1="0"
+                            x2="0"
+                            y1="0"
+                            y2="1"
+                          >
+                            <stop
+                              offset="5%"
+                              stopColor="#4f46e5"
+                              stopOpacity={0.24}
+                            />
+                            <stop
+                              offset="95%"
+                              stopColor="#4f46e5"
+                              stopOpacity={0}
+                            />
                           </linearGradient>
                         </defs>
                         <XAxis
                           dataKey="date"
                           axisLine={false}
                           tickLine={false}
+                          interval="preserveStartEnd"
+                          minTickGap={18}
                           tick={{ fontSize: 12, fill: "#64748b" }}
                         />
                         <YAxis
                           axisLine={false}
                           tickLine={false}
-                          tick={{ fontSize: 12, fill: "#64748b" }}
-                          tickFormatter={(value) => `${Math.round(value / 1000)}K`}
+                          width={36}
+                          tick={{ fontSize: 11, fill: "#64748b" }}
+                          tickFormatter={(value) =>
+                            `${Math.round(value / 1000)}K`
+                          }
                         />
                         <Tooltip
                           formatter={(value) => formatCurrency(value)}
@@ -458,17 +482,17 @@ const InventoryDashboardOverview = () => {
                   </span>
                 }
               >
-                <div className="grid min-h-[320px] grid-cols-1 items-center gap-4 px-4 py-5">
+                <div className="grid min-h-[260px] grid-cols-1 items-center gap-4 px-4 py-5 sm:min-h-[320px]">
                   {inventoryChart.length ? (
                     <>
-                      <div className="relative mx-auto h-56 w-56">
+                      <div className="relative mx-auto h-44 w-44 sm:h-56 sm:w-56">
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
                             <Pie
                               data={inventoryChart}
                               dataKey="value"
                               innerRadius={70}
-                              outerRadius={100}
+                              outerRadius="88%"
                               paddingAngle={2}
                             >
                               {inventoryChart.map((entry) => (
@@ -478,7 +502,9 @@ const InventoryDashboardOverview = () => {
                                 />
                               ))}
                             </Pie>
-                            <Tooltip formatter={(value) => formatNumber(value)} />
+                            <Tooltip
+                              formatter={(value) => formatNumber(value)}
+                            />
                           </PieChart>
                         </ResponsiveContainer>
                         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
@@ -493,14 +519,22 @@ const InventoryDashboardOverview = () => {
                       <div className="space-y-3">
                         {inventoryChart.map((item) => {
                           const percent = totalInventoryValue
-                            ? Math.round((safeNumber(item.value) / totalInventoryValue) * 100)
+                            ? Math.round(
+                                (safeNumber(item.value) / totalInventoryValue) *
+                                  100,
+                              )
                             : 0;
 
                           return (
-                            <div key={item.key} className="flex items-center gap-3">
+                            <div
+                              key={item.key}
+                              className="flex items-center gap-3"
+                            >
                               <span
                                 className="h-3 w-3 rounded-full"
-                                style={{ background: inventoryColors[item.key] }}
+                                style={{
+                                  background: inventoryColors[item.key],
+                                }}
                               />
                               <div className="min-w-0 flex-1">
                                 <p className="text-sm font-bold text-slate-700">
@@ -530,7 +564,7 @@ const InventoryDashboardOverview = () => {
                   </span>
                 }
               >
-                <div className="space-y-3 p-5">
+                <div className="space-y-3 p-4 sm:p-5">
                   <div className="mb-1 flex items-center gap-3">
                     <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-amber-100 bg-amber-50 text-amber-600">
                       <ClipboardList size={18} />
@@ -545,9 +579,11 @@ const InventoryDashboardOverview = () => {
                     </div>
                   </div>
                   {approvalQueue.map((item) => (
-                    <div
+                    <button
                       key={item.label}
-                      className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-4 py-3"
+                      type="button"
+                      onClick={() => navigate(item.href)}
+                      className="flex w-full items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50 px-4 py-3 text-left transition hover:border-indigo-200 hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                     >
                       <span className="text-sm font-bold text-slate-600">
                         {item.label}
@@ -555,7 +591,7 @@ const InventoryDashboardOverview = () => {
                       <span className="text-lg font-black text-slate-950">
                         {isLoading ? "..." : formatNumber(item.value)}
                       </span>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </Panel>
@@ -570,7 +606,7 @@ const InventoryDashboardOverview = () => {
                 topSellingProducts.map((product) => (
                   <div
                     key={`${product.rank}-${product.productName}`}
-                    className="flex items-center gap-3 px-5 py-4"
+                    className="flex items-center gap-3 px-4 py-4 sm:px-5"
                   >
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-sm font-black text-slate-700">
                       {product.rank}
@@ -583,7 +619,7 @@ const InventoryDashboardOverview = () => {
                         Sold Qty: {formatNumber(product.soldQty)}
                       </p>
                     </div>
-                    <p className="text-sm font-black text-slate-800">
+                    <p className="shrink-0 text-right text-sm font-black text-slate-800">
                       {formatCurrency(product.revenue)}
                     </p>
                   </div>
@@ -608,9 +644,9 @@ const InventoryDashboardOverview = () => {
                 lowStockProducts.slice(0, 5).map((item) => (
                   <div
                     key={item.id}
-                    className="flex items-center gap-3 px-5 py-4"
+                    className="flex items-center gap-3 px-4 py-4 sm:px-5"
                   >
-                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-rose-50 text-rose-500">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-rose-500 sm:h-12 sm:w-12">
                       <Package size={18} />
                     </div>
                     <div className="min-w-0 flex-1">
@@ -621,7 +657,7 @@ const InventoryDashboardOverview = () => {
                         SKU: {item.sku || item.id}
                       </p>
                     </div>
-                    <div className="text-right">
+                    <div className="shrink-0 text-right">
                       <p className="text-[10px] font-bold text-slate-400">
                         Current Stock
                       </p>

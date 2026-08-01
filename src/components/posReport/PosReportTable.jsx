@@ -1046,6 +1046,9 @@ const summarizeReportItems = (report) => {
 const PosReportTable = () => {
   const role = localStorage.getItem("role");
   const userId = localStorage.getItem("userId");
+  const normalizedRole = String(role || "").trim().toLowerCase();
+  const isAccountant = normalizedRole === "accountant";
+  const canManagePosReport = !isAccountant;
 
   // ----------------------------
   // List + Filters
@@ -1540,6 +1543,10 @@ const PosReportTable = () => {
 
   const handleUpdate = async () => {
     if (!currentReport?.Id) return;
+    if (!canManagePosReport) {
+      toast.error("Accountant can only view POS reports.");
+      return;
+    }
 
     try {
       const payload = {
@@ -1582,6 +1589,11 @@ const PosReportTable = () => {
   // Delete
   // ----------------------------
   const handleDelete = async (id) => {
+    if (!canManagePosReport) {
+      toast.error("Accountant can only view POS reports.");
+      return;
+    }
+
     const ok = await requestDeleteConfirmation({
       message: "Do you want to delete this POS report?",
     });
@@ -1804,13 +1816,15 @@ const PosReportTable = () => {
                       <FileText size={18} className="text-emerald-600" />
                     </button>
 
-                    <button
-                      onClick={() => openEdit(r)}
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg hover:bg-indigo-50 transition"
-                      title="Edit"
-                    >
-                      <Edit size={18} className="text-indigo-600" />
-                    </button>
+                    {canManagePosReport && (
+                      <button
+                        onClick={() => openEdit(r)}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg hover:bg-indigo-50 transition"
+                        title="Edit"
+                      >
+                        <Edit size={18} className="text-indigo-600" />
+                      </button>
+                    )}
 
                     {(role === "superAdmin" || role === "admin") && (
                       <button

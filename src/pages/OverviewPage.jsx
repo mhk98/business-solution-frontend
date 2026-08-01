@@ -23,6 +23,7 @@ import { useGetInventoryOverviewLowStockQuery } from "../features/inventoryOverv
 import { useGetAllInTransitProductQuery } from "../features/inTransitProduct/inTransitProduct";
 import InventoryDashboardOverview from "../components/overview/InventoryDashboardOverview";
 import { useCanUseMasterPermission } from "../utils/masterPermissions";
+import { useNavigate } from "react-router-dom";
 
 const safeNumber = (value) => {
   const parsed = Number(value);
@@ -47,6 +48,7 @@ const getLastTrendDaysRange = (days) => {
 };
 
 export const LegacyOverviewPage = () => {
+  const navigate = useNavigate();
   const { language } = useLayout();
   const t = translations[language] || translations.EN;
   const { canUseMasterPermission: canViewPrivateOverview } =
@@ -309,11 +311,11 @@ export const LegacyOverviewPage = () => {
       <Header title={t.management_console} />
 
       {/* ✅ Page background */}
-      <main className="min-h-[calc(100vh-64px)] py-8 px-4 lg:px-8">
+      <main className="min-h-[calc(100vh-64px)] px-3 py-5 sm:px-4 sm:py-8 lg:px-8">
         <div className="max-w-8xl mx-auto">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 mb-10">
-            <div>
-              <h1 className="text-3xl font-black text-slate-900 tracking-tight">
+            <div className="min-w-0">
+              <h1 className="text-2xl font-black text-slate-900 tracking-tight sm:text-3xl">
                 {t.executive_dashboard}
               </h1>
               <p className="text-slate-500 text-base mt-2 font-medium max-w-2xl">
@@ -336,7 +338,7 @@ export const LegacyOverviewPage = () => {
               defaultFilter="last30"
               startLabel={t.start_date}
               endLabel={t.end_date}
-              className="min-w-[320px]"
+              className="w-full lg:min-w-[320px]"
             />
           </div>
 
@@ -395,17 +397,17 @@ export const LegacyOverviewPage = () => {
               </motion.div>
 
               <motion.div
-                className="mb-10 rounded-3xl border border-slate-100 bg-white p-6 shadow-sm"
+                className="mb-10 rounded-3xl border border-slate-100 bg-white p-4 shadow-sm sm:p-6"
                 initial={{ opacity: 0, y: 14 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.45, delay: 0.02 }}
               >
                 <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-orange-100 bg-orange-50 text-orange-600">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-orange-100 bg-orange-50 text-orange-600">
                       <TrendingUp size={18} />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <h3 className="text-base font-black text-slate-900">
                         Profit & Loss
                       </h3>
@@ -459,7 +461,7 @@ export const LegacyOverviewPage = () => {
                       <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                         {label}
                       </div>
-                      <div className={`mt-2 text-xl font-black ${tone}`}>
+                      <div className={`mt-2 break-words text-lg font-black sm:text-xl ${tone}`}>
                         {isLoading ? "..." : formatCurrency(value)}
                       </div>
                     </div>
@@ -469,13 +471,13 @@ export const LegacyOverviewPage = () => {
 
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-10">
                 <motion.div
-                  className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6"
+                  className="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 sm:p-6"
                   initial={{ opacity: 0, y: 14 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.45, delay: 0.03 }}
                 >
                   <div className="flex items-center gap-3 mb-5">
-                    <div className="w-11 h-11 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-600 border border-amber-100">
+                    <div className="w-11 h-11 shrink-0 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-600 border border-amber-100">
                       <ClipboardList size={18} />
                     </div>
                     <div>
@@ -490,19 +492,27 @@ export const LegacyOverviewPage = () => {
 
                   <div className="space-y-3">
                     {[
-                      ["Purchase Requisition", pendingPurchaseRequisitionCount],
+                      [
+                        "Item Requisition",
+                        pendingPurchaseRequisitionCount,
+                        "/item-requisition",
+                      ],
                       [
                         "Petty Cash Requisition",
                         pendingPettyCashRequisitionCount,
+                        "/petty-cash-requisition",
                       ],
                       [
                         "Assets Purchase Requisition",
                         pendingAssetsRequisitionCount,
+                        "/assets-requisition",
                       ],
-                    ].map(([label, value]) => (
-                      <div
+                    ].map(([label, value, href]) => (
+                      <button
                         key={label}
-                        className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/70 px-4 py-3"
+                        type="button"
+                        onClick={() => navigate(href)}
+                        className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 px-4 py-3 text-left transition hover:border-indigo-200 hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                       >
                         <span className="text-sm font-semibold text-slate-600">
                           {label}
@@ -510,19 +520,19 @@ export const LegacyOverviewPage = () => {
                         <span className="text-lg font-black text-slate-900">
                           {isLoading ? "..." : value}
                         </span>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </motion.div>
 
                 <motion.div
-                  className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6"
+                  className="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 sm:p-6"
                   initial={{ opacity: 0, y: 14 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.45, delay: 0.06 }}
                 >
                   <div className="flex items-center gap-3 mb-5">
-                    <div className="w-11 h-11 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 border border-emerald-100">
+                    <div className="w-11 h-11 shrink-0 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 border border-emerald-100">
                       <Wallet size={18} />
                     </div>
                     <div>
@@ -540,19 +550,19 @@ export const LegacyOverviewPage = () => {
                       <div className="text-[11px] font-black uppercase tracking-widest text-emerald-600">
                         Net Position
                       </div>
-                      <div className="mt-2 text-2xl font-black text-slate-900">
+                      <div className="mt-2 break-words text-xl font-black text-slate-900 sm:text-2xl">
                         {isLoading
                           ? "..."
                           : `৳${netCashPosition.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div className="rounded-2xl border border-slate-100 p-4">
                         <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                           Cash In
                         </div>
-                        <div className="mt-2 text-lg font-black text-emerald-600">
+                        <div className="mt-2 break-words text-base font-black text-emerald-600 sm:text-lg">
                           {isLoading
                             ? "..."
                             : `৳${totalCashInAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
@@ -562,7 +572,7 @@ export const LegacyOverviewPage = () => {
                         <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                           Cash Out
                         </div>
-                        <div className="mt-2 text-lg font-black text-rose-600">
+                        <div className="mt-2 break-words text-base font-black text-rose-600 sm:text-lg">
                           {isLoading
                             ? "..."
                             : `৳${totalCashOutAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
@@ -573,13 +583,13 @@ export const LegacyOverviewPage = () => {
                 </motion.div>
 
                 <motion.div
-                  className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6"
+                  className="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 sm:p-6"
                   initial={{ opacity: 0, y: 14 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.45, delay: 0.09 }}
                 >
                   <div className="flex items-center gap-3 mb-5">
-                    <div className="w-11 h-11 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-600 border border-rose-100">
+                    <div className="w-11 h-11 shrink-0 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-600 border border-rose-100">
                       <Receipt size={18} />
                     </div>
                     <div>
@@ -612,13 +622,13 @@ export const LegacyOverviewPage = () => {
                     ].map(([label, value, quantity]) => (
                       <div
                         key={label}
-                        className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/70 px-4 py-3"
+                        className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 px-4 py-3"
                       >
                         <span className="text-sm font-semibold text-slate-600">
                           {label}
                         </span>
-                        <span className="text-right">
-                          <span className="block text-sm font-black text-slate-900">
+                        <span className="min-w-0 text-right">
+                          <span className="block break-words text-sm font-black text-slate-900">
                             {isLoading ? "..." : value}
                           </span>
                           <span className="block text-xs font-semibold text-slate-400">
@@ -645,9 +655,9 @@ export const LegacyOverviewPage = () => {
               transition={{ duration: 0.45, delay: 0.06 }}
             >
               {/* Header */}
-              <div className="p-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-slate-50">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 shadow-sm border border-indigo-100/50">
+              <div className="p-4 flex flex-col gap-4 border-b border-slate-50 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="w-11 h-11 shrink-0 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 shadow-sm border border-indigo-100/50 sm:h-12 sm:w-12">
                     <TrendingUp size={20} />
                   </div>
                   <div>
@@ -660,11 +670,11 @@ export const LegacyOverviewPage = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex w-full items-center gap-2 sm:w-auto">
                   <select
                     value={trendFilter}
                     onChange={(e) => setTrendFilter(e.target.value)}
-                    className="h-11 pl-4 pr-10 rounded-xl border border-slate-200 bg-white text-slate-800 text-sm font-black outline-none focus:ring-4 focus:ring-indigo-500/10 transition appearance-none cursor-pointer"
+                    className="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 bg-white pl-4 pr-10 text-sm font-black text-slate-800 outline-none transition cursor-pointer appearance-none focus:ring-4 focus:ring-indigo-500/10 sm:flex-none"
                     style={{
                       backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`,
                       backgroundRepeat: "no-repeat",
@@ -691,7 +701,7 @@ export const LegacyOverviewPage = () => {
               </div>
 
               {/* Body */}
-              <div className="p-6">
+              <div className="p-4 sm:p-6">
                 {trendingLoading ? (
                   <div className="py-20 text-center">
                     <div className="inline-block animate-spin rounded-full h-8 w-8 border-[3px] border-indigo-600/20 border-t-indigo-600"></div>
@@ -719,11 +729,11 @@ export const LegacyOverviewPage = () => {
                           initial={{ opacity: 0, x: -10 }}
                           animate={{ opacity: 1, x: 0 }}
                           transition={{ delay: idx * 0.05 }}
-                          className="flex items-center justify-between p-4 rounded-2xl bg-white border border-slate-100 hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-50/50 transition-all group"
+                          className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white p-3 transition-all hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-50/50 sm:p-4"
                         >
-                          <div className="flex items-center gap-4 min-w-0">
+                          <div className="flex min-w-0 items-center gap-3 sm:gap-4">
                             <div className="relative flex-shrink-0">
-                              <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
+                              <div className="w-11 h-11 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors sm:h-12 sm:w-12">
                                 <Package size={20} />
                               </div>
                               <div className="absolute -top-2 -left-2 h-6 w-6 rounded-lg bg-slate-900 group-hover:bg-indigo-600 border-2 border-white flex items-center justify-center text-[10px] font-black text-white shadow-sm">
@@ -751,7 +761,7 @@ export const LegacyOverviewPage = () => {
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-8">
+                          <div className="flex shrink-0 items-center gap-3 sm:gap-8">
                             <div className="text-right hidden sm:block">
                               <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
                                 Intransit Qty
@@ -760,11 +770,11 @@ export const LegacyOverviewPage = () => {
                                 {soldQty} {t.units}
                               </div>
                             </div>
-                            <div className="text-right min-w-[100px]">
+                            <div className="min-w-[84px] text-right sm:min-w-[100px]">
                               <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
                                 {t.revenue_impact}
                               </div>
-                              <div className="text-sm font-black text-indigo-600">
+                              <div className="break-words text-xs font-black text-indigo-600 sm:text-sm">
                                 ৳
                                 {revenue.toLocaleString(undefined, {
                                   minimumFractionDigits: 2,
@@ -786,9 +796,9 @@ export const LegacyOverviewPage = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.45, delay: 0.1 }}
             >
-              <div className="p-6 flex items-center justify-between border-b border-slate-50">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-600 shadow-sm border border-rose-100/50">
+              <div className="p-4 flex items-center justify-between border-b border-slate-50 sm:p-6">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="w-11 h-11 shrink-0 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-600 shadow-sm border border-rose-100/50 sm:h-12 sm:w-12">
                     <Package size={20} />
                   </div>
                   <div>
@@ -802,7 +812,7 @@ export const LegacyOverviewPage = () => {
                 </div>
               </div>
 
-              <div className="p-6">
+              <div className="p-4 sm:p-6">
                 {isLowStockLoading ? (
                   <div className="py-20 text-center">
                     <div className="inline-block animate-spin rounded-full h-8 w-8 border-[3px] border-rose-600/20 border-t-rose-600"></div>
@@ -842,11 +852,11 @@ export const LegacyOverviewPage = () => {
                           initial={{ opacity: 0, x: -10 }}
                           animate={{ opacity: 1, x: 0 }}
                           transition={{ delay: idx * 0.04 }}
-                          className="flex items-center justify-between p-4 rounded-2xl bg-white border border-slate-100 hover:border-rose-200 hover:shadow-xl hover:shadow-rose-50/50 transition-all group"
+                          className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white p-3 transition-all hover:border-rose-200 hover:shadow-xl hover:shadow-rose-50/50 sm:p-4"
                         >
-                          <div className="flex items-center gap-4 min-w-0">
+                          <div className="flex min-w-0 items-center gap-3 sm:gap-4">
                             <div className="relative flex-shrink-0">
-                              <div className="w-12 h-12 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-500 group-hover:bg-rose-100 transition-colors">
+                              <div className="w-11 h-11 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-500 group-hover:bg-rose-100 transition-colors sm:h-12 sm:w-12">
                                 <Package size={20} />
                               </div>
                               <div className="absolute -top-2 -left-2 h-6 min-w-6 px-1 rounded-lg bg-rose-500 border-2 border-white flex items-center justify-center text-[10px] font-black text-white shadow-sm">
@@ -864,7 +874,7 @@ export const LegacyOverviewPage = () => {
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-6">
+                          <div className="flex shrink-0 items-center gap-3 sm:gap-6">
                             <div className="text-right">
                               <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
                                 Current

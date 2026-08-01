@@ -1380,6 +1380,20 @@ const CashInOutTable = () => {
     [suppliers],
   );
 
+  const getSupplierName = (row) => {
+    const rowSupplier = suppliers.find(
+      (item) => String(item.Id) === String(row?.supplierId),
+    );
+
+    return (
+      row?.supplier?.name ||
+      row?.supplierName ||
+      rowSupplier?.name ||
+      rowSupplier?.supplierName ||
+      "---"
+    );
+  };
+
   const loanSelectOptions = useMemo(
     () =>
       (activeLoans || []).map((loan) => ({
@@ -1778,7 +1792,7 @@ const CashInOutTable = () => {
 
       {/* Table */}
       <div className="w-full max-w-full overflow-x-auto overscroll-x-contain">
-        <table className="w-full min-w-[1400px] divide-y divide-slate-200">
+        <table className="w-full min-w-[1520px] divide-y divide-slate-200">
           <thead className="bg-slate-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
@@ -1789,6 +1803,9 @@ const CashInOutTable = () => {
               </th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 {t.category || "Category"}
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                {t.supplier || "Supplier"}
               </th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 {t.payment_mode}
@@ -1892,6 +1909,9 @@ const CashInOutTable = () => {
                         </div>
                       )}
                     </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                    {getSupplierName(rp)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                     {rp.paymentMode || "---"}

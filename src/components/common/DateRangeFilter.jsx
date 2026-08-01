@@ -132,7 +132,7 @@ const DateRangeFilter = ({
         <select
           value={selectedFilter}
           onChange={(e) => handleFilterChange(e.target.value)}
-          className="h-11 px-4 rounded-xl border border-slate-200 bg-white text-slate-800 text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
         >
           {FILTER_OPTIONS.map((option) => (
             <option key={option.label} value={option.value}>

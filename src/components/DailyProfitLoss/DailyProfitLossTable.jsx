@@ -7,11 +7,12 @@ import {
   RefreshCcw,
   Trash2,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import Select from "react-select";
 import Modal from "../common/Modal";
 import DateRangeFilter from "../common/DateRangeFilter";
+import EmailChipsInput from "../common/EmailChipsInput";
 import { useGetAllInventoryOverviewWithoutQueryQuery } from "../../features/inventoryOverview/inventoryOverview";
 import useDebounce from "../../hooks/useDebounce";
 
@@ -21,12 +22,7 @@ import {
   useDeleteProfitLossMutation,
   useSendProfitLossInvoiceMutation,
 } from "../../features/profitLoss/profitLoss";
-import {
-  DEFAULT_MASTER_PERMISSION_EMAIL,
-  useCanUseMasterPermission,
-} from "../../utils/masterPermissions";
-
-const DEFAULT_PROFIT_LOSS_INVOICE_EMAIL = DEFAULT_MASTER_PERMISSION_EMAIL;
+import { useCanUseMasterPermission } from "../../utils/masterPermissions";
 
 const safeNumber = (value) => {
   const parsed = Number(value);
@@ -223,6 +219,7 @@ const DailyProfitLossTable = () => {
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [selectedInvoiceRow, setSelectedInvoiceRow] = useState(null);
   const [clientEmail, setClientEmail] = useState("");
+  const emailInputRef = useRef(null);
   const itemsPerPage = 10;
 
   useEffect(() => {
@@ -647,8 +644,15 @@ const DailyProfitLossTable = () => {
   };
 
   const handleSubmitInvoiceEmail = async () => {
-    if (!clientEmail.trim()) {
-      toast.error("Please enter client email");
+    const pendingEmails = emailInputRef.current?.commitPendingEmails?.();
+    if (pendingEmails?.invalidEmails?.length) {
+      toast.error(`Invalid email: ${pendingEmails.invalidEmails.join(", ")}`);
+      return;
+    }
+
+    const recipientEmail = (pendingEmails?.value || clientEmail).trim();
+    if (!recipientEmail) {
+      toast.error("Please enter at least one client email");
       return;
     }
 
@@ -685,7 +689,7 @@ const DailyProfitLossTable = () => {
     }));
 
     const payload = {
-      clientEmail: clientEmail.trim(),
+      clientEmail: recipientEmail,
       invoiceNumber: `PL-${selectedInvoiceRow?.Id || selectedInvoiceRow?.id || Date.now()}`,
       companyName: "Kafela Mart Accounts",
       reportTitle: "Profit & Loss Invoice",
@@ -1329,14 +1333,14 @@ const DailyProfitLossTable = () => {
 
           <label className="block">
             <span className="mb-1.5 block text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
-              Client Email
+              Client Emails
             </span>
-            <input
-              type="email"
+            <EmailChipsInput
+              ref={emailInputRef}
               value={clientEmail}
-              onChange={(e) => setClientEmail(e.target.value)}
-              placeholder="Enter email address"
-              className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-100"
+              onChange={setClientEmail}
+              placeholder="Type email and press Enter"
+              disabled={isSendingProfitLossInvoice}
             />
           </label>
 

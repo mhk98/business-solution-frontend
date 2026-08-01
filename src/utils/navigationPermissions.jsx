@@ -17,6 +17,8 @@ import {
   Wallet,
   HandCoins,
   Bell,
+  MessageSquareText,
+  Cable,
   Settings,
   Image,
   ShieldCheck,
@@ -144,7 +146,12 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "cod_charge",
     "delivery_advance",
     "delivery_charge",
+    "api_gateway",
+    "sms_gateway",
+    "email_notification_gateway",
     "role_permissions",
+    "email_notification_permissions",
+    "sms_notification_permissions",
     "master_permission",
     "hrm",
     "employee_management",
@@ -241,7 +248,12 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "cod_charge",
     "delivery_advance",
     "delivery_charge",
+    "api_gateway",
+    "sms_gateway",
+    "email_notification_gateway",
     "role_permissions",
+    "email_notification_permissions",
+    "sms_notification_permissions",
     "master_permission",
     "hrm",
     "employee_management",
@@ -1015,12 +1027,49 @@ export const SIDEBAR_ITEMS = [
         roles: ["superAdmin", "admin"],
       },
       {
+        name: "Email Notification Permissions",
+        key: "email_notification_permissions",
+        icon: Bell,
+        href: "/settings/email-notification-permissions",
+        roles: ["superAdmin", "admin"],
+      },
+      {
+        name: "SMS Notification Permissions",
+        key: "sms_notification_permissions",
+        icon: MessageSquareText,
+        href: "/settings/sms-notification-permissions",
+        roles: ["superAdmin", "admin"],
+      },
+      {
         name: "Master Permission",
         key: "master_permission",
         icon: ShieldCheck,
         href: "/settings/master-permission",
         roles: ["superAdmin", "admin"],
         masterOnly: true,
+      },
+    ],
+  },
+  {
+    name: "API Gateway",
+    key: "api_gateway",
+    icon: Cable,
+    color: "#0ea5e9",
+    roles: ["superAdmin", "admin"],
+    children: [
+      {
+        name: "SMS Gateway",
+        key: "sms_gateway",
+        icon: MessageSquareText,
+        href: "/settings/api-gateway/sms",
+        roles: ["superAdmin", "admin"],
+      },
+      {
+        name: "Email Notification",
+        key: "email_notification_gateway",
+        icon: Bell,
+        href: "/settings/api-gateway/email",
+        roles: ["superAdmin", "admin"],
       },
     ],
   },
@@ -1404,6 +1453,63 @@ const flattenSidebarKeys = (items = []) =>
     ...(item.children ? flattenSidebarKeys(item.children) : []),
   ]);
 
+export const EMAIL_NOTIFICATION_PERMISSION_PREFIX = "email_notify:";
+export const SMS_NOTIFICATION_PERMISSION_PREFIX = "sms_notify:";
+const LEGACY_MOBILE_NOTIFICATION_PERMISSION_PREFIX = "mobile_notify:";
+
+export const getEmailNotificationPermissionKey = (menuKey) =>
+  `${EMAIL_NOTIFICATION_PERMISSION_PREFIX}${getCanonicalPermissionKey(menuKey)}`;
+
+export const getSmsNotificationPermissionKey = (menuKey) =>
+  `${SMS_NOTIFICATION_PERMISSION_PREFIX}${getCanonicalPermissionKey(menuKey)}`;
+
+export const isEmailNotificationPermissionKey = (key) =>
+  String(key || "").startsWith(EMAIL_NOTIFICATION_PERMISSION_PREFIX);
+
+export const isSmsNotificationPermissionKey = (key) =>
+  String(key || "").startsWith(SMS_NOTIFICATION_PERMISSION_PREFIX);
+
+const isLegacyMobileNotificationPermissionKey = (key) =>
+  String(key || "").startsWith(LEGACY_MOBILE_NOTIFICATION_PERMISSION_PREFIX);
+
+export const isNotificationPermissionKey = (key) =>
+  isEmailNotificationPermissionKey(key) ||
+  isSmsNotificationPermissionKey(key) ||
+  isLegacyMobileNotificationPermissionKey(key);
+
+const normalizeEmailNotificationPermissionKey = (key) => {
+  if (!isEmailNotificationPermissionKey(key)) return null;
+
+  const menuKey = getCanonicalPermissionKey(
+    String(key).slice(EMAIL_NOTIFICATION_PERMISSION_PREFIX.length),
+  );
+
+  return KNOWN_MENU_PERMISSION_KEYS.has(menuKey)
+    ? getEmailNotificationPermissionKey(menuKey)
+    : null;
+};
+
+const normalizeSmsNotificationPermissionKey = (key) => {
+  if (
+    !isSmsNotificationPermissionKey(key) &&
+    !isLegacyMobileNotificationPermissionKey(key)
+  ) {
+    return null;
+  }
+
+  const prefix = isLegacyMobileNotificationPermissionKey(key)
+    ? LEGACY_MOBILE_NOTIFICATION_PERMISSION_PREFIX
+    : SMS_NOTIFICATION_PERMISSION_PREFIX;
+
+  const menuKey = getCanonicalPermissionKey(
+    String(key).slice(prefix.length),
+  );
+
+  return KNOWN_MENU_PERMISSION_KEYS.has(menuKey)
+    ? getSmsNotificationPermissionKey(menuKey)
+    : null;
+};
+
 export const KNOWN_MENU_PERMISSION_KEYS = new Set([
   ...Object.values(DEFAULT_ROLE_PERMISSION_MAP).flat(),
   ...flattenSidebarKeys(SIDEBAR_ITEMS),
@@ -1412,11 +1518,63 @@ export const KNOWN_MENU_PERMISSION_KEYS = new Set([
   ...Object.keys(LEGACY_PERMISSION_EXPANSIONS),
 ]);
 
+const flattenEmailNotificationItems = (items = [], parentName = "") =>
+  items.flatMap((item) => {
+    const label = parentName ? `${parentName} / ${item.name}` : item.name;
+    const currentItem = item.href
+      ? [
+          {
+            key: item.key,
+            label,
+            permissionKey: getEmailNotificationPermissionKey(item.key),
+          },
+        ]
+      : [];
+
+    return [
+      ...currentItem,
+      ...(item.children
+        ? flattenEmailNotificationItems(item.children, item.name)
+        : []),
+    ];
+  });
+
+export const EMAIL_NOTIFICATION_ITEMS =
+  flattenEmailNotificationItems(SIDEBAR_ITEMS);
+
+const flattenSmsNotificationItems = (items = [], parentName = "") =>
+  items.flatMap((item) => {
+    const label = parentName ? `${parentName} / ${item.name}` : item.name;
+    const currentItem = item.href
+      ? [
+          {
+            key: item.key,
+            label,
+            permissionKey: getSmsNotificationPermissionKey(item.key),
+          },
+        ]
+      : [];
+
+    return [
+      ...currentItem,
+      ...(item.children
+        ? flattenSmsNotificationItems(item.children, item.name)
+        : []),
+    ];
+  });
+
+export const SMS_NOTIFICATION_ITEMS =
+  flattenSmsNotificationItems(SIDEBAR_ITEMS);
+
 export const expandPermissionKeys = (keys = []) => {
   const expanded = new Set();
 
   keys.forEach((key) => {
     if (!key) return;
+    if (isNotificationPermissionKey(key)) {
+      expanded.add(key);
+      return;
+    }
 
     expanded.add(key);
 
@@ -1443,8 +1601,26 @@ export const normalizePermissionKeys = (keys = []) =>
       keys
         .filter(Boolean)
         .map((key) => `${key}`.trim())
-        .map((key) => getCanonicalPermissionKey(key))
-        .filter((key) => KNOWN_MENU_PERMISSION_KEYS.has(key)),
+        .map((key) =>
+          isEmailNotificationPermissionKey(key)
+            ? normalizeEmailNotificationPermissionKey(key)
+            : isSmsNotificationPermissionKey(key) ||
+                isLegacyMobileNotificationPermissionKey(key)
+              ? normalizeSmsNotificationPermissionKey(key)
+            : getCanonicalPermissionKey(key),
+        )
+        .filter(
+          (key) =>
+            KNOWN_MENU_PERMISSION_KEYS.has(key) ||
+            (isEmailNotificationPermissionKey(key) &&
+              KNOWN_MENU_PERMISSION_KEYS.has(
+                key.slice(EMAIL_NOTIFICATION_PERMISSION_PREFIX.length),
+              )) ||
+            (isSmsNotificationPermissionKey(key) &&
+              KNOWN_MENU_PERMISSION_KEYS.has(
+                key.slice(SMS_NOTIFICATION_PERMISSION_PREFIX.length),
+              )),
+        ),
     ),
   );
 
@@ -1467,6 +1643,12 @@ const normalizeRolePermissionMap = (value) => {
       const defaultKeys = DEFAULT_ROLE_PERMISSION_MAP[role] || [];
       if (defaultKeys.includes("role_permissions")) {
         normalizedKeys.add("role_permissions");
+      }
+      if (defaultKeys.includes("email_notification_permissions")) {
+        normalizedKeys.add("email_notification_permissions");
+      }
+      if (defaultKeys.includes("sms_notification_permissions")) {
+        normalizedKeys.add("sms_notification_permissions");
       }
       if (defaultKeys.includes("notice")) {
         normalizedKeys.add("notice");

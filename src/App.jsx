@@ -45,10 +45,13 @@ const POSPage = lazy(() => import("./pages/POSPage"));
 const NotificationPage = lazy(() => import("./pages/NotificationPage"));
 const NoticePage = lazy(() => import("./pages/NoticePage"));
 const ChargeSettingsPage = lazy(() => import("./pages/ChargeSettingsPage"));
+const ApiGatewaySettingsPage = lazy(() => import("./pages/ApiGatewaySettingsPage"));
 const TaskPage = lazy(() => import("./pages/TaskPage"));
 const SalaryPage = lazy(() => import("./pages/SalaryPage"));
 const LogoPage = lazy(() => import("./pages/LogoPage"));
 const RolePermissionsPage = lazy(() => import("./pages/RolePermissionsPage"));
+const EmailNotificationPermissionsPage = lazy(() => import("./pages/EmailNotificationPermissionsPage"));
+const SmsNotificationPermissionsPage = lazy(() => import("./pages/SmsNotificationPermissionsPage"));
 const MasterPermissionPage = lazy(() => import("./pages/MasterPermissionPage"));
 const DamageRepairPage = lazy(() => import("./pages/DamageRepairPage"));
 const DamageRepairedPage = lazy(() => import("./pages/DamageRepairedPage"));
@@ -269,7 +272,10 @@ function App() {
                 <Route path="/settings/cod-charge" element={<AuthedRoute><ChargeSettingsPage chargeType="cod" /></AuthedRoute>} />
                 <Route path="/settings/delivery-advance" element={<AuthedRoute><ChargeSettingsPage chargeType="deliveryAdvance" /></AuthedRoute>} />
                 <Route path="/settings/delivery-charge" element={<AuthedRoute><ChargeSettingsPage chargeType="delivery" /></AuthedRoute>} />
+                <Route path="/settings/api-gateway/:gatewayType" element={<AuthedRoute><ApiGatewaySettingsPage /></AuthedRoute>} />
                 <Route path="/settings/role-permissions" element={<AuthedRoute><RolePermissionsPage /></AuthedRoute>} />
+                <Route path="/settings/email-notification-permissions" element={<AuthedRoute><EmailNotificationPermissionsPage /></AuthedRoute>} />
+                <Route path="/settings/sms-notification-permissions" element={<AuthedRoute><SmsNotificationPermissionsPage /></AuthedRoute>} />
                 <Route path="/settings/master-permission" element={<AuthedRoute><MasterPermissionPage /></AuthedRoute>} />
                 <Route path="/notifications" element={<AuthedRoute><NotificationPage /></AuthedRoute>} />
                 <Route path="/chat" element={<AuthedRoute><ChatPage /></AuthedRoute>} />

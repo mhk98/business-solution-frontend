@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { Mail, Printer, RefreshCcw, Save, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useGetAllInTransitProductQuery } from "../../features/inTransitProduct/inTransitProduct";
 import { useGetAllReturnProductQuery } from "../../features/returnProduct/returnProduct";
@@ -11,13 +11,9 @@ import {
   useSendProfitLossInvoiceMutation,
 } from "../../features/profitLoss/profitLoss";
 import DateRangeFilter from "../common/DateRangeFilter";
+import EmailChipsInput from "../common/EmailChipsInput";
 import Modal from "../common/Modal";
-import {
-  DEFAULT_MASTER_PERMISSION_EMAIL,
-  useCanUseMasterPermission,
-} from "../../utils/masterPermissions";
-
-const DEFAULT_PROFIT_LOSS_INVOICE_EMAIL = DEFAULT_MASTER_PERMISSION_EMAIL;
+import { useCanUseMasterPermission } from "../../utils/masterPermissions";
 
 const safeNumber = (value) => {
   const parsed = Number(value);
@@ -99,10 +95,10 @@ const AutoProfitLossTable = () => {
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [selectedInvoiceRow, setSelectedInvoiceRow] = useState(null);
   const [clientEmail, setClientEmail] = useState("");
+  const emailInputRef = useRef(null);
   const itemsPerPage = 10;
   const { canUseMasterPermission } = useCanUseMasterPermission();
   const canSeeSensitiveProfitLoss = canUseMasterPermission;
-  const canOpenInvoiceEmailModal = canUseMasterPermission;
 
   const reportQueryArgs = useMemo(
     () => ({
@@ -489,11 +485,6 @@ const AutoProfitLossTable = () => {
   };
 
   const handleSendEmail = (row) => {
-    if (!canOpenInvoiceEmailModal) {
-      sendInvoiceEmail(row, DEFAULT_PROFIT_LOSS_INVOICE_EMAIL);
-      return;
-    }
-
     setSelectedInvoiceRow(row);
     setClientEmail("");
     setIsEmailModalOpen(true);
@@ -506,13 +497,15 @@ const AutoProfitLossTable = () => {
   };
 
   const handleSubmitInvoiceEmail = async () => {
-    if (!canOpenInvoiceEmailModal) {
+    const pendingEmails = emailInputRef.current?.commitPendingEmails?.();
+    if (pendingEmails?.invalidEmails?.length) {
+      toast.error(`Invalid email: ${pendingEmails.invalidEmails.join(", ")}`);
       return;
     }
 
-    const recipientEmail = clientEmail.trim();
+    const recipientEmail = (pendingEmails?.value || clientEmail).trim();
     if (!recipientEmail) {
-      toast.error("Please enter client email");
+      toast.error("Please enter at least one client email");
       return;
     }
 
@@ -532,14 +525,14 @@ const AutoProfitLossTable = () => {
 
   return (
     <motion.div
-      className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_18px_45px_rgba(15,23,42,0.06)] sm:p-6"
+      className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_18px_45px_rgba(15,23,42,0.06)] sm:p-5 lg:rounded-[28px] lg:p-6"
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35 }}
     >
       <div className="flex flex-col gap-4 border-b border-slate-100 pb-5">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div>
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div className="min-w-0">
             <h2 className="text-xl font-bold tracking-tight text-slate-900">
               Auto Profit & Loss
             </h2>
@@ -549,7 +542,7 @@ const AutoProfitLossTable = () => {
             </p>
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="flex w-full min-w-0 flex-col gap-3 sm:flex-row sm:items-end xl:w-auto xl:flex-wrap xl:justify-end">
             <DateRangeFilter
               startDate={reportStartDate}
               endDate={reportEndDate}
@@ -560,12 +553,12 @@ const AutoProfitLossTable = () => {
               endLabel="To"
               defaultFilter="today"
               compact
-              className="sm:min-w-[180px]"
+              className="min-w-0 sm:min-w-[180px]"
             />
             <button
               type="button"
               onClick={handleRefresh}
-              className="mt-auto inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:mt-auto"
             >
               <RefreshCcw
                 size={16}
@@ -577,17 +570,17 @@ const AutoProfitLossTable = () => {
         </div>
 
         {canSeeSensitiveProfitLoss && (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
             {summaryCards.map(([label, value]) => (
               <div
                 key={label}
-                className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4"
+                className="min-w-0 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4"
               >
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
                   {label}
                 </p>
                 <p
-                  className={`mt-3 text-2xl font-black ${
+                  className={`mt-3 truncate text-xl font-black sm:text-2xl ${
                     label === "Profit/Loss" && summary.finalProfit < 0
                       ? "text-rose-600"
                       : label === "Profit/Loss"
@@ -603,10 +596,10 @@ const AutoProfitLossTable = () => {
         )}
       </div>
 
-      <div className="mt-6 overflow-x-auto">
+      <div className="mt-6 max-w-full overflow-x-auto rounded-2xl border border-slate-100">
         <table
-          className={`w-full border-separate border-spacing-0 ${
-            canSeeSensitiveProfitLoss ? "min-w-[1120px]" : "min-w-[720px]"
+          className={`w-full border-separate border-spacing-0 text-sm ${
+            canSeeSensitiveProfitLoss ? "min-w-[980px]" : "min-w-[640px]"
           }`}
         >
           <thead>
@@ -620,7 +613,7 @@ const AutoProfitLossTable = () => {
                 .map((heading) => (
                   <th
                     key={heading}
-                    className="border-b border-slate-200 px-3 py-4 text-sm font-bold text-slate-700 first:pl-2"
+                    className="whitespace-nowrap border-b border-slate-200 px-3 py-4 text-sm font-bold text-slate-700 first:pl-4"
                   >
                     {heading}
                   </th>
@@ -649,28 +642,28 @@ const AutoProfitLossTable = () => {
             ) : (
               sourceRows.map((row) => (
                 <tr key={row.key} className="group">
-                  <td className="border-b border-slate-100 px-3 py-4 text-[15px] font-semibold text-slate-900 first:pl-2">
-                    {row.name}
+                  <td className="border-b border-slate-100 px-3 py-4 text-[15px] font-semibold text-slate-900 first:pl-4">
+                    <div className="w-72 min-w-0 truncate">{row.name}</div>
                   </td>
-                  <td className="border-b border-slate-100 px-3 py-4 text-sm font-medium text-slate-700">
+                  <td className="whitespace-nowrap border-b border-slate-100 px-3 py-4 text-sm font-medium text-slate-700">
                     {row.inTransitQty.toLocaleString()}
                   </td>
-                  <td className="border-b border-slate-100 px-3 py-4 text-sm font-medium text-slate-700">
+                  <td className="whitespace-nowrap border-b border-slate-100 px-3 py-4 text-sm font-medium text-slate-700">
                     {row.returnQty.toLocaleString()}
                   </td>
-                  <td className="border-b border-slate-100 px-3 py-4 text-sm font-bold text-slate-900">
+                  <td className="whitespace-nowrap border-b border-slate-100 px-3 py-4 text-sm font-bold text-slate-900">
                     {row.netQty.toLocaleString()}
                   </td>
                   {canSeeSensitiveProfitLoss && (
                     <>
-                      <td className="border-b border-slate-100 px-3 py-4 text-sm font-semibold text-slate-700">
+                      <td className="whitespace-nowrap border-b border-slate-100 px-3 py-4 text-sm font-semibold text-slate-700">
                         {formatCurrency(row.netPurchase)}
                       </td>
-                      <td className="border-b border-slate-100 px-3 py-4 text-sm font-semibold text-slate-900">
+                      <td className="whitespace-nowrap border-b border-slate-100 px-3 py-4 text-sm font-semibold text-slate-900">
                         {formatCurrency(row.netRevenue)}
                       </td>
                       <td
-                        className={`border-b border-slate-100 px-3 py-4 text-sm font-bold ${
+                        className={`whitespace-nowrap border-b border-slate-100 px-3 py-4 text-sm font-bold ${
                           row.profitLoss >= 0
                             ? "text-emerald-600"
                             : "text-rose-600"
@@ -687,7 +680,7 @@ const AutoProfitLossTable = () => {
         </table>
       </div>
 
-      <div className="mt-8 grid grid-cols-1 gap-4 xl:grid-cols-4">
+      <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-4">
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <h3 className="text-xl font-bold text-slate-900">Marketing Spends</h3>
           <input
@@ -714,11 +707,11 @@ const AutoProfitLossTable = () => {
 
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <h3 className="text-xl font-bold text-slate-900">Incentive</h3>
-          <div className="mt-4 grid grid-cols-[130px_1fr] gap-3">
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-[130px_1fr]">
             <select
               value={incentiveType}
               onChange={(event) => setIncentiveType(event.target.value)}
-              className="h-11 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-indigo-300 focus:ring-4 focus:ring-indigo-100"
+              className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-indigo-300 focus:ring-4 focus:ring-indigo-100"
             >
               <option value="flat">Flat</option>
               <option value="percentage">Percentage</option>
@@ -742,25 +735,25 @@ const AutoProfitLossTable = () => {
           <h3 className="text-xl font-bold text-slate-900">Calculation</h3>
           {canSeeSensitiveProfitLoss && (
             <div className="mt-4 space-y-2 text-sm font-medium text-slate-600">
-              <div className="flex justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <span>Gross Profit</span>
                 <span className="font-bold text-slate-900">
                   {formatCurrency(summary.grossProfit)}
                 </span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <span>Total Extra Cost</span>
                 <span className="font-bold text-slate-900">
                   {formatCurrency(summary.extraCost)}
                 </span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <span>Incentive</span>
                 <span className="font-bold text-slate-900">
                   {formatCurrency(summary.incentiveAmount)}
                 </span>
               </div>
-              <div className="flex justify-between border-t border-slate-200 pt-2">
+              <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-2">
                 <span>Final Profit/Loss</span>
                 <span
                   className={`font-bold ${
@@ -786,9 +779,9 @@ const AutoProfitLossTable = () => {
         </div>
       </div>
 
-      <div className="mt-8 rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_18px_45px_rgba(15,23,42,0.04)] sm:p-6">
-        <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 lg:flex-row lg:items-end lg:justify-between">
-          <div>
+      <div className="mt-6 min-w-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_18px_45px_rgba(15,23,42,0.04)] sm:p-5 lg:rounded-[28px] lg:p-6">
+        <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 xl:flex-row xl:items-end xl:justify-between">
+          <div className="min-w-0">
             <h3 className="text-xl font-bold tracking-tight text-slate-900">
               Saved Profit/Loss History
             </h3>
@@ -813,13 +806,14 @@ const AutoProfitLossTable = () => {
             startLabel="From"
             endLabel="To"
             compact
+            className="min-w-0 xl:min-w-[180px]"
           />
         </div>
 
-        <div className="mt-6 overflow-x-auto">
+        <div className="mt-6 max-w-full overflow-x-auto rounded-2xl border border-slate-100">
           <table
-            className={`w-full border-separate border-spacing-0 ${
-              canSeeSensitiveProfitLoss ? "min-w-[920px]" : "min-w-[620px]"
+            className={`w-full border-separate border-spacing-0 text-sm ${
+              canSeeSensitiveProfitLoss ? "min-w-[980px]" : "min-w-[620px]"
             }`}
           >
             <thead>
@@ -834,7 +828,7 @@ const AutoProfitLossTable = () => {
                   .map((heading) => (
                     <th
                       key={heading}
-                      className="border-b border-slate-200 px-3 py-4 text-sm font-bold text-slate-700 first:pl-2"
+                      className="whitespace-nowrap border-b border-slate-200 px-3 py-4 text-sm font-bold text-slate-700 first:pl-4"
                     >
                       {heading}
                     </th>
@@ -863,31 +857,33 @@ const AutoProfitLossTable = () => {
               ) : (
                 historyRows.map((row) => (
                   <tr key={row?.Id}>
-                    <td className="border-b border-slate-100 px-3 py-4 text-sm font-medium text-slate-700 first:pl-2">
+                    <td className="whitespace-nowrap border-b border-slate-100 px-3 py-4 text-sm font-medium text-slate-700 first:pl-4">
                       {formatDate(row?.createdAt || row?.date)}
                     </td>
                     <td className="border-b border-slate-100 px-3 py-4 text-sm font-semibold text-slate-900">
-                      {row?.salesType || "-"}
+                      <div className="w-40 min-w-0 truncate">
+                        {row?.salesType || "-"}
+                      </div>
                     </td>
-                    <td className="border-b border-slate-100 px-3 py-4 text-sm font-medium text-slate-700">
+                    <td className="whitespace-nowrap border-b border-slate-100 px-3 py-4 text-sm font-medium text-slate-700">
                       {safeNumber(row?.products)}
                     </td>
                     {canSeeSensitiveProfitLoss && (
                       <>
-                        <td className="border-b border-slate-100 px-3 py-4 text-sm font-semibold text-slate-900">
+                        <td className="whitespace-nowrap border-b border-slate-100 px-3 py-4 text-sm font-semibold text-slate-900">
                           {formatCurrency(row?.purchase)}
                         </td>
-                        <td className="border-b border-slate-100 px-3 py-4 text-sm font-semibold text-slate-700">
+                        <td className="whitespace-nowrap border-b border-slate-100 px-3 py-4 text-sm font-semibold text-slate-700">
                           {formatCurrency(row?.revenue)}
                         </td>
-                        <td className="border-b border-slate-100 px-3 py-4 text-sm font-semibold text-slate-700">
+                        <td className="whitespace-nowrap border-b border-slate-100 px-3 py-4 text-sm font-semibold text-slate-700">
                           {formatCurrency(row?.return)}
                         </td>
-                        <td className="border-b border-slate-100 px-3 py-4 text-sm font-semibold text-slate-700">
+                        <td className="whitespace-nowrap border-b border-slate-100 px-3 py-4 text-sm font-semibold text-slate-700">
                           {formatCurrency(row?.cost)}
                         </td>
                         <td
-                          className={`border-b border-slate-100 px-3 py-4 text-sm font-bold ${
+                          className={`whitespace-nowrap border-b border-slate-100 px-3 py-4 text-sm font-bold ${
                             safeNumber(row?.profitLoss) >= 0
                               ? "text-emerald-600"
                               : "text-rose-600"
@@ -898,7 +894,7 @@ const AutoProfitLossTable = () => {
                       </>
                     )}
                     <td className="border-b border-slate-100 px-3 py-4">
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex items-center gap-2 whitespace-nowrap">
                         {canSeeSensitiveProfitLoss && (
                           <button
                             type="button"
@@ -942,7 +938,7 @@ const AutoProfitLossTable = () => {
           <p className="text-sm font-medium text-slate-500">
             Total: {totalHistoryCount} records
           </p>
-          <div className="flex items-center gap-2 self-end">
+          <div className="flex max-w-full items-center gap-2 self-end overflow-x-auto pb-1">
             <button
               type="button"
               disabled={currentPage <= 1}
@@ -969,7 +965,7 @@ const AutoProfitLossTable = () => {
       </div>
 
       <Modal
-        isOpen={canOpenInvoiceEmailModal && isEmailModalOpen}
+        isOpen={isEmailModalOpen}
         onClose={handleCloseEmailModal}
         title="Send Profit/Loss Invoice"
         maxWidth="max-w-lg"
@@ -993,18 +989,18 @@ const AutoProfitLossTable = () => {
 
           <label className="block">
             <span className="mb-1.5 block text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
-              Client Email
+              Client Emails
             </span>
-            <input
-              type="email"
+            <EmailChipsInput
+              ref={emailInputRef}
               value={clientEmail}
-              onChange={(event) => setClientEmail(event.target.value)}
-              placeholder="Enter email address"
-              className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-100"
+              onChange={setClientEmail}
+              placeholder="Type email and press Enter"
+              disabled={isSendingInvoice}
             />
           </label>
 
-          <div className="flex justify-end gap-3 border-t border-slate-100 pt-5">
+          <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">
             <button
               type="button"
               onClick={handleCloseEmailModal}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import useDebounce from "../hooks/useDebounce";
 import {
   BarChart3,
@@ -16,6 +16,7 @@ import Select from "react-select";
 import toast from "react-hot-toast";
 import Header from "../components/common/Header";
 import DateRangeFilter from "../components/common/DateRangeFilter";
+import EmailChipsInput from "../components/common/EmailChipsInput";
 import {
   useDeleteEmployeeWorkReportMutation,
   useGetAllEmployeeWorkReportsQuery,
@@ -29,13 +30,9 @@ import {
   useDeleteProfitLossMutation,
   useSendProfitLossInvoiceMutation,
 } from "../features/profitLoss/profitLoss";
-import {
-  DEFAULT_MASTER_PERMISSION_EMAIL,
-  useCanUseMasterPermission,
-} from "../utils/masterPermissions";
+import { useCanUseMasterPermission } from "../utils/masterPermissions";
 
 const today = new Date().toISOString().slice(0, 10);
-const DEFAULT_PROFIT_LOSS_INVOICE_EMAIL = DEFAULT_MASTER_PERMISSION_EMAIL;
 
 const REPORT_FIELDS = [
   { key: "failedGiven", label: "Failed দেওয়া হয়েছে" },
@@ -237,6 +234,22 @@ const selectStyles = {
         : "#fff",
     color: state.isSelected ? "#fff" : "#0f172a",
   }),
+  valueContainer: (base) => ({
+    ...base,
+    minWidth: 0,
+  }),
+  singleValue: (base) => ({
+    ...base,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  }),
+  placeholder: (base) => ({
+    ...base,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  }),
 };
 
 const DailyProfitLossUserPage = () => {
@@ -246,7 +259,6 @@ const DailyProfitLossUserPage = () => {
   const currentUserId = Number(localStorage.getItem("userId") || 0);
   const { canUseMasterPermission } = useCanUseMasterPermission();
   const canSeeSensitiveSummary = canUseMasterPermission;
-  const canSendProfitLossInvoiceEmail = canUseMasterPermission;
   const canManageProfitLossHistoryActions = canUseMasterPermission;
   const pageSize = 10;
   const historyPageSize = 10;
@@ -283,6 +295,7 @@ const DailyProfitLossUserPage = () => {
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [selectedInvoiceRow, setSelectedInvoiceRow] = useState(null);
   const [clientEmail, setClientEmail] = useState("");
+  const emailInputRef = useRef(null);
 
   // ── Employee reports queries ──
   const listQueryArgs = useMemo(
@@ -881,11 +894,6 @@ const DailyProfitLossUserPage = () => {
   };
 
   const handleSendEmail = (row) => {
-    if (!canSendProfitLossInvoiceEmail) {
-      sendInvoiceEmail(row, DEFAULT_PROFIT_LOSS_INVOICE_EMAIL);
-      return;
-    }
-
     setSelectedInvoiceRow(row);
     setClientEmail("");
     setIsEmailModalOpen(true);
@@ -898,13 +906,15 @@ const DailyProfitLossUserPage = () => {
   };
 
   const handleSubmitInvoiceEmail = async () => {
-    if (!canSendProfitLossInvoiceEmail) {
+    const pendingEmails = emailInputRef.current?.commitPendingEmails?.();
+    if (pendingEmails?.invalidEmails?.length) {
+      toast.error(`Invalid email: ${pendingEmails.invalidEmails.join(", ")}`);
       return;
     }
 
-    const recipientEmail = clientEmail.trim();
+    const recipientEmail = (pendingEmails?.value || clientEmail).trim();
     if (!recipientEmail) {
-      toast.error("Please enter client email");
+      toast.error("Please enter at least one client email");
       return;
     }
 
@@ -975,26 +985,26 @@ const DailyProfitLossUserPage = () => {
     <div className="relative z-10 flex-1">
       <Header title="Daily Profit & Loss By User" />
 
-      <main className="min-h-[calc(100vh-64px)] bg-slate-50 px-4 py-6 lg:px-8">
-        <div className="mx-auto max-w-8xl space-y-6">
+      <main className="min-h-[calc(100vh-64px)] min-w-0 bg-slate-50 px-3 py-4 sm:px-4 sm:py-6 lg:px-8">
+        <div className="mx-auto w-full min-w-0 max-w-[1600px] space-y-5 sm:space-y-6">
           {/* ── Stats ── */}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {stats.map((stat) => (
               <div
                 key={stat.name}
-                className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                className="flex min-w-0 items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:gap-4 sm:p-5"
               >
                 <div
-                  className="flex h-12 w-12 items-center justify-center rounded-xl"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl sm:h-12 sm:w-12"
                   style={{ backgroundColor: stat.iconBg }}
                 >
                   <stat.icon size={22} style={{ color: stat.iconColor }} />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm font-medium text-slate-500">
                     {stat.name}
                   </p>
-                  <p className="text-xl font-bold text-slate-900">
+                  <p className="truncate text-lg font-bold text-slate-900 sm:text-xl">
                     {stat.value}
                   </p>
                 </div>
@@ -1021,8 +1031,8 @@ const DailyProfitLossUserPage = () => {
             <div
               className={`mt-5 grid min-w-0 grid-cols-1 items-end gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 p-3 ${
                 canManageReports
-                  ? "md:grid-cols-2 xl:grid-cols-[260px_minmax(260px,1fr)_minmax(520px,560px)]"
-                  : "md:grid-cols-[minmax(260px,1fr)_minmax(520px,560px)]"
+                  ? "md:grid-cols-2 2xl:grid-cols-[260px_minmax(220px,1fr)_minmax(360px,520px)]"
+                  : "lg:grid-cols-[minmax(220px,1fr)_minmax(360px,520px)]"
               }`}
             >
               {canManageReports && (
@@ -1066,7 +1076,7 @@ const DailyProfitLossUserPage = () => {
                 compact
                 className={
                   canManageReports
-                    ? "min-w-0 md:col-span-2 xl:col-span-1"
+                    ? "min-w-0 md:col-span-2 2xl:col-span-1"
                     : "min-w-0"
                 }
               />
@@ -1081,7 +1091,7 @@ const DailyProfitLossUserPage = () => {
             ) : null}
 
             <div className="mt-5 max-w-full overflow-x-auto rounded-2xl border border-slate-200">
-              <table className="w-full min-w-[1280px] divide-y divide-slate-200 text-left text-sm">
+              <table className="w-full min-w-[1120px] divide-y divide-slate-200 text-left text-sm">
                 <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
                   <tr>
                     {ORDER_REPORT_COLUMNS.map((column) => (
@@ -1140,7 +1150,7 @@ const DailyProfitLossUserPage = () => {
                             return (
                               <td
                                 key={column.key}
-                                className={`px-4 py-3 ${
+                                className={`whitespace-nowrap px-4 py-3 ${
                                   [
                                     "name",
                                     "totalOrder",
@@ -1151,11 +1161,11 @@ const DailyProfitLossUserPage = () => {
                                 }`}
                               >
                                 {column.key === "name" ? (
-                                  <div>
-                                    <div className="font-semibold text-slate-900">
+                                  <div className="w-52 min-w-0">
+                                    <div className="truncate font-semibold text-slate-900">
                                       {value}
                                     </div>
-                                    <div className="text-xs text-slate-500">
+                                    <div className="truncate text-xs text-slate-500">
                                       {row.user?.Email || "-"}
                                     </div>
                                   </div>
@@ -1207,7 +1217,7 @@ const DailyProfitLossUserPage = () => {
                   <span className="text-slate-900">{totalPages}</span>
                 </p>
 
-                <div className="flex max-w-full items-center gap-2 overflow-x-auto pb-1">
+                <div className="flex max-w-full items-center gap-2 overflow-x-auto pb-2">
                   <button
                     type="button"
                     onClick={handlePreviousPageSet}
@@ -1246,7 +1256,7 @@ const DailyProfitLossUserPage = () => {
           </section>
 
           {/* ── Calculation Section ── */}
-          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h3 className="text-lg font-bold text-slate-900">
                 Marketing Spends
@@ -1307,7 +1317,7 @@ const DailyProfitLossUserPage = () => {
               <p className="mt-1 text-sm text-slate-500">
                 Flat amount অথবা gross profit percentage deduct করুন।
               </p>
-              <div className="mt-4 grid grid-cols-[120px_1fr] gap-3">
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-[120px_1fr]">
                 <select
                   value={incentiveType}
                   onChange={(e) => setIncentiveType(e.target.value)}
@@ -1405,7 +1415,7 @@ const DailyProfitLossUserPage = () => {
                   দেখা যাবে।
                 </p>
               </div>
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex w-full flex-col gap-3 lg:w-auto xl:flex-row xl:flex-wrap xl:items-center">
                 <DateRangeFilter
                   startDate={historyStartDate}
                   endDate={historyEndDate}
@@ -1419,8 +1429,9 @@ const DailyProfitLossUserPage = () => {
                   }}
                   onFilterTypeChange={() => setHistoryPage(1)}
                   compact
+                  className="min-w-0"
                 />
-                <div className="flex items-center gap-2">
+                <label className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
                   <span className="text-xs font-semibold uppercase text-slate-500">
                     Sales Type
                   </span>
@@ -1429,14 +1440,14 @@ const DailyProfitLossUserPage = () => {
                     value={salesTypeSearch}
                     onChange={(e) => setSalesTypeSearch(e.target.value)}
                     placeholder="Search by sales type"
-                    className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
+                    className="h-10 w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 sm:w-48"
                   />
-                </div>
+                </label>
               </div>
             </div>
 
             <div className="mt-5 overflow-x-auto rounded-2xl border border-slate-200">
-              <table className="w-full divide-y divide-slate-200 text-left text-sm">
+              <table className="w-full min-w-[760px] divide-y divide-slate-200 text-left text-sm">
                 <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
                   <tr>
                     <th className="px-4 py-3">Date</th>
@@ -1499,7 +1510,7 @@ const DailyProfitLossUserPage = () => {
                           </>
                         )}
                         <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 whitespace-nowrap">
                             {canManageProfitLossHistoryActions && (
                               <button
                                 type="button"
@@ -1537,11 +1548,11 @@ const DailyProfitLossUserPage = () => {
               </table>
             </div>
 
-            <div className="mt-4 flex items-center justify-between">
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-slate-500">
                 Total: {totalProfitLossCount} records
               </p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() =>
@@ -1575,8 +1586,8 @@ const DailyProfitLossUserPage = () => {
 
       {/* ── Edit Work Report Modal ── */}
       {showEditModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-3 sm:p-6">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-4 shadow-xl sm:p-6">
             <h3 className="text-lg font-bold text-slate-900">
               Edit Work Report
             </h3>
@@ -1620,7 +1631,7 @@ const DailyProfitLossUserPage = () => {
                   ))}
                 </select>
               </label>
-              <div className="grid max-h-[50vh] items-start gap-3 overflow-y-auto sm:grid-cols-2">
+              <div className="grid max-h-[55vh] items-start gap-3 overflow-y-auto pr-1 sm:grid-cols-2">
                 {[GIVEN_REPORT_FIELDS, RECEIVED_REPORT_FIELDS].map(
                   (fields, columnIndex) => (
                     <div
@@ -1660,7 +1671,7 @@ const DailyProfitLossUserPage = () => {
                   ),
                 )}
               </div>
-              <div className="flex justify-end gap-3 pt-2">
+              <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   onClick={() => {
@@ -1685,11 +1696,9 @@ const DailyProfitLossUserPage = () => {
       )}
 
       {/* ── Email Invoice Modal ── */}
-      {canSendProfitLossInvoiceEmail &&
-        isEmailModalOpen &&
-        selectedInvoiceRow && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-            <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
+      {isEmailModalOpen && selectedInvoiceRow && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-3 sm:p-6">
+            <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-4 shadow-xl sm:p-6">
               <h3 className="text-lg font-bold text-slate-900">
                 Send Invoice Email
               </h3>
@@ -1717,17 +1726,17 @@ const DailyProfitLossUserPage = () => {
                 </div>
                 <label className="block">
                   <div className="mb-2 text-sm font-semibold text-slate-700">
-                    Client Email
+                    Client Emails
                   </div>
-                  <input
-                    type="email"
+                  <EmailChipsInput
+                    ref={emailInputRef}
                     value={clientEmail}
-                    onChange={(e) => setClientEmail(e.target.value)}
-                    placeholder="Enter client email"
-                    className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
+                    onChange={setClientEmail}
+                    placeholder="Type email and press Enter"
+                    disabled={sendingEmail}
                   />
                 </label>
-                <div className="flex justify-end gap-3 pt-2">
+                <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
                   <button
                     type="button"
                     onClick={handleCloseEmailModal}

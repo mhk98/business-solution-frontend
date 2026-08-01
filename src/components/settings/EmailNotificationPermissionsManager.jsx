@@ -1,4 +1,4 @@
-import { ShieldCheck } from "lucide-react";
+import { Bell } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import {
@@ -6,18 +6,18 @@ import {
   useUpdateRolePermissionsMutation,
 } from "../../features/auth/auth";
 import {
+  EMAIL_NOTIFICATION_ITEMS,
   ROLE_OPTIONS,
-  SIDEBAR_ITEMS,
   expandPermissionKeys,
   getStoredRolePermissions,
-  isNotificationPermissionKey,
+  isEmailNotificationPermissionKey,
   normalizePermissionKeys,
   saveRolePermissionsForRole,
   saveStoredRolePermissions,
 } from "../../utils/navigationPermissions";
 import SettingSection from "./SettingSection";
 
-const RolePermissionsManager = () => {
+const EmailNotificationPermissionsManager = () => {
   const [selectedPermissionRole, setSelectedPermissionRole] = useState("admin");
   const [rolePermissions, setRolePermissions] = useState(() =>
     getStoredRolePermissions(),
@@ -52,37 +52,39 @@ const RolePermissionsManager = () => {
   }, [rolePermissionsRes]);
 
   const selectedRoleKeys = useMemo(
-    () =>
-      expandPermissionKeys(rolePermissions[selectedPermissionRole] || []),
+    () => expandPermissionKeys(rolePermissions[selectedPermissionRole] || []),
     [rolePermissions, selectedPermissionRole],
   );
-  const selectedMenuKeys = useMemo(
-    () => selectedRoleKeys.filter((key) => !isNotificationPermissionKey(key)),
+
+  const selectedEmailNotificationKeys = useMemo(
+    () => selectedRoleKeys.filter(isEmailNotificationPermissionKey),
     [selectedRoleKeys],
   );
 
-  const togglePermission = (item, checked) => {
-    const currentKeys = new Set(selectedRoleKeys);
-
-    const applyChildren = (menuItem, value) => {
-      const normalizedKey = normalizePermissionKeys([menuItem.key])[0];
-      const expandedKeys = expandPermissionKeys([menuItem.key]);
-
-      if (value) currentKeys.add(normalizedKey);
-      else expandedKeys.forEach((key) => currentKeys.delete(key));
-
-      menuItem.children?.forEach((child) => applyChildren(child, value));
-    };
-
-    applyChildren(item, checked);
+  const updateSelectedRoleEmailKeys = (nextEmailKeys) => {
+    const menuKeys = selectedRoleKeys.filter(
+      (key) => !isEmailNotificationPermissionKey(key),
+    );
 
     setRolePermissions((prev) => ({
       ...prev,
-      [selectedPermissionRole]: normalizePermissionKeys(Array.from(currentKeys)),
+      [selectedPermissionRole]: normalizePermissionKeys([
+        ...menuKeys,
+        ...nextEmailKeys,
+      ]),
     }));
   };
 
-  const handleSaveRolePermissions = async () => {
+  const toggleEmailNotificationPermission = (permissionKey, checked) => {
+    const currentEmailKeys = new Set(selectedEmailNotificationKeys);
+
+    if (checked) currentEmailKeys.add(permissionKey);
+    else currentEmailKeys.delete(permissionKey);
+
+    updateSelectedRoleEmailKeys(Array.from(currentEmailKeys));
+  };
+
+  const handleSavePermissions = async () => {
     try {
       const menuPermissions = rolePermissions[selectedPermissionRole] || [];
       const res = await updateRolePermissions({
@@ -96,54 +98,36 @@ const RolePermissionsManager = () => {
         [selectedPermissionRole]: updatedPermissions,
       }));
       saveRolePermissionsForRole(selectedPermissionRole, updatedPermissions);
-      toast.success(`${selectedPermissionRole} permissions updated.`);
+      toast.success(`${selectedPermissionRole} email permissions updated.`);
     } catch (err) {
-      toast.error(err?.data?.message || "Failed to update permissions.");
+      toast.error(err?.data?.message || "Failed to update email permissions.");
     }
   };
 
-  const handleClearRolePermissions = async () => {
-    try {
-      const notificationKeys = selectedRoleKeys.filter(
-        isNotificationPermissionKey,
-      );
-      const res = await updateRolePermissions({
-        role: selectedPermissionRole,
-        menuPermissions: notificationKeys,
-      }).unwrap();
-
-      const updatedPermissions = res?.data?.menuPermissions || notificationKeys;
-      setRolePermissions((prev) => ({
-        ...prev,
-        [selectedPermissionRole]: updatedPermissions,
-      }));
-      saveRolePermissionsForRole(selectedPermissionRole, updatedPermissions);
-      toast.success(`${selectedPermissionRole} permissions cleared.`);
-    } catch (err) {
-      toast.error(err?.data?.message || "Failed to clear permissions.");
-    }
+  const handleClearEmailPermissions = () => {
+    updateSelectedRoleEmailKeys([]);
   };
 
   if (!canManagePermissions) {
     return (
-      <SettingSection icon={ShieldCheck} title="Role Permissions">
+      <SettingSection icon={Bell} title="Email Notification Permissions">
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm font-medium text-amber-800">
-          You do not have access to manage role permissions.
+          You do not have access to manage email notification permissions.
         </div>
       </SettingSection>
     );
   }
 
   return (
-    <SettingSection icon={ShieldCheck} title="Role Permissions">
+    <SettingSection icon={Bell} title="Email Notification Permissions">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h3 className="text-lg font-semibold text-slate-900">
-            Role Permission Manager
+            Email Notification Permission Manager
           </h3>
           <p className="mt-1 text-sm text-slate-500">
-            Admin বা Super Admin role অনুযায়ী কোন menu/submenu দেখা যাবে সেটা
-            এখান থেকে control করতে পারবে।
+            কোন role কোন menu/submenu-এর notification email পাবে সেটা এখান থেকে
+            control করা যাবে।
           </p>
         </div>
 
@@ -165,69 +149,47 @@ const RolePermissionsManager = () => {
         </div>
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        {SIDEBAR_ITEMS.map((item) => {
-          const parentChecked = selectedMenuKeys.includes(item.key);
-
-          return (
-            <div
-              key={item.key}
-              className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4"
-            >
-              <label className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  checked={parentChecked}
-                  onChange={(e) => togglePermission(item, e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                />
-                <span className="text-sm font-semibold text-slate-900">
-                  {item.name}
-                </span>
-              </label>
-
-              {item.children?.length ? (
-                <div className="mt-4 space-y-3 border-t border-slate-200 pt-4">
-                  {item.children.map((child) => (
-                    <label
-                      key={child.key}
-                      className="flex items-center gap-3 text-sm text-slate-700"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedMenuKeys.includes(child.key)}
-                        onChange={(e) =>
-                          togglePermission(child, e.target.checked)
-                        }
-                        className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                      />
-                      <span>{child.name}</span>
-                    </label>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          );
-        })}
+      <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {EMAIL_NOTIFICATION_ITEMS.map((item) => (
+          <label
+            key={item.permissionKey}
+            className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700"
+          >
+            <input
+              type="checkbox"
+              checked={selectedEmailNotificationKeys.includes(
+                item.permissionKey,
+              )}
+              onChange={(event) =>
+                toggleEmailNotificationPermission(
+                  item.permissionKey,
+                  event.target.checked,
+                )
+              }
+              className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <span>{item.label}</span>
+          </label>
+        ))}
       </div>
 
       <div className="mt-6 flex items-center justify-between gap-3 flex-wrap border-t border-slate-100 pt-5">
         <p className="text-xs text-slate-500">
-          Menu allowed: {selectedMenuKeys.length}
+          Email notification allowed: {selectedEmailNotificationKeys.length}
         </p>
 
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={handleClearRolePermissions}
+            onClick={handleClearEmailPermissions}
             disabled={savingPermissions || isLoading}
             className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition disabled:opacity-60"
           >
-            Clear All
+            Clear Email Permissions
           </button>
           <button
             type="button"
-            onClick={handleSaveRolePermissions}
+            onClick={handleSavePermissions}
             disabled={savingPermissions || isLoading}
             className="px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 transition disabled:opacity-60"
           >
@@ -239,4 +201,4 @@ const RolePermissionsManager = () => {
   );
 };
 
-export default RolePermissionsManager;
+export default EmailNotificationPermissionsManager;

@@ -6,8 +6,8 @@ const AutoProfitLossPage = () => {
     <div className="relative z-10 flex-1">
       <Header title="Auto Profit & Loss" />
 
-      <main className="min-h-[calc(100vh-64px)] bg-slate-50 px-4 py-6 lg:px-8">
-        <div className="mx-auto max-w-8xl">
+      <main className="min-h-[calc(100vh-64px)] min-w-0 bg-slate-50 px-3 py-4 sm:px-4 sm:py-6 lg:px-8">
+        <div className="mx-auto w-full min-w-0 max-w-[1600px]">
           <AutoProfitLossTable />
         </div>
       </main>
