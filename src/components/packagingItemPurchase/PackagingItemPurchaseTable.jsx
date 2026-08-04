@@ -618,9 +618,7 @@ const PackagingItemPurchaseTable = () => {
             min="0"
             step="any"
             value={value.othersCost || ""}
-            onChange={(e) =>
-              setValue({ ...value, othersCost: e.target.value })
-            }
+            onChange={(e) => setValue({ ...value, othersCost: e.target.value })}
             placeholder="0"
             className="h-12 bg-white border border-slate-200 rounded-2xl px-4 w-full text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500"
             style={{ backgroundColor: "#ffffff", colorScheme: "light" }}
@@ -631,9 +629,9 @@ const PackagingItemPurchaseTable = () => {
             Date
           </label>
           <input
-          type="date"
-          value={value.date}
-          onChange={(e) => setValue({ ...value, date: e.target.value })}
+            type="date"
+            value={value.date}
+            onChange={(e) => setValue({ ...value, date: e.target.value })}
             className="h-12 bg-white border border-slate-200 rounded-2xl px-4 w-full text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500"
             style={{ backgroundColor: "#ffffff", colorScheme: "light" }}
           />

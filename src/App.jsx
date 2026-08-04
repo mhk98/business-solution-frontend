@@ -30,6 +30,7 @@ const ConfirmOrderPage = lazy(() => import("./pages/ConfirmOrderPage"));
 const CashInPage = lazy(() => import("./pages/CashInOutPage"));
 const ExpensePage = lazy(() => import("./pages/ExpensePage"));
 const AccountingPage = lazy(() => import("./pages/AccountingPage"));
+const AccountingOverviewPage = lazy(() => import("./pages/AccountingOverviewPage"));
 const CashInOutPage = lazy(() => import("./pages/CashInOutPage"));
 const PurchaseReturnProductPage = lazy(() => import("./pages/PurchaseReturnProductPage"));
 const ReceiveablePage = lazy(() => import("./pages/ReceiveablePage"));
@@ -64,6 +65,7 @@ const InventoryOverviewPage = lazy(() => import("./pages/InventoryOverviewPage")
 const StockAlertPage = lazy(() => import("./pages/StockAlertPage"));
 const MarketingBookPage = lazy(() => import("./pages/MarketingBookPage"));
 const MarketingExpensePage = lazy(() => import("./pages/MarketingExpensePage"));
+const PerformanceTrackerPage = lazy(() => import("./pages/PerformanceTrackerPage"));
 const AdsCampaignKPIPage = lazy(() => import("./pages/AdsCampaignKPIPage"));
 const AutoProfitLossPage = lazy(() => import("./pages/AutoProfitLossPage"));
 const InventoryDashboardPage = lazy(() => import("./pages/InventoryDashboardPage"));
@@ -245,10 +247,12 @@ function App() {
                 <Route path="/credit-ledger" element={<AuthedRoute><CreditLedgerPage /></AuthedRoute>} />
                 <Route path="/log-history" element={<AuthedRoute><LogHistoryPage /></AuthedRoute>} />
                 <Route path="/expense" element={<AuthedRoute><ExpensePage /></AuthedRoute>} />
+                <Route path="/accounting-overview" element={<AuthedRoute><AccountingOverviewPage /></AuthedRoute>} />
                 <Route path="/book" element={<AuthedRoute><AccountingPage /></AuthedRoute>} />
                 <Route path="/book/:id" element={<AuthedRoute><CashInOutPage /></AuthedRoute>} />
                 <Route path="/marketing-book" element={<AuthedRoute><MarketingBookPage /></AuthedRoute>} />
                 <Route path="/marketing-book/:id" element={<AuthedRoute><MarketingExpensePage /></AuthedRoute>} />
+                <Route path="/performance-tracker" element={<AuthedRoute><PerformanceTrackerPage /></AuthedRoute>} />
                 <Route path="/ads-campaign-kpi" element={<AuthedRoute><AdsCampaignKPIPage /></AuthedRoute>} />
                 <Route path="/auto-profit-loss" element={<AuthedRoute><AutoProfitLossPage /></AuthedRoute>} />
                 <Route path="/profit-loss" element={<AuthedRoute><DailyProfitLossPage /></AuthedRoute>} />

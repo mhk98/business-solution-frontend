@@ -1,14 +1,23 @@
 import { motion } from "framer-motion";
 import {
   AlertTriangle,
+  ArrowRight,
+  Banknote,
+  Bell,
+  CalendarDays,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   ClipboardList,
   Coins,
+  Monitor,
   Package,
   ReceiptText,
   RefreshCcw,
   ShoppingBag,
   TrendingDown,
   TrendingUp,
+  Users,
   WalletCards,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -26,7 +35,18 @@ import {
 import DateRangeFilter, {
   getDatePresetRange,
 } from "../../components/common/DateRangeFilter";
+import { useGetAllAssetsDamageQuery } from "../../features/assetsDamage/assetsDamage";
+import { useGetAllAssetsPurchaseQuery } from "../../features/assetsPurchase/assetsPurchase";
+import { useGetAllAssetsSaleQuery } from "../../features/assetsSale/assetsSale";
+import { useGetAllAssetsStockQuery } from "../../features/assetsStock/assetsStock";
+import { useGetAllEmployeeWithoutQueryQuery } from "../../features/employee/employee";
 import { useGetOverviewDashboardQuery } from "../../features/overview/overview";
+import {
+  useGetStellarAttendanceEmployeesQuery,
+  useGetStellarAttendanceHolidaysQuery,
+  useGetStellarAttendanceLeavesQuery,
+  useGetStellarAttendanceLogsQuery,
+} from "../../features/stellarAttendance/stellarAttendance";
 import Header from "../common/Header";
 import { useCanUseMasterPermission } from "../../utils/masterPermissions";
 import { useNavigate } from "react-router-dom";
@@ -49,6 +69,215 @@ const formatShortDate = (value) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString("en-US", { month: "short", day: "2-digit" });
+};
+
+const dateFromParts = (year, month, day) =>
+  `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+
+const getTodayDate = () => {
+  const date = new Date();
+  return dateFromParts(date.getFullYear(), date.getMonth() + 1, date.getDate());
+};
+
+const getCurrentCalendarMonthRange = () => {
+  const today = new Date();
+  const start = new Date(today.getFullYear(), today.getMonth(), 1);
+  const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
+  return {
+    month: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}`,
+    from: dateFromParts(
+      start.getFullYear(),
+      start.getMonth() + 1,
+      start.getDate(),
+    ),
+    to: dateFromParts(end.getFullYear(), end.getMonth() + 1, end.getDate()),
+  };
+};
+
+const buildCalendarWeeks = (baseDate = new Date()) => {
+  const year = baseDate.getFullYear();
+  const month = baseDate.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const cursor = new Date(firstDay);
+  cursor.setDate(firstDay.getDate() - firstDay.getDay());
+
+  const days = [];
+  while (days.length < 42) {
+    days.push({
+      key: dateFromParts(cursor.getFullYear(), cursor.getMonth() + 1, cursor.getDate()),
+      day: cursor.getDate(),
+      isCurrentMonth: cursor.getMonth() === month,
+      isToday: cursor.toDateString() === new Date().toDateString(),
+    });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return {
+    label: baseDate.toLocaleDateString("en-US", {
+      month: "long",
+      year: "numeric",
+    }),
+    days,
+  };
+};
+
+const getAttendanceMonthRange = (dateValue = getTodayDate()) => {
+  const date = new Date(`${dateValue}T00:00:00`);
+  if (date.getDate() <= 25) {
+    date.setMonth(date.getMonth() - 1);
+  }
+
+  const startDate = new Date(date.getFullYear(), date.getMonth() - 1, 26);
+  const endDate = new Date(date.getFullYear(), date.getMonth(), 25);
+
+  return {
+    start: dateFromParts(
+      startDate.getFullYear(),
+      startDate.getMonth() + 1,
+      startDate.getDate(),
+    ),
+    end: dateFromParts(
+      endDate.getFullYear(),
+      endDate.getMonth() + 1,
+      endDate.getDate(),
+    ),
+  };
+};
+
+const getDateRangeList = (start, end) => {
+  const dates = [];
+  const cursor = new Date(`${start}T00:00:00`);
+  const endDate = new Date(`${end}T00:00:00`);
+  while (!Number.isNaN(cursor.getTime()) && cursor <= endDate) {
+    dates.push(
+      dateFromParts(
+        cursor.getFullYear(),
+        cursor.getMonth() + 1,
+        cursor.getDate(),
+      ),
+    );
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return dates;
+};
+
+const getOverlapDates = (start, end, range) => {
+  const overlapStart = start > range.start ? start : range.start;
+  const overlapEnd = end < range.end ? end : range.end;
+  if (!overlapStart || !overlapEnd || overlapStart > overlapEnd) return [];
+  return getDateRangeList(overlapStart, overlapEnd);
+};
+
+const isActiveStatus = (value) =>
+  ["active", "approved"].includes(String(value || "").toLowerCase());
+
+const getEmployeeRegistrationId = (employee) =>
+  employee?.employee_id || employee?.employeeCode || "";
+
+const getRegistrationId = (row) =>
+  row.registration_id ||
+  row.registraton_id ||
+  row.registrationId ||
+  row.deviceUserId ||
+  "";
+
+const getLogDate = (row) => row.access_date || row.logDate || row.date || "";
+
+const getHolidayDates = (holidays, range) => {
+  const dates = new Set();
+  holidays.forEach((holiday) => {
+    if (!isActiveStatus(holiday.status)) return;
+    const start = String(holiday.startDate || holiday.holidayDate || "").slice(
+      0,
+      10,
+    );
+    const end = String(holiday.endDate || start).slice(0, 10);
+    getOverlapDates(start, end, range).forEach((date) => dates.add(date));
+  });
+  return dates;
+};
+
+const getWeekdayName = (date) =>
+  new Date(`${date}T00:00:00`).toLocaleDateString("en-US", {
+    weekday: "long",
+  });
+
+const getWeeklyOffDates = (shift, range) => {
+  const weeklyOffDays = Array.isArray(shift?.weeklyOffDays)
+    ? shift.weeklyOffDays.map((item) => String(item).toLowerCase())
+    : [];
+  if (!weeklyOffDays.length) return new Set();
+  return new Set(
+    getDateRangeList(range.start, range.end).filter((date) =>
+      weeklyOffDays.includes(getWeekdayName(date).toLowerCase()),
+    ),
+  );
+};
+
+const countLeaveDates = ({
+  leaveRequests,
+  employeeId,
+  range,
+  excludedDates,
+}) => {
+  const dates = new Set();
+  leaveRequests.forEach((leave) => {
+    if (String(leave.employeeId) !== String(employeeId)) return;
+    if (String(leave.approvalStatus || "").toLowerCase() !== "approved") return;
+    const start = String(leave.startDate || "").slice(0, 10);
+    const end = String(leave.endDate || start).slice(0, 10);
+    getOverlapDates(start, end, range).forEach((date) => {
+      if (!excludedDates.has(date)) dates.add(date);
+    });
+  });
+  return dates.size;
+};
+
+const buildAttendanceRows = ({
+  logs,
+  employees,
+  holidays,
+  leaveRequests,
+  range,
+}) => {
+  const holidayDates = getHolidayDates(holidays, range);
+  const totalDays = getDateRangeList(range.start, range.end).length;
+  const logsByEmployeeAndDate = logs.reduce((acc, log) => {
+    const registrationId = String(getRegistrationId(log));
+    const date = getLogDate(log);
+    if (!registrationId || !date) return acc;
+    if (!acc.has(registrationId)) acc.set(registrationId, new Set());
+    acc.get(registrationId).add(date);
+    return acc;
+  }, new Map());
+
+  return employees
+    .map((employee) => {
+      const registrationId = String(getEmployeeRegistrationId(employee));
+      const weeklyOffDates = getWeeklyOffDates(employee.shift, range);
+      const offDates = new Set([...holidayDates, ...weeklyOffDates]);
+      const workDays = Math.max(0, totalDays - offDates.size);
+      const employeeLogs =
+        logsByEmployeeAndDate.get(registrationId) || new Set();
+      const present = Array.from(employeeLogs).filter(
+        (date) => !offDates.has(date),
+      ).length;
+      const leave = countLeaveDates({
+        leaveRequests,
+        employeeId: employee.Id,
+        range,
+        excludedDates: offDates,
+      });
+      const absent = Math.max(0, workDays - present - leave);
+      const presentPercent = workDays
+        ? Math.round((present / workDays) * 100)
+        : 0;
+
+      return { registrationId, present, absent, presentPercent };
+    })
+    .filter((row) => row.registrationId);
 };
 
 const metricTone = (changePercent) => {
@@ -106,6 +335,119 @@ const MetricCard = ({ title, value, changePercent, icon: Icon, color }) => {
   );
 };
 
+const ManagementCard = ({
+  title,
+  value,
+  centerLabel,
+  icon: Icon,
+  color,
+  chartData,
+  rows,
+  actionLabel,
+  onClick,
+  isLoading,
+}) => {
+  const total = chartData.reduce(
+    (sum, item) => sum + safeNumber(item.value),
+    0,
+  );
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+    >
+      <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <div
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white"
+            style={{ background: color }}
+          >
+            <Icon size={18} />
+          </div>
+          <h3 className="truncate text-sm font-black text-slate-900">
+            {title}
+          </h3>
+        </div>
+        <button
+          type="button"
+          onClick={onClick}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-50 hover:text-slate-700"
+          aria-label={actionLabel}
+          title={actionLabel}
+        >
+          <ArrowRight size={16} />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-[minmax(0,1fr)_116px] items-center gap-3 px-4 py-4">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold text-slate-500">{centerLabel}</p>
+          <p className="mt-1 break-words text-xl font-black text-slate-950">
+            {isLoading ? "..." : value}
+          </p>
+        </div>
+        <div className="relative h-28 w-28">
+          {total ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={chartData}
+                  dataKey="value"
+                  innerRadius={34}
+                  outerRadius={52}
+                  paddingAngle={2}
+                  stroke="none"
+                >
+                  {chartData.map((item) => (
+                    <Cell key={item.label} fill={item.color} />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-full w-full rounded-full border-8 border-slate-100" />
+          )}
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+            <p className="text-lg font-black text-slate-950">
+              {total
+                ? Math.round((safeNumber(chartData[0]?.value) / total) * 100)
+                : 0}
+              %
+            </p>
+            <p className="text-[10px] font-bold text-slate-500">
+              {chartData[0]?.label}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-2 px-4 pb-4">
+        {rows.map((row) => (
+          <div
+            key={row.label}
+            className="flex items-center justify-between gap-3 text-xs"
+          >
+            <div className="flex min-w-0 items-center gap-2">
+              <span
+                className="h-2.5 w-2.5 shrink-0 rounded-full"
+                style={{ background: row.color }}
+              />
+              <span className="truncate font-semibold text-slate-600">
+                {row.label}
+              </span>
+            </div>
+            <span className="shrink-0 font-black text-slate-900">
+              {isLoading ? "..." : row.value}
+            </span>
+          </div>
+        ))}
+      </div>
+    </motion.section>
+  );
+};
+
 const Panel = ({ title, action, children, className = "" }) => (
   <section
     className={`rounded-xl border border-slate-200 bg-white shadow-sm ${className}`}
@@ -121,6 +463,25 @@ const Panel = ({ title, action, children, className = "" }) => (
 const EmptyState = ({ text }) => (
   <div className="flex min-h-[180px] items-center justify-center px-6 text-center text-sm font-semibold text-slate-400">
     {text}
+  </div>
+);
+
+const CompactListItem = ({ icon: Icon, colorClass, title, subtitle, meta }) => (
+  <div className="flex items-start gap-3 px-4 py-3 sm:px-5">
+    <div
+      className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${colorClass}`}
+    >
+      <Icon size={17} />
+    </div>
+    <div className="min-w-0 flex-1">
+      <p className="truncate text-sm font-black text-slate-900">{title}</p>
+      <p className="mt-0.5 line-clamp-2 text-xs font-semibold leading-5 text-slate-500">
+        {subtitle}
+      </p>
+    </div>
+    <span className="shrink-0 text-xs font-semibold text-slate-500">
+      {meta}
+    </span>
   </div>
 );
 
@@ -140,9 +501,66 @@ const InventoryDashboardOverview = () => {
 
   const { data, isLoading, isError, refetch } =
     useGetOverviewDashboardQuery(query);
+  const todayDate = useMemo(() => getTodayDate(), []);
+  const attendanceMonthRange = useMemo(
+    () => getAttendanceMonthRange(todayDate),
+    [todayDate],
+  );
+  const attendanceQueryRange = useMemo(() => {
+    const dates = [
+      attendanceMonthRange.start,
+      attendanceMonthRange.end,
+      todayDate,
+    ].sort();
+    return { start: dates[0], end: dates[dates.length - 1] };
+  }, [attendanceMonthRange, todayDate]);
+  const { data: attendanceLogsData } = useGetStellarAttendanceLogsQuery({
+    start_date: attendanceQueryRange.start,
+    end_date: attendanceQueryRange.end,
+    start_time: "00:00:01",
+    end_time: "23:59:59",
+  });
+  const { data: attendanceEmployeesData } =
+    useGetStellarAttendanceEmployeesQuery({
+      page: 1,
+      limit: 1000,
+      status: "Active",
+    });
+  const { data: attendanceHolidaysData } = useGetStellarAttendanceHolidaysQuery(
+    {
+      page: 1,
+      limit: 1000,
+      status: "Active",
+    },
+  );
+  const { data: attendanceLeavesData } = useGetStellarAttendanceLeavesQuery({
+    page: 1,
+    limit: 1000,
+    from: attendanceQueryRange.start,
+    to: attendanceQueryRange.end,
+    approvalStatus: "Approved",
+  });
+  const { data: assetStockData } = useGetAllAssetsStockQuery({
+    page: 1,
+    limit: 1,
+  });
+  const assetTotalsQuery = useMemo(
+    () => ({
+      page: 1,
+      limit: 1,
+    }),
+    [],
+  );
+  const { data: assetPurchaseData } =
+    useGetAllAssetsPurchaseQuery(assetTotalsQuery);
+  const { data: assetSaleData } = useGetAllAssetsSaleQuery(assetTotalsQuery);
+  const { data: assetDamageData } =
+    useGetAllAssetsDamageQuery(assetTotalsQuery);
+  const { data: payrollRowsData } = useGetAllEmployeeWithoutQueryQuery();
   const dashboard = data?.data || {};
   const metrics = dashboard.metrics || {};
   const summary = dashboard.summary || {};
+  const managementSummary = dashboard.managementSummary || {};
   const inventorySummary = dashboard.inventorySummary || {};
   const salesOverview = dashboard.salesOverview || [];
   const lowStockProducts = dashboard.lowStockProducts || [];
@@ -202,7 +620,7 @@ const InventoryDashboardOverview = () => {
       color: "#22c55e",
     },
     {
-      title: "Total Orders",
+      title: "Total POS Sale",
       value: formatNumber(metrics.totalOrders?.value),
       changePercent: metrics.totalOrders?.changePercent,
       icon: ReceiptText,
@@ -276,6 +694,392 @@ const InventoryDashboardOverview = () => {
     },
   ];
 
+  const accountsSummary = {
+    cashIn: summary.totalCashInAmount,
+    cashOut: summary.totalCashOutAmount,
+    netBalance: summary.netCashPosition,
+    ...(managementSummary.accounts || {}),
+  };
+  const attendanceLogs = attendanceLogsData?.data?.rows || [];
+  const attendanceEmployees = attendanceEmployeesData?.data || [];
+  const attendanceHolidays = attendanceHolidaysData?.data || [];
+  const attendanceLeaveRequests = attendanceLeavesData?.data || [];
+  const attendanceComputedSummary = useMemo(() => {
+    const logsForRange = (range) =>
+      attendanceLogs.filter((log) => {
+        const date = getLogDate(log);
+        return date >= range.start && date <= range.end;
+      });
+    const monthRows = buildAttendanceRows({
+      logs: logsForRange(attendanceMonthRange),
+      employees: attendanceEmployees,
+      holidays: attendanceHolidays,
+      leaveRequests: attendanceLeaveRequests,
+      range: attendanceMonthRange,
+    });
+    const todayRows = buildAttendanceRows({
+      logs: logsForRange({ start: todayDate, end: todayDate }),
+      employees: attendanceEmployees,
+      holidays: attendanceHolidays,
+      leaveRequests: attendanceLeaveRequests,
+      range: { start: todayDate, end: todayDate },
+    });
+
+    return {
+      totalEmployees: monthRows.length,
+      activeEmployees: monthRows.filter((row) => row.presentPercent >= 80)
+        .length,
+      inactiveEmployees: Math.max(
+        monthRows.length -
+          monthRows.filter((row) => row.presentPercent >= 80).length,
+        0,
+      ),
+      presentToday: todayRows.filter((row) => row.present > 0).length,
+      absentToday: todayRows.filter((row) => row.absent > 0).length,
+    };
+  }, [
+    attendanceEmployees,
+    attendanceHolidays,
+    attendanceLeaveRequests,
+    attendanceLogs,
+    attendanceMonthRange,
+    todayDate,
+  ]);
+  const apiEmployeeSummary = managementSummary.employees || {};
+  const employeeSummary = {
+    totalEmployees:
+      safeNumber(apiEmployeeSummary.totalEmployees) ||
+      attendanceComputedSummary.totalEmployees,
+    activeEmployees:
+      safeNumber(apiEmployeeSummary.activeEmployees) ||
+      attendanceComputedSummary.activeEmployees,
+    inactiveEmployees:
+      safeNumber(apiEmployeeSummary.inactiveEmployees) ||
+      attendanceComputedSummary.inactiveEmployees,
+    presentToday:
+      safeNumber(apiEmployeeSummary.presentToday) ||
+      attendanceComputedSummary.presentToday,
+    absentToday:
+      safeNumber(apiEmployeeSummary.absentToday) ||
+      attendanceComputedSummary.absentToday,
+  };
+  const assetStockMeta = assetStockData?.meta || {};
+  const assetPurchaseMeta = assetPurchaseData?.meta || {};
+  const assetSaleMeta = assetSaleData?.meta || {};
+  const assetDamageMeta = assetDamageData?.meta || {};
+  const apiAssetSummary = managementSummary.assets || {};
+  const assetSummary = {
+    totalAssets:
+      safeNumber(apiAssetSummary.totalAssets) ||
+      safeNumber(assetStockMeta.count),
+    totalQuantity:
+      safeNumber(apiAssetSummary.totalQuantity) ||
+      safeNumber(assetStockMeta.totalQuantity),
+    totalValue:
+      safeNumber(apiAssetSummary.totalValue) ||
+      safeNumber(assetStockMeta.totalAmount),
+    purchasedValue:
+      safeNumber(apiAssetSummary.purchasedValue) ||
+      safeNumber(assetPurchaseMeta.totalAmount),
+    soldValue:
+      safeNumber(apiAssetSummary.soldValue) ||
+      safeNumber(assetSaleMeta.totalAmount),
+    damagedQuantity:
+      safeNumber(apiAssetSummary.damagedQuantity) ||
+      safeNumber(assetDamageMeta.totalQuantity),
+    damagedValue:
+      safeNumber(apiAssetSummary.damagedValue) ||
+      safeNumber(assetDamageMeta.totalAmount),
+  };
+  const payrollCurrentMonthRange = useMemo(
+    () => getCurrentCalendarMonthRange(),
+    [],
+  );
+  const payrollComputedSummary = useMemo(() => {
+    const rows = (payrollRowsData?.data || []).filter((row) => {
+      const payrollDate = String(row?.date || "").slice(0, 10);
+      return (
+        payrollDate >= payrollCurrentMonthRange.from &&
+        payrollDate <= payrollCurrentMonthRange.to
+      );
+    });
+
+    return rows.reduce(
+      (acc, row) => {
+        const holidaySalary =
+          (safeNumber(row.basic_salary) / 30) * safeNumber(row.holiday_payment);
+        const gross =
+          safeNumber(row.total_salary) +
+          holidaySalary +
+          safeNumber(row.festival_bonus);
+        const net = safeNumber(row.net_salary);
+
+        acc.grossAmount += gross;
+        acc.netAmount += net;
+        acc.deductionAmount += Math.max(gross - net, 0);
+        return acc;
+      },
+      {
+        month: payrollCurrentMonthRange.month,
+        status: rows.length ? "Current Month" : "No Payroll",
+        totalEmployees: rows.length,
+        grossAmount: 0,
+        deductionAmount: 0,
+        netAmount: 0,
+      },
+    );
+  }, [payrollCurrentMonthRange, payrollRowsData]);
+  const apiPayrollSummary = managementSummary.payroll || {};
+  const payrollSummary = {
+    month: apiPayrollSummary.month || payrollComputedSummary.month,
+    status: apiPayrollSummary.status || payrollComputedSummary.status,
+    totalEmployees:
+      safeNumber(apiPayrollSummary.totalEmployees) ||
+      payrollComputedSummary.totalEmployees,
+    grossAmount:
+      safeNumber(apiPayrollSummary.grossAmount) ||
+      payrollComputedSummary.grossAmount,
+    deductionAmount:
+      safeNumber(apiPayrollSummary.deductionAmount) ||
+      payrollComputedSummary.deductionAmount,
+    netAmount:
+      safeNumber(apiPayrollSummary.netAmount) ||
+      payrollComputedSummary.netAmount,
+  };
+
+  const managementCards = [
+    {
+      title: "Accounts Management",
+      value: formatCurrency(accountsSummary.netBalance, 2),
+      centerLabel: "Net Balance",
+      icon: Banknote,
+      color: "#16a34a",
+      href: "/Receivable",
+      actionLabel: "View accounts",
+      chartData: [
+        {
+          label: "Cash In",
+          value: accountsSummary.cashIn,
+          color: "#22c55e",
+        },
+        {
+          label: "Cash Out",
+          value: accountsSummary.cashOut,
+          color: "#f97316",
+        },
+      ],
+      rows: [
+        {
+          label: "Cash In",
+          value: formatCurrency(accountsSummary.cashIn, 2),
+          color: "#22c55e",
+        },
+        {
+          label: "Cash Out",
+          value: formatCurrency(accountsSummary.cashOut, 2),
+          color: "#ef4444",
+        },
+      ],
+    },
+    {
+      title: "Employee Management",
+      value: formatNumber(employeeSummary.totalEmployees),
+      centerLabel: "Total Employees",
+      icon: Users,
+      color: "#f97316",
+      href: "/hrm/attendance-summaries",
+      actionLabel: "View attendance",
+      chartData: [
+        {
+          label: "Active",
+          value: employeeSummary.activeEmployees,
+          color: "#22c55e",
+        },
+        {
+          label: "Below 80%",
+          value: employeeSummary.inactiveEmployees,
+          color: "#ef4444",
+        },
+      ],
+      rows: [
+        {
+          label: "Active",
+          value: formatNumber(employeeSummary.activeEmployees),
+          color: "#22c55e",
+        },
+        {
+          label: "Present Today",
+          value: formatNumber(employeeSummary.presentToday),
+          color: "#14b8a6",
+        },
+        {
+          label: "Absent Today",
+          value: formatNumber(employeeSummary.absentToday),
+          color: "#f97316",
+        },
+      ],
+    },
+    {
+      title: "Asset Management",
+      value: formatCurrency(assetSummary.totalValue, 2),
+      centerLabel: "Total Assets",
+      icon: Monitor,
+      color: "#7c3aed",
+      href: "/assets-stock",
+      actionLabel: "View assets",
+      chartData: [
+        {
+          label: "In Stock",
+          value: assetSummary.totalQuantity,
+          color: "#7c3aed",
+        },
+        {
+          label: "Damaged",
+          value: assetSummary.damagedQuantity,
+          color: "#ef4444",
+        },
+      ],
+      rows: [
+        {
+          label: "Purchase",
+          value: formatCurrency(assetSummary.purchasedValue, 2),
+          color: "#7c3aed",
+        },
+        {
+          label: "Sale",
+          value: formatCurrency(assetSummary.soldValue, 2),
+          color: "#f97316",
+        },
+        {
+          label: "Damage",
+          value: formatCurrency(assetSummary.damagedValue, 2),
+          color: "#ef4444",
+        },
+      ],
+    },
+    {
+      title: "Payroll Management",
+      value: formatCurrency(payrollSummary.netAmount, 2),
+      centerLabel: "Payroll",
+      icon: WalletCards,
+      color: "#14b8a6",
+      href: "/hrm/payroll-runs",
+      actionLabel: "View payroll",
+      chartData: [
+        {
+          label: "Net",
+          value: payrollSummary.netAmount,
+          color: "#14b8a6",
+        },
+        {
+          label: "Deduction",
+          value: payrollSummary.deductionAmount,
+          color: "#f97316",
+        },
+      ],
+      rows: [
+        {
+          label: "Gross",
+          value: formatCurrency(payrollSummary.grossAmount, 2),
+          color: "#14b8a6",
+        },
+        {
+          label: "Deduction",
+          value: formatCurrency(payrollSummary.deductionAmount, 2),
+          color: "#f97316",
+        },
+        {
+          label: "Employees",
+          value: formatNumber(payrollSummary.totalEmployees),
+          color: "#ef4444",
+        },
+      ],
+    },
+  ];
+
+  const alertItems = [
+    {
+      title: "Low Stock Alert",
+      subtitle: `${formatNumber(metrics.lowStockItems?.value)} items are running low in stock.`,
+      meta: "Live",
+      icon: AlertTriangle,
+      colorClass: "bg-rose-50 text-rose-600",
+    },
+    {
+      title: "Approval Queue",
+      subtitle: `${formatNumber(
+        approvalQueue.reduce((sum, item) => sum + safeNumber(item.value), 0),
+      )} pending requests need admin action.`,
+      meta: "Today",
+      icon: ClipboardList,
+      colorClass: "bg-amber-50 text-amber-600",
+    },
+    {
+      title: "Asset Maintenance",
+      subtitle: `${formatNumber(assetSummary.damagedQuantity)} damaged assets require attention.`,
+      meta: "Live",
+      icon: Monitor,
+      colorClass: "bg-indigo-50 text-indigo-600",
+    },
+    {
+      title: "Payroll Reminder",
+      subtitle:
+        payrollSummary.totalEmployees > 0
+          ? `${formatNumber(payrollSummary.totalEmployees)} employee payroll entries are ready for review.`
+          : "No payroll entries found for the current month.",
+      meta: "This Month",
+      icon: Bell,
+      colorClass: "bg-emerald-50 text-emerald-600",
+    },
+  ];
+
+  const activityItems = [
+    {
+      title: "Sales summary updated",
+      subtitle: `${formatCurrency(metrics.totalRevenue?.value)} revenue recorded in this period.`,
+      meta: "Live",
+      icon: ReceiptText,
+      colorClass: "bg-blue-50 text-blue-600",
+    },
+    {
+      title: "Payment activity refreshed",
+      subtitle: `${formatCurrency(accountsSummary.cashIn, 2)} cash in and ${formatCurrency(
+        accountsSummary.cashOut,
+        2,
+      )} cash out tracked.`,
+      meta: "Live",
+      icon: Banknote,
+      colorClass: "bg-emerald-50 text-emerald-600",
+    },
+    {
+      title: "Employee attendance synced",
+      subtitle: `${formatNumber(employeeSummary.presentToday)} present today, ${formatNumber(
+        employeeSummary.absentToday,
+      )} absent today.`,
+      meta: "Today",
+      icon: Users,
+      colorClass: "bg-violet-50 text-violet-600",
+    },
+    {
+      title: "Inventory status checked",
+      subtitle: `${formatNumber(inventorySummary.totalItems)} total items available in live stock summary.`,
+      meta: "Live",
+      icon: CheckCircle2,
+      colorClass: "bg-orange-50 text-orange-600",
+    },
+  ];
+
+  const calendar = useMemo(() => buildCalendarWeeks(new Date()), []);
+  const calendarEventDates = useMemo(
+    () =>
+      new Set(
+        [todayDate, payrollCurrentMonthRange.to, query.to]
+          .filter(Boolean)
+          .map((value) => String(value).slice(0, 10)),
+      ),
+    [payrollCurrentMonthRange.to, query.to, todayDate],
+  );
+
   const applyDateRange = (filterType, range) => {
     const nextRange = range || getDatePresetRange(filterType || "last30");
     setFrom(nextRange.from);
@@ -345,7 +1149,25 @@ const InventoryDashboardOverview = () => {
               ))}
             </div>
 
-            <section className="mt-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-4">
+              {managementCards.map((card) => (
+                <ManagementCard
+                  key={card.title}
+                  title={card.title}
+                  value={card.value}
+                  centerLabel={card.centerLabel}
+                  icon={card.icon}
+                  color={card.color}
+                  chartData={card.chartData}
+                  rows={card.rows}
+                  actionLabel={card.actionLabel}
+                  onClick={() => navigate(card.href)}
+                  isLoading={isLoading}
+                />
+              ))}
+            </div>
+
+            {/* <section className="mt-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <h2 className="text-base font-black text-slate-950">
@@ -387,7 +1209,7 @@ const InventoryDashboardOverview = () => {
                   );
                 })}
               </div>
-            </section>
+            </section> */}
 
             <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-12">
               <Panel
@@ -670,6 +1492,125 @@ const InventoryDashboardOverview = () => {
               ) : (
                 <EmptyState text="No low stock products found." />
               )}
+            </div>
+          </Panel>
+        </div>
+
+        <div className="mt-5 grid grid-cols-1 gap-5 xl:grid-cols-12">
+          <Panel
+            title="Alerts & Notifications"
+            className="xl:col-span-4"
+            action={
+              <button
+                type="button"
+                onClick={() => navigate("/notifications")}
+                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+              >
+                View All
+              </button>
+            }
+          >
+            <div className="divide-y divide-slate-100">
+              {alertItems.map((item) => (
+                <CompactListItem key={item.title} {...item} />
+              ))}
+            </div>
+          </Panel>
+
+          <Panel
+            title="Recent Activities"
+            className="xl:col-span-4"
+            action={
+              <button
+                type="button"
+                onClick={() => navigate("/log-history")}
+                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+              >
+                View All
+              </button>
+            }
+          >
+            <div className="divide-y divide-slate-100">
+              {activityItems.map((item) => (
+                <CompactListItem key={item.title} {...item} />
+              ))}
+            </div>
+          </Panel>
+
+          <Panel
+            title="Calendar"
+            className="xl:col-span-4"
+            action={
+              <button
+                type="button"
+                onClick={() => navigate("/hrm/attendance")}
+                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+              >
+                View Full Calendar
+              </button>
+            }
+          >
+            <div className="px-4 py-4 sm:px-5">
+              <div className="mb-4 flex items-center justify-between">
+                <button
+                  type="button"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-50 hover:text-slate-900"
+                  aria-label="Previous month"
+                >
+                  <ChevronLeft size={17} />
+                </button>
+                <div className="flex items-center gap-2 text-sm font-black text-slate-900">
+                  <CalendarDays size={16} className="text-indigo-600" />
+                  {calendar.label}
+                </div>
+                <button
+                  type="button"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-50 hover:text-slate-900"
+                  aria-label="Next month"
+                >
+                  <ChevronRight size={17} />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-7 text-center text-[11px] font-black uppercase text-slate-500">
+                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(
+                  (day) => (
+                    <div key={day} className="py-1">
+                      {day}
+                    </div>
+                  ),
+                )}
+              </div>
+              <div className="mt-1 grid grid-cols-7 gap-y-1 text-center text-sm font-bold">
+                {calendar.days.map((day) => {
+                  const hasEvent = calendarEventDates.has(day.key);
+                  return (
+                    <div
+                      key={day.key}
+                      className="flex min-h-9 items-center justify-center"
+                    >
+                      <div
+                        className={`relative flex h-8 w-8 items-center justify-center rounded-full ${
+                          day.isToday
+                            ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200"
+                            : day.isCurrentMonth
+                              ? "text-slate-900"
+                              : "text-slate-300"
+                        }`}
+                      >
+                        {day.day}
+                        {hasEvent && (
+                          <span
+                            className={`absolute -bottom-1 h-1.5 w-1.5 rounded-full ${
+                              day.isToday ? "bg-white" : "bg-indigo-500"
+                            }`}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </Panel>
         </div>

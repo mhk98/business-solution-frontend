@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import {
   useDeleteCashInOutMutation,
+  useGetAllCashInOutWithoutQueryQuery,
   useGetAllCashInOutQuery,
   useInsertCashInOutMutation,
   useUpdateCashInOutMutation,
@@ -92,6 +93,9 @@ const CashInOutTable = () => {
   const [currentProduct, setCurrentProduct] = useState(null);
   const [filterCategory, setFilterCategory] = useState("");
   const [filterLoanId, setFilterLoanId] = useState("");
+  const [isCreateNoteFocused, setIsCreateNoteFocused] = useState(false);
+  const [isCreateCashOutNoteFocused, setIsCreateCashOutNoteFocused] =
+    useState(false);
 
   const userId = localStorage.getItem("userId");
 
@@ -315,6 +319,7 @@ const CashInOutTable = () => {
     queryArgs,
     // { skip: shouldSkip },
   );
+  const { data: allCashInOutRes } = useGetAllCashInOutWithoutQueryQuery();
   const { data: logoData } = useGetAllLogoQuery();
   const logoUrl = buildAssetUrl(logoData?.data?.file);
   useEffect(() => {
@@ -324,6 +329,52 @@ const CashInOutTable = () => {
       setTotalPages(Math.ceil((data?.meta?.count || 0) / itemsPerPage) || 1);
     }
   }, [data, isLoading, isError, error, itemsPerPage]);
+
+  const formatVoucherDate = (value) => {
+    if (!value) return "-";
+    const normalizedDate = String(value).slice(0, 10);
+    const parts = normalizedDate.split("-");
+    if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+
+    return date.toLocaleDateString("en-GB");
+  };
+
+  const previousVoucherSuggestions = useMemo(() => {
+    const rows = Array.isArray(allCashInOutRes?.data)
+      ? allCashInOutRes.data
+      : [];
+    const currentNote = String(createProduct.remarks || "").trim().toLowerCase();
+
+    return rows
+      .filter((row) => String(row?.bookId ?? "") === String(id ?? ""))
+      .filter((row) => String(row?.remarks || row?.note || "").trim())
+      .filter((row) => {
+        if (!currentNote) return true;
+        const text = [
+          row?.remarks,
+          row?.note,
+          row?.category,
+          row?.voucherNo,
+          row?.voucher_no,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return text.includes(currentNote);
+      })
+      .sort((a, b) => new Date(b?.date || 0) - new Date(a?.date || 0))
+      .slice(0, 6)
+      .map((row) => ({
+        id: row?.Id ?? row?.id,
+        date: formatVoucherDate(row?.date),
+        category: row?.category || "-",
+        note: row?.remarks || row?.note || "",
+        voucherNo: row?.voucherNo || row?.voucher_no || row?.voucherNumber || "-",
+      }));
+  }, [allCashInOutRes, createProduct.remarks, id]);
 
   const { data: allLoanRes } = useGetAllLoanWithoutQueryQuery();
   const loans = Array.isArray(allLoanRes?.data) ? allLoanRes.data : [];
@@ -2756,10 +2807,8 @@ const CashInOutTable = () => {
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm text-slate-600 mb-1">
-                Remarks
-              </label>
+            <div className="relative">
+              <label className="block text-sm text-slate-600 mb-1">Note</label>
               <input
                 type="text"
                 value={createProduct.remarks}
@@ -2769,8 +2818,39 @@ const CashInOutTable = () => {
                     remarks: e.target.value,
                   })
                 }
+                onFocus={() => setIsCreateNoteFocused(true)}
+                onBlur={() =>
+                  window.setTimeout(() => setIsCreateNoteFocused(false), 120)
+                }
                 className="h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 bg-white"
               />
+              {isCreateNoteFocused && previousVoucherSuggestions.length > 0 && (
+                <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-52 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl">
+                  {previousVoucherSuggestions.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        setCreateProduct((p) => ({
+                          ...p,
+                          remarks: item.note,
+                          category: p.category || item.category,
+                        }));
+                        setIsCreateNoteFocused(false);
+                      }}
+                      className="w-full border-b border-slate-100 px-3 py-2 text-left text-sm text-slate-700 last:border-b-0 hover:bg-slate-50"
+                    >
+                      <div className="font-semibold text-slate-900">
+                        {item.date}, {item.category}, {item.note}
+                      </div>
+                      <div className="mt-0.5 text-xs text-slate-500">
+                        Voucher No: {item.voucherNo}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div>
               <label className="block text-sm text-slate-600 mb-1">
@@ -3132,7 +3212,7 @@ const CashInOutTable = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
+            <div className="relative">
               <label className="block text-sm text-slate-600 mb-1">Note</label>
               <input
                 type="text"
@@ -3143,8 +3223,43 @@ const CashInOutTable = () => {
                     remarks: e.target.value,
                   })
                 }
+                onFocus={() => setIsCreateCashOutNoteFocused(true)}
+                onBlur={() =>
+                  window.setTimeout(
+                    () => setIsCreateCashOutNoteFocused(false),
+                    120,
+                  )
+                }
                 className="h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 bg-white"
               />
+              {isCreateCashOutNoteFocused &&
+                previousVoucherSuggestions.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-52 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl">
+                    {previousVoucherSuggestions.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setCreateProduct((p) => ({
+                            ...p,
+                            remarks: item.note,
+                            category: p.category || item.category,
+                          }));
+                          setIsCreateCashOutNoteFocused(false);
+                        }}
+                        className="w-full border-b border-slate-100 px-3 py-2 text-left text-sm text-slate-700 last:border-b-0 hover:bg-slate-50"
+                      >
+                        <div className="font-semibold text-slate-900">
+                          {item.date}, {item.category}, {item.note}
+                        </div>
+                        <div className="mt-0.5 text-xs text-slate-500">
+                          Voucher No: {item.voucherNo}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
             </div>
             <div>
               <label className="block text-sm text-slate-600 mb-1">

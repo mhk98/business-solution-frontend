@@ -27,7 +27,7 @@ import { useGetAllBookWithoutQueryQuery } from "../../features/book/book";
 import { useGetAllLedgerHistoryQuery } from "../../features/ledgerHistory/ledgerHistory";
 import { useGetAllSalaryQuery } from "../../features/salary/salary";
 import Modal from "../common/Modal";
-import DateRangeFilter from "../common/DateRangeFilter";
+import DateRangeFilter, { getDatePresetRange } from "../common/DateRangeFilter";
 import { useLayout } from "../../context/LayoutContext";
 import { translations } from "../../utils/translations";
 import {
@@ -105,6 +105,7 @@ const EmployeeTable = () => {
     late: "",
     early_leave: "",
     absent: "",
+    half_day_absent: "",
     friday_absent: "",
     unapproval_absent: "",
     net_salary: "",
@@ -120,8 +121,9 @@ const EmployeeTable = () => {
   const [employees, setEmployees] = useState([]);
   const [employeesAll, setEmployeesAll] = useState([]);
 
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const defaultPayrollRange = useMemo(() => getDatePresetRange("thisMonth"), []);
+  const [startDate, setStartDate] = useState(defaultPayrollRange.from);
+  const [endDate, setEndDate] = useState(defaultPayrollRange.to);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [selectedDepartment, setSelectedDepartment] = useState(null);
   const [selectedDesignation, setSelectedDesignation] = useState(null);
@@ -143,6 +145,7 @@ const EmployeeTable = () => {
     late: 0,
     early_leave: 0,
     absent: 0,
+    half_day_absent: 0,
     friday_absent: 0,
     unapproval_absent: 0,
   });
@@ -196,6 +199,7 @@ const EmployeeTable = () => {
     const late = Number(p.late) || 0;
     const early_leave = Number(p.early_leave) || 0;
     const absent = Number(p.absent) || 0;
+    const half_day_absent = Number(p.half_day_absent) || 0;
     const friday_absent = Number(p.friday_absent) || 0;
     const unapproval_absent = Number(p.unapproval_absent) || 0;
 
@@ -205,7 +209,7 @@ const EmployeeTable = () => {
     const holiday_salary = perDayBasicSalary * holiday_days;
     const total_salary = basic_payable_salary + incentive;
 
-    const perDay = total_salary / 30;
+    const perDay = (basic_salary + incentive) / 30;
 
     const lateAbsentCount = Math.floor(late / 3);
     const earlyAbsentCount = Math.floor(early_leave / 3);
@@ -214,6 +218,8 @@ const EmployeeTable = () => {
     const earlyLeaveCut =
       earlyAbsentCount * (Number(fine.early_leave) * perDay);
     const absentCut = absent * (Number(fine.absent) * perDay);
+    const halfDayAbsentCut =
+      half_day_absent * (Number(fine.absent) * perDay * 0.5);
     const fridayAbsentCut =
       friday_absent * (Number(fine.friday_absent) * perDay);
     const unapprovalAbsentCut =
@@ -223,6 +229,7 @@ const EmployeeTable = () => {
       lateCut +
       earlyLeaveCut +
       absentCut +
+      halfDayAbsentCut +
       fridayAbsentCut +
       unapprovalAbsentCut;
 
@@ -262,11 +269,13 @@ const EmployeeTable = () => {
   };
 
   const getDeductionItems = (employee) => {
-    const totalSalary = Number(employee?.total_salary || 0);
-    const perDay = totalSalary / 30;
+    const basicSalary = Number(employee?.basic_salary || 0);
+    const incentive = Number(employee?.incentive || 0);
+    const perDay = (basicSalary + incentive) / 30;
     const late = Number(employee?.late || 0);
     const earlyLeave = Number(employee?.early_leave || 0);
     const absent = Number(employee?.absent || 0);
+    const halfDayAbsent = Number(employee?.half_day_absent || 0);
     const fridayAbsent = Number(employee?.friday_absent || 0);
     const unapprovalAbsent = Number(employee?.unapproval_absent || 0);
     const advance = Number(employee?.advance || 0);
@@ -287,6 +296,11 @@ const EmployeeTable = () => {
         label: `Absent (${absent})`,
         amount: absent * (Number(fine.absent) * perDay),
         count: absent,
+      },
+      {
+        label: `Half Day Absent (${halfDayAbsent})`,
+        amount: halfDayAbsent * (Number(fine.absent) * perDay * 0.5),
+        count: halfDayAbsent,
       },
       {
         label: `Friday Absent (${fridayAbsent})`,
@@ -879,6 +893,7 @@ const EmployeeTable = () => {
       late: employee.late ?? "",
       early_leave: employee.early_leave ?? "",
       absent: employee.absent ?? "",
+      half_day_absent: employee.half_day_absent ?? "",
       friday_absent: employee.friday_absent ?? "",
       unapproval_absent: employee.unapproval_absent ?? "",
       net_salary: employee.net_salary ?? "",
@@ -985,6 +1000,7 @@ const EmployeeTable = () => {
         late: Number(createEmployee.late) || 0,
         early_leave: Number(createEmployee.early_leave) || 0,
         absent: Number(createEmployee.absent) || 0,
+        half_day_absent: Number(createEmployee.half_day_absent) || 0,
         friday_absent: Number(createEmployee.friday_absent) || 0,
         unapproval_absent: Number(createEmployee.unapproval_absent) || 0,
 
@@ -1047,6 +1063,7 @@ const EmployeeTable = () => {
         late: Number(currentEmployee.late) || 0,
         early_leave: Number(currentEmployee.early_leave) || 0,
         absent: Number(currentEmployee.absent) || 0,
+        half_day_absent: Number(currentEmployee.half_day_absent) || 0,
         friday_absent: Number(currentEmployee.friday_absent) || 0,
         unapproval_absent: Number(currentEmployee.unapproval_absent) || 0,
 
@@ -1134,6 +1151,7 @@ const EmployeeTable = () => {
       late: Number(employee.late) || 0,
       early_leave: Number(employee.early_leave) || 0,
       absent: Number(employee.absent) || 0,
+      half_day_absent: Number(employee.half_day_absent) || 0,
       friday_absent: Number(employee.friday_absent) || 0,
       unapproval_absent: Number(employee.unapproval_absent) || 0,
 
@@ -1189,8 +1207,8 @@ const EmployeeTable = () => {
   // Pagination
   // ----------------------------
   const clearFilters = () => {
-    setStartDate("");
-    setEndDate("");
+    setStartDate(defaultPayrollRange.from);
+    setEndDate(defaultPayrollRange.to);
     setSelectedEmployee(null);
     setSelectedDepartment(null);
     setSelectedDesignation(null);
@@ -2380,11 +2398,11 @@ const EmployeeTable = () => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.2 }}
     >
-      <div className="my-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="my-6 flex flex-wrap gap-3 items-center justify-start">
+      <div className="my-2 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="my-2 flex flex-wrap items-center justify-start gap-3 xl:my-6 xl:flex-1">
           {canManagePayroll && (
             <button
-              className="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white transition px-4 py-2 rounded-xl shadow-sm"
+              className="inline-flex min-h-10 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-indigo-600 px-4 py-2 text-white shadow-sm transition hover:bg-indigo-700"
               onClick={openAddModal}
             >
               {t.add} <Plus size={18} />
@@ -2392,7 +2410,7 @@ const EmployeeTable = () => {
           )}
 
           <button
-            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl disabled:opacity-60 shadow-sm"
+            className="min-h-10 whitespace-nowrap rounded-xl bg-emerald-600 px-4 py-2 text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60"
             onClick={() => setIsBulkInvoiceOpen(true)}
             disabled={selectedIds.length === 0}
           >
@@ -2400,7 +2418,7 @@ const EmployeeTable = () => {
           </button>
 
           <button
-            className="inline-flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded-xl disabled:opacity-60 shadow-sm"
+            className="inline-flex min-h-10 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-sky-600 px-4 py-2 text-white shadow-sm hover:bg-sky-700 disabled:opacity-60"
             onClick={handleDownloadSelectedSheet}
             disabled={selectedIds.length === 0}
           >
@@ -2409,7 +2427,7 @@ const EmployeeTable = () => {
           </button>
 
           <button
-            className="inline-flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-xl disabled:opacity-60 shadow-sm"
+            className="inline-flex min-h-10 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-slate-900 px-4 py-2 text-white shadow-sm hover:bg-slate-800 disabled:opacity-60"
             onClick={handleDownloadSelectedPdf}
             disabled={selectedIds.length === 0}
           >
@@ -2418,7 +2436,7 @@ const EmployeeTable = () => {
           </button>
 
           <button
-            className="inline-flex items-center justify-center gap-2 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-xl border border-slate-200 disabled:opacity-60 shadow-sm"
+            className="inline-flex min-h-10 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-4 py-2 text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
             onClick={handlePrintSelectedSheet}
             disabled={selectedIds.length === 0}
           >
@@ -2427,7 +2445,7 @@ const EmployeeTable = () => {
           </button>
 
           <button
-            className="bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-xl border border-slate-200 disabled:opacity-60"
+            className="min-h-10 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-4 py-2 text-slate-700 hover:bg-slate-50 disabled:opacity-60"
             onClick={() => setSelectedIds([])}
             disabled={selectedIds.length === 0}
           >
@@ -2435,7 +2453,7 @@ const EmployeeTable = () => {
           </button>
         </div>
 
-        <div className="flex items-center justify-between sm:justify-end gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2 shadow-sm">
+        <div className="flex min-h-10 w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2 shadow-sm sm:w-auto xl:mt-6 xl:shrink-0">
           <div className="flex items-center gap-2 text-slate-700">
             <RotateCcw size={18} className="text-amber-500" />
             <span className="text-sm">Total Salary</span>
@@ -2446,14 +2464,15 @@ const EmployeeTable = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-8 gap-4 items-end mb-6 w-full justify-center mx-auto">
+      <div className="mb-6 grid w-full grid-cols-1 items-end gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 2xl:grid-cols-8">
         <DateRangeFilter
           startDate={startDate}
           endDate={endDate}
           onStartDateChange={setStartDate}
           onEndDateChange={setEndDate}
+          defaultFilter="thisMonth"
           compact
-          className="md:col-span-2"
+          className="sm:col-span-2 lg:col-span-3 xl:col-span-3"
         />
 
         <div className="flex flex-col">
@@ -2558,7 +2577,7 @@ const EmployeeTable = () => {
         </div>
 
         <button
-          className="inline-flex items-center justify-center bg-white hover:bg-slate-50 text-slate-700 transition px-4 py-[10px] rounded-xl border border-slate-200"
+          className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-[10px] text-slate-700 transition hover:bg-slate-50"
           onClick={clearFilters}
         >
           {t.clear_filters}
@@ -3070,6 +3089,14 @@ const EmployeeTable = () => {
             />
 
             <Field
+              label="Half Day Absent (days):"
+              type="number"
+              step="0.5"
+              value={currentEmployee?.half_day_absent}
+              onChange={(v) => updateCurrentField("half_day_absent", v)}
+            />
+
+            <Field
               label={t.friday_absent_days_label || "Friday Absent (days):"}
               type="number"
               value={currentEmployee?.friday_absent}
@@ -3467,6 +3494,14 @@ const EmployeeTable = () => {
               type="number"
               value={createEmployee.absent}
               onChange={(v) => updateCreateField("absent", v)}
+            />
+
+            <Field
+              label="Half Day Absent (days):"
+              type="number"
+              step="0.5"
+              value={createEmployee.half_day_absent}
+              onChange={(v) => updateCreateField("half_day_absent", v)}
             />
 
             <Field

@@ -1,4 +1,5 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import toast from "react-hot-toast";
 
 const rawBaseQuery = fetchBaseQuery({
   baseUrl: `${import.meta.env.VITE_API_URL}/api/v1/`,
@@ -41,6 +42,14 @@ const baseQueryWithReauth = async (args, api, extraOptions) => {
     }
   }
 
+  if (result.error?.status === 409) {
+    toast.error(
+      result.error?.data?.message ||
+        "Duplicate entry blocked. Please wait 5 minutes before submitting the same data again.",
+      { id: "duplicate-entry-blocked" },
+    );
+  }
+
   return result;
 };
 
@@ -80,6 +89,7 @@ export const baseApi = createApi({
     "KPI",
     "AdsCampaignKPI",
     "AdsAccount",
+    "PerformanceTracker",
     "ProfitLoss",
     "MasterPermission",
     "ApiGateway",

@@ -57,7 +57,7 @@ const Sidebar = () => {
   const canViewMasterPermissionSubmenu = isDefaultMasterPermissionEmail(
     getCurrentUserEmail(),
   );
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
 
   const { data: myPermissionsData } = useGetMyRolePermissionsQuery(undefined, {
     skip: !localStorage.getItem("token"),
@@ -75,14 +75,25 @@ const Sidebar = () => {
   const pathMatches = useCallback(
     (targetPath) => {
       if (!targetPath) return false;
-      const cleanTargetPath = String(targetPath).split("?")[0];
+      const target = String(targetPath);
+      const [cleanTargetPath, targetQuery = ""] = target.split("?");
+      const currentFullPath = `${pathname}${search}`;
+
+      if (targetQuery) {
+        return currentFullPath === `${cleanTargetPath}?${targetQuery}`;
+      }
+
+      if (cleanTargetPath === "/log-history" && search.includes("module=")) {
+        return false;
+      }
+
       if (cleanTargetPath === "/") return pathname === "/";
       return (
         pathname === cleanTargetPath ||
         pathname.startsWith(`${cleanTargetPath}/`)
       );
     },
-    [pathname],
+    [pathname, search],
   );
   const isActive = useCallback(
     (itemOrHref) => {

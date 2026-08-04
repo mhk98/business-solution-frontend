@@ -26,10 +26,10 @@ export const profitLossApi = baseApi.injectEndpoints({
         const id = typeof arg === "object" ? arg.id : arg;
         const mode = typeof arg === "object" ? arg.mode : undefined;
         return {
-        url: `profit-loss/${id}`,
-        method: "DELETE",
-        params: { mode },
-      };
+          url: `profit-loss/${id}`,
+          method: "DELETE",
+          params: { mode },
+        };
       },
       invalidatesTags: [{ type: "ProfitLoss", id: "LIST" }],
     }),

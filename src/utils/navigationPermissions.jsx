@@ -45,6 +45,7 @@ import {
   CreditCard,
   WalletCards,
   Fingerprint,
+  TrendingUp,
 } from "lucide-react";
 import {
   REPORT_CATALOG,
@@ -80,6 +81,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "damage",
     "marketing",
     "dm_expense",
+    "automated_performance_tracker",
     "ads_campaign_kpi",
     "profit_loss",
     "auto_profit_loss",
@@ -128,6 +130,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "reports",
     ...REPORT_PERMISSION_KEYS,
     "accounting",
+    "accounting_overview",
     "accounting_supplier",
     "book",
     "petty_cash_requisition",
@@ -186,6 +189,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "damage",
     "marketing",
     "dm_expense",
+    "automated_performance_tracker",
     "ads_campaign_kpi",
     "profit_loss",
     "auto_profit_loss",
@@ -230,6 +234,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "reports",
     ...REPORT_PERMISSION_KEYS,
     "accounting",
+    "accounting_overview",
     "accounting_supplier",
     "book",
     "petty_cash_requisition",
@@ -280,6 +285,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
   marketer: [
     "marketing",
     "dm_expense",
+    "automated_performance_tracker",
     "ads_campaign_kpi",
     "profit_loss",
     "auto_profit_loss",
@@ -348,6 +354,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "profit_loss",
     "profit_loss_user",
     "accounting",
+    "accounting_overview",
     "accounting_supplier",
     "book",
     "petty_cash_requisition",
@@ -499,6 +506,14 @@ export const SIDEBAR_ITEMS = [
         color: "#f97316",
         href: "/marketing-book",
         matchPaths: ["/marketing-book"],
+        roles: ["superAdmin", "admin", "marketer"],
+      },
+      {
+        name: "Automated Performance Tracker",
+        key: "automated_performance_tracker",
+        icon: TrendingUp,
+        color: "#f97316",
+        href: "/performance-tracker",
         roles: ["superAdmin", "admin", "marketer"],
       },
       {
@@ -843,6 +858,13 @@ export const SIDEBAR_ITEMS = [
     color: "#3b82f6",
     roles: ["superAdmin", "admin", "accountant"],
     children: [
+      {
+        name: "Overview",
+        key: "accounting_overview",
+        icon: BarChart3,
+        href: "/accounting-overview",
+        roles: ["superAdmin", "admin", "accountant"],
+      },
       {
         name: "Supplier",
         key: "accounting_supplier",
