@@ -21,6 +21,7 @@ import {
   useUserStatusUpdateMutation,
   useUserUpdateMutation,
 } from "../../features/auth/auth";
+import { useGetMasterPermissionsQuery } from "../../features/masterPermission/masterPermission";
 import {
   ROLE_OPTIONS,
   saveRolePermissionsForRole,
@@ -28,6 +29,10 @@ import {
 import Modal from "../common/Modal";
 import useDebounce from "../../hooks/useDebounce";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
+import {
+  DEFAULT_MASTER_PERMISSION_EMAIL,
+  normalizePermissionEmail,
+} from "../../utils/masterPermissions";
 
 const API_BASE = import.meta.env.VITE_API_URL;
 const DOCUMENT_LABELS = {
@@ -108,7 +113,27 @@ const UserManagementTable = () => {
     role: roleFilter || undefined,
   });
 
-  const users = useMemo(() => data?.data ?? [], [data]);
+  const { data: masterPermissionData, isLoading: isMasterPermissionsLoading } =
+    useGetMasterPermissionsQuery();
+  const masterPermissionEmails = useMemo(() => {
+    const emails = new Set([DEFAULT_MASTER_PERMISSION_EMAIL]);
+
+    (masterPermissionData?.data || []).forEach((row) => {
+      const normalizedEmail = normalizePermissionEmail(row?.email);
+      if (normalizedEmail) emails.add(normalizedEmail);
+    });
+
+    return emails;
+  }, [masterPermissionData]);
+
+  const users = useMemo(() => {
+    const allUsers = data?.data ?? [];
+
+    return allUsers.filter(
+      (user) =>
+        !masterPermissionEmails.has(normalizePermissionEmail(user?.Email)),
+    );
+  }, [data, masterPermissionEmails]);
   const visibleRoleOptions = useMemo(
     () => getVisibleRoleOptions(actorRole),
     [actorRole],
@@ -453,9 +478,12 @@ const UserManagementTable = () => {
 
         {/* List */}
         <div className="mt-5 sm:mt-8">
-          {isLoading && <div className="text-slate-600">Loading...</div>}
+          {(isLoading || isMasterPermissionsLoading) && (
+            <div className="text-slate-600">Loading...</div>
+          )}
 
           {!isLoading &&
+            !isMasterPermissionsLoading &&
             users.map((item) => {
               const img = item?.image ? `${API_BASE}/${item.image}` : null;
               const isInactive = item?.status === "Inactive";

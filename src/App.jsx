@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Route, Routes, useLocation } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { Provider } from "react-redux";
 import { Toaster } from "react-hot-toast";
 import store from "./app/store";
@@ -193,7 +193,8 @@ function App() {
                 <Route path="/shifa/problem-history" element={<AuthedRoute><ShifaProblemHistoryPage /></AuthedRoute>} />
                 <Route path="/shifa/patient-update" element={<AuthedRoute><ShifaPatientUpdatePage /></AuthedRoute>} />
                 <Route path="/employee-kpi" element={<AuthedRoute><EmployeeKPIPage /></AuthedRoute>} />
-                <Route path="/employee" element={<AuthedRoute><EmployeePage /></AuthedRoute>} />
+                <Route path="/payroll" element={<AuthedRoute><EmployeePage /></AuthedRoute>} />
+                <Route path="/employee" element={<Navigate to="/payroll" replace />} />
                 <Route path="/pos-sell" element={<AuthedRoute><POSPage /></AuthedRoute>} />
                 <Route path="/pos-report" element={<AuthedRoute><PosReportPage /></AuthedRoute>} />
                 <Route path="/inventory-overview" element={<AuthedRoute><InventoryDashboardPage /></AuthedRoute>} />
@@ -268,7 +269,8 @@ function App() {
                 <Route path="/Receivable" element={<AuthedRoute><ReceiveablePage /></AuthedRoute>} />
                 <Route path="/payable" element={<AuthedRoute><PayablePage /></AuthedRoute>} />
                 <Route path="/user-management" element={<AuthedRoute><UsermanagementPage /></AuthedRoute>} />
-                <Route path="/salary" element={<AuthedRoute><SalaryPage /></AuthedRoute>} />
+                <Route path="/payroll-fine" element={<AuthedRoute><SalaryPage /></AuthedRoute>} />
+                <Route path="/salary" element={<Navigate to="/payroll-fine" replace />} />
                 <Route path="/logo" element={<AuthedRoute><LogoPage /></AuthedRoute>} />
                 <Route path="/tasks" element={<AuthedRoute><TaskPage /></AuthedRoute>} />
                 <Route path="/settings/notice" element={<AuthedRoute><NoticePage /></AuthedRoute>} />

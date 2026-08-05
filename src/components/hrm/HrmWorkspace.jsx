@@ -175,18 +175,21 @@ const SECTION_ITEMS = [
   {
     group: "Payroll",
     label: "Payroll",
-    href: "/employee",
-    match: ["/employee"],
+    href: "/payroll",
+    match: ["/payroll", "/employee"],
     icon: CircleDollarSign,
   },
   {
     group: "Payroll",
     label: "Payroll Fine",
-    href: "/salary",
-    match: ["/salary"],
+    href: "/payroll-fine",
+    match: ["/payroll-fine", "/salary"],
     icon: Building2,
   },
 ];
+
+const pathMatchesSection = (pathname, matchPath) =>
+  pathname === matchPath || pathname.startsWith(`${matchPath}/`);
 
 const HrmWorkspace = ({
   eyebrow = "Phase 1",
@@ -207,7 +210,7 @@ const HrmWorkspace = ({
   );
   const activeSectionGroup = useMemo(() => {
     const activeItem = SECTION_ITEMS.find((item) =>
-      item.match.some((matchPath) => pathname.startsWith(matchPath)),
+      item.match.some((matchPath) => pathMatchesSection(pathname, matchPath)),
     );
 
     return activeItem?.group || "HRM";
@@ -278,7 +281,7 @@ const HrmWorkspace = ({
               <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-2">
                 {section.items.map((item) => {
                   const active = item.match.some((matchPath) =>
-                    pathname.startsWith(matchPath),
+                    pathMatchesSection(pathname, matchPath),
                   );
                   const Icon = item.icon;
 

@@ -7,6 +7,7 @@ import {
   Notebook,
   Download,
   Printer,
+  Upload,
   RotateCcw,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -54,6 +55,38 @@ const getEmployeeCode = (employee) =>
       "",
   ).trim();
 
+const normalizeSheetHeader = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+
+const getSheetValue = (row, aliases) => {
+  const normalizedRow = Object.entries(row || {}).reduce((acc, [key, value]) => {
+    acc[normalizeSheetHeader(key)] = value;
+    return acc;
+  }, {});
+
+  for (const alias of aliases) {
+    const key = normalizeSheetHeader(alias);
+    if (normalizedRow[key] !== undefined && normalizedRow[key] !== null) {
+      return normalizedRow[key];
+    }
+  }
+
+  return "";
+};
+
+const normalizeSheetNumber = (value) => {
+  if (value === null || value === undefined || String(value).trim() === "") {
+    return "0";
+  }
+
+  const parsed = Number(String(value).replace(/,/g, "").trim());
+  return Number.isFinite(parsed) ? String(parsed) : "0";
+};
+
 const EmployeeTable = () => {
   const { language } = useLayout();
   const t = translations[language] || translations.EN;
@@ -69,6 +102,10 @@ const EmployeeTable = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isEditModalOpen1, setIsEditModalOpen1] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isSheetUploadModalOpen, setIsSheetUploadModalOpen] = useState(false);
+  const [sheetDraftRows, setSheetDraftRows] = useState([]);
+  const [isSheetSaving, setIsSheetSaving] = useState(false);
+  const sheetFileInputRef = useRef(null);
 
   // Invoice (single)
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
@@ -793,6 +830,34 @@ const EmployeeTable = () => {
     };
   };
 
+  const applyAttendanceDeductionDefaults = (base, sheetRow) => {
+    const next = {
+      ...base,
+      absent: normalizeSheetNumber(
+        getSheetValue(sheetRow, ["Absent", "absent", "Absent Days"]),
+      ),
+      late: normalizeSheetNumber(
+        getSheetValue(sheetRow, ["Late", "late", "Late Days"]),
+      ),
+      early_leave: normalizeSheetNumber(
+        getSheetValue(sheetRow, [
+          "Early Out",
+          "Early Leave",
+          "early_leave",
+          "early leave",
+          "early out",
+        ]),
+      ),
+    };
+    const s = calcSalary(next);
+
+    return {
+      ...next,
+      total_salary: s.total_salary.toFixed(2),
+      net_salary: s.net_salary.toFixed(2),
+    };
+  };
+
   const handleCreateEmployeeSelect = (selected) => {
     setCreateEmployee((prev) => applyEmployeeSalaryDefaults(prev, selected));
   };
@@ -957,6 +1022,43 @@ const EmployeeTable = () => {
   const [updateEmployee] = useUpdateEmployeeMutation();
   const [deleteEmployee] = useDeleteEmployeeMutation();
 
+  const buildEmployeeCreatePayload = (source) => {
+    const s = calcSalary(source);
+
+    return {
+      ...source,
+      date: source.date || undefined,
+      name: source.name || "",
+      departmentId: normalizeOptionalId(source.departmentId),
+      designationId: normalizeOptionalId(source.designationId),
+      employee_id: source.employee_id || "",
+      employeeListId: normalizeOptionalId(source.employeeListId),
+      joining_date: source.joining_date || null,
+      pre_joining_days: Number(source.pre_joining_days) || 0,
+      payable_days: source.payable_days === "" ? 30 : Number(source.payable_days) || 0,
+      bookId: normalizeOptionalId(source.bookId),
+      note: source.note || "",
+      remarks: source.remarks || "",
+
+      basic_salary: Number(source.basic_salary) || 0,
+      incentive: Number(source.incentive) || 0,
+      festival_bonus: Number(source.festival_bonus) || 0,
+      holiday_payment: Number(source.holiday_payment) || 0,
+
+      advance: Number(source.advance) || 0,
+      late: Number(source.late) || 0,
+      early_leave: Number(source.early_leave) || 0,
+      absent: Number(source.absent) || 0,
+      half_day_absent: Number(source.half_day_absent) || 0,
+      friday_absent: Number(source.friday_absent) || 0,
+      unapproval_absent: Number(source.unapproval_absent) || 0,
+
+      total_salary: s.total_salary,
+      net_salary: s.net_salary,
+      userId: userId,
+    };
+  };
+
   const handleCreateEmployee = async (e) => {
     e.preventDefault();
     if (!canManagePayroll) return toast.error("You are not allowed to create payroll.");
@@ -971,43 +1073,7 @@ const EmployeeTable = () => {
     //   return toast.error("Book is required when advance exists!");
     // }
     try {
-      const s = calcSalary(createEmployee);
-
-      const payload = {
-        ...createEmployee,
-        date: createEmployee.date || undefined,
-        name: createEmployee.name || "",
-        departmentId: normalizeOptionalId(createEmployee.departmentId),
-        designationId: normalizeOptionalId(createEmployee.designationId),
-        employee_id: createEmployee.employee_id || "",
-        employeeListId: normalizeOptionalId(createEmployee.employeeListId),
-        joining_date: createEmployee.joining_date || null,
-        pre_joining_days: Number(createEmployee.pre_joining_days) || 0,
-        payable_days:
-          createEmployee.payable_days === ""
-            ? 30
-            : Number(createEmployee.payable_days) || 0,
-        bookId: normalizeOptionalId(createEmployee.bookId),
-        note: createEmployee.note || "",
-        remarks: createEmployee.remarks || "",
-
-        basic_salary: Number(createEmployee.basic_salary) || 0,
-        incentive: Number(createEmployee.incentive) || 0,
-        festival_bonus: Number(createEmployee.festival_bonus) || 0,
-        holiday_payment: Number(createEmployee.holiday_payment) || 0,
-
-        advance: Number(createEmployee.advance) || 0,
-        late: Number(createEmployee.late) || 0,
-        early_leave: Number(createEmployee.early_leave) || 0,
-        absent: Number(createEmployee.absent) || 0,
-        half_day_absent: Number(createEmployee.half_day_absent) || 0,
-        friday_absent: Number(createEmployee.friday_absent) || 0,
-        unapproval_absent: Number(createEmployee.unapproval_absent) || 0,
-
-        total_salary: s.total_salary,
-        net_salary: s.net_salary,
-        userId: userId,
-      };
+      const payload = buildEmployeeCreatePayload(createEmployee);
 
       const res = await insertEmployee(payload).unwrap();
       if (res.success) {
@@ -1088,6 +1154,156 @@ const EmployeeTable = () => {
       }
     } catch (err) {
       toast.error(err?.data?.message || "Update failed!");
+    }
+  };
+
+  const handleSheetUploadClick = () => {
+    if (!canManagePayroll) return;
+    sheetFileInputRef.current?.click();
+  };
+
+  const handleSheetFileChange = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: "array" });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+      if (!rows.length) {
+        toast.error("No rows found in the uploaded sheet.");
+        return;
+      }
+
+      const drafts = rows.map((row, index) => {
+        const regId = String(
+          getSheetValue(row, ["Reg ID", "RegId", "Registration ID", "employee_id"]),
+        ).trim();
+        const matchedEmployee = employeeSalaryOptions.find(
+          (employee) => String(employee.employee_id || "").trim() === regId,
+        );
+
+        if (!matchedEmployee) {
+          return {
+            rowKey: `sheet-row-${index}`,
+            sourceRowNumber: index + 2,
+            regId,
+            matched: false,
+            reason: regId ? "Employee not matched" : "Reg ID missing",
+            data: {
+              ...emptyEmployee,
+              employee_id: regId,
+              absent: normalizeSheetNumber(getSheetValue(row, ["Absent"])),
+              late: normalizeSheetNumber(getSheetValue(row, ["Late"])),
+              early_leave: normalizeSheetNumber(
+                getSheetValue(row, ["Early Out", "Early Leave"]),
+              ),
+            },
+          };
+        }
+
+        const base = applyEmployeeSalaryDefaults(
+          {
+            ...emptyEmployee,
+            date: today,
+            payable_days: "30",
+            remarks: "Imported from attendance sheet",
+          },
+          matchedEmployee,
+        );
+
+        return {
+          rowKey: `sheet-row-${index}`,
+          sourceRowNumber: index + 2,
+          regId,
+          matched: true,
+          reason: "",
+          data: applyAttendanceDeductionDefaults(base, row),
+        };
+      });
+
+      setSheetDraftRows(drafts);
+      setIsSheetUploadModalOpen(true);
+
+      const matchedCount = drafts.filter((row) => row.matched).length;
+      const unmatchedCount = drafts.length - matchedCount;
+      toast.success(
+        `Sheet loaded: ${matchedCount} matched${
+          unmatchedCount ? `, ${unmatchedCount} unmatched` : ""
+        }.`,
+      );
+    } catch (err) {
+      console.error(err);
+      toast.error("Sheet upload failed. Please upload XLSX/XLS/CSV file.");
+    }
+  };
+
+  const updateSheetDraftField = (rowKey, key, value) => {
+    setSheetDraftRows((prev) =>
+      prev.map((row) => {
+        if (row.rowKey !== rowKey) return row;
+        const next =
+          key === "pre_joining_days"
+            ? applyPreJoiningDays(row.data, value)
+            : { ...row.data, [key]: value };
+        const s = calcSalary(next);
+
+        return {
+          ...row,
+          data: {
+            ...next,
+            total_salary: s.total_salary.toFixed(2),
+            net_salary: s.net_salary.toFixed(2),
+          },
+        };
+      }),
+    );
+  };
+
+  const closeSheetUploadModal = () => {
+    if (isSheetSaving) return;
+    setIsSheetUploadModalOpen(false);
+  };
+
+  const handleSaveSheetDrafts = async () => {
+    if (!canManagePayroll) return toast.error("You are not allowed to create payroll.");
+
+    const rowsToSave = sheetDraftRows.filter((row) => row.matched);
+    if (!rowsToSave.length) {
+      toast.error("No matched employee rows found to insert.");
+      return;
+    }
+
+    const invalidRow = rowsToSave.find(
+      (row) => !row.data.name?.trim() || !row.data.employee_id?.toString().trim(),
+    );
+    if (invalidRow) {
+      toast.error(`Row ${invalidRow.sourceRowNumber}: Name and Employee Id are required.`);
+      return;
+    }
+
+    try {
+      setIsSheetSaving(true);
+      let savedCount = 0;
+
+      for (const row of rowsToSave) {
+        const payload = buildEmployeeCreatePayload(row.data);
+        const res = await insertEmployee(payload).unwrap();
+        if (res?.success) savedCount += 1;
+      }
+
+      toast.success(`Successfully inserted ${savedCount} salary rows.`);
+      setIsSheetUploadModalOpen(false);
+      setSheetDraftRows([]);
+      refetch?.();
+    } catch (err) {
+      toast.error(err?.data?.message || "Sheet rows insert failed.");
+    } finally {
+      setIsSheetSaving(false);
     }
   };
 
@@ -2401,12 +2617,30 @@ const EmployeeTable = () => {
       <div className="my-2 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div className="my-2 flex flex-wrap items-center justify-start gap-3 xl:my-6 xl:flex-1">
           {canManagePayroll && (
-            <button
-              className="inline-flex min-h-10 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-indigo-600 px-4 py-2 text-white shadow-sm transition hover:bg-indigo-700"
-              onClick={openAddModal}
-            >
-              {t.add} <Plus size={18} />
-            </button>
+            <>
+              <button
+                className="inline-flex min-h-10 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-indigo-600 px-4 py-2 text-white shadow-sm transition hover:bg-indigo-700"
+                onClick={openAddModal}
+              >
+                {t.add} <Plus size={18} />
+              </button>
+
+              <button
+                className="inline-flex min-h-10 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100"
+                onClick={handleSheetUploadClick}
+                type="button"
+              >
+                <Upload size={18} />
+                Upload Sheet
+              </button>
+              <input
+                ref={sheetFileInputRef}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                className="hidden"
+                onChange={handleSheetFileChange}
+              />
+            </>
           )}
 
           <button
@@ -3274,6 +3508,186 @@ const EmployeeTable = () => {
               className="px-10 py-3 rounded-2xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-700 transition shadow-xl shadow-indigo-100"
             >
               {t.confirm_update || "Confirm Update"}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* -------------------- Sheet Upload Preview Modal -------------------- */}
+      <Modal
+        isOpen={isSheetUploadModalOpen}
+        onClose={closeSheetUploadModal}
+        title="Upload Salary Deduction Sheet"
+        maxWidth="max-w-7xl"
+      >
+        <div className="space-y-5">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            Matched rows will be inserted by matching sheet Reg ID with employee_id.
+            You can edit salary information before saving. Unmatched rows are skipped.
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">Matched</p>
+              <p className="mt-1 text-2xl font-black text-emerald-900">
+                {sheetDraftRows.filter((row) => row.matched).length}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-rose-700">Unmatched</p>
+              <p className="mt-1 text-2xl font-black text-rose-900">
+                {sheetDraftRows.filter((row) => !row.matched).length}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Rows</p>
+              <p className="mt-1 text-2xl font-black text-slate-900">
+                {sheetDraftRows.length}
+              </p>
+            </div>
+          </div>
+
+          <div className="max-h-[56vh] overflow-auto rounded-2xl border border-slate-200">
+            <table className="min-w-[1900px] divide-y divide-slate-200 text-sm">
+              <thead className="sticky top-0 z-10 bg-slate-50">
+                <tr>
+                  {[
+                    "Row",
+                    "Match",
+                    "Reg ID",
+                    "Name",
+                    "Date",
+                    "Basic",
+                    "Incentive",
+                    "Festival",
+                    "Holiday",
+                    "Payable",
+                    "Absent",
+                    "Late",
+                    "Early Leave",
+                    "Half Day",
+                    "Friday",
+                    "Unapproval",
+                    "Advance",
+                    "Total",
+                    "Net",
+                    "Remarks",
+                  ].map((heading) => (
+                    <th
+                      key={heading}
+                      className="px-3 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500"
+                    >
+                      {heading}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {sheetDraftRows.map((row) => (
+                  <tr key={row.rowKey} className={!row.matched ? "bg-rose-50/50" : ""}>
+                    <td className="px-3 py-3 font-semibold text-slate-700">
+                      {row.sourceRowNumber}
+                    </td>
+                    <td className="px-3 py-3">
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${
+                          row.matched
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-rose-100 text-rose-700"
+                        }`}
+                      >
+                        {row.matched ? "Matched" : row.reason}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 font-semibold text-slate-800">
+                      {row.regId || "-"}
+                    </td>
+                    <td className="px-3 py-3">
+                      <input
+                        value={row.data.name || ""}
+                        onChange={(e) =>
+                          updateSheetDraftField(row.rowKey, "name", e.target.value)
+                        }
+                        disabled={!row.matched}
+                        className="h-10 w-44 rounded-xl border border-slate-200 px-3 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:bg-slate-100"
+                      />
+                    </td>
+                    <td className="px-3 py-3">
+                      <input
+                        type="date"
+                        value={row.data.date || ""}
+                        onChange={(e) =>
+                          updateSheetDraftField(row.rowKey, "date", e.target.value)
+                        }
+                        disabled={!row.matched}
+                        className="h-10 w-40 rounded-xl border border-slate-200 px-3 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:bg-slate-100"
+                      />
+                    </td>
+                    {[
+                      ["basic_salary", "number"],
+                      ["incentive", "number"],
+                      ["festival_bonus", "number"],
+                      ["holiday_payment", "number"],
+                      ["payable_days", "number"],
+                      ["absent", "number"],
+                      ["late", "number"],
+                      ["early_leave", "number"],
+                      ["half_day_absent", "number"],
+                      ["friday_absent", "number"],
+                      ["unapproval_absent", "number"],
+                      ["advance", "number"],
+                    ].map(([field, type]) => (
+                      <td key={field} className="px-3 py-3">
+                        <input
+                          type={type}
+                          step="0.01"
+                          value={row.data[field] ?? ""}
+                          onChange={(e) =>
+                            updateSheetDraftField(row.rowKey, field, e.target.value)
+                          }
+                          disabled={!row.matched}
+                          className="h-10 w-28 rounded-xl border border-slate-200 px-3 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:bg-slate-100"
+                        />
+                      </td>
+                    ))}
+                    <td className="px-3 py-3 font-semibold text-slate-700">
+                      {Number(row.data.total_salary || 0).toFixed(2)}
+                    </td>
+                    <td className="px-3 py-3 font-semibold text-slate-900">
+                      {Number(row.data.net_salary || 0).toFixed(2)}
+                    </td>
+                    <td className="px-3 py-3">
+                      <input
+                        value={row.data.remarks || ""}
+                        onChange={(e) =>
+                          updateSheetDraftField(row.rowKey, "remarks", e.target.value)
+                        }
+                        disabled={!row.matched}
+                        className="h-10 w-64 rounded-xl border border-slate-200 px-3 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:bg-slate-100"
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="flex justify-end gap-3 border-t border-slate-100 pt-5">
+            <button
+              type="button"
+              onClick={closeSheetUploadModal}
+              disabled={isSheetSaving}
+              className="rounded-2xl border border-slate-200 px-6 py-3 text-sm font-bold text-slate-500 transition hover:bg-slate-50 disabled:opacity-60"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveSheetDrafts}
+              disabled={isSheetSaving || !sheetDraftRows.some((row) => row.matched)}
+              className="rounded-2xl bg-indigo-600 px-8 py-3 text-sm font-bold text-white shadow-xl shadow-indigo-100 transition hover:bg-indigo-700 disabled:opacity-60"
+            >
+              {isSheetSaving ? "Saving..." : "Save Matched Rows"}
             </button>
           </div>
         </div>

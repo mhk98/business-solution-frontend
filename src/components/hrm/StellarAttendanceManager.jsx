@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
+import toast from "react-hot-toast";
 import {
   ArrowLeft,
   CalendarRange,
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
+  Download,
   Fingerprint,
   RefreshCcw,
   Search,
@@ -205,6 +207,29 @@ const countLeaveDates = ({ leaveRequests, employeeId, range, excludedDates }) =>
 
   return dates.size;
 };
+
+const getAttendanceExportFileName = (range) =>
+  `attendance-summary-${range.start}-to-${range.end}.xlsx`;
+
+const getAttendanceSheetRows = (rows, range) => [
+  { Field: "Report", Value: "Attendance Monthly Summary" },
+  { Field: "Date Range", Value: `${range.start} to ${range.end}` },
+  { Field: "Total Employees", Value: rows.length },
+  {},
+  ...rows.map((row) => ({
+    "Reg ID": row.registrationId || "-",
+    Name: row.name || "-",
+    Phone: row.phone || "-",
+    "Working Days": row.workDays,
+    "Day Off": row.dayOff,
+    Present: row.present,
+    Absent: row.absent,
+    Leave: row.leave,
+    Late: row.late,
+    "Early Out": row.earlyOut,
+    "Present %": `${row.presentPercent}%`,
+  })),
+];
 
 const formatPickerLabel = (type, value) => {
   if (!value) return type === "month" ? "Select month" : "Select date";
@@ -820,6 +845,35 @@ const StellarAttendanceManager = () => {
     [detailRows],
   );
 
+  const isSummaryLoading =
+    isLogsFetching ||
+    isUsersFetching ||
+    isEmployeesFetching ||
+    isHolidaysFetching ||
+    isLeavesFetching;
+
+  const handleDownloadSheet = async () => {
+    if (isDetail) return;
+
+    if (!filteredSummaryRows.length) {
+      toast.error("No attendance data found for download.");
+      return;
+    }
+
+    try {
+      const XLSX = await import("xlsx");
+      const worksheet = XLSX.utils.json_to_sheet(
+        getAttendanceSheetRows(filteredSummaryRows, activeRange),
+        { skipHeader: false },
+      );
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Attendance Summary");
+      XLSX.writeFile(workbook, getAttendanceExportFileName(activeRange));
+    } catch (err) {
+      toast.error("Google Sheet download failed.");
+    }
+  };
+
   const stats = [
     {
       name: isDetail ? "Present Days" : "Employees",
@@ -912,6 +966,18 @@ const StellarAttendanceManager = () => {
               </>
             )}
 
+            {!isDetail ? (
+              <button
+                type="button"
+                onClick={handleDownloadSheet}
+                disabled={isSummaryLoading}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-bold text-emerald-700 shadow-sm transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <Download size={16} />
+                Download Sheet
+              </button>
+            ) : null}
+
             <button
               type="button"
               onClick={() => setSyncNonce((prev) => prev + 1)}
@@ -960,13 +1026,7 @@ const StellarAttendanceManager = () => {
       ) : (
         <SummaryTable
           rows={filteredSummaryRows}
-          isLoading={
-            isLogsFetching ||
-            isUsersFetching ||
-            isEmployeesFetching ||
-            isHolidaysFetching ||
-            isLeavesFetching
-          }
+          isLoading={isSummaryLoading}
           range={activeRange}
         />
       )}
