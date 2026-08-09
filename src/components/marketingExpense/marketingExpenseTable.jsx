@@ -15,7 +15,6 @@ import { generateMarketingExpenseXlsx } from "../../utils/report/generateMarketi
 import {
   useDeleteMarketingExpenseMutation,
   useGetAllMarketingExpenseQuery,
-  useGetSingleMarketingExpenseQuery,
   useInsertMarketingExpenseMutation,
   useUpdateMarketingExpenseMutation,
 } from "../../features/marketingExpense/marketingExpense";
@@ -46,7 +45,7 @@ import useDebounce from "../../hooks/useDebounce";
 //   "Trust Bank",
 // ];
 
-const MarketingExpenseTable = () => {
+const MarketingExpenseTable = ({ bookName = "" }) => {
   const { language } = useLayout();
   const t = translations[language] || translations.EN;
   const { id } = useParams(); // bookId
@@ -199,12 +198,6 @@ const MarketingExpenseTable = () => {
       setTotalPages(Math.ceil((data?.meta?.count || 0) / itemsPerPage) || 1);
     }
   }, [data, isLoading, isError, error, itemsPerPage]);
-
-  // book info (name for report header)
-  const { data: bookRes } = useGetSingleMarketingExpenseQuery(id, {
-    skip: !id,
-  });
-  const bookName = bookRes?.data?.name || "";
 
   // modals
   const handleAddCashIn = () => setIsModalOpen1(true);

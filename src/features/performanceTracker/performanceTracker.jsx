@@ -64,6 +64,84 @@ export const performanceTrackerApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: [{ type: "PerformanceTracker", id: "CHANNELS" }],
     }),
+    getPerformanceTrackerAdsAccounts: build.query({
+      query: (params = {}) => ({
+        url: "/performance-tracker/ads-accounts",
+        params: cleanParams(params),
+      }),
+      providesTags: [{ type: "PerformanceTracker", id: "ADS_ACCOUNTS" }],
+      refetchOnMountOrArgChange: true,
+    }),
+    getAllPerformanceTrackerAdsAccounts: build.query({
+      query: (params = {}) => ({
+        url: "/performance-tracker/ads-accounts/all",
+        params: cleanParams(params),
+      }),
+      providesTags: [{ type: "PerformanceTracker", id: "ADS_ACCOUNTS" }],
+      refetchOnMountOrArgChange: true,
+    }),
+    createPerformanceTrackerAdsAccount: build.mutation({
+      query: (data) => ({
+        url: "/performance-tracker/ads-accounts/create",
+        method: "POST",
+        body: data,
+      }),
+      invalidatesTags: [{ type: "PerformanceTracker", id: "ADS_ACCOUNTS" }],
+    }),
+    updatePerformanceTrackerAdsAccount: build.mutation({
+      query: ({ id, data }) => ({
+        url: `/performance-tracker/ads-accounts/${id}`,
+        method: "PUT",
+        body: data,
+      }),
+      invalidatesTags: [{ type: "PerformanceTracker", id: "ADS_ACCOUNTS" }],
+    }),
+    deletePerformanceTrackerAdsAccount: build.mutation({
+      query: (id) => ({
+        url: `/performance-tracker/ads-accounts/${id}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: [{ type: "PerformanceTracker", id: "ADS_ACCOUNTS" }],
+    }),
+    getPerformanceTrackerProducts: build.query({
+      query: (params = {}) => ({
+        url: "/performance-tracker/products",
+        params: cleanParams(params),
+      }),
+      providesTags: [{ type: "PerformanceTracker", id: "PRODUCTS" }],
+      refetchOnMountOrArgChange: true,
+    }),
+    getAllPerformanceTrackerProducts: build.query({
+      query: (params = {}) => ({
+        url: "/performance-tracker/products/all",
+        params: cleanParams(params),
+      }),
+      providesTags: [{ type: "PerformanceTracker", id: "PRODUCTS" }],
+      refetchOnMountOrArgChange: true,
+    }),
+    createPerformanceTrackerProduct: build.mutation({
+      query: (data) => ({
+        url: "/performance-tracker/products/create",
+        method: "POST",
+        body: data,
+      }),
+      invalidatesTags: [{ type: "PerformanceTracker", id: "PRODUCTS" }],
+    }),
+    updatePerformanceTrackerProduct: build.mutation({
+      query: ({ id, data }) => ({
+        url: `/performance-tracker/products/${id}`,
+        method: "PUT",
+        body: data,
+      }),
+      invalidatesTags: [{ type: "PerformanceTracker", id: "PRODUCTS" }],
+    }),
+    deletePerformanceTrackerProduct: build.mutation({
+      query: (id) => ({
+        url: `/performance-tracker/products/${id}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: [{ type: "PerformanceTracker", id: "PRODUCTS" }],
+    }),
     getPerformanceTrackerEntries: build.query({
       query: (params = {}) => ({
         url: "/performance-tracker/entries",
@@ -82,6 +160,8 @@ export const performanceTrackerApi = baseApi.injectEndpoints({
         { type: "PerformanceTracker", id: "ENTRIES" },
         { type: "PerformanceTracker", id: "DASHBOARD" },
         { type: "PerformanceTracker", id: "COMPARE" },
+        { type: "PerformanceTracker", id: "ADS_ACCOUNTS" },
+        { type: "PerformanceTracker", id: "PRODUCTS" },
       ],
     }),
     updatePerformanceTrackerEntry: build.mutation({
@@ -135,6 +215,16 @@ export const {
   useCreatePerformanceTrackerChannelMutation,
   useUpdatePerformanceTrackerChannelMutation,
   useDeletePerformanceTrackerChannelMutation,
+  useGetPerformanceTrackerAdsAccountsQuery,
+  useGetAllPerformanceTrackerAdsAccountsQuery,
+  useCreatePerformanceTrackerAdsAccountMutation,
+  useUpdatePerformanceTrackerAdsAccountMutation,
+  useDeletePerformanceTrackerAdsAccountMutation,
+  useGetPerformanceTrackerProductsQuery,
+  useGetAllPerformanceTrackerProductsQuery,
+  useCreatePerformanceTrackerProductMutation,
+  useUpdatePerformanceTrackerProductMutation,
+  useDeletePerformanceTrackerProductMutation,
   useGetPerformanceTrackerEntriesQuery,
   useCreatePerformanceTrackerEntryMutation,
   useUpdatePerformanceTrackerEntryMutation,

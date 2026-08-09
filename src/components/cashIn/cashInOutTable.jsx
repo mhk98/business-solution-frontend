@@ -48,8 +48,226 @@ import { useGetAllLogoQuery } from "../../features/logo/logo";
 import {
   DEFAULT_COMPANY_NAME,
   buildAssetUrl,
-  drawPdfBrandBlock,
 } from "../../utils/pdfBranding";
+
+const escapeVoucherHtml = (value) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+const drawWrappedText = (ctx, text, x, y, maxWidth, lineHeight, maxLines = 3) => {
+  const normalizedText = String(text || "-").replace(/\s+/g, " ").trim();
+  const words = normalizedText.split(" ");
+  const lines = [];
+  let line = "";
+
+  words.forEach((word) => {
+    const testLine = line ? line + " " + word : word;
+    if (ctx.measureText(testLine).width > maxWidth && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = testLine;
+    }
+  });
+
+  if (line) lines.push(line);
+
+  lines.slice(0, maxLines).forEach((lineText, index) => {
+    ctx.fillText(lineText, x, y + index * lineHeight);
+  });
+};
+
+const renderVoucherPdfFromCanvas = async ({
+  voucherNo,
+  voucherTitle,
+  isCashOut,
+  date,
+  detailRows,
+  amount,
+  note,
+  widthMm,
+  heightMm,
+}) => {
+  if (document.fonts?.ready) await document.fonts.ready;
+
+  const scale = 2;
+  const width = 575;
+  const height = 825;
+  const canvas = document.createElement("canvas");
+  canvas.width = width * scale;
+  canvas.height = height * scale;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(scale, scale);
+
+  const fontFamily = "Hind Siliguri, Plus Jakarta Sans, Arial, sans-serif";
+  const setFont = (size, weight = 400) => {
+    ctx.font = String(weight) + " " + size + "px " + fontFamily;
+  };
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+  ctx.strokeStyle = "#1f2937";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(38, 30, width - 76, height - 60);
+
+  const left = 54;
+  const right = width - 54;
+  let y = 58;
+
+  ctx.fillStyle = "#111827";
+  setFont(18, 800);
+  ctx.fillText(DEFAULT_COMPANY_NAME, left, y + 18);
+  ctx.fillStyle = "#64748b";
+  setFont(13, 400);
+  ctx.fillText("Control Panel Cash Memo", left, y + 40);
+
+  ctx.fillStyle = "#111827";
+  setFont(22, 900);
+  ctx.textAlign = "right";
+  ctx.fillText(String(voucherTitle || "Cash Memo").toUpperCase(), right, y + 18);
+  ctx.fillStyle = "#64748b";
+  setFont(13, 400);
+  ctx.fillText("Date: " + (date || "-"), right, y + 42);
+  ctx.textAlign = "left";
+
+  y = 105;
+  ctx.strokeStyle = "#9ca3af";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(left, y);
+  ctx.lineTo(right, y);
+  ctx.stroke();
+
+  y = 132;
+  const typeBoxWidth = 136;
+  const metaGap = 18;
+  const metaWidth = right - left - typeBoxWidth - metaGap;
+  ctx.strokeStyle = "#334155";
+  ctx.strokeRect(left, y, metaWidth, 50);
+  ctx.strokeRect(right - typeBoxWidth, y, typeBoxWidth, 50);
+
+  ctx.fillStyle = "#64748b";
+  setFont(12, 700);
+  ctx.fillText("Voucher No", left + 13, y + 19);
+  ctx.fillStyle = "#111827";
+  setFont(15, 900);
+  drawWrappedText(ctx, voucherNo, left + 13, y + 38, metaWidth - 26, 16, 1);
+
+  ctx.textAlign = "center";
+  setFont(14, 900);
+  ctx.fillText(isCashOut ? "CASH OUT" : "CASH IN", right - typeBoxWidth / 2, y + 31);
+  ctx.textAlign = "left";
+
+  y = 206;
+  const tableWidth = right - left;
+  const headerHeight = 38;
+  const rowHeight = 31;
+  const labelWidth = 150;
+  const tableHeight = headerHeight + rowHeight * detailRows.length;
+
+  ctx.strokeStyle = "#d1d5db";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(left, y, tableWidth, tableHeight);
+  ctx.fillStyle = "#f8fafc";
+  ctx.fillRect(left + 1, y + 1, tableWidth - 2, headerHeight - 1);
+  ctx.fillStyle = "#111827";
+  setFont(15, 900);
+  ctx.fillText("Transaction Details", left + 12, y + 24);
+
+  ctx.beginPath();
+  ctx.moveTo(left, y + headerHeight);
+  ctx.lineTo(right, y + headerHeight);
+  ctx.moveTo(left + labelWidth, y + headerHeight);
+  ctx.lineTo(left + labelWidth, y + tableHeight);
+  ctx.stroke();
+
+  detailRows.forEach(([label, value], index) => {
+    const rowY = y + headerHeight + index * rowHeight;
+    if (index > 0) {
+      ctx.beginPath();
+      ctx.moveTo(left, rowY);
+      ctx.lineTo(right, rowY);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#334155";
+    setFont(13, 900);
+    ctx.fillText(String(label), left + 12, rowY + 20);
+    ctx.fillStyle = "#111827";
+    setFont(13, 400);
+    drawWrappedText(ctx, value, left + labelWidth + 12, rowY + 20, tableWidth - labelWidth - 24, 15, 1);
+  });
+
+  y += tableHeight + 24;
+  ctx.strokeStyle = "#1f2937";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(left, y, tableWidth, 58);
+  ctx.fillStyle = "#64748b";
+  setFont(15, 700);
+  ctx.fillText("Paid Amount", left + 14, y + 35);
+  ctx.fillStyle = "#111827";
+  ctx.textAlign = "right";
+  setFont(25, 900);
+  ctx.fillText(String(amount), right - 45, y + 36);
+  setFont(10, 900);
+  ctx.fillText("BDT", right - 14, y + 36);
+  ctx.textAlign = "left";
+
+  y += 82;
+  ctx.fillStyle = "#111827";
+  setFont(14, 900);
+  ctx.fillText("Note", left, y);
+  y += 12;
+  ctx.strokeStyle = "#9ca3af";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(left, y, tableWidth, 104);
+  ctx.strokeStyle = "#1f2937";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(left, y);
+  ctx.lineTo(left, y + 104);
+  ctx.stroke();
+  ctx.fillStyle = "#111827";
+  setFont(14, 400);
+  drawWrappedText(ctx, note, left + 16, y + 32, tableWidth - 32, 22, 3);
+
+  y = height - 96;
+  const sigGap = 30;
+  const sigWidth = (tableWidth - sigGap * 2) / 3;
+  const labels = ["Prepared By", "Checked By", "Approved By"];
+  labels.forEach((label, index) => {
+    const sigX = left + index * (sigWidth + sigGap);
+    ctx.strokeStyle = "#4b5563";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(sigX, y);
+    ctx.lineTo(sigX + sigWidth, y);
+    ctx.stroke();
+    ctx.fillStyle = "#374151";
+    setFont(11, 900);
+    ctx.textAlign = "center";
+    ctx.fillText(label, sigX + sigWidth / 2, y + 25);
+  });
+  ctx.textAlign = "left";
+
+  const pdf = new jsPDF({
+    orientation: "p",
+    unit: "mm",
+    format: [widthMm, heightMm],
+  });
+  pdf.addImage(
+    canvas.toDataURL("image/png"),
+    "PNG",
+    0,
+    0,
+    widthMm,
+    heightMm,
+  );
+  return pdf;
+};
 
 const STATIC_CATEGORIES = [
   "Office Expense",
@@ -1135,82 +1353,8 @@ const CashInOutTable = () => {
     });
     const voucherWidthMm = 5.75 * 25.4;
     const voucherHeightMm = 8.25 * 25.4;
-    const pdf = new jsPDF({
-      orientation: "p",
-      unit: "mm",
-      format: [voucherWidthMm, voucherHeightMm],
-    });
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const margin = 10;
-    const contentWidth = pageWidth - margin * 2;
-    let y = 13;
-
-    pdf.setDrawColor(55, 65, 81);
-    pdf.setLineWidth(0.35);
-    pdf.rect(margin - 3, 8, contentWidth + 6, pageHeight - 16);
-
-    const headerTopY = y;
-    const headerBottomY = headerTopY + 26;
-
-    await drawPdfBrandBlock({
-      pdf,
-      logoUrl,
-      companyName: DEFAULT_COMPANY_NAME,
-      x: margin + 2,
-      topY: headerTopY,
-      logoMaxWidth: 48,
-      logoMaxHeight: 12.5,
-      companySize: 10,
-      subtitle: "Control Panel Cash Memo",
-      subtitleSize: 9.2,
-    });
-
-    pdf.setTextColor(15, 23, 42);
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(12.5);
-    pdf.text(voucherTitle.toUpperCase(), pageWidth - margin, headerTopY + 8, {
-      align: "right",
-    });
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(9);
-    pdf.setTextColor(102, 102, 102);
-    pdf.text(`Date: ${row?.date || "-"}`, pageWidth - margin, headerTopY + 15, {
-      align: "right",
-    });
-
-    y = headerBottomY;
-    pdf.setDrawColor(156, 163, 175);
-    pdf.setLineWidth(0.25);
-    pdf.line(margin, y, pageWidth - margin, y);
-
-    y += 8;
-    pdf.setDrawColor(31, 41, 55);
-    pdf.setLineWidth(0.25);
-    pdf.rect(margin, y, 46, 11);
-    pdf.setTextColor(75, 85, 99);
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(9.4);
-    pdf.text("Voucher No", margin + 3, y + 4.2);
-    pdf.setTextColor(17, 24, 39);
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(10.8);
-    pdf.text(voucherNo, margin + 3, y + 8.4);
-
-    pdf.rect(pageWidth - margin - 34, y, 34, 11);
-    pdf.setTextColor(17, 24, 39);
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(9.8);
-    pdf.text(
-      isCashOut ? "CASH OUT" : "CASH IN",
-      pageWidth - margin - 17,
-      y + 7.4,
-      {
-        align: "center",
-      },
-    );
-
-    y += 20;
+    const safe = escapeVoucherHtml;
+    const noteText = row?.remarks || row?.note || "-";
     const detailRows = [
       ["From", bookName || "-"],
       ["Receiver", receiverName],
@@ -1222,128 +1366,16 @@ const CashInOutTable = () => {
         row?.paymentMode === "Bank" ? row?.bankAccount || "-" : "-",
       ],
     ];
-    const detailsRowHeight = 8;
-    const detailsHeaderHeight = 10;
-    const detailsBoxHeight =
-      detailsHeaderHeight + detailRows.length * detailsRowHeight;
-
-    pdf.setDrawColor(156, 163, 175);
-    pdf.setLineWidth(0.25);
-    pdf.rect(margin, y, contentWidth, detailsBoxHeight);
-
-    pdf.setTextColor(17, 24, 39);
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(10.6);
-    pdf.text("Transaction Details", margin + 4, y + 6.7);
-
-    pdf.setDrawColor(209, 213, 219);
-    pdf.line(
-      margin,
-      y + detailsHeaderHeight,
-      pageWidth - margin,
-      y + detailsHeaderHeight,
-    );
-
-    const labelColumnWidth = 38;
-    const labelX = margin + 4;
-    const valueX = margin + labelColumnWidth + 4;
-    let rowTop = y + detailsHeaderHeight;
-
-    pdf.setFontSize(9.2);
-    detailRows.forEach(([label, value], index) => {
-      const textY = rowTop + 5;
-      if (index > 0) {
-        pdf.setDrawColor(229, 231, 235);
-        pdf.line(margin, rowTop, pageWidth - margin, rowTop);
-      }
-      pdf.setDrawColor(229, 231, 235);
-      pdf.line(
-        margin + labelColumnWidth,
-        rowTop,
-        margin + labelColumnWidth,
-        rowTop + detailsRowHeight,
-      );
-      pdf.setFont("helvetica", "bold");
-      pdf.setTextColor(55, 65, 81);
-      pdf.text(label, labelX, textY);
-      pdf.setFont("helvetica", "normal");
-      pdf.setTextColor(17, 24, 39);
-      pdf.text(
-        pdf.splitTextToSize(
-          String(value),
-          contentWidth - labelColumnWidth - 12,
-        ),
-        valueX,
-        textY,
-      );
-      rowTop += detailsRowHeight;
-    });
-
-    y += detailsBoxHeight + 7;
-    const amountBoxHeight = 16;
-    pdf.setDrawColor(31, 41, 55);
-    pdf.setLineWidth(0.35);
-    pdf.rect(margin, y, contentWidth, amountBoxHeight);
-    pdf.setTextColor(75, 85, 99);
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(10.6);
-    pdf.text("Paid Amount", margin + 4, y + 8);
-    pdf.setTextColor(17, 24, 39);
-    const amountRightX = pageWidth - margin - 6;
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(6.5);
-    const currency = "BDT";
-    const currencyWidth = pdf.getTextWidth(currency);
-    pdf.text(currency, amountRightX, y + 10.5, {
-      align: "right",
-    });
-    pdf.setFontSize(15);
-    pdf.text(amount, amountRightX - currencyWidth - 2, y + 11.3, {
-      align: "right",
-    });
-
-    y += amountBoxHeight + 11;
-    pdf.setTextColor(17, 24, 39);
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(9.8);
-    pdf.text("Note", margin, y);
-
-    y += 5;
-    const noteBoxY = y;
-    const noteBoxHeight = 18;
-    pdf.setDrawColor(156, 163, 175);
-    pdf.setLineWidth(0.25);
-    pdf.rect(margin, noteBoxY, contentWidth, noteBoxHeight);
-    pdf.setDrawColor(31, 41, 55);
-    pdf.setLineWidth(0.45);
-    pdf.line(margin, noteBoxY, margin, noteBoxY + noteBoxHeight);
-    pdf.setFont("helvetica", "normal");
-    pdf.setTextColor(55, 65, 81);
-    pdf.setFontSize(10);
-    const noteLines = pdf.splitTextToSize(
-      String(row?.remarks || row?.note || "-"),
-      contentWidth - 14,
-    );
-    pdf.text(noteLines.slice(0, 3), margin + 5, noteBoxY + 7);
-
-    y = noteBoxY + noteBoxHeight + 11;
-    pdf.setDrawColor(75, 85, 99);
-    pdf.setLineWidth(0.2);
-    pdf.setTextColor(55, 65, 81);
-    const signatureWidth = 30;
-    const signatureGap = 12;
-    const signatureGroupWidth = signatureWidth * 3 + signatureGap * 2;
-    const preparedX = (pageWidth - signatureGroupWidth) / 2;
-    const approvedX = preparedX + (signatureWidth + signatureGap) * 2;
-    [
-      [preparedX, "Prepared By"],
-      [preparedX + signatureWidth + signatureGap, "Checked By"],
-      [approvedX, "Approved By"],
-    ].forEach(([x, label]) => {
-      pdf.line(x, y, x + signatureWidth, y);
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(8.8);
-      pdf.text(label, x + signatureWidth / 2, y + 4.8, { align: "center" });
+    const pdf = await renderVoucherPdfFromCanvas({
+      voucherNo,
+      voucherTitle,
+      isCashOut,
+      date: row?.date || "-",
+      detailRows,
+      amount,
+      note: noteText,
+      widthMm: voucherWidthMm,
+      heightMm: voucherHeightMm,
     });
 
     return {
@@ -1362,7 +1394,7 @@ const CashInOutTable = () => {
       setVoucherPreview({ open: true, blob, url, filename, title });
     } catch (error) {
       console.error("Voucher preview failed:", error);
-      toast.error("Voucher preview failed!");
+      toast.error(`Voucher preview failed: ${error?.message || "Unknown error"}`);
     }
   };
 

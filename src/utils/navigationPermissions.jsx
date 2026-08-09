@@ -48,7 +48,6 @@ import {
   TrendingUp,
 } from "lucide-react";
 import {
-  REPORT_CATALOG,
   REPORT_PERMISSION_KEYS,
 } from "./reports/reportCatalog";
 
@@ -400,6 +399,8 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "shifa_starting_situation",
     "shifa_problem_history",
     "shifa_patient_update",
+    "shifa_appointment_serial",
+    "shifa_incentive",
     "notifications",
     "tasks",
     "profile",
@@ -414,6 +415,8 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "shifa_starting_situation",
     "shifa_problem_history",
     "shifa_patient_update",
+    "shifa_appointment_serial",
+    "shifa_incentive",
     "notifications",
     "tasks",
     "profile",
@@ -428,6 +431,14 @@ ROLE_OPTIONS.forEach((role) => {
   if (!DEFAULT_PERMISSION_ROLES.has(role.value)) {
     DEFAULT_ROLE_PERMISSION_MAP[role.value] = [];
   }
+});
+
+const createReportsSubmenu = (groupKey, roles, name = "Reports") => ({
+  name,
+  key: "reports",
+  icon: FileSpreadsheet,
+  href: `/reports/group/${groupKey}`,
+  roles,
 });
 
 export const SIDEBAR_ITEMS = [
@@ -490,6 +501,7 @@ export const SIDEBAR_ITEMS = [
         href: "/assets-damage",
         roles: ["superAdmin", "admin", "inventor"],
       },
+      createReportsSubmenu("assets", ["superAdmin", "admin"]),
     ],
   },
   {
@@ -549,6 +561,7 @@ export const SIDEBAR_ITEMS = [
         href: "/profit-loss-user",
         roles: ["superAdmin", "admin", "marketer"],
       },
+      createReportsSubmenu("marketing", ["superAdmin", "admin"]),
     ],
   },
   {
@@ -607,6 +620,7 @@ export const SIDEBAR_ITEMS = [
         href: "/packaging-mixer",
         roles: ["superAdmin", "admin", "inventor"],
       },
+      createReportsSubmenu("packaging", ["superAdmin", "admin"]),
     ],
   },
   {
@@ -686,6 +700,7 @@ export const SIDEBAR_ITEMS = [
         href: "/mixer",
         roles: ["superAdmin", "admin"],
       },
+      createReportsSubmenu("manufacture", ["superAdmin", "admin"]),
     ],
   },
   {
@@ -782,6 +797,7 @@ export const SIDEBAR_ITEMS = [
         href: "/sales-return",
         roles: ["superAdmin", "admin", "inventor"],
       },
+      createReportsSubmenu("inventory", ["superAdmin", "admin"], "Inventory Reports"),
     ],
   },
   {
@@ -826,6 +842,7 @@ export const SIDEBAR_ITEMS = [
         href: "/damage-repaired",
         roles: ["superAdmin", "admin", "inventor"],
       },
+      createReportsSubmenu("damage_management", ["superAdmin", "admin"]),
     ],
   },
   {
@@ -849,6 +866,7 @@ export const SIDEBAR_ITEMS = [
         href: "/pos-report",
         roles: ["superAdmin", "admin", "inventor"],
       },
+      createReportsSubmenu("pos_panel", ["superAdmin", "admin"]),
     ],
   },
   {
@@ -939,6 +957,7 @@ export const SIDEBAR_ITEMS = [
         href: "/credit-ledger",
         roles: ["superAdmin", "admin", "accountant"],
       },
+      createReportsSubmenu("accounting", ["superAdmin", "admin"]),
     ],
   },
   {
@@ -1070,6 +1089,7 @@ export const SIDEBAR_ITEMS = [
         roles: ["superAdmin", "admin"],
         masterOnly: true,
       },
+      createReportsSubmenu("system", ["superAdmin", "admin"]),
     ],
   },
   {
@@ -1238,10 +1258,11 @@ export const SIDEBAR_ITEMS = [
         href: "/hrm/logistic-updates",
         roles: ["superAdmin", "admin", "accountant", "employee"],
       },
+      createReportsSubmenu("hrm", ["superAdmin", "admin"]),
     ],
   },
   {
-    name: "Nobobi Shifa",
+    name: "Shifa",
     key: "shifa",
     icon: ClipboardCheck,
     color: "#0f766e",
@@ -1282,6 +1303,21 @@ export const SIDEBAR_ITEMS = [
         href: "/shifa/patient-update",
         roles: ["superAdmin", "admin", "cs", "employee"],
       },
+      {
+        name: "Appointment Serial",
+        key: "shifa_appointment_serial",
+        icon: ClipboardList,
+        href: "/shifa/appointment-serial",
+        roles: ["superAdmin", "admin", "cs", "employee"],
+      },
+      {
+        name: "Incentive",
+        key: "shifa_incentive",
+        icon: BadgeDollarSign,
+        href: "/shifa/incentive",
+        roles: ["superAdmin", "admin", "cs", "employee"],
+      },
+      createReportsSubmenu("shifa", ["superAdmin", "admin"]),
     ],
   },
   {
@@ -1335,6 +1371,7 @@ export const SIDEBAR_ITEMS = [
         href: "/payroll-fine",
         roles: ["superAdmin", "admin", "accountant"],
       },
+      createReportsSubmenu("hr_payroll", ["superAdmin", "admin"]),
     ],
   },
   {
@@ -1344,20 +1381,6 @@ export const SIDEBAR_ITEMS = [
     color: "#ef4444",
     href: "/expired-product",
     roles: ["superAdmin", "admin"],
-  },
-  {
-    name: "Reports",
-    key: "reports",
-    icon: FileSpreadsheet,
-    color: "#2563eb",
-    roles: ["superAdmin", "admin"],
-    children: REPORT_CATALOG.map((report) => ({
-      name: report.label,
-      key: `report_${report.key.replaceAll("-", "_")}`,
-      icon: FileText,
-      href: `/reports/${report.key}`,
-      roles: ["superAdmin", "admin"],
-    })),
   },
   {
     name: "Profile",
@@ -1398,6 +1421,8 @@ const SHIFA_PERMISSION_KEYS = new Set([
   "shifa_starting_situation",
   "shifa_problem_history",
   "shifa_patient_update",
+  "shifa_appointment_serial",
+  "shifa_incentive",
 ]);
 
 const ROLES_WITH_LEGACY_DAILY_WORK_REPORTS_DEFAULT = new Set([

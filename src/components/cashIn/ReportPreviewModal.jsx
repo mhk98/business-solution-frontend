@@ -31,12 +31,12 @@ const ReportPreviewModal = ({
   return (
     <AnimatePresence>
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3"
+        className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-3 sm:py-6"
         onClick={onClose} // ✅ overlay click = close
       >
         <motion.div
           onClick={(e) => e.stopPropagation()} // ✅ modal click = not close
-          className="w-full max-w-5xl rounded-xl overflow-hidden shadow-2xl border border-gray-700 bg-gray-900"
+          className="w-full max-w-5xl max-h-[calc(100vh-1.5rem)] sm:max-h-[calc(100vh-3rem)] rounded-xl overflow-hidden shadow-2xl border border-gray-700 bg-gray-900"
           initial={{ opacity: 0, y: 30, scale: 0.98 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 20, scale: 0.98 }}
@@ -68,7 +68,7 @@ const ReportPreviewModal = ({
           </div> */}
 
           {/* Top Bar */}
-          <div className="sticky top-14 z-50 flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-900">
+          <div className="sticky top-0 z-50 flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-900">
             <div className="text-white font-semibold text-sm md:text-base truncate max-w-[60%]">
               {type === "sheet" ? title : "PDF Preview"}
             </div>
@@ -93,7 +93,7 @@ const ReportPreviewModal = ({
           </div>
 
           {/* Body */}
-          <div className="h-[75vh] w-full bg-gray-900 mt-10">
+          <div className="h-[calc(100vh-6.75rem)] sm:h-[calc(100vh-8.25rem)] w-full bg-gray-900">
             {loading && (
               <div className="h-full flex items-center justify-center text-white">
                 Generating report...

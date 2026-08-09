@@ -4,7 +4,11 @@ import { useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import DateRangeFilter from "../common/DateRangeFilter";
 import { useGetGenericReportQuery } from "../../features/reports/reports";
-import { getReportByKey, REPORT_CATALOG } from "../../utils/reports/reportCatalog";
+import {
+  getReportGroupByKey,
+  getReportsByGroup,
+  REPORT_CATALOG,
+} from "../../utils/reports/reportCatalog";
 import {
   buildReportTable,
   downloadGenericReportPdf,
@@ -16,12 +20,27 @@ const sanitizeFilename = (value) =>
 
 const ReportsTable = () => {
   const navigate = useNavigate();
-  const { reportKey } = useParams();
-  const selectedReport = getReportByKey(reportKey);
+  const { groupKey, reportKey } = useParams();
+  const reportGroup = getReportGroupByKey(groupKey);
+  const availableReports = useMemo(() => {
+    const groupReports = getReportsByGroup(reportGroup?.key);
+    return groupReports.length ? groupReports : REPORT_CATALOG;
+  }, [reportGroup]);
+  const selectedReport = useMemo(
+    () =>
+      availableReports.find((report) => report.key === reportKey) ||
+      availableReports[0] ||
+      REPORT_CATALOG[0],
+    [availableReports, reportKey],
+  );
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [limit, setLimit] = useState(5000);
+  const getReportRoute = (nextReportKey) =>
+    reportGroup
+      ? `/reports/group/${reportGroup.key}/${nextReportKey}`
+      : `/reports/${nextReportKey}`;
 
   const params = useMemo(() => {
     const startDateParam = selectedReport.startDateParam || "startDate";
@@ -53,7 +72,10 @@ const ReportsTable = () => {
   });
 
   const rows = data?.rows || [];
-  const { headers, body } = useMemo(() => buildReportTable(rows), [rows]);
+  const { headers, body } = useMemo(
+    () => buildReportTable(rows, selectedReport),
+    [rows, selectedReport],
+  );
   const filename = sanitizeFilename(`${selectedReport.label}-report`);
 
   const handleXlsx = () => {
@@ -61,7 +83,12 @@ const ReportsTable = () => {
       toast.error("No rows available to export");
       return;
     }
-    downloadGenericReportXlsx({ title: `${selectedReport.label} Report`, rows, filename });
+    downloadGenericReportXlsx({
+      title: `${selectedReport.label} Report`,
+      rows,
+      filename,
+      report: selectedReport,
+    });
   };
 
   const handlePdf = async () => {
@@ -69,7 +96,12 @@ const ReportsTable = () => {
       toast.error("No rows available to export");
       return;
     }
-    await downloadGenericReportPdf({ title: `${selectedReport.label} Report`, rows, filename });
+    await downloadGenericReportPdf({
+      title: `${selectedReport.label} Report`,
+      rows,
+      filename,
+      report: selectedReport,
+    });
   };
 
   return (
@@ -84,6 +116,7 @@ const ReportsTable = () => {
               {selectedReport.label} Report
             </h2>
             <p className="text-sm text-slate-500 font-medium mt-1">
+              {reportGroup ? `${reportGroup.label} reports. ` : ""}
               Filter table data and download it as Google Sheets compatible XLSX or PDF.
             </p>
           </div>
@@ -95,10 +128,10 @@ const ReportsTable = () => {
               </label>
               <select
                 value={selectedReport.key}
-                onChange={(event) => navigate(`/reports/${event.target.value}`)}
+                onChange={(event) => navigate(getReportRoute(event.target.value))}
                 className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-800 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
               >
-                {REPORT_CATALOG.map((report) => (
+                {availableReports.map((report) => (
                   <option key={report.key} value={report.key}>
                     {report.label}
                   </option>
@@ -233,7 +266,7 @@ const ReportsTable = () => {
                       {row.slice(0, 12).map((cell, cellIndex) => (
                         <td
                           key={`${row[0]}-${cellIndex}`}
-                          className="max-w-[240px] truncate px-4 py-3 text-sm font-medium text-slate-700 whitespace-nowrap"
+                          className="max-w-[260px] whitespace-pre-line break-words px-4 py-3 align-top text-sm font-medium text-slate-700"
                           title={String(cell)}
                         >
                           {String(cell)}

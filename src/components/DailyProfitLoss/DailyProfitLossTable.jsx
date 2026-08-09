@@ -49,6 +49,12 @@ const escapeHtml = (value) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
+const isEmailSent = (row) =>
+  row?.emailSent === true ||
+  row?.emailSent === 1 ||
+  row?.emailSent === "1" ||
+  String(row?.emailSent || "").toLowerCase() === "true";
+
 const getProductName = (item) =>
   item?.name ||
   item?.productName ||
@@ -260,6 +266,7 @@ const DailyProfitLossTable = () => {
     "Products",
     "Purchase",
     ...(isSuperAdmin ? ["Sale", "Return", "Cost", "Profit/Loss"] : []),
+    "Email",
     "Action",
   ];
 
@@ -695,6 +702,7 @@ const DailyProfitLossTable = () => {
       reportTitle: "Profit & Loss Invoice",
       reportDate: selectedInvoiceRow?.createdAt || selectedInvoiceRow?.date,
       profitLossId: selectedInvoiceRow?.Id || selectedInvoiceRow?.id,
+      mode: selectedInvoiceRow?.mode || "product",
       salesType: selectedInvoiceRow?.salesType || "",
       products: safeNumber(selectedInvoiceRow?.products),
       purchase: safeNumber(selectedInvoiceRow?.purchase),
@@ -1233,6 +1241,17 @@ const DailyProfitLossTable = () => {
                         </td>
                       </>
                     )}
+                    <td className="border-b border-slate-100 px-3 py-4">
+                      <span
+                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                          isEmailSent(row)
+                            ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
+                            : "bg-slate-100 text-slate-600 ring-1 ring-slate-200"
+                        }`}
+                      >
+                        {isEmailSent(row) ? "Send" : "Not send"}
+                      </span>
+                    </td>
                     <td className="border-b border-slate-100 px-3 py-4">
                       <div className="flex items-center gap-2">
                         {isSuperAdmin && canSeeProfitLossActions && (

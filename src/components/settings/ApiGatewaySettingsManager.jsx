@@ -1,4 +1,4 @@
-import { Cable, Save } from "lucide-react";
+import { Cable, ChevronDown, ChevronUp, Save } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import {
@@ -8,13 +8,20 @@ import {
 import SettingSection from "./SettingSection";
 
 const SMS_DEFAULTS = {
-  apiUrl: "",
-  method: "POST",
+  apiUrl: "http://bulksmsbd.net/api/smsapi",
+  method: "GET",
+  apiKey: "",
+  apiKeyField: "api_key",
+  smsType: "text",
+  typeField: "type",
   headers: "",
   bodyTemplate: "",
-  queryTemplate: "",
-  toField: "to",
+  queryTemplate:
+    '{"api_key":"{apiKey}","type":"{smsType}","number":"{to}","senderid":"{senderId}","message":"{message}"}',
+  toField: "number",
   messageField: "message",
+  senderId: "",
+  senderField: "senderid",
   timeoutMs: 10000,
 };
 
@@ -30,11 +37,26 @@ const EMAIL_DEFAULTS = {
   brandName: "",
 };
 
+const parseGatewayConfig = (config) => {
+  if (!config) return {};
+  if (typeof config === "object" && !Array.isArray(config)) return config;
+
+  try {
+    const parsed = JSON.parse(config);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed
+      : {};
+  } catch (error) {
+    return {};
+  }
+};
+
 const ApiGatewaySettingsManager = ({ gatewayType }) => {
   const isSms = gatewayType === "sms";
   const title = isSms ? "SMS Gateway" : "Email Notification";
   const [isEnabled, setIsEnabled] = useState(true);
   const [form, setForm] = useState(isSms ? SMS_DEFAULTS : EMAIL_DEFAULTS);
+  const [showAdvancedSms, setShowAdvancedSms] = useState(false);
 
   const { data, isLoading } = useGetApiGatewaySettingQuery(gatewayType);
   const [updateSetting, { isLoading: isSaving }] =
@@ -44,13 +66,13 @@ const ApiGatewaySettingsManager = ({ gatewayType }) => {
     const setting = data?.data;
     const defaults = isSms ? SMS_DEFAULTS : EMAIL_DEFAULTS;
     setIsEnabled(setting?.isEnabled ?? true);
-    setForm({ ...defaults, ...(setting?.config || {}) });
+    setForm({ ...defaults, ...parseGatewayConfig(setting?.config) });
   }, [data, isSms]);
 
   const helperText = useMemo(
     () =>
       isSms
-        ? "SMS gateway credentials এবং request format এখান থেকে update করা যাবে। Placeholder: {to}, {message}, {encodedMessage}."
+        ? "BulkSMSBD থেকে পাওয়া API Key এবং approved Sender ID দিলেই Appointment Serial create করলে mobile number-এ SMS যাবে।"
         : "Notification email-এর SMTP credentials এখান থেকে update করা যাবে। Password masked থাকলে পুরনো password রাখা হবে।",
     [isSms],
   );
@@ -99,55 +121,115 @@ const ApiGatewaySettingsManager = ({ gatewayType }) => {
         </div>
 
         {isSms ? (
-          <div className="grid gap-4 lg:grid-cols-2">
-            <GatewayInput
-              label="API URL"
-              value={form.apiUrl}
-              onChange={(value) => updateField("apiUrl", value)}
-              placeholder="https://sms-provider.com/api/send"
-            />
-            <GatewaySelect
-              label="Method"
-              value={form.method}
-              onChange={(value) => updateField("method", value)}
-              options={["POST", "GET"]}
-            />
-            <GatewayTextarea
-              label="Headers JSON"
-              value={form.headers}
-              onChange={(value) => updateField("headers", value)}
-              placeholder='{"Authorization":"Bearer token"}'
-            />
-            <GatewayTextarea
-              label="Body Template JSON"
-              value={form.bodyTemplate}
-              onChange={(value) => updateField("bodyTemplate", value)}
-              placeholder='{"to":"{to}","message":"{message}"}'
-            />
-            <GatewayTextarea
-              label="Query Template JSON"
-              value={form.queryTemplate}
-              onChange={(value) => updateField("queryTemplate", value)}
-              placeholder='{"api_key":"xxx","number":"{to}","message":"{encodedMessage}"}'
-            />
-            <div className="grid gap-4 sm:grid-cols-3">
+          <div className="space-y-5">
+            <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm text-slate-700">
+              <p className="font-semibold text-slate-900">BulkSMSBD setup</p>
+              <p className="mt-1">
+                শুধু <span className="font-semibold">API Key</span> এবং{" "}
+                <span className="font-semibold">Sender ID</span> বসালেই হবে।
+                Mobile number Appointment form থেকে auto যাবে।
+              </p>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
               <GatewayInput
-                label="To Field"
-                value={form.toField}
-                onChange={(value) => updateField("toField", value)}
+                label="API Key"
+                type="password"
+                value={form.apiKey}
+                onChange={(value) => updateField("apiKey", value)}
+                placeholder="BulkSMSBD API key"
               />
               <GatewayInput
-                label="Message Field"
-                value={form.messageField}
-                onChange={(value) => updateField("messageField", value)}
-              />
-              <GatewayInput
-                label="Timeout MS"
-                type="number"
-                value={form.timeoutMs}
-                onChange={(value) => updateField("timeoutMs", value)}
+                label="Sender ID"
+                value={form.senderId}
+                onChange={(value) => updateField("senderId", value)}
+                placeholder="8809604904732"
               />
             </div>
+
+            <button
+              type="button"
+              onClick={() => setShowAdvancedSms((prev) => !prev)}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              {showAdvancedSms ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+              Advanced SMS Settings
+            </button>
+
+            {showAdvancedSms && (
+              <div className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 lg:grid-cols-2">
+                <GatewayInput
+                  label="API URL"
+                  value={form.apiUrl}
+                  onChange={(value) => updateField("apiUrl", value)}
+                  placeholder="https://sms-provider.com/api/send"
+                />
+                <GatewaySelect
+                  label="Method"
+                  value={form.method}
+                  onChange={(value) => updateField("method", value)}
+                  options={["POST", "GET"]}
+                />
+                <GatewayTextarea
+                  label="Headers JSON"
+                  value={form.headers}
+                  onChange={(value) => updateField("headers", value)}
+                  placeholder='{"Authorization":"Bearer token"}'
+                />
+                <GatewayTextarea
+                  label="Body Template JSON"
+                  value={form.bodyTemplate}
+                  onChange={(value) => updateField("bodyTemplate", value)}
+                  placeholder='{"to":"{to}","message":"{message}"}'
+                />
+                <GatewayTextarea
+                  label="Query Template JSON"
+                  value={form.queryTemplate}
+                  onChange={(value) => updateField("queryTemplate", value)}
+                  placeholder='{"api_key":"{apiKey}","type":"text","number":"{to}","senderid":"{senderId}","message":"{message}"}'
+                />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <GatewayInput
+                    label="API Key Field"
+                    value={form.apiKeyField}
+                    onChange={(value) => updateField("apiKeyField", value)}
+                  />
+                  <GatewayInput
+                    label="To Field"
+                    value={form.toField}
+                    onChange={(value) => updateField("toField", value)}
+                  />
+                  <GatewayInput
+                    label="Message Field"
+                    value={form.messageField}
+                    onChange={(value) => updateField("messageField", value)}
+                  />
+                  <GatewayInput
+                    label="Sender Field"
+                    value={form.senderField}
+                    onChange={(value) => updateField("senderField", value)}
+                    placeholder="senderid"
+                  />
+                  <GatewayInput
+                    label="SMS Type"
+                    value={form.smsType}
+                    onChange={(value) => updateField("smsType", value)}
+                    placeholder="text"
+                  />
+                  <GatewayInput
+                    label="Type Field"
+                    value={form.typeField}
+                    onChange={(value) => updateField("typeField", value)}
+                  />
+                  <GatewayInput
+                    label="Timeout MS"
+                    type="number"
+                    value={form.timeoutMs}
+                    onChange={(value) => updateField("timeoutMs", value)}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="grid gap-4 lg:grid-cols-2">

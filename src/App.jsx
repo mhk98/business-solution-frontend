@@ -108,6 +108,8 @@ const ShifaCallHistoryPage = lazy(() => import("./pages/ShifaCallHistoryPage"));
 const ShifaStartingSituationPage = lazy(() => import("./pages/ShifaStartingSituationPage"));
 const ShifaProblemHistoryPage = lazy(() => import("./pages/ShifaProblemHistoryPage"));
 const ShifaPatientUpdatePage = lazy(() => import("./pages/ShifaPatientUpdatePage"));
+const ShifaAppointmentSerialPage = lazy(() => import("./pages/ShifaAppointmentSerialPage"));
+const ShifaIncentivePage = lazy(() => import("./pages/ShifaIncentivePage"));
 const EmployeeMasterPage = lazy(() => import("./pages/EmployeeMasterPage"));
 const EmployeeProfilePage = lazy(() => import("./pages/EmployeeProfilePage"));
 const DepartmentPage = lazy(() => import("./pages/DepartmentPage"));
@@ -192,6 +194,8 @@ function App() {
                 <Route path="/shifa/starting-situation" element={<AuthedRoute><ShifaStartingSituationPage /></AuthedRoute>} />
                 <Route path="/shifa/problem-history" element={<AuthedRoute><ShifaProblemHistoryPage /></AuthedRoute>} />
                 <Route path="/shifa/patient-update" element={<AuthedRoute><ShifaPatientUpdatePage /></AuthedRoute>} />
+                <Route path="/shifa/appointment-serial" element={<AuthedRoute><ShifaAppointmentSerialPage /></AuthedRoute>} />
+                <Route path="/shifa/incentive" element={<AuthedRoute><ShifaIncentivePage /></AuthedRoute>} />
                 <Route path="/employee-kpi" element={<AuthedRoute><EmployeeKPIPage /></AuthedRoute>} />
                 <Route path="/payroll" element={<AuthedRoute><EmployeePage /></AuthedRoute>} />
                 <Route path="/employee" element={<Navigate to="/payroll" replace />} />
@@ -232,6 +236,8 @@ function App() {
                 <Route path="/damage-repaired" element={<AuthedRoute><DamageRepairedPage /></AuthedRoute>} />
                 <Route path="/confirm-order" element={<AuthedRoute><ConfirmOrderPage /></AuthedRoute>} />
                 <Route path="/reports" element={<AuthedRoute><ReportsPage /></AuthedRoute>} />
+                <Route path="/reports/group/:groupKey" element={<AuthedRoute><ReportsPage /></AuthedRoute>} />
+                <Route path="/reports/group/:groupKey/:reportKey" element={<AuthedRoute><ReportsPage /></AuthedRoute>} />
                 <Route path="/reports/:reportKey" element={<AuthedRoute><ReportsPage /></AuthedRoute>} />
                 <Route path="/meta" element={<AuthedRoute><MetaPage /></AuthedRoute>} />
                 <Route path="/google" element={<AuthedRoute><GooglePage /></AuthedRoute>} />

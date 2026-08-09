@@ -164,7 +164,7 @@ const ShifaOverview = () => {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.24em] text-indigo-500">
-              Nobobi Shifa
+              Shifa
             </p>
             <h2 className="mt-2 text-2xl font-black text-slate-900">
               Overview

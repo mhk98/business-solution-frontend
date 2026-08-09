@@ -2022,6 +2022,7 @@ const ReceivedProductTable = () => {
             </div>
           </div>
 
+          {/*
           <button
             type="button"
             onClick={handleAddProduct}
@@ -2029,6 +2030,7 @@ const ReceivedProductTable = () => {
           >
             <Plus size={18} /> {t.add_new_received || "Add New Purchase"}
           </button>
+          */}
         </div>
       </div>
 
@@ -2150,12 +2152,16 @@ const ReceivedProductTable = () => {
                 <th className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
                   {t.financials || "Financials"}
                 </th>
+                {/*
                 <th className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
                   {t.status}
                 </th>
+                */}
+                {/*
                 <th className="px-6 py-5 text-center text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
                   {t.actions}
                 </th>
+                */}
               </tr>
             </thead>
 
@@ -2320,6 +2326,7 @@ const ReceivedProductTable = () => {
                       </div>
                     </td>
 
+                    {/*
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`inline-flex items-center rounded-lg px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider border ${
@@ -2333,7 +2340,9 @@ const ReceivedProductTable = () => {
                         {statusValues.length > 1 ? "Mixed" : rp.status}
                       </span>
                     </td>
+                    */}
 
+                    {/*
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         {rp.note ? (
@@ -2390,6 +2399,7 @@ const ReceivedProductTable = () => {
                         )}
                       </div>
                     </td>
+                    */}
                   </motion.tr>
                 );
               })}

@@ -39,6 +39,7 @@ const initialForm = {
   itemId: "",
   supplierId: "",
   quantity: "",
+  unit: "Pcs",
   amount: "",
   date: new Date().toISOString().slice(0, 10),
   note: "",
@@ -63,6 +64,10 @@ const statusClasses = {
   "Item Received": "bg-indigo-50 text-indigo-700 border-indigo-200",
   Completed: "bg-violet-50 text-violet-700 border-violet-200",
 };
+
+const unitOptions = ["Pcs", "Kg", "Gram", "Ml", "Liter", "Yard", "Inch", "Feet"].map(
+  (unit) => ({ value: unit, label: unit }),
+);
 
 const formatDate = (value) => {
   if (!value) return "-";
@@ -90,6 +95,11 @@ const makeSelectValue = (options, value) => {
     options.find((option) => String(option.value) === String(value)) || null
   );
 };
+
+const formatQuantityWithUnit = (quantity, unit = "Pcs") =>
+  `${Number(quantity || 0).toLocaleString("en-US", {
+    maximumFractionDigits: 2,
+  })} ${unit || "Pcs"}`;
 
 const getErrorMessage = (error, fallback) =>
   error?.data?.message || error?.message || fallback;
@@ -207,6 +217,7 @@ const ItemRequisitionTable = () => {
       itemId: record.itemId || "",
       supplierId: record.supplierId || "",
       quantity: record.quantity || "",
+      unit: record.unit || "Pcs",
       amount: record.amount || "",
       date: record.date || new Date().toISOString().slice(0, 10),
       note: record.note || "",
@@ -258,6 +269,7 @@ const ItemRequisitionTable = () => {
       supplier: record.supplier?.name || "N/A",
       procurement: record.procurement || "N/A",
       quantity: Number(record.quantity || 0),
+      unit: record.unit || "Pcs",
       amount: Number(record.amount || 0),
       status: record.status || "Pending",
       note: record.note || "—",
@@ -345,7 +357,7 @@ const ItemRequisitionTable = () => {
       ]);
       drawBox(margin + boxWidth + boxGap, y, boxWidth, 38, "Item Summary", [
         ["Item", voucherData.item],
-        ["Quantity", Number(voucherData.quantity || 0).toFixed(0)],
+        ["Quantity", formatQuantityWithUnit(voucherData.quantity, voucherData.unit)],
         [
           "Amount",
           `${Number(voucherData.amount || 0).toLocaleString("en-US", {
@@ -387,7 +399,7 @@ const ItemRequisitionTable = () => {
       pdf.setTextColor(15, 23, 42);
       pdf.setFont("helvetica", "bold");
       pdf.text(
-        Number(voucherData.quantity || 0).toFixed(0),
+        formatQuantityWithUnit(voucherData.quantity, voucherData.unit),
         totalBoxX + totalBoxWidth - 5,
         y + 8,
         { align: "right" },
@@ -658,7 +670,7 @@ const ItemRequisitionTable = () => {
                         ) : null}
                       </td>
                       <td className="px-6 py-4 text-sm font-semibold text-slate-700">
-                        {record.quantity || 0}
+                        {formatQuantityWithUnit(record.quantity, record.unit)}
                       </td>
                       <td className="px-6 py-4 text-sm font-semibold text-slate-700">
                         {formatMoney(record.amount)}
@@ -829,14 +841,27 @@ const ItemRequisitionTable = () => {
             <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
               Quantity
             </span>
-            <input
-              type="number"
-              min="1"
-              value={form.quantity}
-              onChange={(event) => updateForm("quantity", event.target.value)}
-              className="h-11 bg-white w-full rounded-xl border border-slate-200 px-4 text-sm text-slate-800 outline-none focus:border-indigo-400"
-              required
-            />
+            <div className="flex h-11 overflow-hidden rounded-xl border border-slate-200 bg-white focus-within:border-indigo-400">
+              <input
+                type="number"
+                min="1"
+                value={form.quantity}
+                onChange={(event) => updateForm("quantity", event.target.value)}
+                className="h-full min-w-0 flex-1 border-0 bg-transparent px-4 text-sm text-slate-800 outline-none"
+                required
+              />
+              <select
+                value={form.unit || "Pcs"}
+                onChange={(event) => updateForm("unit", event.target.value)}
+                className="h-full w-[118px] border-0 border-l border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-700 outline-none"
+              >
+                {unitOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </label>
 
           <label className="space-y-2">
@@ -1058,7 +1083,10 @@ function ItemRequisitionVoucherModal({
 
                 <VoucherBox title="Item Summary">
                   <VoucherRow label="Item" value={voucher?.item} />
-                  <VoucherRow label="Quantity" value={voucher?.quantity} />
+                  <VoucherRow
+                    label="Quantity"
+                    value={formatQuantityWithUnit(voucher?.quantity, voucher?.unit)}
+                  />
                   <VoucherRow label="Amount" value={formatMoney(voucher?.amount)} />
                 </VoucherBox>
               </div>
@@ -1077,7 +1105,7 @@ function ItemRequisitionVoucherModal({
                   <div className="flex justify-between text-sm text-slate-700">
                     <span>Total Quantity</span>
                     <span className="font-semibold text-slate-900">
-                      {Number(voucher?.quantity || 0).toFixed(0)}
+                      {formatQuantityWithUnit(voucher?.quantity, voucher?.unit)}
                     </span>
                   </div>
                   <div className="mt-2 flex justify-between border-t border-slate-200 pt-2 text-sm">

@@ -4,7 +4,7 @@ import ShifaOverview from "../components/shifa/ShifaOverview";
 const ShifaOverviewPage = () => {
   return (
     <>
-      <Header title="Nobobi Shifa Overview" />
+      <Header title="Shifa Overview" />
       <div className="p-6">
         <ShifaOverview />
       </div>

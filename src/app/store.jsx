@@ -175,6 +175,8 @@ import { employeeWorkReportApi } from "../features/employeeWorkReport/employeeWo
 import { logisticWorkReportApi } from "../features/logisticWorkReport/logisticWorkReport";
 import { logisticUpdateApi } from "../features/logisticUpdate/logisticUpdate";
 import { shifaReportApi } from "../features/shifaReport/shifaReport";
+import { shifaAppointmentSerialApi } from "../features/shifaAppointmentSerial/shifaAppointmentSerial";
+import { shifaIncentiveApi } from "../features/shifaIncentive/shifaIncentive";
 import { assetsApi } from "../features/assets/assets";
 import { noticeApi } from "../features/notice/notice";
 import { taskApi } from "../features/task/task";
@@ -253,6 +255,8 @@ const apis = [
   logisticWorkReportApi,
   logisticUpdateApi,
   shifaReportApi,
+  shifaAppointmentSerialApi,
+  shifaIncentiveApi,
   notificationApi,
   noticeApi,
   chargeSettingApi,

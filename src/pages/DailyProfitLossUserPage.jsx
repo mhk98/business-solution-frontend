@@ -180,6 +180,12 @@ const escapeHtml = (value) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
+const isEmailSent = (row) =>
+  row?.emailSent === true ||
+  row?.emailSent === 1 ||
+  row?.emailSent === "1" ||
+  String(row?.emailSent || "").toLowerCase() === "true";
+
 const getSavedCalculationSummary = (row, fallbackSummary) => {
   const marketingCost = safeNumber(row?.marketingSpends);
   const otherCost = safeNumber(row?.otherExpenses);
@@ -845,6 +851,7 @@ const DailyProfitLossUserPage = () => {
       reportTitle: "Profit & Loss Invoice (By User)",
       reportDate: row?.createdAt,
       profitLossId: row?.Id,
+      mode: row?.mode || "user",
       salesType: row?.salesType || "",
       employeeReports: employeeReportDetails,
       savedHistory: savedHistoryDetails,
@@ -1460,6 +1467,7 @@ const DailyProfitLossUserPage = () => {
                         <th className="px-4 py-3">Profit/Loss</th>
                       </>
                     )}
+                    <th className="px-4 py-3">Email</th>
                     <th className="px-4 py-3">Action</th>
                   </tr>
                 </thead>
@@ -1467,7 +1475,7 @@ const DailyProfitLossUserPage = () => {
                   {profitLossLoading && (
                     <tr>
                       <td
-                        colSpan={isSuperAdmin ? 7 : 3}
+                        colSpan={isSuperAdmin ? 8 : 4}
                         className="px-4 py-10 text-center text-slate-500"
                       >
                         Loading history...
@@ -1477,7 +1485,7 @@ const DailyProfitLossUserPage = () => {
                   {!profitLossLoading && profitLossRows.length === 0 && (
                     <tr>
                       <td
-                        colSpan={isSuperAdmin ? 7 : 3}
+                        colSpan={isSuperAdmin ? 8 : 4}
                         className="px-4 py-10 text-center text-slate-500"
                       >
                         No saved profit/loss records found.
@@ -1509,6 +1517,17 @@ const DailyProfitLossUserPage = () => {
                             </td>
                           </>
                         )}
+                        <td className="px-4 py-3">
+                          <span
+                            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                              isEmailSent(row)
+                                ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200"
+                                : "bg-slate-100 text-slate-600 ring-1 ring-slate-200"
+                            }`}
+                          >
+                            {isEmailSent(row) ? "Send" : "Not send"}
+                          </span>
+                        </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2 whitespace-nowrap">
                             {canManageProfitLossHistoryActions && (

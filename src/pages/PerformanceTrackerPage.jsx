@@ -4,9 +4,11 @@ import {
   AlertTriangle,
   BarChart3,
   CalendarDays,
+  CreditCard,
   DollarSign,
   Pencil,
   Plus,
+  Package,
   Save,
   Search,
   Target,
@@ -33,18 +35,28 @@ import {
 import Header from "../components/common/Header";
 import {
   useCreatePerformanceTrackerChannelMutation,
+  useCreatePerformanceTrackerAdsAccountMutation,
   useCreatePerformanceTrackerEntryMutation,
+  useCreatePerformanceTrackerProductMutation,
   useDeletePerformanceTrackerChannelMutation,
+  useDeletePerformanceTrackerAdsAccountMutation,
   useDeletePerformanceTrackerEntryMutation,
+  useDeletePerformanceTrackerProductMutation,
+  useGetAllPerformanceTrackerAdsAccountsQuery,
   useGetAllPerformanceTrackerChannelsQuery,
+  useGetAllPerformanceTrackerProductsQuery,
+  useGetPerformanceTrackerAdsAccountsQuery,
   useGetPerformanceTrackerChannelsQuery,
   useGetPerformanceTrackerCompareQuery,
   useGetPerformanceTrackerDashboardQuery,
   useGetPerformanceTrackerEntriesQuery,
+  useGetPerformanceTrackerProductsQuery,
   useGetPerformanceTrackerTargetsQuery,
+  useUpdatePerformanceTrackerAdsAccountMutation,
   useSavePerformanceTrackerTargetsMutation,
   useUpdatePerformanceTrackerChannelMutation,
   useUpdatePerformanceTrackerEntryMutation,
+  useUpdatePerformanceTrackerProductMutation,
 } from "../features/performanceTracker/performanceTracker";
 import { requestDeleteConfirmation } from "../utils/deleteConfirmation";
 
@@ -83,8 +95,12 @@ const getPresetRange = (preset) => {
 
 const defaultRange = getPresetRange("30_days");
 const emptyChannel = { name: "", short_code: "", color: "#4f46e5" };
+const emptyAdsAccount = { channel_id: "", name: "", account_code: "" };
+const emptyProduct = { channel_id: "", name: "", sku: "" };
 const emptyEntry = {
   channel_id: "",
+  ads_account_id: "",
+  product_id: "",
   date: toDateInput(today),
   spend_usd: "",
   usd_rate: "",
@@ -149,19 +165,59 @@ const ModalShell = ({ title, onClose, children }) => (
   </div>
 );
 
-const DateFilters = ({ channelId, setChannelId, preset, setPreset, range, setRange, channels }) => {
+const DateFilters = ({
+  channelId,
+  setChannelId,
+  adsAccountId,
+  setAdsAccountId,
+  productId,
+  setProductId,
+  preset,
+  setPreset,
+  range,
+  setRange,
+  channels = [],
+  adsAccounts = [],
+  products = [],
+}) => {
   const applyPreset = (value) => {
     setPreset(value);
     if (value !== "custom") setRange(getPresetRange(value));
   };
+  const filteredAdsAccounts = adsAccounts.filter((item) => !channelId || Number(item.channel_id) === Number(channelId));
+  const filteredProducts = products.filter((item) => !channelId || Number(item.channel_id) === Number(channelId));
 
   return (
-    <div className="grid gap-3 rounded-[8px] border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-[minmax(180px,260px)_180px_160px_160px]">
+    <div className="grid gap-3 rounded-[8px] border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-3 xl:grid-cols-[minmax(170px,240px)_minmax(170px,240px)_minmax(170px,240px)_160px_150px_150px]">
       <Field label="Channel">
-        <select className={inputClass} value={channelId} onChange={(e) => setChannelId(e.target.value)}>
+        <select
+          className={inputClass}
+          value={channelId}
+          onChange={(e) => {
+            setChannelId(e.target.value);
+            setAdsAccountId?.("");
+            setProductId?.("");
+          }}
+        >
           <option value="">All Channels</option>
           {channels.map((channel) => (
             <option key={channel.Id} value={channel.Id}>{channel.name}</option>
+          ))}
+        </select>
+      </Field>
+      <Field label="Ads Account">
+        <select className={inputClass} value={adsAccountId} onChange={(e) => setAdsAccountId?.(e.target.value)}>
+          <option value="">All Ads Accounts</option>
+          {filteredAdsAccounts.map((adsAccount) => (
+            <option key={adsAccount.Id} value={adsAccount.Id}>{adsAccount.name}</option>
+          ))}
+        </select>
+      </Field>
+      <Field label="Product">
+        <select className={inputClass} value={productId} onChange={(e) => setProductId?.(e.target.value)}>
+          <option value="">All Products</option>
+          {filteredProducts.map((product) => (
+            <option key={product.Id} value={product.Id}>{product.name}</option>
           ))}
         </select>
       </Field>
@@ -190,34 +246,55 @@ const DateFilters = ({ channelId, setChannelId, preset, setPreset, range, setRan
 const PerformanceTrackerPage = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [channelId, setChannelId] = useState("");
+  const [adsAccountId, setAdsAccountId] = useState("");
+  const [productId, setProductId] = useState("");
   const [preset, setPreset] = useState("30_days");
   const [range, setRange] = useState(defaultRange);
   const [channelSearch, setChannelSearch] = useState("");
+  const [adsAccountSearch, setAdsAccountSearch] = useState("");
+  const [productSearch, setProductSearch] = useState("");
   const [entrySearch, setEntrySearch] = useState("");
   const [channelModal, setChannelModal] = useState(null);
+  const [adsAccountModal, setAdsAccountModal] = useState(null);
+  const [productModal, setProductModal] = useState(null);
   const [entryForm, setEntryForm] = useState(emptyEntry);
   const [editingEntryId, setEditingEntryId] = useState(null);
   const [selectedCompareChannels, setSelectedCompareChannels] = useState([]);
+  const [selectedCompareAdsAccounts, setSelectedCompareAdsAccounts] = useState([]);
+  const [selectedCompareProducts, setSelectedCompareProducts] = useState([]);
+  const [compareMode, setCompareMode] = useState("channels");
   const [targetDrafts, setTargetDrafts] = useState([]);
 
-  const queryParams = { channel_id: channelId, ...range };
+  const queryParams = { channel_id: channelId, ads_account_id: adsAccountId, product_id: productId, ...range };
   const { data: channelsRes } = useGetAllPerformanceTrackerChannelsQuery();
+  const { data: adsAccountsRes } = useGetAllPerformanceTrackerAdsAccountsQuery();
+  const { data: productsRes } = useGetAllPerformanceTrackerProductsQuery();
   const { data: pagedChannelsRes } = useGetPerformanceTrackerChannelsQuery({ page: 1, limit: 50, searchTerm: channelSearch });
+  const { data: pagedAdsAccountsRes } = useGetPerformanceTrackerAdsAccountsQuery({ page: 1, limit: 50, searchTerm: adsAccountSearch });
+  const { data: pagedProductsRes } = useGetPerformanceTrackerProductsQuery({ page: 1, limit: 50, searchTerm: productSearch });
   const { data: dashboardRes, isLoading: dashboardLoading } = useGetPerformanceTrackerDashboardQuery(queryParams);
   const { data: entriesRes, refetch: refetchEntries } = useGetPerformanceTrackerEntriesQuery({
     page: 1,
     limit: 50,
     channel_id: channelId,
+    ads_account_id: adsAccountId,
+    product_id: productId,
     searchTerm: entrySearch,
   });
   const { data: compareRes } = useGetPerformanceTrackerCompareQuery({
     channel_ids: selectedCompareChannels.join(","),
+    ads_account_ids: selectedCompareAdsAccounts.join(","),
+    product_ids: selectedCompareProducts.join(","),
     ...range,
   });
   const { data: targetsRes } = useGetPerformanceTrackerTargetsQuery();
 
   const channels = channelsRes?.data || [];
+  const adsAccounts = adsAccountsRes?.data || [];
+  const products = productsRes?.data || [];
   const pagedChannels = pagedChannelsRes?.data || [];
+  const pagedAdsAccounts = pagedAdsAccountsRes?.data || [];
+  const pagedProducts = pagedProductsRes?.data || [];
   const dashboard = dashboardRes?.data || {};
   const entries = entriesRes?.data || [];
   const compare = compareRes?.data || {};
@@ -226,6 +303,12 @@ const PerformanceTrackerPage = () => {
   const [createChannel] = useCreatePerformanceTrackerChannelMutation();
   const [updateChannel] = useUpdatePerformanceTrackerChannelMutation();
   const [deleteChannel] = useDeletePerformanceTrackerChannelMutation();
+  const [createAdsAccount] = useCreatePerformanceTrackerAdsAccountMutation();
+  const [updateAdsAccount] = useUpdatePerformanceTrackerAdsAccountMutation();
+  const [deleteAdsAccount] = useDeletePerformanceTrackerAdsAccountMutation();
+  const [createProduct] = useCreatePerformanceTrackerProductMutation();
+  const [updateProduct] = useUpdatePerformanceTrackerProductMutation();
+  const [deleteProduct] = useDeletePerformanceTrackerProductMutation();
   const [createEntry] = useCreatePerformanceTrackerEntryMutation();
   const [updateEntry] = useUpdatePerformanceTrackerEntryMutation();
   const [deleteEntry] = useDeletePerformanceTrackerEntryMutation();
@@ -243,15 +326,43 @@ const PerformanceTrackerPage = () => {
   }, [targetRows]);
 
   const spendLocal = numberValue(entryForm.spend_usd) * numberValue(entryForm.usd_rate);
+  const entryAdsAccounts = useMemo(
+    () => adsAccounts.filter((item) => !entryForm.channel_id || Number(item.channel_id) === Number(entryForm.channel_id)),
+    [adsAccounts, entryForm.channel_id],
+  );
+  const entryProducts = useMemo(
+    () => products.filter((item) => !entryForm.channel_id || Number(item.channel_id) === Number(entryForm.channel_id)),
+    [products, entryForm.channel_id],
+  );
   const timeline = dashboard.timeline || [];
   const summary = dashboard.summary || {};
   const channelSummaries = dashboard.channelSummaries || [];
+  const adsAccountSummaries = dashboard.adsAccountSummaries || [];
+  const productSummaries = dashboard.productSummaries || [];
   const ordersByChannel = channelSummaries.map((item) => ({
     name: item.channel?.name,
     orders: item.total_orders,
     revenuePerUsd: item.revenue_per_usd,
   }));
+  const ordersByAdsAccount = adsAccountSummaries.map((item) => ({
+    name: item.adsAccount?.name,
+    orders: item.total_orders,
+    revenuePerUsd: item.revenue_per_usd,
+  }));
+  const ordersByProduct = productSummaries.map((item) => ({
+    name: item.product?.name,
+    orders: item.total_orders,
+    revenuePerUsd: item.revenue_per_usd,
+  }));
   const compareChannels = compare.channels || [];
+  const compareAdsAccounts = compare.adsAccounts || [];
+  const compareProducts = compare.products || [];
+  const compareRows =
+    compareMode === "adsAccounts"
+      ? compareAdsAccounts.map((item) => ({ name: item.adsAccount?.name, value: item.revenue_per_usd }))
+      : compareMode === "products"
+        ? compareProducts.map((item) => ({ name: item.product?.name, value: item.revenue_per_usd }))
+        : compareChannels.map((item) => ({ name: item.channel?.name, value: item.revenue_per_usd }));
   const compareTrend = useMemo(() => timeline.map((row) => ({ date: row.date, value: row.revenue_per_usd })), [timeline]);
 
   const saveChannel = async (e) => {
@@ -282,6 +393,62 @@ const PerformanceTrackerPage = () => {
     }
   };
 
+  const saveAdsAccount = async (e) => {
+    e.preventDefault();
+    const payload = adsAccountModal?.data || emptyAdsAccount;
+    try {
+      if (adsAccountModal?.id) {
+        await updateAdsAccount({ id: adsAccountModal.id, data: payload }).unwrap();
+        toast.success("Ads account updated");
+      } else {
+        await createAdsAccount(payload).unwrap();
+        toast.success("Ads account created");
+      }
+      setAdsAccountModal(null);
+    } catch (err) {
+      toast.error(err?.data?.message || "Ads account save failed");
+    }
+  };
+
+  const removeAdsAccount = async (id) => {
+    const ok = await requestDeleteConfirmation({ message: "Delete this ads account?" });
+    if (!ok) return;
+    try {
+      await deleteAdsAccount(id).unwrap();
+      toast.success("Ads account deleted");
+    } catch (err) {
+      toast.error(err?.data?.message || "Ads account delete failed");
+    }
+  };
+
+  const saveProduct = async (e) => {
+    e.preventDefault();
+    const payload = productModal?.data || emptyProduct;
+    try {
+      if (productModal?.id) {
+        await updateProduct({ id: productModal.id, data: payload }).unwrap();
+        toast.success("Product updated");
+      } else {
+        await createProduct(payload).unwrap();
+        toast.success("Product created");
+      }
+      setProductModal(null);
+    } catch (err) {
+      toast.error(err?.data?.message || "Product save failed");
+    }
+  };
+
+  const removeProduct = async (id) => {
+    const ok = await requestDeleteConfirmation({ message: "Delete this product?" });
+    if (!ok) return;
+    try {
+      await deleteProduct(id).unwrap();
+      toast.success("Product deleted");
+    } catch (err) {
+      toast.error(err?.data?.message || "Product delete failed");
+    }
+  };
+
   const resetEntry = () => {
     setEntryForm(emptyEntry);
     setEditingEntryId(null);
@@ -308,6 +475,8 @@ const PerformanceTrackerPage = () => {
     setEditingEntryId(entry.Id);
     setEntryForm({
       channel_id: entry.channel_id || "",
+      ads_account_id: entry.ads_account_id || "",
+      product_id: entry.product_id || "",
       date: entry.date || toDateInput(today),
       spend_usd: entry.spend_usd || "",
       usd_rate: entry.usd_rate || "",
@@ -343,6 +512,8 @@ const PerformanceTrackerPage = () => {
     ["compare", "Compare"],
     ["data", "Data Entry"],
     ["channels", "Channels"],
+    ["adsAccounts", "Ads Accounts"],
+    ["products", "Products"],
     ["targets", "Targets"],
   ];
 
@@ -371,7 +542,21 @@ const PerformanceTrackerPage = () => {
           <div className="space-y-5 p-5">
             {activeTab === "dashboard" ? (
               <>
-                <DateFilters channelId={channelId} setChannelId={setChannelId} preset={preset} setPreset={setPreset} range={range} setRange={setRange} channels={channels} />
+                <DateFilters
+                  channelId={channelId}
+                  setChannelId={setChannelId}
+                  adsAccountId={adsAccountId}
+                  setAdsAccountId={setAdsAccountId}
+                  productId={productId}
+                  setProductId={setProductId}
+                  preset={preset}
+                  setPreset={setPreset}
+                  range={range}
+                  setRange={setRange}
+                  channels={channels}
+                  adsAccounts={adsAccounts}
+                  products={products}
+                />
                 {(dashboard.alertChannels || []).map((item) => (
                   <div key={item.channel?.Id} className="flex items-start gap-3 rounded-[8px] border border-red-200 bg-red-50 p-4 text-red-700">
                     <AlertTriangle className="mt-0.5" size={20} />
@@ -427,32 +612,100 @@ const PerformanceTrackerPage = () => {
                       </ResponsiveContainer>
                     </ChartBox>
                   ) : null}
+                  {!adsAccountId ? (
+                    <ChartBox title="Orders by Ads Account">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={ordersByAdsAccount}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip /><Bar dataKey="orders" fill="#0ea5e9" radius={[6, 6, 0, 0]} /></BarChart>
+                      </ResponsiveContainer>
+                    </ChartBox>
+                  ) : null}
+                  {!productId ? (
+                    <ChartBox title="Orders by Product">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={ordersByProduct}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip /><Bar dataKey="orders" fill="#10b981" radius={[6, 6, 0, 0]} /></BarChart>
+                      </ResponsiveContainer>
+                    </ChartBox>
+                  ) : null}
                 </div>
               </>
             ) : null}
 
             {activeTab === "compare" ? (
               <>
-                <DateFilters channelId="" setChannelId={() => {}} preset={preset} setPreset={setPreset} range={range} setRange={setRange} channels={[]} />
+                <DateFilters
+                  channelId=""
+                  setChannelId={() => {}}
+                  adsAccountId=""
+                  setAdsAccountId={() => {}}
+                  productId=""
+                  setProductId={() => {}}
+                  preset={preset}
+                  setPreset={setPreset}
+                  range={range}
+                  setRange={setRange}
+                  channels={[]}
+                  adsAccounts={[]}
+                  products={[]}
+                />
                 <div className="rounded-[8px] border border-slate-200 bg-white p-4">
-                  <p className="mb-3 text-sm font-bold text-slate-700">Compare Channels</p>
-                  <div className="flex flex-wrap gap-2">
-                    {channels.map((channel) => (
-                      <label key={channel.Id} className="inline-flex items-center gap-2 rounded-[8px] border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700">
-                        <input
-                          type="checkbox"
-                          checked={selectedCompareChannels.includes(channel.Id)}
-                          onChange={(e) => setSelectedCompareChannels((prev) => e.target.checked ? [...prev, channel.Id] : prev.filter((id) => id !== channel.Id))}
-                        />
-                        {channel.name}
-                      </label>
+                  <div className="mb-4 flex flex-wrap gap-2">
+                    {[
+                      ["channels", "Channels"],
+                      ["adsAccounts", "Ads Accounts"],
+                      ["products", "Products"],
+                    ].map(([key, label]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        className={`h-9 rounded-[8px] px-3 text-sm font-bold ${compareMode === key ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-600"}`}
+                        onClick={() => setCompareMode(key)}
+                      >
+                        {label}
+                      </button>
                     ))}
+                  </div>
+                  <p className="mb-3 text-sm font-bold text-slate-700">
+                    Compare {compareMode === "adsAccounts" ? "Ads Accounts" : compareMode === "products" ? "Products" : "Channels"}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {compareMode === "adsAccounts"
+                      ? adsAccounts.map((adsAccount) => (
+                        <label key={adsAccount.Id} className="inline-flex items-center gap-2 rounded-[8px] border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={selectedCompareAdsAccounts.includes(adsAccount.Id)}
+                            onChange={(e) => setSelectedCompareAdsAccounts((prev) => e.target.checked ? [...prev, adsAccount.Id] : prev.filter((id) => id !== adsAccount.Id))}
+                          />
+                          {adsAccount.name}
+                        </label>
+                      ))
+                      : compareMode === "products"
+                        ? products.map((product) => (
+                          <label key={product.Id} className="inline-flex items-center gap-2 rounded-[8px] border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={selectedCompareProducts.includes(product.Id)}
+                              onChange={(e) => setSelectedCompareProducts((prev) => e.target.checked ? [...prev, product.Id] : prev.filter((id) => id !== product.Id))}
+                            />
+                            {product.name}
+                          </label>
+                        ))
+                        : channels.map((channel) => (
+                          <label key={channel.Id} className="inline-flex items-center gap-2 rounded-[8px] border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={selectedCompareChannels.includes(channel.Id)}
+                              onChange={(e) => setSelectedCompareChannels((prev) => e.target.checked ? [...prev, channel.Id] : prev.filter((id) => id !== channel.Id))}
+                            />
+                            {channel.name}
+                          </label>
+                        ))}
                   </div>
                 </div>
                 <div className="grid gap-5 xl:grid-cols-2">
-                  <ChartBox title="Revenue per USD by Channel">
+                  <ChartBox title={`Revenue per USD by ${compareMode === "adsAccounts" ? "Ads Account" : compareMode === "products" ? "Product" : "Channel"}`}>
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={compareChannels.map((item) => ({ name: item.channel?.name, value: item.revenue_per_usd }))}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip formatter={(v) => formatLocal(v)} /><Bar dataKey="value" fill="#6366f1" radius={[6, 6, 0, 0]} /></BarChart>
+                      <BarChart data={compareRows}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip formatter={(v) => formatLocal(v)} /><Bar dataKey="value" fill="#6366f1" radius={[6, 6, 0, 0]} /></BarChart>
                     </ResponsiveContainer>
                   </ChartBox>
                   <ChartBox title="Revenue per USD Trend">
@@ -476,7 +729,9 @@ const PerformanceTrackerPage = () => {
               <div className="grid gap-5 xl:grid-cols-[420px_1fr]">
                 <form onSubmit={submitEntry} className="space-y-4 rounded-[8px] border border-slate-200 bg-white p-4 shadow-sm">
                   <h3 className="text-lg font-bold text-slate-900">{editingEntryId ? "Edit Entry" : "Data Entry"}</h3>
-                  <Field label="Channel"><select required className={inputClass} value={entryForm.channel_id} onChange={(e) => setEntryForm((p) => ({ ...p, channel_id: e.target.value }))}><option value="">Select Channel</option>{channels.map((channel) => <option key={channel.Id} value={channel.Id}>{channel.name}</option>)}</select></Field>
+                  <Field label="Channel"><select required className={inputClass} value={entryForm.channel_id} onChange={(e) => setEntryForm((p) => ({ ...p, channel_id: e.target.value, ads_account_id: "", product_id: "" }))}><option value="">Select Channel</option>{channels.map((channel) => <option key={channel.Id} value={channel.Id}>{channel.name}</option>)}</select></Field>
+                  <Field label="Ads Account"><select className={inputClass} value={entryForm.ads_account_id} onChange={(e) => setEntryForm((p) => ({ ...p, ads_account_id: e.target.value }))}><option value="">Select Ads Account</option>{entryAdsAccounts.map((adsAccount) => <option key={adsAccount.Id} value={adsAccount.Id}>{adsAccount.name}</option>)}</select></Field>
+                  <Field label="Product"><select className={inputClass} value={entryForm.product_id} onChange={(e) => setEntryForm((p) => ({ ...p, product_id: e.target.value }))}><option value="">Select Product</option>{entryProducts.map((product) => <option key={product.Id} value={product.Id}>{product.name}</option>)}</select></Field>
                   <Field label="Date"><input required type="date" className={inputClass} value={entryForm.date} onChange={(e) => setEntryForm((p) => ({ ...p, date: e.target.value }))} /></Field>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <Field label="Spend USD"><input required type="number" step="0.01" className={inputClass} value={entryForm.spend_usd} onChange={(e) => setEntryForm((p) => ({ ...p, spend_usd: e.target.value }))} /></Field>
@@ -500,12 +755,14 @@ const PerformanceTrackerPage = () => {
                   </div>
                   <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-slate-100">
-                      <thead className="bg-slate-50"><tr>{["Date", "Channel", "Spend", "Revenue", "Orders", "ROAS", "Actions"].map((h) => <th key={h} className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-500">{h}</th>)}</tr></thead>
+                      <thead className="bg-slate-50"><tr>{["Date", "Channel", "Ads Account", "Product", "Spend", "Revenue", "Orders", "ROAS", "Actions"].map((h) => <th key={h} className="px-4 py-3 text-left text-xs font-bold uppercase text-slate-500">{h}</th>)}</tr></thead>
                       <tbody className="divide-y divide-slate-100">
                         {entries.map((entry) => (
                           <tr key={entry.Id}>
                             <td className="px-4 py-3 text-sm font-semibold text-slate-700">{entry.date}</td>
                             <td className="px-4 py-3 text-sm font-bold text-slate-900">{entry.channel?.name || "-"}</td>
+                            <td className="px-4 py-3 text-sm text-slate-600">{entry.adsAccount?.name || "-"}</td>
+                            <td className="px-4 py-3 text-sm text-slate-600">{entry.product?.name || "-"}</td>
                             <td className="px-4 py-3 text-sm text-slate-600">{formatLocal(entry.spend_local)}</td>
                             <td className="px-4 py-3 text-sm text-slate-600">{formatLocal(entry.total_revenue_local)}</td>
                             <td className="px-4 py-3 text-sm text-slate-600">{entry.total_orders}</td>
@@ -531,6 +788,46 @@ const PerformanceTrackerPage = () => {
                     <div key={channel.Id} className="flex items-center justify-between gap-4 px-5 py-4">
                       <div className="flex items-center gap-3"><span className="h-10 w-10 rounded-full border border-slate-200" style={{ backgroundColor: channel.color || "#4f46e5" }} /><div><p className="font-bold text-slate-900">{channel.name}</p><p className="text-xs font-semibold text-slate-400">{channel.short_code || "No short code"}</p></div></div>
                       <div className="flex gap-2"><button className="rounded-[8px] border border-slate-200 p-2 text-indigo-600" onClick={() => setChannelModal({ id: channel.Id, data: { name: channel.name, short_code: channel.short_code || "", color: channel.color || "#4f46e5" } })}><Pencil size={16} /></button><button className="rounded-[8px] border border-slate-200 p-2 text-red-600" onClick={() => removeChannel(channel.Id)}><Trash2 size={16} /></button></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {activeTab === "adsAccounts" ? (
+              <div className="rounded-[8px] border border-slate-200 bg-white shadow-sm">
+                <div className="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-center md:justify-between">
+                  <div className="relative w-full md:w-96"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} /><input className={`${inputClass} pl-10`} placeholder="Search ads account..." value={adsAccountSearch} onChange={(e) => setAdsAccountSearch(e.target.value)} /></div>
+                  <button className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-indigo-600 px-4 text-sm font-bold text-white shadow-sm" onClick={() => setAdsAccountModal({ data: emptyAdsAccount })}><Plus size={17} /> Add Ads Account</button>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {pagedAdsAccounts.map((adsAccount) => (
+                    <div key={adsAccount.Id} className="flex items-center justify-between gap-4 px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-sky-50 text-sky-600"><CreditCard size={18} /></span>
+                        <div><p className="font-bold text-slate-900">{adsAccount.name}</p><p className="text-xs font-semibold text-slate-400">{adsAccount.channel?.name || "No channel"}{adsAccount.account_code ? ` • ${adsAccount.account_code}` : ""}</p></div>
+                      </div>
+                      <div className="flex gap-2"><button className="rounded-[8px] border border-slate-200 p-2 text-indigo-600" onClick={() => setAdsAccountModal({ id: adsAccount.Id, data: { channel_id: adsAccount.channel_id || "", name: adsAccount.name, account_code: adsAccount.account_code || "" } })}><Pencil size={16} /></button><button className="rounded-[8px] border border-slate-200 p-2 text-red-600" onClick={() => removeAdsAccount(adsAccount.Id)}><Trash2 size={16} /></button></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {activeTab === "products" ? (
+              <div className="rounded-[8px] border border-slate-200 bg-white shadow-sm">
+                <div className="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-center md:justify-between">
+                  <div className="relative w-full md:w-96"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} /><input className={`${inputClass} pl-10`} placeholder="Search product..." value={productSearch} onChange={(e) => setProductSearch(e.target.value)} /></div>
+                  <button className="inline-flex h-11 items-center justify-center gap-2 rounded-[8px] bg-indigo-600 px-4 text-sm font-bold text-white shadow-sm" onClick={() => setProductModal({ data: emptyProduct })}><Plus size={17} /> Add Product</button>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {pagedProducts.map((product) => (
+                    <div key={product.Id} className="flex items-center justify-between gap-4 px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-10 w-10 items-center justify-center rounded-[8px] bg-emerald-50 text-emerald-600"><Package size={18} /></span>
+                        <div><p className="font-bold text-slate-900">{product.name}</p><p className="text-xs font-semibold text-slate-400">{product.channel?.name || "No channel"}{product.sku ? ` • ${product.sku}` : ""}</p></div>
+                      </div>
+                      <div className="flex gap-2"><button className="rounded-[8px] border border-slate-200 p-2 text-indigo-600" onClick={() => setProductModal({ id: product.Id, data: { channel_id: product.channel_id || "", name: product.name, sku: product.sku || "" } })}><Pencil size={16} /></button><button className="rounded-[8px] border border-slate-200 p-2 text-red-600" onClick={() => removeProduct(product.Id)}><Trash2 size={16} /></button></div>
                     </div>
                   ))}
                 </div>
@@ -571,6 +868,28 @@ const PerformanceTrackerPage = () => {
             <Field label="Short Code"><input className={inputClass} value={channelModal.data.short_code} onChange={(e) => setChannelModal((p) => ({ ...p, data: { ...p.data, short_code: e.target.value } }))} /></Field>
             <Field label="Color"><input className={`${inputClass} h-12 p-1`} type="color" value={channelModal.data.color} onChange={(e) => setChannelModal((p) => ({ ...p, data: { ...p.data, color: e.target.value } }))} /></Field>
             <button className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-indigo-600 px-4 text-sm font-bold text-white" type="submit"><Save size={17} /> Save Channel</button>
+          </form>
+        </ModalShell>
+      ) : null}
+
+      {adsAccountModal ? (
+        <ModalShell title={adsAccountModal.id ? "Edit Ads Account" : "Add Ads Account"} onClose={() => setAdsAccountModal(null)}>
+          <form className="space-y-4" onSubmit={saveAdsAccount}>
+            <Field label="Channel"><select required className={inputClass} value={adsAccountModal.data.channel_id} onChange={(e) => setAdsAccountModal((p) => ({ ...p, data: { ...p.data, channel_id: e.target.value } }))}><option value="">Select Channel</option>{channels.map((channel) => <option key={channel.Id} value={channel.Id}>{channel.name}</option>)}</select></Field>
+            <Field label="Ads Account Name"><input required className={inputClass} value={adsAccountModal.data.name} onChange={(e) => setAdsAccountModal((p) => ({ ...p, data: { ...p.data, name: e.target.value } }))} /></Field>
+            <Field label="Account Code"><input className={inputClass} value={adsAccountModal.data.account_code} onChange={(e) => setAdsAccountModal((p) => ({ ...p, data: { ...p.data, account_code: e.target.value } }))} /></Field>
+            <button className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-indigo-600 px-4 text-sm font-bold text-white" type="submit"><Save size={17} /> Save Ads Account</button>
+          </form>
+        </ModalShell>
+      ) : null}
+
+      {productModal ? (
+        <ModalShell title={productModal.id ? "Edit Product" : "Add Product"} onClose={() => setProductModal(null)}>
+          <form className="space-y-4" onSubmit={saveProduct}>
+            <Field label="Channel"><select required className={inputClass} value={productModal.data.channel_id} onChange={(e) => setProductModal((p) => ({ ...p, data: { ...p.data, channel_id: e.target.value } }))}><option value="">Select Channel</option>{channels.map((channel) => <option key={channel.Id} value={channel.Id}>{channel.name}</option>)}</select></Field>
+            <Field label="Product Name"><input required className={inputClass} value={productModal.data.name} onChange={(e) => setProductModal((p) => ({ ...p, data: { ...p.data, name: e.target.value } }))} /></Field>
+            <Field label="SKU"><input className={inputClass} value={productModal.data.sku} onChange={(e) => setProductModal((p) => ({ ...p, data: { ...p.data, sku: e.target.value } }))} /></Field>
+            <button className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-indigo-600 px-4 text-sm font-bold text-white" type="submit"><Save size={17} /> Save Product</button>
           </form>
         </ModalShell>
       ) : null}
