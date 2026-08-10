@@ -46,6 +46,7 @@ import {
   WalletCards,
   Fingerprint,
   TrendingUp,
+  Tags,
 } from "lucide-react";
 import {
   REPORT_PERMISSION_KEYS,
@@ -132,6 +133,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "accounting_overview",
     "accounting_supplier",
     "book",
+    "category",
     "petty_cash_requisition",
     "petty_cash",
     "loan",
@@ -236,6 +238,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "accounting_overview",
     "accounting_supplier",
     "book",
+    "category",
     "petty_cash_requisition",
     "petty_cash",
     "loan",
@@ -356,6 +359,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "accounting_overview",
     "accounting_supplier",
     "book",
+    "category",
     "petty_cash_requisition",
     "petty_cash",
     "loan",
@@ -545,7 +549,7 @@ export const SIDEBAR_ITEMS = [
         roles: ["superAdmin", "admin", "marketer"],
       },
       {
-        name: "Auto Profit & Loss",
+        name: "Intransit Profit & Loss",
         key: "auto_profit_loss",
         icon: BarChart3,
         color: "#f97316",
@@ -911,6 +915,13 @@ export const SIDEBAR_ITEMS = [
         icon: BookMarked,
         href: "/book",
         matchPaths: ["/book"],
+        roles: ["superAdmin", "admin", "accountant"],
+      },
+      {
+        name: "Category",
+        key: "category",
+        icon: Tags,
+        href: "/category",
         roles: ["superAdmin", "admin", "accountant"],
       },
       {

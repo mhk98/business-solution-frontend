@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { PDF_BENGALI_FONT, registerBengaliPdfFont } from "../pdfFonts";
 
 const isPlainObject = (value) =>
   value && typeof value === "object" && !Array.isArray(value);
@@ -672,10 +673,11 @@ export const downloadGenericReportPdf = async ({ title, rows, filename, report }
   const { headers, body } = buildReportTable(rows, report);
 
   const doc = new jsPDF("l", "mm", "a4");
-  doc.setFont("helvetica", "bold");
+  await registerBengaliPdfFont(doc);
+  doc.setFont(PDF_BENGALI_FONT, "bold");
   doc.setFontSize(15);
   doc.text(title, 14, 14);
-  doc.setFont("helvetica", "normal");
+  doc.setFont(PDF_BENGALI_FONT, "normal");
   doc.setFontSize(9);
   doc.text(`Generated: ${new Date().toISOString().slice(0, 10)} | Total Rows: ${rows.length}`, 14, 20);
 
@@ -684,8 +686,19 @@ export const downloadGenericReportPdf = async ({ title, rows, filename, report }
     body,
     startY: 25,
     theme: "grid",
-    styles: { fontSize: 7, cellPadding: 1.8, overflow: "linebreak" },
-    headStyles: { fillColor: [79, 70, 229], textColor: 255, fontStyle: "bold" },
+    styles: {
+      font: PDF_BENGALI_FONT,
+      fontStyle: "normal",
+      fontSize: 7,
+      cellPadding: 1.8,
+      overflow: "linebreak",
+    },
+    headStyles: {
+      fillColor: [79, 70, 229],
+      textColor: 255,
+      font: PDF_BENGALI_FONT,
+      fontStyle: "bold",
+    },
   });
 
   doc.save(`${filename}.pdf`);

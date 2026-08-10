@@ -256,7 +256,7 @@ const AutoProfitLossTable = () => {
 
     const payload = {
       mode: "auto",
-      salesType: "Auto Profit & Loss",
+      salesType: "Intransit Profit & Loss",
       products: Math.round(summary.products),
       purchase: Math.round(summary.purchase),
       revenue: Math.round(summary.revenue),
@@ -278,7 +278,7 @@ const AutoProfitLossTable = () => {
     try {
       const res = await insertProfitLoss(payload).unwrap();
       if (res?.success) {
-        toast.success("Auto Profit/Loss saved successfully");
+        toast.success("Intransit Profit/Loss saved successfully");
       } else {
         toast.error(res?.message || "Save failed");
       }
@@ -377,7 +377,7 @@ const AutoProfitLossTable = () => {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Auto Profit/Loss Invoice - ${escapeHtml(invoiceNo)}</title>
+          <title>Intransit Profit/Loss Invoice - ${escapeHtml(invoiceNo)}</title>
           <style>
             * { box-sizing: border-box; }
             body { font-family: Arial, sans-serif; padding: 32px; color: #0f172a; font-size: 13px; }
@@ -407,12 +407,12 @@ const AutoProfitLossTable = () => {
           <div class="invoice-header">
             <div class="invoice-title">
               <h1>Kafela Mart Accounts</h1>
-              <div class="subtitle">Auto Profit &amp; Loss Invoice</div>
+              <div class="subtitle">Intransit Profit &amp; Loss Invoice</div>
             </div>
             <div class="invoice-meta">
               <div class="meta"><strong>Invoice No:</strong> ${escapeHtml(invoiceNo)}</div>
               <div class="meta"><strong>Date:</strong> ${escapeHtml(invoiceDate)}</div>
-              <div class="meta"><strong>Sales Type:</strong> ${escapeHtml(row?.salesType || "Auto Profit & Loss")}</div>
+              <div class="meta"><strong>Sales Type:</strong> ${escapeHtml(row?.salesType || "Intransit Profit & Loss")}</div>
             </div>
           </div>
 
@@ -450,10 +450,10 @@ const AutoProfitLossTable = () => {
     clientEmail: recipientEmail,
     invoiceNumber: `PL-${row?.Id || Date.now()}`,
     companyName: "Kafela Mart Accounts",
-    reportTitle: "Auto Profit & Loss Invoice",
+    reportTitle: "Intransit Profit & Loss Invoice",
     reportDate: row?.createdAt || row?.date,
     profitLossId: row?.Id,
-    salesType: row?.salesType || "Auto Profit & Loss",
+    salesType: row?.salesType || "Intransit Profit & Loss",
     products: safeNumber(row?.products),
     purchase: safeNumber(row?.purchase),
     revenue: safeNumber(row?.revenue),
@@ -534,7 +534,7 @@ const AutoProfitLossTable = () => {
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div className="min-w-0">
             <h2 className="text-xl font-bold tracking-tight text-slate-900">
-              Auto Profit & Loss
+              Intransit Profit & Loss
             </h2>
             <p className="mt-1 text-sm font-medium text-slate-500">
               Intransit product থেকে Sales Return বাদ দিয়ে remaining quantity
@@ -627,7 +627,7 @@ const AutoProfitLossTable = () => {
                   colSpan={canSeeSensitiveProfitLoss ? 7 : 4}
                   className="px-3 py-16 text-center text-sm font-medium text-slate-500"
                 >
-                  Loading auto profit/loss data...
+                  Loading intransit profit/loss data...
                 </td>
               </tr>
             ) : sourceRows.length === 0 ? (
@@ -786,7 +786,7 @@ const AutoProfitLossTable = () => {
               Saved Profit/Loss History
             </h3>
             <p className="mt-1 text-sm font-medium text-slate-500">
-              Auto Profit & Loss calculation save করলে এখানে history দেখা যাবে।
+              Intransit Profit & Loss calculation save করলে এখানে history দেখা যাবে।
             </p>
           </div>
 
@@ -851,7 +851,7 @@ const AutoProfitLossTable = () => {
                     colSpan={canSeeSensitiveProfitLoss ? 9 : 4}
                     className="px-3 py-16 text-center text-sm font-medium text-slate-500"
                   >
-                    কোনো saved auto profit/loss data পাওয়া যায়নি।
+                    কোনো saved intransit profit/loss data পাওয়া যায়নি।
                   </td>
                 </tr>
               ) : (
@@ -973,7 +973,7 @@ const AutoProfitLossTable = () => {
         <div className="space-y-5">
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <p className="text-sm font-semibold text-slate-900">
-              {selectedInvoiceRow?.salesType || "Auto Profit & Loss"}
+              {selectedInvoiceRow?.salesType || "Intransit Profit & Loss"}
             </p>
             <p className="mt-1 text-sm text-slate-600">
               Date:{" "}

@@ -106,7 +106,11 @@ const buildCalendarWeeks = (baseDate = new Date()) => {
   const days = [];
   while (days.length < 42) {
     days.push({
-      key: dateFromParts(cursor.getFullYear(), cursor.getMonth() + 1, cursor.getDate()),
+      key: dateFromParts(
+        cursor.getFullYear(),
+        cursor.getMonth() + 1,
+        cursor.getDate(),
+      ),
       day: cursor.getDate(),
       isCurrentMonth: cursor.getMonth() === month,
       isToday: cursor.toDateString() === new Date().toDateString(),
@@ -612,13 +616,13 @@ const InventoryDashboardOverview = () => {
       icon: WalletCards,
       color: "#635bff",
     },
-    {
-      title: "Total Sales",
-      value: formatCurrency(metrics.totalSales?.value),
-      changePercent: metrics.totalSales?.changePercent,
-      icon: ShoppingBag,
-      color: "#22c55e",
-    },
+    // {
+    //   title: "Total Sales",
+    //   value: formatCurrency(metrics.totalSales?.value),
+    //   changePercent: metrics.totalSales?.changePercent,
+    //   icon: ShoppingBag,
+    //   color: "#22c55e",
+    // },
     {
       title: "Total POS Sale",
       value: formatNumber(metrics.totalOrders?.value),
@@ -690,6 +694,65 @@ const InventoryDashboardOverview = () => {
       valueClass:
         safeNumber(summary.netCashPosition) >= 0
           ? "text-slate-950"
+          : "text-rose-600",
+    },
+  ];
+
+  const profitLossCards = [
+    {
+      label: "Net Revenue",
+      value: summary.netRevenue,
+      icon: WalletCards,
+      iconClass: "bg-indigo-50 text-indigo-600 border-indigo-100",
+      accentClass: "bg-indigo-500",
+      valueClass: "text-indigo-700",
+    },
+    {
+      label: "Net Purchase",
+      value: summary.netPurchase,
+      icon: ReceiptText,
+      iconClass: "bg-amber-50 text-amber-600 border-amber-100",
+      accentClass: "bg-amber-500",
+      valueClass: "text-amber-700",
+    },
+    {
+      label: "Gross Profit",
+      value: summary.grossProfit,
+      icon: TrendingUp,
+      iconClass:
+        safeNumber(summary.grossProfit) >= 0
+          ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+          : "bg-rose-50 text-rose-600 border-rose-100",
+      accentClass:
+        safeNumber(summary.grossProfit) >= 0 ? "bg-emerald-500" : "bg-rose-500",
+      valueClass:
+        safeNumber(summary.grossProfit) >= 0
+          ? "text-emerald-600"
+          : "text-rose-600",
+    },
+    {
+      label: "Others Expense",
+      value: summary.othersExpense,
+      icon: TrendingDown,
+      iconClass: "bg-slate-50 text-slate-600 border-slate-200",
+      accentClass: "bg-slate-400",
+      valueClass: "text-slate-700",
+    },
+    {
+      label: "Net Profit/Loss",
+      value: summary.netProfitLoss,
+      icon: Coins,
+      iconClass:
+        safeNumber(summary.netProfitLoss) >= 0
+          ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+          : "bg-rose-50 text-rose-600 border-rose-100",
+      accentClass:
+        safeNumber(summary.netProfitLoss) >= 0
+          ? "bg-emerald-500"
+          : "bg-rose-500",
+      valueClass:
+        safeNumber(summary.netProfitLoss) >= 0
+          ? "text-emerald-600"
           : "text-rose-600",
     },
   ];
@@ -1136,7 +1199,48 @@ const InventoryDashboardOverview = () => {
 
         {canSeeSensitiveOverview && (
           <>
-            <div className="grid grid-cols-1 gap-4 min-[520px]:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+            <motion.section
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35 }}
+              className="mb-5"
+            >
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+                {profitLossCards.map((card) => {
+                  const Icon = card.icon;
+
+                  return (
+                    <div
+                      key={card.label}
+                      className="group relative flex min-h-[132px] overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md sm:p-6"
+                    >
+                      <div
+                        className={`absolute inset-x-0 top-0 h-1.5 ${card.accentClass}`}
+                      />
+                      <div className="flex w-full items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <p className="text-xs font-black uppercase tracking-widest text-slate-500">
+                            {card.label}
+                          </p>
+                          <p
+                            className={`mt-5 break-words text-2xl font-black tracking-tight ${card.valueClass}`}
+                          >
+                            {isLoading ? "..." : formatCurrency(card.value, 2)}
+                          </p>
+                        </div>
+                        <div
+                          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border shadow-sm transition duration-200 group-hover:scale-105 ${card.iconClass}`}
+                        >
+                          <Icon size={22} />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.section>
+
+            <div className="grid grid-cols-1 gap-4 min-[520px]:grid-cols-2 xl:grid-cols-5">
               {metricCards.map((card) => (
                 <MetricCard
                   key={card.title}

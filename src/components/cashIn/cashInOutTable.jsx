@@ -328,6 +328,7 @@ const CashInOutTable = () => {
     note: "",
     status: "",
     category: "",
+    categoryId: "",
     remarks: "",
     amount: "",
     file: null,
@@ -726,6 +727,20 @@ const CashInOutTable = () => {
     [categoryOptions],
   );
 
+  const findCategoryOptionByName = (name) => {
+    const key = String(name || "")
+      .trim()
+      .toLowerCase();
+    if (!key) return null;
+
+    return (
+      categoryOptions.find(
+        (category) =>
+          String(category.name || "").trim().toLowerCase() === key,
+      ) || null
+    );
+  };
+
   // ✅ Insert category mutation
   const [insertCategory, { isLoading: isAddingCategory }] =
     useInsertCategoryMutation();
@@ -741,8 +756,10 @@ const CashInOutTable = () => {
       const res = await insertCategory({ name: n }).unwrap();
       if (res?.success) {
         const created = res?.data;
-        const createdId = String(created?.Id ?? created?.id ?? created?._id);
-        return createdId;
+        return {
+          id: String(created?.Id ?? created?.id ?? created?._id ?? ""),
+          name: created?.name || n,
+        };
       }
       toast.error(res?.message || "Category add failed!");
       return null;
@@ -786,6 +803,7 @@ const CashInOutTable = () => {
       note: "",
       status: "",
       category: "",
+      categoryId: "",
       remarks: "",
       amount: "",
       file: null,
@@ -845,7 +863,8 @@ const CashInOutTable = () => {
       status: rp.status ?? "",
       date: rp.date ?? "",
       userId: userId,
-      category: rp.category,
+      category: rp.categoryInfo?.name ?? rp.category ?? "",
+      categoryId: rp.categoryId ?? rp.categoryInfo?.Id ?? "",
       file: null,
     });
     setIsNewCategoryEdit(false);
@@ -876,7 +895,8 @@ const CashInOutTable = () => {
       note: rp.note ?? "",
       status: rp.status ?? "",
       userId: userId,
-      category: rp.category,
+      category: rp.categoryInfo?.name ?? rp.category ?? "",
+      categoryId: rp.categoryId ?? rp.categoryInfo?.Id ?? "",
       file: null,
     });
     setIsNewCategoryEdit(false);
@@ -896,6 +916,7 @@ const CashInOutTable = () => {
 
     try {
       let finalCategoryName = currentProduct.category;
+      let finalCategoryId = currentProduct.categoryId || "";
 
       if (
         isLoanCategory(finalCategoryName) &&
@@ -906,10 +927,15 @@ const CashInOutTable = () => {
 
       // If the category is new and being added dynamically
       if (isNewCategoryEdit) {
-        const createdCategoryName =
-          await addCategoryByName(newCategoryNameEdit);
-        if (!createdCategoryName) return;
-        finalCategoryName = createdCategoryName; // Using the newly created category name
+        const createdCategory = await addCategoryByName(newCategoryNameEdit);
+        if (!createdCategory) return;
+        finalCategoryName = createdCategory.name;
+        finalCategoryId = createdCategory.id;
+      } else {
+        const selectedCategory = findCategoryOptionByName(finalCategoryName);
+        finalCategoryId = selectedCategory?.isStatic
+          ? ""
+          : selectedCategory?.id || finalCategoryId;
       }
 
       const formData = new FormData();
@@ -939,8 +965,8 @@ const CashInOutTable = () => {
           : "",
       );
 
-      // Use categoryName (not categoryId)
-      formData.append("category", finalCategoryName); // Using category name here
+      formData.append("category", finalCategoryName);
+      formData.append("categoryId", finalCategoryId);
       formData.append("remarks", currentProduct.remarks?.trim() || "");
       formData.append("amount", String(Number(currentProduct.amount)));
       if (currentProduct.file) formData.append("file", currentProduct.file);
@@ -988,12 +1014,19 @@ const CashInOutTable = () => {
     try {
       // Handling new category creation
       let finalCategoryName = createProduct.category;
+      let finalCategoryId = createProduct.categoryId || "";
 
       // If the category is new and being added dynamically
       if (isNewCategoryAdd) {
-        const createdCategoryName = await addCategoryByName(newCategoryNameAdd);
-        if (!createdCategoryName) return;
-        finalCategoryName = createdCategoryName; // Using the newly created category name
+        const createdCategory = await addCategoryByName(newCategoryNameAdd);
+        if (!createdCategory) return;
+        finalCategoryName = createdCategory.name;
+        finalCategoryId = createdCategory.id;
+      } else {
+        const selectedCategory = findCategoryOptionByName(finalCategoryName);
+        finalCategoryId = selectedCategory?.isStatic
+          ? ""
+          : selectedCategory?.id || finalCategoryId;
       }
 
       if (
@@ -1025,8 +1058,8 @@ const CashInOutTable = () => {
           : "",
       );
 
-      // Use categoryName (not category)
-      formData.append("category", finalCategoryName); // Using category name here
+      formData.append("category", finalCategoryName);
+      formData.append("categoryId", finalCategoryId);
       formData.append("remarks", createProduct.remarks?.trim() || "");
       formData.append("amount", String(Number(createProduct.amount)));
       formData.append("bookId", id);
@@ -1051,7 +1084,8 @@ const CashInOutTable = () => {
           lender: "",
           loanId: "",
           supplierId: "",
-          category: "", // Reset the category name
+          category: "",
+          categoryId: "",
           remarks: "",
           note: "",
           amount: "",
@@ -1088,12 +1122,19 @@ const CashInOutTable = () => {
     try {
       // Handling new category creation
       let finalCategoryName = createProduct.category;
+      let finalCategoryId = createProduct.categoryId || "";
 
       // If the category is new and being added dynamically
       if (isNewCategoryAdd) {
-        const createdCategoryName = await addCategoryByName(newCategoryNameAdd);
-        if (!createdCategoryName) return;
-        finalCategoryName = createdCategoryName; // Using the newly created category name
+        const createdCategory = await addCategoryByName(newCategoryNameAdd);
+        if (!createdCategory) return;
+        finalCategoryName = createdCategory.name;
+        finalCategoryId = createdCategory.id;
+      } else {
+        const selectedCategory = findCategoryOptionByName(finalCategoryName);
+        finalCategoryId = selectedCategory?.isStatic
+          ? ""
+          : selectedCategory?.id || finalCategoryId;
       }
 
       if (
@@ -1125,8 +1166,8 @@ const CashInOutTable = () => {
           : "",
       );
 
-      // Use category (not category)
-      formData.append("category", finalCategoryName); // Using category name here
+      formData.append("category", finalCategoryName);
+      formData.append("categoryId", finalCategoryId);
       formData.append("remarks", createProduct.remarks?.trim() || "");
       formData.append("amount", String(Number(createProduct.amount)));
       formData.append("bookId", id);
@@ -1151,7 +1192,8 @@ const CashInOutTable = () => {
           lender: "",
           loanId: "",
           supplierId: "",
-          category: "", // Reset the category name
+          category: "",
+          categoryId: "",
           remarks: "",
           amount: "",
           date: "",
@@ -2403,12 +2445,23 @@ const CashInOutTable = () => {
                 const v = e.target.value;
                 if (v === "__new__") {
                   setIsNewCategoryEdit(true);
-                  setCurrentProduct((p) => ({ ...p, category: "" }));
+                  setCurrentProduct((p) => ({
+                    ...p,
+                    category: "",
+                    categoryId: "",
+                  }));
                   return;
                 }
+                const selectedCategory = findCategoryOptionByName(v);
                 setIsNewCategoryEdit(false);
                 setNewCategoryNameEdit("");
-                setCurrentProduct((p) => ({ ...p, category: v }));
+                setCurrentProduct((p) => ({
+                  ...p,
+                  category: v,
+                  categoryId: selectedCategory?.isStatic
+                    ? ""
+                    : selectedCategory?.id || "",
+                }));
               }}
               className="h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 bg-white outline-none
                          focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
@@ -2764,12 +2817,23 @@ const CashInOutTable = () => {
                 const value = selectedOption?.value || "";
                 if (value === "__new__") {
                   setIsNewCategoryAdd(true);
-                  setCreateProduct((p) => ({ ...p, category: "" }));
+                  setCreateProduct((p) => ({
+                    ...p,
+                    category: "",
+                    categoryId: "",
+                  }));
                   return;
                 }
+                const selectedCategory = findCategoryOptionByName(value);
                 setIsNewCategoryAdd(false);
                 setNewCategoryNameAdd("");
-                setCreateProduct((p) => ({ ...p, category: value }));
+                setCreateProduct((p) => ({
+                  ...p,
+                  category: value,
+                  categoryId: selectedCategory?.isStatic
+                    ? ""
+                    : selectedCategory?.id || "",
+                }));
               }}
               placeholder="Select Category"
               className="text-sm text-black"
@@ -2790,12 +2854,13 @@ const CashInOutTable = () => {
                 <button
                   type="button"
                   onClick={async () => {
-                    const createdCategoryName =
+                    const createdCategory =
                       await addCategoryByName(newCategoryNameAdd);
-                    if (!createdCategoryName) return;
+                    if (!createdCategory) return;
                     setCreateProduct((p) => ({
                       ...p,
-                      category: createdCategoryName,
+                      category: createdCategory.name,
+                      categoryId: createdCategory.id,
                     }));
                     setIsNewCategoryAdd(false);
                     setNewCategoryNameAdd("");
@@ -3110,12 +3175,23 @@ const CashInOutTable = () => {
                   const value = selectedOption?.value || "";
                   if (value === "__new__") {
                     setIsNewCategoryAdd(true);
-                    setCreateProduct((p) => ({ ...p, category: "" }));
+                    setCreateProduct((p) => ({
+                      ...p,
+                      category: "",
+                      categoryId: "",
+                    }));
                     return;
                   }
+                  const selectedCategory = findCategoryOptionByName(value);
                   setIsNewCategoryAdd(false);
                   setNewCategoryNameAdd("");
-                  setCreateProduct((p) => ({ ...p, category: value }));
+                  setCreateProduct((p) => ({
+                    ...p,
+                    category: value,
+                    categoryId: selectedCategory?.isStatic
+                      ? ""
+                      : selectedCategory?.id || "",
+                  }));
                 }}
                 placeholder="Select Category"
                 className="text-sm"
@@ -3136,12 +3212,13 @@ const CashInOutTable = () => {
                   <button
                     type="button"
                     onClick={async () => {
-                      const createdCategoryName =
+                      const createdCategory =
                         await addCategoryByName(newCategoryNameAdd);
-                      if (!createdCategoryName) return;
+                      if (!createdCategory) return;
                       setCreateProduct((p) => ({
                         ...p,
-                        category: createdCategoryName,
+                        category: createdCategory.name,
+                        categoryId: createdCategory.id,
                       }));
                       setIsNewCategoryAdd(false);
                       setNewCategoryNameAdd("");

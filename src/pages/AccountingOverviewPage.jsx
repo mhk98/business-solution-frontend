@@ -48,6 +48,7 @@ const getCategoryName = (row) => {
   const category = row?.category;
   if (typeof category === "string" && category.trim()) return category.trim();
   if (category?.name) return String(category.name).trim();
+  if (row?.categoryInfo?.name) return String(row.categoryInfo.name).trim();
   if (row?.categoryName) return String(row.categoryName).trim();
   return "Uncategorized";
 };

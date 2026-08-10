@@ -48,9 +48,16 @@ export const categoryApi = createApi({
     }),
 
     getAllCategory: build.query({
-      query: ({ page = 1, limit = 200, startDate, endDate, name } = {}) => ({
+      query: ({
+        page = 1,
+        limit = 200,
+        startDate,
+        endDate,
+        name,
+        searchTerm,
+      } = {}) => ({
         url: "/category",
-        params: { page, limit, startDate, endDate, name },
+        params: { page, limit, startDate, endDate, name, searchTerm },
       }),
       providesTags: ["category"],
       refetchOnMountOrArgChange: true,
