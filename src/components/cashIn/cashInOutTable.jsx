@@ -299,6 +299,36 @@ const buildFileUrl = (filePath) => {
   return encodeURI(`${safeBaseUrl}${safePath}`);
 };
 
+const readStoredUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem("authUser") || "null");
+  } catch {
+    return null;
+  }
+};
+
+const getReportUserName = () => {
+  const user = readStoredUser();
+  const fullName = `${user?.FirstName || ""} ${user?.LastName || ""}`.trim();
+
+  return (
+    fullName ||
+    user?.Name ||
+    user?.name ||
+    user?.Email ||
+    user?.email ||
+    localStorage.getItem("role") ||
+    "Unknown"
+  );
+};
+
+const formatReportDate = (value) => {
+  if (!value) return "";
+  const parts = String(value).slice(0, 10).split("-");
+  if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  return String(value);
+};
+
 const CashInOutTable = () => {
   const { language } = useLayout();
   const t = translations[language] || translations.EN;
@@ -690,22 +720,23 @@ const CashInOutTable = () => {
       .map((ba) => ({ value: ba.bankName, label: ba.bankName }));
   }, [bankAccountsFromDB]);
 
-  const bankAccountOptions = useMemo(
-    () =>
-      bankAccountsFromDB.map((ba) => ({
+  const getBankAccountOptions = (bankName = "") =>
+    bankAccountsFromDB
+      .filter(
+        (ba) =>
+          !bankName ||
+          String(ba.bankName || "") === String(bankName || ""),
+      )
+      .map((ba) => ({
         value: ba.accountNumber,
         label: `${ba.accountNumber} (${ba.bankName})`,
-      })),
-    [bankAccountsFromDB],
-  );
+        bankName: ba.bankName,
+      }));
 
-  const bankAccountSelectOptions = useMemo(
-    () => [
-      ...bankAccountOptions,
+  const getBankAccountSelectOptions = (bankName = "") => [
+      ...getBankAccountOptions(bankName),
       { value: "__new_bank__", label: "+ New Bank Account" },
-    ],
-    [bankAccountOptions],
-  );
+    ];
 
   const categoryFilterOptions = useMemo(
     () =>
@@ -1322,6 +1353,19 @@ const CashInOutTable = () => {
     });
   };
 
+  const getReportMetadata = () => ({
+    duration:
+      startDate && endDate
+        ? `${formatReportDate(startDate)} - ${formatReportDate(endDate)}`
+        : startDate
+          ? `From ${formatReportDate(startDate)}`
+          : endDate
+            ? `Until ${formatReportDate(endDate)}`
+            : "All Data",
+    generatedBy: getReportUserName(),
+    generatedAt: new Date().toLocaleString(),
+  });
+
   const handleReportPdf = async () => {
     try {
       if (!products.length) return toast.error("No data found!");
@@ -1335,6 +1379,9 @@ const CashInOutTable = () => {
         products,
         bookId: id,
         bookName,
+        summary: data?.meta,
+        metadata: getReportMetadata(),
+        logoUrl,
       });
 
       const url = URL.createObjectURL(blob);
@@ -1361,6 +1408,8 @@ const CashInOutTable = () => {
         products,
         bookId: id,
         bookName,
+        summary: data?.meta,
+        metadata: getReportMetadata(),
       });
 
       const url = URL.createObjectURL(blob);
@@ -1601,6 +1650,36 @@ const CashInOutTable = () => {
     placeholder: (base) => ({ ...base, color: "#64748b" }),
     menu: (base) => ({ ...base, borderRadius: 14, overflow: "hidden" }),
   };
+
+  const supplierBalance = suppliersDue?.meta || {};
+  const supplierDueAmount = Number(
+    supplierBalance.totalDue ?? supplierBalance.totalUnpaid ?? 0,
+  );
+  const supplierAdvanceAmount = Number(
+    supplierBalance.totalAdvance ?? supplierBalance.netBalance ?? 0,
+  );
+  const renderSupplierBalance = (supplierId) => {
+    if (!supplierId) return null;
+
+    if (isSupplierHistoryLoading) {
+      return (
+        <p className="mt-2 text-xs font-semibold text-slate-500">
+          Loading supplier balance...
+        </p>
+      );
+    }
+
+    return (
+      <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold">
+        <span className="rounded-full border border-rose-100 bg-rose-50 px-3 py-1 text-rose-700">
+          Due: ৳{supplierDueAmount.toLocaleString()}
+        </span>
+        <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1 text-sky-700">
+          Advance: ৳{supplierAdvanceAmount.toLocaleString()}
+        </span>
+      </div>
+    );
+  };
   return (
     <motion.div
       className="w-full max-w-full min-w-0 bg-white/90 backdrop-blur-md shadow-[0_10px_30px_rgba(15,23,42,0.08)] rounded-2xl p-6 border border-slate-200 mb-8"
@@ -1760,14 +1839,14 @@ const CashInOutTable = () => {
       </div>
 
       {/* Filters */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-9 gap-4 items-end mb-6 w-full [&>*]:min-w-0">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-12 gap-4 items-end mb-6 w-full [&>*]:min-w-0">
         <DateRangeFilter
           startDate={startDate}
           endDate={endDate}
           onStartDateChange={setStartDate}
           onEndDateChange={setEndDate}
           compact
-          className="md:col-span-2"
+          className="md:col-span-2 xl:col-span-3"
         />
 
         <div className="flex flex-col">
@@ -2363,11 +2442,13 @@ const CashInOutTable = () => {
                     Bank Account
                   </label>
                   <Select
-                    options={bankAccountSelectOptions}
+                    options={getBankAccountSelectOptions(
+                      currentProduct.bankName,
+                    )}
                     value={
                       isNewBankAccountEdit
                         ? { value: "__new_bank__", label: "+ New Bank Account" }
-                        : bankAccountOptions.find(
+                        : getBankAccountOptions(currentProduct.bankName).find(
                             (option) =>
                               option.value === currentProduct.bankAccount,
                           ) || null
@@ -2380,6 +2461,8 @@ const CashInOutTable = () => {
                         setCurrentProduct({
                           ...currentProduct,
                           bankAccount: selected?.value || "",
+                          bankName:
+                            selected?.bankName || currentProduct.bankName || "",
                         });
                       }
                     }}
@@ -2535,6 +2618,7 @@ const CashInOutTable = () => {
                 </option>
               ))}
             </select>
+            {renderSupplierBalance(currentProduct?.supplierId)}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2730,11 +2814,13 @@ const CashInOutTable = () => {
                     Bank Account
                   </label>
                   <Select
-                    options={bankAccountSelectOptions}
+                    options={getBankAccountSelectOptions(
+                      createProduct.bankName,
+                    )}
                     value={
                       isNewBankAccountAdd
                         ? { value: "__new_bank__", label: "+ New Bank Account" }
-                        : bankAccountOptions.find(
+                        : getBankAccountOptions(createProduct.bankName).find(
                             (option) =>
                               option.value === createProduct.bankAccount,
                           ) || null
@@ -2747,6 +2833,8 @@ const CashInOutTable = () => {
                         setCreateProduct({
                           ...createProduct,
                           bankAccount: selected?.value || "",
+                          bankName:
+                            selected?.bankName || createProduct.bankName || "",
                         });
                       }
                     }}
@@ -3087,11 +3175,13 @@ const CashInOutTable = () => {
                     Bank Account
                   </label>
                   <Select
-                    options={bankAccountSelectOptions}
+                    options={getBankAccountSelectOptions(
+                      createProduct.bankName,
+                    )}
                     value={
                       isNewBankAccountAdd
                         ? { value: "__new_bank__", label: "+ New Bank Account" }
-                        : bankAccountOptions.find(
+                        : getBankAccountOptions(createProduct.bankName).find(
                             (option) =>
                               option.value === createProduct.bankAccount,
                           ) || null
@@ -3104,6 +3194,8 @@ const CashInOutTable = () => {
                         setCreateProduct({
                           ...createProduct,
                           bankAccount: selected?.value || "",
+                          bankName:
+                            selected?.bankName || createProduct.bankName || "",
                         });
                       }
                     }}
@@ -3309,14 +3401,7 @@ const CashInOutTable = () => {
                 isClearable
               />
 
-              {createProduct?.supplierId && (
-                <p className="mt-2 text-xs font-semibold text-amber-600">
-                  Total Due: ৳
-                  {Number(
-                    suppliersDue?.meta?.totalUnpaid || 0,
-                  ).toLocaleString()}
-                </p>
-              )}
+              {renderSupplierBalance(createProduct?.supplierId)}
             </div>
           </div>
 

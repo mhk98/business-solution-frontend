@@ -137,7 +137,10 @@ const SupplierHistoryTable = () => {
     if (!isLoading && data) {
       setRows(data.data || []);
       setTotalPages(
-        Math.max(1, Math.ceil((data?.meta?.count || 0) / itemsPerPage)),
+        Math.max(
+          1,
+          Math.ceil((data?.meta?.count ?? data?.meta?.total ?? 0) / itemsPerPage),
+        ),
       );
     }
   }, [data, isLoading, isError, error, itemsPerPage]);
@@ -393,6 +396,24 @@ const SupplierHistoryTable = () => {
     setIsNoteModalOpen(false); // Close the modal
   };
 
+  const getPaymentStatus = (row) => row.displayStatus || row.status || "-";
+
+  const getPaymentStatusClass = (status) => {
+    if (status === "Paid") {
+      return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    }
+    if (status === "Advance") {
+      return "bg-sky-50 text-sky-700 border-sky-200";
+    }
+    if (status === "Due") {
+      return "bg-rose-50 text-rose-700 border-rose-200";
+    }
+    return "bg-slate-50 text-slate-700 border-slate-200";
+  };
+
+  const totalPaid = Number(data?.meta?.totalPaid || 0);
+  const totalAdvance = Number(data?.meta?.totalAdvance ?? data?.meta?.netBalance ?? 0);
+  const totalDue = Number(data?.meta?.totalDue ?? data?.meta?.totalUnpaid ?? 0);
 
   return (
     <motion.div
@@ -402,18 +423,16 @@ const SupplierHistoryTable = () => {
       transition={{ duration: 0.25 }}
     >
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
-        {/* CashIn */}
-        <div className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+        {/* Total Paid */}
+        <div className="group relative overflow-hidden rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm transition hover:shadow-md">
           <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition bg-gradient-to-br from-emerald-50/70 to-transparent" />
           <div className="relative flex items-start justify-between">
             <div>
-              <p className="text-xs font-medium text-slate-500">
+              <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wide">
                 {t.total_paid || "Total Paid"}
               </p>
-              <p className="mt-2 text-2xl font-semibold text-slate-900 tabular-nums">
-                {isLoading
-                  ? "—"
-                  : Number(data?.meta?.totalPaid || 0).toLocaleString()}
+              <p className="mt-2 text-2xl font-semibold text-emerald-700 tabular-nums">
+                {isLoading ? "—" : totalPaid.toLocaleString()}
               </p>
             </div>
 
@@ -432,18 +451,44 @@ const SupplierHistoryTable = () => {
           </div>
         </div>
 
-        {/* CashOut */}
-        <div className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+        {/* Total Advance */}
+        <div className="group relative overflow-hidden rounded-2xl border border-sky-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition bg-gradient-to-br from-sky-50/70 to-transparent" />
+          <div className="relative flex items-start justify-between">
+            <div>
+              <p className="text-xs font-semibold text-sky-600 uppercase tracking-wide">
+                Total Advance
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-sky-700 tabular-nums">
+                {isLoading ? "—" : totalAdvance.toLocaleString()}
+              </p>
+            </div>
+
+            <div className="h-10 w-10 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center">
+              <svg
+                viewBox="0 0 24 24"
+                className="h-5 w-5 text-sky-600"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M4 12h16" />
+                <path d="M12 4v16" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        {/* Total Due */}
+        <div className="group relative overflow-hidden rounded-2xl border border-rose-200 bg-white p-5 shadow-sm transition hover:shadow-md">
           <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition bg-gradient-to-br from-rose-50/70 to-transparent" />
           <div className="relative flex items-start justify-between">
             <div>
-              <p className="text-xs font-medium text-slate-500">
-                {t.total_unpaid || "Total Unpaid"}
+              <p className="text-xs font-semibold text-rose-600 uppercase tracking-wide">
+                Total Due
               </p>
-              <p className="mt-2 text-2xl font-semibold text-slate-900 tabular-nums">
-                {isLoading
-                  ? "—"
-                  : Number(data?.meta?.totalUnpaid || 0).toLocaleString()}
+              <p className="mt-2 text-2xl font-semibold text-rose-600 tabular-nums">
+                {isLoading ? "—" : totalDue.toLocaleString()}
               </p>
             </div>
 
@@ -457,39 +502,6 @@ const SupplierHistoryTable = () => {
               >
                 <path d="M12 5v14" />
                 <path d="M19 12l-7 7-7-7" />
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        {/* Net */}
-        <div className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition bg-gradient-to-br from-indigo-50/70 to-transparent" />
-          <div className="relative flex items-start justify-between">
-            <div>
-              <p className="text-xs font-medium text-slate-500">
-                {t.net_balance || "Net Balance"}
-              </p>
-              <p className="mt-2 text-2xl font-semibold text-slate-900 tabular-nums">
-                {isLoading
-                  ? "—"
-                  : Number(data?.meta?.netBalance || 0).toLocaleString()}
-              </p>
-            </div>
-
-            <div className="h-10 w-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center">
-              <svg
-                viewBox="0 0 24 24"
-                className="h-5 w-5 text-indigo-600"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M4 19V5" />
-                <path d="M8 17V7" />
-                <path d="M12 19V9" />
-                <path d="M16 15V5" />
-                <path d="M20 19V11" />
               </svg>
             </div>
           </div>
@@ -751,6 +763,7 @@ const SupplierHistoryTable = () => {
           <tbody className="divide-y divide-slate-200 bg-white">
             {rows.map((rp) => {
               const rowId = rp.Id ?? rp.id;
+              const paymentStatus = getPaymentStatus(rp);
 
               const safePath = String(rp.file || "").replace(/\\/g, "/");
               const fileUrl = safePath
@@ -820,12 +833,10 @@ const SupplierHistoryTable = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                     <span
                       className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border ${
-                        rp.status === "Paid"
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                          : "bg-amber-50 text-amber-700 border-amber-200"
+                        getPaymentStatusClass(paymentStatus)
                       }`}
                     >
-                      {rp.status}
+                      {paymentStatus}
                     </span>
                   </td>
 

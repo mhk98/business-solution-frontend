@@ -320,7 +320,7 @@ const MarketingBookTable = () => {
           <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition bg-gradient-to-br from-indigo-50/70 to-transparent" />
           <div className="relative flex items-start justify-between">
             <div>
-              <p className="text-xs font-medium text-slate-500">Net Balance</p>
+              <p className="text-xs font-medium text-slate-500">DM Balance</p>
               <p className="mt-2 text-2xl font-semibold text-slate-900 tabular-nums">
                 {isLoading1 ? "—" : Number(netBalance || 0).toLocaleString()}
               </p>

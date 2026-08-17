@@ -30,7 +30,12 @@ import {
   useDeleteProfitLossMutation,
   useSendProfitLossInvoiceMutation,
 } from "../features/profitLoss/profitLoss";
-import { useCanUseMasterPermission } from "../utils/masterPermissions";
+import { useGetMasterPermissionEmailOptionsQuery } from "../features/masterPermission/masterPermission";
+import {
+  DEFAULT_MASTER_PERMISSION_EMAIL,
+  normalizePermissionEmail,
+  useCanUseMasterPermission,
+} from "../utils/masterPermissions";
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -266,6 +271,20 @@ const DailyProfitLossUserPage = () => {
   const { canUseMasterPermission } = useCanUseMasterPermission();
   const canSeeSensitiveSummary = canUseMasterPermission;
   const canManageProfitLossHistoryActions = canUseMasterPermission;
+  const { data: masterPermissionData } = useGetMasterPermissionEmailOptionsQuery();
+  const masterPermissionEmailOptions = useMemo(() => {
+    const emails = new Set([DEFAULT_MASTER_PERMISSION_EMAIL]);
+
+    (masterPermissionData?.data || []).forEach((row) => {
+      const email = normalizePermissionEmail(row?.email);
+      if (email) emails.add(email);
+    });
+
+    return Array.from(emails).map((email) => ({
+      value: email,
+      label: email,
+    }));
+  }, [masterPermissionData]);
   const pageSize = 10;
   const historyPageSize = 10;
 
@@ -902,7 +921,9 @@ const DailyProfitLossUserPage = () => {
 
   const handleSendEmail = (row) => {
     setSelectedInvoiceRow(row);
-    setClientEmail("");
+    setClientEmail(
+      canUseMasterPermission ? "" : masterPermissionEmailOptions[0]?.value || "",
+    );
     setIsEmailModalOpen(true);
   };
 
@@ -913,6 +934,18 @@ const DailyProfitLossUserPage = () => {
   };
 
   const handleSubmitInvoiceEmail = async () => {
+    if (!canUseMasterPermission) {
+      if (!clientEmail) {
+        toast.error("Please select a master permission email");
+        return;
+      }
+
+      await sendInvoiceEmail(selectedInvoiceRow, clientEmail, {
+        closeModal: true,
+      });
+      return;
+    }
+
     const pendingEmails = emailInputRef.current?.commitPendingEmails?.();
     if (pendingEmails?.invalidEmails?.length) {
       toast.error(`Invalid email: ${pendingEmails.invalidEmails.join(", ")}`);
@@ -1747,13 +1780,29 @@ const DailyProfitLossUserPage = () => {
                   <div className="mb-2 text-sm font-semibold text-slate-700">
                     Client Emails
                   </div>
-                  <EmailChipsInput
-                    ref={emailInputRef}
-                    value={clientEmail}
-                    onChange={setClientEmail}
-                    placeholder="Type email and press Enter"
-                    disabled={sendingEmail}
-                  />
+                  {canUseMasterPermission ? (
+                    <EmailChipsInput
+                      ref={emailInputRef}
+                      value={clientEmail}
+                      onChange={setClientEmail}
+                      placeholder="Type email and press Enter"
+                      disabled={sendingEmail}
+                    />
+                  ) : (
+                    <Select
+                      value={
+                        masterPermissionEmailOptions.find(
+                          (option) => option.value === clientEmail,
+                        ) || null
+                      }
+                      onChange={(option) => setClientEmail(option?.value || "")}
+                      options={masterPermissionEmailOptions}
+                      placeholder="Select master permission email"
+                      isDisabled={sendingEmail}
+                      isSearchable
+                      styles={selectStyles}
+                    />
+                  )}
                 </label>
                 <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
                   <button

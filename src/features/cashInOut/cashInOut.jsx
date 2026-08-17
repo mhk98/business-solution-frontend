@@ -12,6 +12,7 @@ export const cashInOutApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: [
         { type: "CashInOut", id: "LIST" },
+        { type: "SupplierHistory", id: "LIST" },
         { type: "Overview", id: "LIST" },
       ],
     }),
@@ -25,6 +26,7 @@ export const cashInOutApi = baseApi.injectEndpoints({
       invalidatesTags: (res, err, arg) => [
         { type: "CashInOut", id: arg.id },
         { type: "CashInOut", id: "LIST" },
+        { type: "SupplierHistory", id: "LIST" },
         { type: "Overview", id: "LIST" },
       ],
     }),
@@ -45,6 +47,7 @@ export const cashInOutApi = baseApi.injectEndpoints({
         return [
           { type: "CashInOut", id },
           { type: "CashInOut", id: "LIST" },
+          { type: "SupplierHistory", id: "LIST" },
           { type: "Overview", id: "LIST" },
         ];
       },

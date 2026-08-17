@@ -297,7 +297,14 @@ const inventoryColors = {
   repairing: "#14b8a6",
 };
 
-const MetricCard = ({ title, value, changePercent, icon: Icon, color }) => {
+const MetricCard = ({
+  title,
+  value,
+  changePercent,
+  icon: Icon,
+  color,
+  neutralLabel = "Live snapshot",
+}) => {
   const tone = metricTone(changePercent);
   const TrendIcon = tone === "down" ? TrendingDown : TrendingUp;
 
@@ -321,7 +328,7 @@ const MetricCard = ({ title, value, changePercent, icon: Icon, color }) => {
           </p>
           {tone === "neutral" ? (
             <p className="mt-3 text-xs font-semibold text-slate-400">
-              Live stock snapshot
+              {neutralLabel}
             </p>
           ) : (
             <p
@@ -610,11 +617,12 @@ const InventoryDashboardOverview = () => {
 
   const metricCards = [
     {
-      title: "Total Revenue",
-      value: formatCurrency(metrics.totalRevenue?.value),
-      changePercent: metrics.totalRevenue?.changePercent,
+      title: "DM Balance",
+      value: formatCurrency(metrics.dmBalance?.value),
+      changePercent: metrics.dmBalance?.changePercent,
       icon: WalletCards,
       color: "#635bff",
+      neutralLabel: "Current DM balance",
     },
     // {
     //   title: "Total Sales",
@@ -643,6 +651,7 @@ const InventoryDashboardOverview = () => {
       changePercent: metrics.lowStockItems?.changePercent,
       icon: AlertTriangle,
       color: "#ec4899",
+      neutralLabel: "Live stock snapshot",
     },
     {
       title: "Stock Value",
@@ -650,6 +659,7 @@ const InventoryDashboardOverview = () => {
       changePercent: metrics.stockValue?.changePercent,
       icon: Coins,
       color: "#8b5cf6",
+      neutralLabel: "Live stock snapshot",
     },
   ];
 
@@ -1199,47 +1209,6 @@ const InventoryDashboardOverview = () => {
 
         {canSeeSensitiveOverview && (
           <>
-            <motion.section
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35 }}
-              className="mb-5"
-            >
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-                {profitLossCards.map((card) => {
-                  const Icon = card.icon;
-
-                  return (
-                    <div
-                      key={card.label}
-                      className="group relative flex min-h-[132px] overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md sm:p-6"
-                    >
-                      <div
-                        className={`absolute inset-x-0 top-0 h-1.5 ${card.accentClass}`}
-                      />
-                      <div className="flex w-full items-start justify-between gap-4">
-                        <div className="min-w-0">
-                          <p className="text-xs font-black uppercase tracking-widest text-slate-500">
-                            {card.label}
-                          </p>
-                          <p
-                            className={`mt-5 break-words text-2xl font-black tracking-tight ${card.valueClass}`}
-                          >
-                            {isLoading ? "..." : formatCurrency(card.value, 2)}
-                          </p>
-                        </div>
-                        <div
-                          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border shadow-sm transition duration-200 group-hover:scale-105 ${card.iconClass}`}
-                        >
-                          <Icon size={22} />
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </motion.section>
-
             <div className="grid grid-cols-1 gap-4 min-[520px]:grid-cols-2 xl:grid-cols-5">
               {metricCards.map((card) => (
                 <MetricCard
@@ -1249,9 +1218,51 @@ const InventoryDashboardOverview = () => {
                   changePercent={card.changePercent}
                   icon={card.icon}
                   color={card.color}
+                  neutralLabel={card.neutralLabel}
                 />
               ))}
             </div>
+
+            <motion.section
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35 }}
+              className="mt-5 mb-5"
+            >
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+                {profitLossCards.map((card) => {
+                  const Icon = card.icon;
+
+                  return (
+                    <div
+                      key={card.label}
+                      className="group relative flex min-h-[128px] overflow-hidden rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md"
+                    >
+                      <div
+                        className={`absolute inset-x-0 top-0 h-1.5 ${card.accentClass}`}
+                      />
+                      <div className="flex w-full items-start gap-3 sm:gap-4">
+                        <div
+                          className={`mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full border shadow-sm transition duration-200 group-hover:scale-105 sm:h-12 sm:w-12 ${card.iconClass}`}
+                        >
+                          <Icon size={21} />
+                        </div>
+                        <div className="min-w-0 pt-1">
+                          <p className="text-sm font-semibold text-slate-600">
+                            {card.label}
+                          </p>
+                          <p
+                            className={`mt-3 break-words text-xl font-black tracking-tight sm:text-2xl ${card.valueClass}`}
+                          >
+                            {isLoading ? "..." : formatCurrency(card.value, 2)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.section>
 
             <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-4">
               {managementCards.map((card) => (

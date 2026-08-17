@@ -918,6 +918,13 @@ export const SIDEBAR_ITEMS = [
         roles: ["superAdmin", "admin", "accountant"],
       },
       {
+        name: "Bank",
+        key: "bank_account",
+        icon: WalletCards,
+        href: "/bank-account",
+        roles: ["superAdmin", "admin", "accountant"],
+      },
+      {
         name: "Category",
         key: "category",
         icon: Tags,

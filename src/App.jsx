@@ -32,6 +32,7 @@ const ExpensePage = lazy(() => import("./pages/ExpensePage"));
 const AccountingPage = lazy(() => import("./pages/AccountingPage"));
 const AccountingCategoryPage = lazy(() => import("./pages/AccountingCategoryPage"));
 const AccountingOverviewPage = lazy(() => import("./pages/AccountingOverviewPage"));
+const BankAccountPage = lazy(() => import("./pages/BankAccountPage"));
 const CashInOutPage = lazy(() => import("./pages/CashInOutPage"));
 const PurchaseReturnProductPage = lazy(() => import("./pages/PurchaseReturnProductPage"));
 const ReceiveablePage = lazy(() => import("./pages/ReceiveablePage"));
@@ -257,6 +258,7 @@ function App() {
                 <Route path="/expense" element={<AuthedRoute><ExpensePage /></AuthedRoute>} />
                 <Route path="/accounting-overview" element={<AuthedRoute><AccountingOverviewPage /></AuthedRoute>} />
                 <Route path="/book" element={<AuthedRoute><AccountingPage /></AuthedRoute>} />
+                <Route path="/bank-account" element={<AuthedRoute><BankAccountPage /></AuthedRoute>} />
                 <Route path="/category" element={<AuthedRoute><AccountingCategoryPage /></AuthedRoute>} />
                 <Route path="/book/:id" element={<AuthedRoute><CashInOutPage /></AuthedRoute>} />
                 <Route path="/marketing-book" element={<AuthedRoute><MarketingBookPage /></AuthedRoute>} />

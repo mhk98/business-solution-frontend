@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx";
-import { PDF_BENGALI_FONT, registerBengaliPdfFont } from "../pdfFonts";
+import { drawPdfBrandBlock, DEFAULT_COMPANY_NAME } from "../pdfBranding";
 
 const isPlainObject = (value) =>
   value && typeof value === "object" && !Array.isArray(value);
@@ -639,9 +639,16 @@ export const buildReportTable = (rows = [], report = null) => {
   return { headers, body };
 };
 
-export const downloadGenericReportXlsx = ({ title, rows, filename, report }) => {
+export const downloadGenericReportXlsx = ({
+  title,
+  rows,
+  filename,
+  report,
+  companyName = DEFAULT_COMPANY_NAME,
+}) => {
   const { headers, body } = buildReportTable(rows, report);
   const worksheet = XLSX.utils.aoa_to_sheet([
+    [companyName],
     [title],
     [`Generated: ${new Date().toISOString().slice(0, 10)}`],
     [`Total Rows: ${rows.length}`],
@@ -652,6 +659,7 @@ export const downloadGenericReportXlsx = ({ title, rows, filename, report }) => 
 
   worksheet["!merges"] = [
     { s: { r: 0, c: 0 }, e: { r: 0, c: Math.max(headers.length - 1, 0) } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: Math.max(headers.length - 1, 0) } },
   ];
   worksheet["!cols"] = headers.map((header) => ({
     wch: Math.min(Math.max(String(header).length + 6, 12), 36),
@@ -667,37 +675,101 @@ export const downloadGenericReportXlsx = ({ title, rows, filename, report }) => 
   XLSX.writeFile(workbook, `${filename}.xlsx`);
 };
 
-export const downloadGenericReportPdf = async ({ title, rows, filename, report }) => {
+export const downloadGenericReportPdf = async ({
+  title,
+  rows,
+  filename,
+  report,
+  logoUrl = "",
+  companyName = DEFAULT_COMPANY_NAME,
+}) => {
   const { jsPDF } = await import("jspdf");
   const autoTable = (await import("jspdf-autotable")).default;
   const { headers, body } = buildReportTable(rows, report);
 
   const doc = new jsPDF("l", "mm", "a4");
-  await registerBengaliPdfFont(doc);
-  doc.setFont(PDF_BENGALI_FONT, "bold");
-  doc.setFontSize(15);
-  doc.text(title, 14, 14);
-  doc.setFont(PDF_BENGALI_FONT, "normal");
-  doc.setFontSize(9);
-  doc.text(`Generated: ${new Date().toISOString().slice(0, 10)} | Total Rows: ${rows.length}`, 14, 20);
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const left = 14;
+  const top = 12;
+
+  await drawPdfBrandBlock({
+    pdf: doc,
+    logoUrl,
+    companyName,
+    x: left,
+    topY: top,
+    logoMaxWidth: 42,
+    logoMaxHeight: 14,
+    companySize: 12,
+    subtitle: title,
+    subtitleSize: 8,
+  });
+
+  doc.setDrawColor(226, 232, 240);
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(left, 40, pageWidth - left * 2, 13, 1.5, 1.5, "FD");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text(`Report: ${title}`, left + 4, 48);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(71, 85, 105);
+  doc.text(
+    `Generated: ${new Date().toISOString().slice(0, 10)}   |   Total Rows: ${rows.length}`,
+    pageWidth - left - 4,
+    48,
+    { align: "right" },
+  );
 
   autoTable(doc, {
     head: [headers],
     body,
-    startY: 25,
+    startY: 59,
     theme: "grid",
+    margin: { left, right: left },
+    tableWidth: "auto",
     styles: {
-      font: PDF_BENGALI_FONT,
+      font: "helvetica",
       fontStyle: "normal",
-      fontSize: 7,
-      cellPadding: 1.8,
+      fontSize: 7.4,
+      cellPadding: 2,
       overflow: "linebreak",
+      textColor: [15, 23, 42],
+      lineColor: [203, 213, 225],
+      lineWidth: 0.15,
     },
     headStyles: {
       fillColor: [79, 70, 229],
       textColor: 255,
-      font: PDF_BENGALI_FONT,
+      font: "helvetica",
       fontStyle: "bold",
+      fontSize: 7.6,
+      halign: "left",
+      valign: "middle",
+    },
+    alternateRowStyles: {
+      fillColor: [248, 250, 252],
+    },
+    columnStyles: {
+      0: { cellWidth: 10, halign: "center" },
+      1: { cellWidth: 58 },
+    },
+    didDrawPage: (data) => {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.setTextColor(100, 116, 139);
+      doc.text(
+        `Page ${doc.internal.getNumberOfPages()}`,
+        pageWidth - left,
+        doc.internal.pageSize.getHeight() - 8,
+        { align: "right" },
+      );
+      if (data.pageNumber > 1) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(15, 23, 42);
+        doc.text(title, left, 12);
+      }
     },
   });
 

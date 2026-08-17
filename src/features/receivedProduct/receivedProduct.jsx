@@ -67,6 +67,7 @@ export const receivedProductApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: [
         { type: "ReceivedProduct", id: "LIST" },
+        { type: "SupplierHistory", id: "LIST" },
         { type: "InventoryOverview", id: "LIST" },
       ],
     }),
@@ -80,6 +81,7 @@ export const receivedProductApi = baseApi.injectEndpoints({
       invalidatesTags: (res, err, arg) => [
         { type: "ReceivedProduct", id: arg.id },
         { type: "ReceivedProduct", id: "LIST" },
+        { type: "SupplierHistory", id: "LIST" },
         { type: "InventoryOverview", id: "LIST" },
       ],
     }),
@@ -92,6 +94,7 @@ export const receivedProductApi = baseApi.injectEndpoints({
       invalidatesTags: (res, err, id) => [
         { type: "ReceivedProduct", id },
         { type: "ReceivedProduct", id: "LIST" },
+        { type: "SupplierHistory", id: "LIST" },
         { type: "InventoryOverview", id: "LIST" },
       ],
     }),

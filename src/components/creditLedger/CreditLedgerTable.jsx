@@ -264,7 +264,7 @@ const getInitialLedgerForm = () => ({
   countryCode: "BD",
   bookId: "",
   date: new Date().toISOString().slice(0, 10),
-  cashType: "Unpaid",
+  cashType: "Paid",
   amount: "",
   name: "",
   supplierId: "",
@@ -646,7 +646,6 @@ const CreditLedgerTable = () => {
       const payload = {
         role: ENTITY_TYPES[createLedger.type]?.label,
         name: createLedger.name,
-        bookId: Number(createLedger.bookId) || undefined,
         supplierId:
           createLedger.type === "supplier" ? createLedger.supplierId || "" : "",
         employeeId:
@@ -720,11 +719,6 @@ const CreditLedgerTable = () => {
       extra: selectedOption?.extra || "",
     }));
   };
-
-  const selectedCreateLedgerBookOption =
-    bookOptions.find(
-      (option) => String(option.value) === String(createLedger.bookId),
-    ) || null;
 
   const selectedLedgerHistoryBookOption =
     bookOptions.find(
@@ -2713,95 +2707,6 @@ const CreditLedgerTable = () => {
                         aria-label="Open date picker"
                       >
                         <Calendar size={18} />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-slate-800 mb-2">
-                      Book
-                    </label>
-                    <Select
-                      value={selectedCreateLedgerBookOption}
-                      options={bookOptions}
-                      onChange={(selectedOption) =>
-                        updateCreateLedgerField(
-                          "bookId",
-                          selectedOption?.value || "",
-                        )
-                      }
-                      placeholder="Select Book"
-                      isClearable
-                      styles={ledgerEntitySelectStyles}
-                      noOptionsMessage={() => "No book found"}
-                    />
-                  </div>
-
-                  {/* Cash Type */}
-                  <div>
-                    <label className="block text-sm font-medium text-slate-800 mb-2">
-                      লেনদেনের ধরন
-                    </label>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateCreateLedgerField("cashType", "Unpaid")
-                        }
-                        className={`rounded-lg px-3 py-3 text-left ${
-                          createLedger.cashType === "Unpaid"
-                            ? "border-2 border-red-400 bg-red-50"
-                            : "border border-slate-300"
-                        }`}
-                      >
-                        <div className="flex items-start gap-2">
-                          {createLedger.cashType === "Unpaid" ? (
-                            <div className="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-red-500">
-                              <div className="h-2.5 w-2.5 rounded-full bg-red-500" />
-                            </div>
-                          ) : (
-                            <div className="mt-0.5 h-5 w-5 rounded-full border-2 border-slate-400" />
-                          )}
-                          <div>
-                            <div className="text-sm font-semibold text-red-600">
-                              বাকি যোগ
-                            </div>
-                            <div className="text-xs text-slate-500">
-                              Supplier credit দিল, বাকি বাড়বে
-                            </div>
-                          </div>
-                        </div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateCreateLedgerField("cashType", "Paid")
-                        }
-                        className={`rounded-lg px-3 py-3 text-left ${
-                          createLedger.cashType === "Paid"
-                            ? "border-2 border-green-400 bg-green-50"
-                            : "border border-slate-300"
-                        }`}
-                      >
-                        <div className="flex items-start gap-2">
-                          {createLedger.cashType === "Paid" ? (
-                            <div className="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-green-500">
-                              <div className="h-2.5 w-2.5 rounded-full bg-green-500" />
-                            </div>
-                          ) : (
-                            <div className="mt-0.5 h-5 w-5 rounded-full border-2 border-slate-400" />
-                          )}
-                          <div>
-                            <div className="text-sm font-semibold text-green-600">
-                              পরিশোধ
-                            </div>
-                            <div className="text-xs text-slate-500">
-                              Supplier কে টাকা দিলাম, বাকি কমবে
-                            </div>
-                          </div>
-                        </div>
                       </button>
                     </div>
                   </div>

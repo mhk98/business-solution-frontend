@@ -143,7 +143,13 @@ const DateRangeFilter = ({
       </div>
 
       {isCustomFilter ? (
-        <div className="grid min-w-0 grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(150px,1fr)_minmax(150px,1fr)_auto]">
+        <div
+          className={
+            compact
+              ? "grid min-w-0 grid-cols-1 items-end gap-3 sm:grid-cols-2"
+              : "grid min-w-0 grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(150px,1fr)_minmax(150px,1fr)_auto]"
+          }
+        >
           <div className="flex flex-col flex-1 w-full">
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1.5">
               {startLabel}
@@ -181,7 +187,13 @@ const DateRangeFilter = ({
             </div>
           </div>
 
-          <div className="flex gap-2 w-full sm:col-span-2 xl:col-span-1 xl:w-auto">
+          <div
+            className={
+              compact
+                ? "flex gap-2 w-full sm:col-span-2"
+                : "flex gap-2 w-full sm:col-span-2 xl:col-span-1 xl:w-auto"
+            }
+          >
             <button
               type="button"
               onClick={handleApply}

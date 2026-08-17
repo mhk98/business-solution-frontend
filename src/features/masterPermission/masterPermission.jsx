@@ -16,6 +16,13 @@ export const masterPermissionApi = baseApi.injectEndpoints({
       }),
       providesTags: ["MasterPermission"],
     }),
+    getMasterPermissionEmailOptions: build.query({
+      query: () => ({
+        url: "/master-permissions/email-options",
+        method: "GET",
+      }),
+      providesTags: ["MasterPermission"],
+    }),
     addMasterPermission: build.mutation({
       query: ({ email }) => ({
         url: "/master-permissions",
@@ -38,6 +45,7 @@ export const masterPermissionApi = baseApi.injectEndpoints({
 export const {
   useGetMyMasterPermissionQuery,
   useGetMasterPermissionsQuery,
+  useGetMasterPermissionEmailOptionsQuery,
   useAddMasterPermissionMutation,
   useDeleteMasterPermissionMutation,
 } = masterPermissionApi;

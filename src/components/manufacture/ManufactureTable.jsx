@@ -77,6 +77,7 @@ const ManufactureTable = () => {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [itemName, setItemName] = useState("");
+  const [itemId, setItemId] = useState("");
 
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
@@ -102,7 +103,7 @@ const ManufactureTable = () => {
   useEffect(() => {
     setCurrentPage(1);
     setStartPage(1);
-  }, [startDate, endDate, itemName, itemsPerPage]);
+  }, [startDate, endDate, itemId, itemName, itemsPerPage]);
 
   useEffect(() => {
     if (startDate && endDate && startDate > endDate) {
@@ -203,17 +204,6 @@ const ManufactureTable = () => {
   // };
 
   const resolveItemName = (rp) => {
-    const possibleName =
-      rp?.itemName ||
-      rp?.name ||
-      rp?.item?.name ||
-      rp?.Item?.name ||
-      rp?.product?.name ||
-      rp?.Product?.name ||
-      "";
-
-    if (possibleName) return possibleName;
-
     const possibleId =
       rp?.itemId ??
       rp?.item_id ??
@@ -232,11 +222,27 @@ const ManufactureTable = () => {
       rp?.product?._id ??
       "";
 
+    const matchedName =
+      possibleId !== "" && possibleId !== null && possibleId !== undefined
+        ? itemNameMap.get(String(possibleId))
+        : "";
+
+    const possibleName =
+      rp?.itemName ||
+      rp?.item?.name ||
+      rp?.Item?.name ||
+      rp?.product?.name ||
+      rp?.Product?.name ||
+      matchedName ||
+      rp?.name ||
+      "";
+
+    if (possibleName) return possibleName;
+
     if (possibleId === "" || possibleId === null || possibleId === undefined) {
       return "N/A";
     }
 
-    const matchedName = itemNameMap.get(String(possibleId));
     return matchedName || `Item #${possibleId}`;
   };
   const queryArgs = useMemo(() => {
@@ -245,7 +251,8 @@ const ManufactureTable = () => {
       limit: itemsPerPage,
       startDate: startDate || undefined,
       endDate: endDate || undefined,
-      name: itemName || undefined,
+      itemId: itemId || undefined,
+      name: itemId ? undefined : itemName || undefined,
     };
 
     Object.keys(args).forEach((k) => {
@@ -255,7 +262,7 @@ const ManufactureTable = () => {
     });
 
     return args;
-  }, [currentPage, itemsPerPage, startDate, endDate, itemName]);
+  }, [currentPage, itemsPerPage, startDate, endDate, itemId, itemName]);
 
   const { data, isLoading, isError, error, refetch } =
     useGetAllManufactureQuery(queryArgs);
@@ -589,6 +596,7 @@ const ManufactureTable = () => {
     setStartDate("");
     setEndDate("");
     setItemName("");
+    setItemId("");
   };
 
   const handleNoteClick = (note) => {
@@ -692,9 +700,14 @@ const ManufactureTable = () => {
           <Select
             options={itemDropdownOptions}
             value={
-              itemDropdownOptions.find((o) => o.label === itemName) || null
+              itemDropdownOptions.find((o) => o.value === itemId) ||
+              itemDropdownOptions.find((o) => o.label === itemName) ||
+              null
             }
-            onChange={(selected) => setItemName(selected?.label || "")}
+            onChange={(selected) => {
+              setItemId(selected?.value || "");
+              setItemName(selected?.label || "");
+            }}
             placeholder={t.search || "Search"}
             isClearable
             isDisabled={isLoadingAllItems}

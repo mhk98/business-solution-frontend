@@ -22,28 +22,30 @@ import { useLayout } from "../../context/LayoutContext";
 import { translations } from "../../utils/translations";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 import useDebounce from "../../hooks/useDebounce";
+import { useGetAllBankAccountWithoutQueryQuery } from "../../features/bankAccount/bankAccount";
 
+const PAYMENT_MODES = ["Cash", "Bkash", "Nagad", "Rocket", "Bank", "Card"];
 
-// const BANKS = [
-//   "Al Arafah",
-//   "BRAC Bank",
-//   "Bank Asia",
-//   "City Bank",
-//   "Dutch-Bangla Bank",
-//   "Dhaka Bank",
-//   "Eastern Bank",
-//   "Islami Bank",
-//   "Janata Bank",
-//   "Mutual Trust Bank",
-//   "One Bank",
-//   "Prime Bank",
-//   "Pubali Bank",
-//   "Premier Bank",
-//   "United Commercial Bank",
-//   "Sonali Bank",
-//   "Standard Chartered",
-//   "Trust Bank",
-// ];
+const BANKS = [
+  "Al Arafah",
+  "BRAC Bank",
+  "Bank Asia",
+  "City Bank",
+  "Dutch-Bangla Bank",
+  "Dhaka Bank",
+  "Eastern Bank",
+  "Islami Bank",
+  "Janata Bank",
+  "Mutual Trust Bank",
+  "One Bank",
+  "Prime Bank",
+  "Pubali Bank",
+  "Premier Bank",
+  "United Commercial Bank",
+  "Sonali Bank",
+  "Standard Chartered",
+  "Trust Bank",
+];
 
 const MarketingExpenseTable = ({ bookName = "" }) => {
   const { language } = useLayout();
@@ -84,6 +86,32 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
   const [filterPaymentStatus, setFilterPaymentStatus] = useState("");
 
   const role = localStorage.getItem("role");
+  const { data: bankAccountRes } = useGetAllBankAccountWithoutQueryQuery();
+  const bankAccountsFromDB = bankAccountRes?.data || [];
+  const bankOptions = useMemo(() => {
+    const seen = new Set();
+    const dbBanks = bankAccountsFromDB
+      .filter((account) => {
+        const key = String(account.bankName || "").trim().toLowerCase();
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .map((account) => account.bankName);
+
+    return dbBanks.length ? dbBanks : BANKS;
+  }, [bankAccountsFromDB]);
+  const getBankAccountOptions = (bankName = "") =>
+    bankAccountsFromDB
+      .filter(
+        (account) =>
+          !bankName ||
+          String(account.bankName || "") === String(bankName || ""),
+      )
+      .map((account) => ({
+        value: account.accountNumber,
+        label: account.accountNumber,
+      }));
 
   //Pagination calculation start
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -212,7 +240,7 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
   const handleEditClick = (rp) => {
     setCurrentProduct({
       ...rp,
-      // paymentMode: rp.paymentMode ?? "",
+      paymentMode: rp.paymentMode ?? "",
       paymentStatus: rp.paymentStatus ?? "",
       amount: rp.amount ?? "",
       bankName: rp.bankName ?? "",
@@ -230,10 +258,10 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
   const handleEditClick1 = (rp) => {
     setCurrentProduct({
       ...rp,
-      // paymentMode: rp.paymentMode ?? "",
+      paymentMode: rp.paymentMode ?? "",
       paymentStatus: rp.paymentStatus ?? "",
       amount: rp.amount ?? "",
-      // bankName: rp.bankName ?? "",
+      bankName: rp.bankName ?? "",
       bankAccount: rp.bankAccount ?? "",
       note: rp.note ?? "",
       status: rp.status ?? "",
@@ -263,7 +291,16 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
       // }
 
       const formData = new FormData();
-      // formData.append("paymentMode", currentProduct.paymentMode);
+      if (!currentProduct.paymentMode)
+        return toast.error("Payment Mode is required!");
+
+      if (currentProduct.paymentMode === "Bank") {
+        if (!currentProduct.bankName) return toast.error("Bank Name is required!");
+        if (!currentProduct.bankAccount)
+          return toast.error("Bank Account is required!");
+      }
+
+      formData.append("paymentMode", currentProduct.paymentMode);
       formData.append("paymentStatus", currentProduct.paymentStatus);
       formData.append("note", currentProduct.note);
       formData.append("category", currentProduct.category);
@@ -273,16 +310,16 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
       formData.append("actorRole", role);
       formData.append("bookId", id);
 
-      // formData.append(
-      //   "bankName",
-      //   currentProduct.paymentMode === "Bank" ? currentProduct.bankName : "",
-      // );
-      // formData.append(
-      //   "bankAccount",
-      //   currentProduct.paymentMode === "Bank"
-      //     ? String(currentProduct.bankAccount)
-      //     : "",
-      // );
+      formData.append(
+        "bankName",
+        currentProduct.paymentMode === "Bank" ? currentProduct.bankName : "",
+      );
+      formData.append(
+        "bankAccount",
+        currentProduct.paymentMode === "Bank"
+          ? String(currentProduct.bankAccount)
+          : "",
+      );
 
       // Use categoryName (not categoryId)
       // formData.append("category", finalCategoryName); // Using category name here
@@ -340,34 +377,34 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
 
     // Ensure required fields are filled
     if (!createProduct.amount) return toast.error("Amount is required!");
-    // if (!createProduct.paymentMode)
-    //   return toast.error("Payment Mode is required!");
+    if (!createProduct.paymentMode)
+      return toast.error("Payment Mode is required!");
 
-    // if (createProduct.paymentMode === "Bank") {
-    //   if (!createProduct.bankName) return toast.error("Bank Name is required!");
-    //   if (!createProduct.bankAccount)
-    //     return toast.error("Bank Account is required!");
-    // }
+    if (createProduct.paymentMode === "Bank") {
+      if (!createProduct.bankName) return toast.error("Bank Name is required!");
+      if (!createProduct.bankAccount)
+        return toast.error("Bank Account is required!");
+    }
 
     try {
       // Form data preparation for submission
       const formData = new FormData();
-      // formData.append("paymentMode", createProduct.paymentMode);
+      formData.append("paymentMode", createProduct.paymentMode);
       formData.append("paymentStatus", "CashIn");
       formData.append("date", createProduct.date);
       formData.append("note", createProduct.note);
       formData.append("category", createProduct.category);
 
-      // formData.append(
-      //   "bankName",
-      //   createProduct.paymentMode === "Bank" ? createProduct.bankName : "",
-      // );
-      // formData.append(
-      //   "bankAccount",
-      //   createProduct.paymentMode === "Bank"
-      //     ? String(createProduct.bankAccount)
-      //     : "",
-      // );
+      formData.append(
+        "bankName",
+        createProduct.paymentMode === "Bank" ? createProduct.bankName : "",
+      );
+      formData.append(
+        "bankAccount",
+        createProduct.paymentMode === "Bank"
+          ? String(createProduct.bankAccount)
+          : "",
+      );
 
       // Use categoryName (not category)
       // formData.append("category", finalCategoryName); // Using category name here
@@ -405,35 +442,34 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
 
     // Ensure required fields are filled
     if (!createProduct.amount) return toast.error("Amount is required!");
-    // if (!createProduct.paymentMode)
-    //   return toast.error("Payment Mode is required!");
+    if (!createProduct.paymentMode)
+      return toast.error("Payment Mode is required!");
 
-    // // Bank details check
-    // if (createProduct.paymentMode === "Bank") {
-    //   if (!createProduct.bankName) return toast.error("Bank Name is required!");
-    //   if (!createProduct.bankAccount)
-    //     return toast.error("Bank Account is required!");
-    // }
+    if (createProduct.paymentMode === "Bank") {
+      if (!createProduct.bankName) return toast.error("Bank Name is required!");
+      if (!createProduct.bankAccount)
+        return toast.error("Bank Account is required!");
+    }
 
     try {
       // Form data preparation for submission
       const formData = new FormData();
-      // formData.append("paymentMode", createProduct.paymentMode);
+      formData.append("paymentMode", createProduct.paymentMode);
       formData.append("paymentStatus", "CashOut");
       formData.append("date", createProduct.date);
       formData.append("note", createProduct.note);
       formData.append("category", createProduct.category);
 
-      // formData.append(
-      //   "bankName",
-      //   createProduct.paymentMode === "Bank" ? createProduct.bankName : "",
-      // );
-      // formData.append(
-      //   "bankAccount",
-      //   createProduct.paymentMode === "Bank"
-      //     ? String(createProduct.bankAccount)
-      //     : "",
-      // );
+      formData.append(
+        "bankName",
+        createProduct.paymentMode === "Bank" ? createProduct.bankName : "",
+      );
+      formData.append(
+        "bankAccount",
+        createProduct.paymentMode === "Bank"
+          ? String(createProduct.bankAccount)
+          : "",
+      );
 
       // Use category (not category)
       // formData.append("category", finalCategoryName); // Using category name here
@@ -581,6 +617,89 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
 
   const handleModalClose = () => {
     setIsNoteModalOpen(false); // Close the modal
+  };
+
+  const renderPaymentModeFields = (values, setValues) => {
+    const fieldValues = values || {};
+    const updateValues = (patch) =>
+      setValues((prev) => ({
+        ...(prev || {}),
+        ...patch,
+      }));
+
+    return (
+      <>
+        <div>
+          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
+            Payment Mode
+          </label>
+          <select
+            value={fieldValues.paymentMode || ""}
+            onChange={(e) => {
+              const paymentMode = e.target.value;
+              updateValues({
+                paymentMode,
+                bankName:
+                  paymentMode === "Bank" ? fieldValues.bankName || "" : "",
+                bankAccount:
+                  paymentMode === "Bank" ? fieldValues.bankAccount || "" : "",
+              });
+            }}
+            className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+            required
+          >
+            <option value="">Select Payment Mode</option>
+            {PAYMENT_MODES.map((mode) => (
+              <option key={mode} value={mode}>
+                {mode}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {fieldValues.paymentMode === "Bank" && (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                Bank Name
+              </label>
+              <select
+                value={fieldValues.bankName || ""}
+                onChange={(e) => updateValues({ bankName: e.target.value })}
+                className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+                required
+              >
+                <option value="">Select Bank</option>
+                {bankOptions.map((bank) => (
+                  <option key={bank} value={bank}>
+                    {bank}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                Bank Account
+              </label>
+              <select
+                value={fieldValues.bankAccount || ""}
+                onChange={(e) => updateValues({ bankAccount: e.target.value })}
+                className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+                required
+              >
+                <option value="">Select Bank Account</option>
+                {getBankAccountOptions(fieldValues.bankName).map((account) => (
+                  <option key={account.value} value={account.value}>
+                    {account.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+      </>
+    );
   };
 
   return (
@@ -1170,6 +1289,8 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
             />
           </div>
 
+          {renderPaymentModeFields(currentProduct, setCurrentProduct)}
+
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
               Payment Status
@@ -1404,6 +1525,8 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
             />
           </div>
 
+          {renderPaymentModeFields(createProduct, setCreateProduct)}
+
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
               Category
@@ -1524,6 +1647,8 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
               className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
             />
           </div>
+
+          {renderPaymentModeFields(createProduct, setCreateProduct)}
 
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">

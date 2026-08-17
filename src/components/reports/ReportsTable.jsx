@@ -4,6 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import DateRangeFilter from "../common/DateRangeFilter";
 import { useGetGenericReportQuery } from "../../features/reports/reports";
+import { useGetAllLogoQuery } from "../../features/logo/logo";
 import {
   getReportGroupByKey,
   getReportsByGroup,
@@ -14,6 +15,7 @@ import {
   downloadGenericReportPdf,
   downloadGenericReportXlsx,
 } from "../../utils/reports/genericReportExport";
+import { DEFAULT_COMPANY_NAME, buildAssetUrl } from "../../utils/pdfBranding";
 
 const sanitizeFilename = (value) =>
   value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -70,13 +72,22 @@ const ReportsTable = () => {
     endpoint: selectedReport.endpoint,
     params,
   });
+  const { data: logoData } = useGetAllLogoQuery();
 
   const rows = data?.rows || [];
   const { headers, body } = useMemo(
     () => buildReportTable(rows, selectedReport),
     [rows, selectedReport],
   );
-  const filename = sanitizeFilename(`${selectedReport.label}-report`);
+  const reportTitle =
+    selectedReport.key === "inventory-reports"
+      ? "Kafela Inventory Report"
+      : `${selectedReport.label} Report`;
+  const filename = sanitizeFilename(reportTitle);
+  const logoRecord = Array.isArray(logoData?.data)
+    ? logoData.data[0]
+    : logoData?.data;
+  const logoUrl = buildAssetUrl(logoRecord?.file);
 
   const handleXlsx = () => {
     if (!rows.length) {
@@ -84,10 +95,11 @@ const ReportsTable = () => {
       return;
     }
     downloadGenericReportXlsx({
-      title: `${selectedReport.label} Report`,
+      title: reportTitle,
       rows,
       filename,
       report: selectedReport,
+      companyName: DEFAULT_COMPANY_NAME,
     });
   };
 
@@ -97,10 +109,12 @@ const ReportsTable = () => {
       return;
     }
     await downloadGenericReportPdf({
-      title: `${selectedReport.label} Report`,
+      title: reportTitle,
       rows,
       filename,
       report: selectedReport,
+      logoUrl,
+      companyName: DEFAULT_COMPANY_NAME,
     });
   };
 
@@ -113,7 +127,7 @@ const ReportsTable = () => {
               <FileSpreadsheet size={22} />
             </div>
             <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-              {selectedReport.label} Report
+              {reportTitle}
             </h2>
             <p className="text-sm text-slate-500 font-medium mt-1">
               {reportGroup ? `${reportGroup.label} reports. ` : ""}

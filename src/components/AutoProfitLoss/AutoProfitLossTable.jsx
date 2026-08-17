@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { Mail, Printer, RefreshCcw, Save, Trash2 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
+import Select from "react-select";
 import { useGetAllInTransitProductQuery } from "../../features/inTransitProduct/inTransitProduct";
 import { useGetAllReturnProductQuery } from "../../features/returnProduct/returnProduct";
 import {
@@ -13,7 +14,12 @@ import {
 import DateRangeFilter from "../common/DateRangeFilter";
 import EmailChipsInput from "../common/EmailChipsInput";
 import Modal from "../common/Modal";
-import { useCanUseMasterPermission } from "../../utils/masterPermissions";
+import { useGetMasterPermissionEmailOptionsQuery } from "../../features/masterPermission/masterPermission";
+import {
+  DEFAULT_MASTER_PERMISSION_EMAIL,
+  normalizePermissionEmail,
+  useCanUseMasterPermission,
+} from "../../utils/masterPermissions";
 
 const safeNumber = (value) => {
   const parsed = Number(value);
@@ -46,6 +52,27 @@ const escapeHtml = (value) =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+
+const selectStyles = {
+  control: (base, state) => ({
+    ...base,
+    minHeight: "44px",
+    borderRadius: "16px",
+    borderColor: state.isFocused ? "#6366f1" : "#e2e8f0",
+    boxShadow: state.isFocused ? "0 0 0 1px #6366f1" : "none",
+    "&:hover": { borderColor: state.isFocused ? "#6366f1" : "#cbd5e1" },
+  }),
+  menu: (base) => ({ ...base, zIndex: 60 }),
+  option: (base, state) => ({
+    ...base,
+    backgroundColor: state.isSelected
+      ? "#4f46e5"
+      : state.isFocused
+        ? "#eef2ff"
+        : "#fff",
+    color: state.isSelected ? "#fff" : "#0f172a",
+  }),
+};
 
 const getProductKey = (row) =>
   String(row?.productId ?? row?.receivedId ?? row?.name ?? row?.Id ?? "");
@@ -99,6 +126,21 @@ const AutoProfitLossTable = () => {
   const itemsPerPage = 10;
   const { canUseMasterPermission } = useCanUseMasterPermission();
   const canSeeSensitiveProfitLoss = canUseMasterPermission;
+  const { data: masterPermissionData } =
+    useGetMasterPermissionEmailOptionsQuery();
+  const masterPermissionEmailOptions = useMemo(() => {
+    const emails = new Set([DEFAULT_MASTER_PERMISSION_EMAIL]);
+
+    (masterPermissionData?.data || []).forEach((row) => {
+      const email = normalizePermissionEmail(row?.email);
+      if (email) emails.add(email);
+    });
+
+    return Array.from(emails).map((email) => ({
+      value: email,
+      label: email,
+    }));
+  }, [masterPermissionData]);
 
   const reportQueryArgs = useMemo(
     () => ({
@@ -486,7 +528,11 @@ const AutoProfitLossTable = () => {
 
   const handleSendEmail = (row) => {
     setSelectedInvoiceRow(row);
-    setClientEmail("");
+    setClientEmail(
+      canUseMasterPermission
+        ? ""
+        : masterPermissionEmailOptions[0]?.value || "",
+    );
     setIsEmailModalOpen(true);
   };
 
@@ -497,6 +543,18 @@ const AutoProfitLossTable = () => {
   };
 
   const handleSubmitInvoiceEmail = async () => {
+    if (!canUseMasterPermission) {
+      if (!clientEmail) {
+        toast.error("Please select a master permission email");
+        return;
+      }
+
+      await sendInvoiceEmail(selectedInvoiceRow, clientEmail, {
+        closeModal: true,
+      });
+      return;
+    }
+
     const pendingEmails = emailInputRef.current?.commitPendingEmails?.();
     if (pendingEmails?.invalidEmails?.length) {
       toast.error(`Invalid email: ${pendingEmails.invalidEmails.join(", ")}`);
@@ -786,7 +844,8 @@ const AutoProfitLossTable = () => {
               Saved Profit/Loss History
             </h3>
             <p className="mt-1 text-sm font-medium text-slate-500">
-              Intransit Profit & Loss calculation save করলে এখানে history দেখা যাবে।
+              Intransit Profit & Loss calculation save করলে এখানে history দেখা
+              যাবে।
             </p>
           </div>
 
@@ -991,13 +1050,29 @@ const AutoProfitLossTable = () => {
             <span className="mb-1.5 block text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
               Client Emails
             </span>
-            <EmailChipsInput
-              ref={emailInputRef}
-              value={clientEmail}
-              onChange={setClientEmail}
-              placeholder="Type email and press Enter"
-              disabled={isSendingInvoice}
-            />
+            {canUseMasterPermission ? (
+              <EmailChipsInput
+                ref={emailInputRef}
+                value={clientEmail}
+                onChange={setClientEmail}
+                placeholder="Type email and press Enter"
+                disabled={isSendingInvoice}
+              />
+            ) : (
+              <Select
+                value={
+                  masterPermissionEmailOptions.find(
+                    (option) => option.value === clientEmail,
+                  ) || null
+                }
+                onChange={(option) => setClientEmail(option?.value || "")}
+                options={masterPermissionEmailOptions}
+                placeholder="Select master permission email"
+                isDisabled={isSendingInvoice}
+                isSearchable
+                styles={selectStyles}
+              />
+            )}
           </label>
 
           <div className="flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:justify-end">

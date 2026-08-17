@@ -19,10 +19,10 @@ import {
   useGetStellarAttendanceHolidaysQuery,
   useGetStellarAttendanceLeavesQuery,
   useGetStellarAttendanceLogsQuery,
-  useGetStellarAttendanceUsersQuery,
 } from "../../features/stellarAttendance/stellarAttendance";
 import useDebounce from "../../hooks/useDebounce";
 
+const STELLAR_SYNC_INTERVAL_MS = 30 * 60 * 1000;
 const today = new Date().toISOString().slice(0, 10);
 const currentMonth = today.slice(0, 7);
 
@@ -771,8 +771,6 @@ const StellarAttendanceManager = () => {
     isError: isLogsError,
     error: logsError,
   } = useGetStellarAttendanceLogsQuery(logQueryArgs);
-  const { data: usersData, isFetching: isUsersFetching } =
-    useGetStellarAttendanceUsersQuery(undefined, { skip: isDetail });
   const { data: employeesData, isFetching: isEmployeesFetching } =
     useGetStellarAttendanceEmployeesQuery(
       { page: 1, limit: 1000, status: "Active" },
@@ -795,10 +793,26 @@ const StellarAttendanceManager = () => {
       { skip: isDetail },
     );
 
+  useEffect(() => {
+    setSyncNonce((prev) => prev + 1);
+    const intervalId = window.setInterval(() => {
+      setSyncNonce((prev) => prev + 1);
+    }, STELLAR_SYNC_INTERVAL_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [activeRange.start, activeRange.end]);
+
   const logsResponse = logsData?.data || {};
-  const usersResponse = usersData?.data || {};
   const logs = logsResponse.rows || [];
-  const users = usersResponse.rows || [];
+  const syncLockInfo = logsResponse.cache?.syncLock || logsResponse.meta?.syncLock;
+  const syncLockedUntil = syncLockInfo?.nextAllowedAt
+    ? new Date(syncLockInfo.nextAllowedAt)
+    : null;
+  const isSyncLocked =
+    syncLockedUntil instanceof Date &&
+    !Number.isNaN(syncLockedUntil.getTime()) &&
+    syncLockedUntil > new Date();
+  const users = [];
   const employees = employeesData?.data || [];
   const holidays = holidaysData?.data || [];
   const leaveRequests = leavesData?.data || [];
@@ -847,7 +861,6 @@ const StellarAttendanceManager = () => {
 
   const isSummaryLoading =
     isLogsFetching ||
-    isUsersFetching ||
     isEmployeesFetching ||
     isHolidaysFetching ||
     isLeavesFetching;
@@ -872,6 +885,15 @@ const StellarAttendanceManager = () => {
     } catch (err) {
       toast.error("Google Sheet download failed.");
     }
+  };
+
+  const handleRefreshLogs = () => {
+    if (isSyncLocked) {
+      toast.error(`Next sync allowed at ${formatDateTime(syncLockedUntil)}`);
+      return;
+    }
+
+    setSyncNonce((prev) => prev + 1);
   };
 
   const stats = [
@@ -980,7 +1002,8 @@ const StellarAttendanceManager = () => {
 
             <button
               type="button"
-              onClick={() => setSyncNonce((prev) => prev + 1)}
+              onClick={handleRefreshLogs}
+              disabled={isLogsFetching}
               className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white shadow-sm hover:bg-indigo-700"
             >
               <RefreshCcw size={16} className={isLogsFetching ? "animate-spin" : ""} />
