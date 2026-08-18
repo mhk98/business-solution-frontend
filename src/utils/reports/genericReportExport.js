@@ -62,6 +62,8 @@ const hiddenReportKeys = new Set([
   "document",
 ]);
 
+const A4_PAPER_SIZE = 9;
+
 const c = (label, candidates, options = {}) => ({
   label,
   candidates: Array.isArray(candidates) ? candidates : [candidates],
@@ -71,29 +73,53 @@ const c = (label, candidates, options = {}) => ({
 const baseProductColumns = [
   c("Product", ["name", "productName", "Product.name", "product.name"]),
   c("SKU", "sku"),
-  c("Variants", ["variations", "variants"], { type: "variants", alwaysShow: true }),
+  c("Variants", ["variations", "variants"], {
+    type: "variants",
+    alwaysShow: true,
+  }),
   c("Status", "status"),
   c("Created Date", "createdAt"),
   c("Note", "note"),
 ];
 
 const inventoryReportColumns = [
-  c("Products Name", ["productsName", "name", "productName", "Product.name", "product.name"], { alwaysShow: true }),
-  c("Stock Product", ["stockProduct", "stock", "quantity"], { alwaysShow: true }),
+  c(
+    "Products Name",
+    ["productsName", "name", "productName", "Product.name", "product.name"],
+    { alwaysShow: true },
+  ),
+  c("Stock Product", ["stockProduct", "stock", "quantity"], {
+    alwaysShow: true,
+  }),
   c("Damage Stock", ["damageStock", "damageQuantity"], { alwaysShow: true }),
-  c("Repairing Stock", ["repairingStock", "repairingQuantity"], { alwaysShow: true }),
+  c("Repairing Stock", ["repairingStock", "repairingQuantity"], {
+    alwaysShow: true,
+  }),
   c("Total Products", ["totalProducts", "totalQuantity"], { alwaysShow: true }),
-  c("Total Purchase Cost", ["totalPurchaseCost", "totalPurchaseValue"], { alwaysShow: true }),
-  c("Total Sales Cost", ["totalSalesCost", "totalSaleValue"], { alwaysShow: true }),
+  c("Total Purchase Cost", ["totalPurchaseCost", "totalPurchaseValue"], {
+    alwaysShow: true,
+  }),
+  c("Total Sales Cost", ["totalSalesCost", "totalSaleValue"], {
+    alwaysShow: true,
+  }),
 ];
 
 const productStockColumns = [
   c("Product", ["name", "productName", "Product.name", "product.name"]),
-  c("In Hand Qty", ["inHandQuantity", "inHandQty", "currentQuantity", "quantity", "stock"]),
+  c("In Hand Qty", [
+    "inHandQuantity",
+    "inHandQty",
+    "currentQuantity",
+    "quantity",
+    "stock",
+  ]),
   c("Purchase Price", ["unitPurchasePrice", "purchasePrice", "buyPrice"]),
   c("Sale Price", ["unitSalePrice", "salePrice", "sellPrice"]),
   c("Stock Balance", ["stockBalance", "totalStockBalance", "balance"]),
-  c("Variants", ["variations", "variants"], { type: "variants", alwaysShow: true }),
+  c("Variants", ["variations", "variants"], {
+    type: "variants",
+    alwaysShow: true,
+  }),
   c("Status", "status"),
 ];
 
@@ -106,7 +132,10 @@ const purchaseColumns = [
   c("Unit", "unit"),
   c("Purchase Price", ["unitPurchasePrice", "purchasePrice", "buyPrice"]),
   c("Sale Price", ["unitSalePrice", "salePrice", "sellPrice"]),
-  c("Variants", ["variants", "variations"], { type: "variants", alwaysShow: true }),
+  c("Variants", ["variants", "variations"], {
+    type: "variants",
+    alwaysShow: true,
+  }),
   c("Status", "status"),
   c("Note", "note"),
 ];
@@ -125,7 +154,14 @@ const movementColumns = [
 
 const financeColumns = [
   c("Date", ["date", "createdAt"]),
-  c("Name", ["name", "title", "accountName", "partyName", "supplierName", "customerName"]),
+  c("Name", [
+    "name",
+    "title",
+    "accountName",
+    "partyName",
+    "supplierName",
+    "customerName",
+  ]),
   c("Type", ["type", "transactionType", "category"]),
   c("Debit", ["debit", "debitAmount"]),
   c("Credit", ["credit", "creditAmount"]),
@@ -373,9 +409,19 @@ const REPORT_COLUMN_PRESETS = {
     c("Due", ["due", "dueAmount"]),
     c("Status", "status"),
   ],
-  departments: [c("Department", ["name", "departmentName"]), c("Status", "status")],
-  designations: [c("Designation", ["name", "designationName"]), c("Status", "status")],
-  teams: [c("Team", ["name", "teamName"]), c("Leader", ["leader", "leaderName"]), c("Status", "status")],
+  departments: [
+    c("Department", ["name", "departmentName"]),
+    c("Status", "status"),
+  ],
+  designations: [
+    c("Designation", ["name", "designationName"]),
+    c("Status", "status"),
+  ],
+  teams: [
+    c("Team", ["name", "teamName"]),
+    c("Leader", ["leader", "leaderName"]),
+    c("Status", "status"),
+  ],
   "daily-work-reports": [
     c("Date", ["date", "createdAt"]),
     c("Employee", ["employeeName", "name", "Employee.name"]),
@@ -453,8 +499,13 @@ const parseJsonValue = (value) => {
 const formatObjectValue = (value) => {
   const entries = Object.entries(value).filter(([key, entryValue]) => {
     if (hiddenObjectKeys.has(key)) return false;
-    if (entryValue === null || entryValue === undefined || entryValue === "") return false;
-    if (typeof entryValue === "string" && ["-", "n/a"].includes(entryValue.trim().toLowerCase())) return false;
+    if (entryValue === null || entryValue === undefined || entryValue === "")
+      return false;
+    if (
+      typeof entryValue === "string" &&
+      ["-", "n/a"].includes(entryValue.trim().toLowerCase())
+    )
+      return false;
     if (Array.isArray(entryValue) && !entryValue.length) return false;
     return true;
   });
@@ -469,7 +520,10 @@ const formatObjectValue = (value) => {
   if (displayOnlyKey) return value[displayOnlyKey];
 
   return entries
-    .map(([key, entryValue]) => `${toTitle(key)}: ${formatReportValue(entryValue)}`)
+    .map(
+      ([key, entryValue]) =>
+        `${toTitle(key)}: ${formatReportValue(entryValue)}`,
+    )
     .join(", ");
 };
 
@@ -533,10 +587,16 @@ const formatSingleVariant = (variant) => {
 
 const formatVariantsValue = (rawValue) => {
   const value = parseJsonValue(rawValue);
-  const variants = Array.isArray(value) ? value : isPlainObject(value) ? [value] : [];
+  const variants = Array.isArray(value)
+    ? value
+    : isPlainObject(value)
+      ? [value]
+      : [];
   const formattedVariants = variants.map(formatSingleVariant).filter(Boolean);
 
-  return formattedVariants.length ? formattedVariants.join("\n") : "No Variants";
+  return formattedVariants.length
+    ? formattedVariants.join("\n")
+    : "No Variants";
 };
 
 const isBlankValue = (value) =>
@@ -612,12 +672,13 @@ export const buildReportTable = (rows = [], report = null) => {
   );
 
   const presetColumns = REPORT_COLUMN_PRESETS[report?.key] || [];
-  const columns = (presetColumns.length ? presetColumns : getDefaultColumns(keys))
-    .filter(
-      (column) =>
-        column.label !== "Status" &&
-        (column.alwaysShow || hasColumnValue(rows, column)),
-    );
+  const columns = (
+    presetColumns.length ? presetColumns : getDefaultColumns(keys)
+  ).filter(
+    (column) =>
+      column.label !== "Status" &&
+      (column.alwaysShow || hasColumnValue(rows, column)),
+  );
 
   const safeColumns = columns.length
     ? columns
@@ -664,9 +725,24 @@ export const downloadGenericReportXlsx = ({
   worksheet["!cols"] = headers.map((header) => ({
     wch: Math.min(Math.max(String(header).length + 6, 12), 36),
   }));
+  worksheet["!pageSetup"] = {
+    paperSize: A4_PAPER_SIZE,
+    orientation: "portrait",
+    fitToWidth: 1,
+    fitToHeight: 0,
+    scale: 80,
+  };
   Object.values(worksheet).forEach((cell) => {
-    if (cell && typeof cell === "object" && typeof cell.v === "string" && cell.v.includes("\n")) {
-      cell.s = { ...(cell.s || {}), alignment: { wrapText: true, vertical: "top" } };
+    if (
+      cell &&
+      typeof cell === "object" &&
+      typeof cell.v === "string" &&
+      cell.v.includes("\n")
+    ) {
+      cell.s = {
+        ...(cell.s || {}),
+        alignment: { wrapText: true, vertical: "top" },
+      };
     }
   });
 
@@ -687,9 +763,10 @@ export const downloadGenericReportPdf = async ({
   const autoTable = (await import("jspdf-autotable")).default;
   const { headers, body } = buildReportTable(rows, report);
 
-  const doc = new jsPDF("l", "mm", "a4");
+  const doc = new jsPDF("p", "mm", "a4");
   const pageWidth = doc.internal.pageSize.getWidth();
-  const left = 14;
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const left = 12;
   const top = 12;
 
   await drawPdfBrandBlock({
@@ -727,7 +804,7 @@ export const downloadGenericReportPdf = async ({
     startY: 59,
     theme: "grid",
     margin: { left, right: left },
-    tableWidth: "auto",
+    tableWidth: pageWidth - left * 2,
     styles: {
       font: "helvetica",
       fontStyle: "normal",
@@ -761,7 +838,7 @@ export const downloadGenericReportPdf = async ({
       doc.text(
         `Page ${doc.internal.getNumberOfPages()}`,
         pageWidth - left,
-        doc.internal.pageSize.getHeight() - 8,
+        pageHeight - 8,
         { align: "right" },
       );
       if (data.pageNumber > 1) {
@@ -775,3 +852,174 @@ export const downloadGenericReportPdf = async ({
 
   doc.save(`${filename}.pdf`);
 };
+
+const escapeHtml = (value) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+
+export const printGenericReport = ({
+  title,
+  rows,
+  report,
+  logoUrl = "",
+  companyName = DEFAULT_COMPANY_NAME,
+}) => {
+  const { headers, body } = buildReportTable(rows, report);
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) return;
+
+  const logoHtml = logoUrl
+    ? `<img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(companyName)}" style="height: 44px; max-width: 200px; object-fit: contain; margin-bottom: 6px;" />`
+    : "";
+
+  const dateStr = new Date().toISOString().slice(0, 10);
+
+  const tableHeadersHtml = headers
+    .map((h) => `<th>${escapeHtml(h)}</th>`)
+    .join("");
+
+  const tableRowsHtml = body
+    .map(
+      (row) =>
+        `<tr>${row
+          .map((cell) => `<td>${escapeHtml(cell)}</td>`)
+          .join("")}</tr>`,
+    )
+    .join("");
+
+  printWindow.document.open();
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>${escapeHtml(title)} - Print</title>
+        <style>
+          @page {
+            size: A4 portrait;
+            margin: 8mm;
+          }
+          * { box-sizing: border-box; }
+          body {
+            font-family: Arial, Helvetica, sans-serif;
+            margin: 0;
+            padding: 12px;
+            color: #0f172a;
+            background: #fff;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+          }
+          .print-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            border-bottom: 2px solid #6366f1;
+            padding-bottom: 12px;
+            margin-bottom: 16px;
+          }
+          .brand-title {
+            font-size: 22px;
+            font-weight: 800;
+            color: #0f172a;
+            margin: 0;
+            letter-spacing: -0.02em;
+          }
+          .report-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #4f46e5;
+            margin: 4px 0 0 0;
+          }
+          .meta-info {
+            font-size: 11px;
+            color: #64748b;
+            text-align: right;
+            line-height: 1.6;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 10px;
+            margin-top: 8px;
+          }
+          thead {
+            display: table-header-group;
+          }
+          tr {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          th, td {
+            border: 1px solid #cbd5e1;
+            padding: 6px 8px;
+            text-align: left;
+            vertical-align: top;
+            word-break: break-word;
+          }
+          th {
+            background-color: #4f46e5;
+            color: #ffffff;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 9px;
+            letter-spacing: 0.05em;
+          }
+          tbody tr:nth-child(even) {
+            background-color: #f8fafc;
+          }
+          .print-footer {
+            margin-top: 16px;
+            padding-top: 10px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            color: #94a3b8;
+          }
+          @media print {
+            body { padding: 0; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="print-header">
+          <div>
+            ${logoHtml}
+            <h1 class="brand-title">${escapeHtml(companyName)}</h1>
+            <p class="report-title">${escapeHtml(title)}</p>
+          </div>
+          <div class="meta-info">
+            <div><strong>Generated:</strong> ${escapeHtml(dateStr)}</div>
+            <div><strong>Total Rows:</strong> ${rows.length}</div>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>${tableHeadersHtml}</tr>
+          </thead>
+          <tbody>
+            ${tableRowsHtml}
+          </tbody>
+        </table>
+
+        <div class="print-footer">
+          <div>Printed from ${escapeHtml(companyName)} Accounts System</div>
+          <div>Report Date: ${escapeHtml(dateStr)}</div>
+        </div>
+
+        <script>
+          window.onload = function() {
+            window.focus();
+            window.print();
+          };
+        </script>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+};
+

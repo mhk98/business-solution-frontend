@@ -65,9 +65,16 @@ const statusClasses = {
   Completed: "bg-violet-50 text-violet-700 border-violet-200",
 };
 
-const unitOptions = ["Pcs", "Kg", "Gram", "Ml", "Liter", "Yard", "Inch", "Feet"].map(
-  (unit) => ({ value: unit, label: unit }),
-);
+const unitOptions = [
+  "Pcs",
+  "Kg",
+  "Gram",
+  "Ml",
+  "Liter",
+  "Yard",
+  "Inch",
+  "Feet",
+].map((unit) => ({ value: unit, label: unit }));
 
 const formatDate = (value) => {
   if (!value) return "-";
@@ -264,7 +271,10 @@ const ItemRequisitionTable = () => {
   const openVoucher = (record) => {
     setVoucherData({
       voucherNo: formatVoucherNo(record.Id),
-      date: record.date || record.createdAt || new Date().toISOString().slice(0, 10),
+      date:
+        record.date ||
+        record.createdAt ||
+        new Date().toISOString().slice(0, 10),
       item: record.item?.name || record.name || "N/A",
       supplier: record.supplier?.name || "N/A",
       procurement: record.procurement || "N/A",
@@ -336,7 +346,9 @@ const ItemRequisitionTable = () => {
           pdf.setFont("helvetica", "bold");
           pdf.setTextColor(15, 23, 42);
           const safeValue = String(
-            value === undefined || value === null || value === "" ? "N/A" : value,
+            value === undefined || value === null || value === ""
+              ? "N/A"
+              : value,
           );
           pdf.text(
             pdf.splitTextToSize(safeValue, width - 42).slice(0, 1),
@@ -357,7 +369,10 @@ const ItemRequisitionTable = () => {
       ]);
       drawBox(margin + boxWidth + boxGap, y, boxWidth, 38, "Item Summary", [
         ["Item", voucherData.item],
-        ["Quantity", formatQuantityWithUnit(voucherData.quantity, voucherData.unit)],
+        [
+          "Quantity",
+          formatQuantityWithUnit(voucherData.quantity, voucherData.unit),
+        ],
         [
           "Amount",
           `${Number(voucherData.amount || 0).toLocaleString("en-US", {
@@ -379,10 +394,9 @@ const ItemRequisitionTable = () => {
       pdf.setTextColor(51, 65, 85);
       pdf.setFontSize(9);
       pdf.text(
-        pdf.splitTextToSize(String(voucherData.note || "-"), contentWidth - 8).slice(
-          0,
-          3,
-        ),
+        pdf
+          .splitTextToSize(String(voucherData.note || "-"), contentWidth - 8)
+          .slice(0, 3),
         margin + 4,
         y + 17,
       );
@@ -628,6 +642,7 @@ const ItemRequisitionTable = () => {
                   {[
                     "Date",
                     "Item",
+                    "Supplier",
                     "Quantity",
                     "Amount",
                     "Document",
@@ -663,12 +678,15 @@ const ItemRequisitionTable = () => {
                         <div className="font-semibold text-slate-900">
                           {record.item?.name || record.name}
                         </div>
-                        {record.supplier?.name ? (
-                          <div className="text-xs text-slate-500">
-                            {record.supplier.name}
-                          </div>
-                        ) : null}
                       </td>
+                      <td className="px-6 py-4">
+                        <div className="font-semibold text-slate-900">
+                          {record.item?.supplier?.name ||
+                            record.supplier?.name ||
+                            "N/A"}
+                        </div>
+                      </td>
+
                       <td className="px-6 py-4 text-sm font-semibold text-slate-700">
                         {formatQuantityWithUnit(record.quantity, record.unit)}
                       </td>
@@ -1076,7 +1094,10 @@ function ItemRequisitionVoucherModal({
 
               <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
                 <VoucherBox title="Requisition Details">
-                  <VoucherRow label="Procurement" value={voucher?.procurement} />
+                  <VoucherRow
+                    label="Procurement"
+                    value={voucher?.procurement}
+                  />
                   <VoucherRow label="Supplier" value={voucher?.supplier} />
                   <VoucherRow label="Status" value={voucher?.status} />
                 </VoucherBox>
@@ -1085,9 +1106,15 @@ function ItemRequisitionVoucherModal({
                   <VoucherRow label="Item" value={voucher?.item} />
                   <VoucherRow
                     label="Quantity"
-                    value={formatQuantityWithUnit(voucher?.quantity, voucher?.unit)}
+                    value={formatQuantityWithUnit(
+                      voucher?.quantity,
+                      voucher?.unit,
+                    )}
                   />
-                  <VoucherRow label="Amount" value={formatMoney(voucher?.amount)} />
+                  <VoucherRow
+                    label="Amount"
+                    value={formatMoney(voucher?.amount)}
+                  />
                 </VoucherBox>
               </div>
 

@@ -74,6 +74,8 @@ const ManufactureTable = () => {
 
   const [rows, setRows] = useState([]);
 
+  const [totalPurchaseAmount, setTotalPurchaseAmount] = useState(0);
+
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [itemName, setItemName] = useState("");
@@ -267,6 +269,20 @@ const ManufactureTable = () => {
   const { data, isLoading, isError, error, refetch } =
     useGetAllManufactureQuery(queryArgs);
 
+  // useEffect(() => {
+  //   if (isError) {
+  //     console.error("Error fetching received product data", error);
+  //     return;
+  //   }
+
+  //   if (!isLoading && data) {
+  //     setRows(data.data || []);
+  //     setTotalPages(
+  //       Math.max(1, Math.ceil((data?.meta?.count || 0) / itemsPerPage)),
+  //     );
+  //   }
+  // }, [data, isLoading, isError, error, itemsPerPage]);
+
   useEffect(() => {
     if (isError) {
       console.error("Error fetching received product data", error);
@@ -275,9 +291,12 @@ const ManufactureTable = () => {
 
     if (!isLoading && data) {
       setRows(data.data || []);
+
       setTotalPages(
         Math.max(1, Math.ceil((data?.meta?.count || 0) / itemsPerPage)),
       );
+
+      setTotalPurchaseAmount(Number(data?.meta?.totalPurchaseAmount || 0));
     }
   }, [data, isLoading, isError, error, itemsPerPage]);
 
@@ -647,10 +666,15 @@ const ManufactureTable = () => {
             </div>
             <div>
               <div className="text-[9px] font-black text-indigo-400 uppercase tracking-[0.2em]">
-                {t.total_entries || "Total Entries"}
+                {t.total_entries || "Total Purchase"}
               </div>
-              <div className="text-base font-black text-indigo-900 tabular-nums leading-none">
+              {/* <div className="text-base font-black text-indigo-900 tabular-nums leading-none">
                 {isLoading ? "..." : (data?.meta?.count ?? 0).toLocaleString()}
+              </div> */}
+              <div className="text-base font-black text-indigo-900 tabular-nums leading-none">
+                {isLoading
+                  ? "..."
+                  : `৳${totalPurchaseAmount.toLocaleString("en-US")}`}
               </div>
             </div>
           </div>
@@ -736,6 +760,9 @@ const ManufactureTable = () => {
                   {t.product || "Product"}
                 </th>
                 <th className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
+                  {t.supplier || "Supplier"}
+                </th>
+                <th className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
                   {t.unit_value || "Unit Value"}
                 </th>
                 <th className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
@@ -768,6 +795,12 @@ const ManufactureTable = () => {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-bold text-slate-900">
                       {resolveItemName(rp)}
+                    </div>
+                  </td>
+
+                  <td className="px-6 py-4">
+                    <div className="font-semibold text-slate-900">
+                      {rp.item?.supplier?.name || rp.supplier?.name || "N/A"}
                     </div>
                   </td>
 
@@ -1210,143 +1243,150 @@ const ManufactureTable = () => {
             </div>
 
             <div className="space-y-3">
-              {(createProduct.items || [createItemLine()]).map((item, index) => (
-                <div
-                  key={index}
-                  className="rounded-2xl border border-slate-200 bg-slate-50/50 p-3"
-                >
-                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(240px,1.25fr)_minmax(260px,1fr)_minmax(150px,0.65fr)_minmax(130px,0.55fr)_44px] lg:items-end">
-                    <div className="min-w-0">
-                      <label className="mb-1.5 ml-1 block text-[10px] font-black uppercase tracking-wider text-slate-500">
-                        {t.item || "Item"}
-                      </label>
-                      <Select
-                        options={itemDropdownOptions}
-                        value={
-                          itemDropdownOptions.find(
-                            (o) => o.value === String(item.itemId),
-                          ) || null
-                        }
-                        onChange={(selected) =>
-                          updateCreateItem(index, {
-                            itemId: selected?.value || "",
-                          })
-                        }
-                        placeholder={t.search_item || "Search item..."}
-                        isClearable
-                        styles={selectStyles}
-                        className="text-sm text-black font-medium"
-                        isDisabled={isLoadingAllItems}
-                      />
-                    </div>
-
-                    <div className="min-w-0">
-                      <div className="mb-1.5 flex items-center justify-between gap-2">
-                        <label className="ml-1 block text-[10px] font-black uppercase tracking-wider text-slate-500">
-                          {t.unit_details || "Unit Details"}
+              {(createProduct.items || [createItemLine()]).map(
+                (item, index) => (
+                  <div
+                    key={index}
+                    className="rounded-2xl border border-slate-200 bg-slate-50/50 p-3"
+                  >
+                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(240px,1.25fr)_minmax(260px,1fr)_minmax(150px,0.65fr)_minmax(130px,0.55fr)_44px] lg:items-end">
+                      <div className="min-w-0">
+                        <label className="mb-1.5 ml-1 block text-[10px] font-black uppercase tracking-wider text-slate-500">
+                          {t.item || "Item"}
                         </label>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            updateCreateItem(index, {
-                              hasUnit: !item.hasUnit,
-                              unitValue: item.hasUnit ? "" : item.unitValue || "",
-                              unit: item.hasUnit ? "Pcs" : item.unit || "Pcs",
-                            })
-                          }
-                          className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
-                            item.hasUnit ? "bg-indigo-600" : "bg-slate-300"
-                          }`}
-                        >
-                          <span className="sr-only">Toggle Unit</span>
-                          <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out ${
-                              item.hasUnit ? "translate-x-6" : "translate-x-1"
-                            }`}
-                          />
-                        </button>
-                      </div>
-
-                      <div className="grid grid-cols-[minmax(0,1fr)_128px] gap-2">
-                        <input
-                          type="number"
-                          min="0.01"
-                          step="0.01"
-                          value={item.unitValue || ""}
-                          onChange={(e) =>
-                            updateCreateItem(index, {
-                              unitValue: e.target.value,
-                            })
-                          }
-                          placeholder="20"
-                          disabled={!item.hasUnit}
-                          className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-                        />
-
                         <Select
-                          options={unitOptions}
-                          value={{
-                            value: item.unit || "Pcs",
-                            label: item.unit || "Pcs",
-                          }}
+                          options={itemDropdownOptions}
+                          value={
+                            itemDropdownOptions.find(
+                              (o) => o.value === String(item.itemId),
+                            ) || null
+                          }
                           onChange={(selected) =>
                             updateCreateItem(index, {
-                              unit: selected?.value || "Pcs",
+                              itemId: selected?.value || "",
                             })
                           }
+                          placeholder={t.search_item || "Search item..."}
+                          isClearable
                           styles={selectStyles}
-                          className="text-black"
-                          isDisabled={!item.hasUnit}
+                          className="text-sm text-black font-medium"
+                          isDisabled={isLoadingAllItems}
                         />
                       </div>
-                    </div>
 
-                    <div className="min-w-0">
-                      <label className="mb-1.5 ml-1 block text-[10px] font-black uppercase tracking-wider text-slate-500">
-                        {t.unit_cost || "Unit Cost"}
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={item.unitCost || ""}
-                        onChange={(e) =>
-                          updateCreateItem(index, {
-                            unitCost: e.target.value,
-                          })
-                        }
-                        className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-                      />
-                    </div>
+                      <div className="min-w-0">
+                        <div className="mb-1.5 flex items-center justify-between gap-2">
+                          <label className="ml-1 block text-[10px] font-black uppercase tracking-wider text-slate-500">
+                            {t.unit_details || "Unit Details"}
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateCreateItem(index, {
+                                hasUnit: !item.hasUnit,
+                                unitValue: item.hasUnit
+                                  ? ""
+                                  : item.unitValue || "",
+                                unit: item.hasUnit ? "Pcs" : item.unit || "Pcs",
+                              })
+                            }
+                            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
+                              item.hasUnit ? "bg-indigo-600" : "bg-slate-300"
+                            }`}
+                          >
+                            <span className="sr-only">Toggle Unit</span>
+                            <span
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out ${
+                                item.hasUnit ? "translate-x-6" : "translate-x-1"
+                              }`}
+                            />
+                          </button>
+                        </div>
 
-                    <div className="min-w-0">
-                      <label className="mb-1.5 ml-1 block text-[10px] font-black uppercase tracking-wider text-slate-500">
-                        Total Cost
-                      </label>
-                      <div className="flex h-11 w-full items-center rounded-xl border border-indigo-100 bg-indigo-50 px-4 text-sm font-black text-indigo-700">
-                        ৳
-                        {formatMoney(
-                          getDisplayedTotalCost(item.unitCost, item.unitValue),
+                        <div className="grid grid-cols-[minmax(0,1fr)_128px] gap-2">
+                          <input
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            value={item.unitValue || ""}
+                            onChange={(e) =>
+                              updateCreateItem(index, {
+                                unitValue: e.target.value,
+                              })
+                            }
+                            placeholder="20"
+                            disabled={!item.hasUnit}
+                            className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+                          />
+
+                          <Select
+                            options={unitOptions}
+                            value={{
+                              value: item.unit || "Pcs",
+                              label: item.unit || "Pcs",
+                            }}
+                            onChange={(selected) =>
+                              updateCreateItem(index, {
+                                unit: selected?.value || "Pcs",
+                              })
+                            }
+                            styles={selectStyles}
+                            className="text-black"
+                            isDisabled={!item.hasUnit}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="min-w-0">
+                        <label className="mb-1.5 ml-1 block text-[10px] font-black uppercase tracking-wider text-slate-500">
+                          {t.unit_cost || "Unit Cost"}
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={item.unitCost || ""}
+                          onChange={(e) =>
+                            updateCreateItem(index, {
+                              unitCost: e.target.value,
+                            })
+                          }
+                          className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+                        />
+                      </div>
+
+                      <div className="min-w-0">
+                        <label className="mb-1.5 ml-1 block text-[10px] font-black uppercase tracking-wider text-slate-500">
+                          Total Cost
+                        </label>
+                        <div className="flex h-11 w-full items-center rounded-xl border border-indigo-100 bg-indigo-50 px-4 text-sm font-black text-indigo-700">
+                          ৳
+                          {formatMoney(
+                            getDisplayedTotalCost(
+                              item.unitCost,
+                              item.unitValue,
+                            ),
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex lg:justify-end">
+                        {(createProduct.items || []).length > 1 ? (
+                          <button
+                            type="button"
+                            onClick={() => removeCreateItem(index)}
+                            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-red-100 bg-red-50 text-red-500 hover:bg-red-100 transition active:scale-95"
+                            title="Remove item"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        ) : (
+                          <div className="hidden h-11 w-11 lg:block" />
                         )}
                       </div>
                     </div>
-
-                    <div className="flex lg:justify-end">
-                      {(createProduct.items || []).length > 1 ? (
-                        <button
-                          type="button"
-                          onClick={() => removeCreateItem(index)}
-                          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-red-100 bg-red-50 text-red-500 hover:bg-red-100 transition active:scale-95"
-                          title="Remove item"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      ) : (
-                        <div className="hidden h-11 w-11 lg:block" />
-                      )}
-                    </div>
                   </div>
-                </div>
-              ))}
+                ),
+              )}
             </div>
           </div>
 

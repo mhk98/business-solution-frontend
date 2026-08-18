@@ -107,7 +107,9 @@ const ManufactureStockTable = ({ stockType = "item" }) => {
       startDate: startDate || undefined,
       endDate: endDate || undefined,
       name: productName || undefined,
-      manufacturerId: isManufactureStock ? manufacturerId || undefined : undefined,
+      manufacturerId: isManufactureStock
+        ? manufacturerId || undefined
+        : undefined,
     };
     Object.keys(args).forEach((k) => {
       if (!args[k]) delete args[k];
@@ -132,7 +134,6 @@ const ManufactureStockTable = ({ stockType = "item" }) => {
   const { data, isLoading } = isManufactureStock
     ? manufactureStockQuery
     : itemStockQuery;
-
 
   useEffect(() => {
     if (!isLoading && data) {

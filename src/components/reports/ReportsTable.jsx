@@ -1,4 +1,4 @@
-import { Download, FileSpreadsheet, FileText, RefreshCcw, Search, X } from "lucide-react";
+import { Download, FileSpreadsheet, FileText, Printer, RefreshCcw, Search, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -14,6 +14,7 @@ import {
   buildReportTable,
   downloadGenericReportPdf,
   downloadGenericReportXlsx,
+  printGenericReport,
 } from "../../utils/reports/genericReportExport";
 import { DEFAULT_COMPANY_NAME, buildAssetUrl } from "../../utils/pdfBranding";
 
@@ -118,6 +119,20 @@ const ReportsTable = () => {
     });
   };
 
+  const handlePrint = () => {
+    if (!rows.length) {
+      toast.error("No rows available to print");
+      return;
+    }
+    printGenericReport({
+      title: reportTitle,
+      rows,
+      report: selectedReport,
+      logoUrl,
+      companyName: DEFAULT_COMPANY_NAME,
+    });
+  };
+
   return (
     <div className="space-y-6">
       <section className="bg-white border border-slate-100 shadow-sm rounded-3xl p-4 sm:p-6">
@@ -131,11 +146,11 @@ const ReportsTable = () => {
             </h2>
             <p className="text-sm text-slate-500 font-medium mt-1">
               {reportGroup ? `${reportGroup.label} reports. ` : ""}
-              Filter table data and download it as Google Sheets compatible XLSX or PDF.
+              Filter table data and download it as Google Sheets compatible XLSX, PDF or Print.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[220px_160px_auto_auto] gap-3 w-full xl:w-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[220px_160px_auto_auto_auto] gap-3 w-full xl:w-auto">
             <div className="flex flex-col">
               <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
                 Table
@@ -184,6 +199,14 @@ const ReportsTable = () => {
               className="h-11 self-end inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white shadow-sm hover:bg-indigo-700 active:scale-95 transition"
             >
               <FileText size={16} /> PDF
+            </button>
+
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="h-11 self-end inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600 px-4 text-sm font-bold text-white shadow-sm hover:bg-purple-700 active:scale-95 transition"
+            >
+              <Printer size={16} /> Print
             </button>
           </div>
         </div>

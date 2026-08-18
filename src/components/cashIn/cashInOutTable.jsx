@@ -374,7 +374,6 @@ const CashInOutTable = () => {
   const [endDate, setEndDate] = useState("");
   const [filterPaymentMode, setFilterPaymentMode] = useState("");
   const [filterPaymentStatus, setFilterPaymentStatus] = useState("");
-  const [filterVoucherNo, setFilterVoucherNo] = useState("");
 
   // ✅ Category states
   const [categories, setCategories] = useState([]);
@@ -449,7 +448,6 @@ const CashInOutTable = () => {
     filterPaymentStatus,
     filterCategory,
     filterLoanId,
-    filterVoucherNo,
   ]);
 
   useEffect(() => {
@@ -494,39 +492,6 @@ const CashInOutTable = () => {
     }
   }, [currentProduct?.category]);
 
-  // const queryArgs = useMemo(() => {
-  //   const args = {
-  //     page: currentPage,
-  //     limit: itemsPerPage,
-  //     bookId: id,
-  //     startDate: startDate || undefined,
-  //     endDate: endDate || undefined,
-  //     paymentMode: filterPaymentMode || undefined,
-  //     paymentStatus: filterPaymentStatus || undefined,
-  //     category: filterCategory || undefined,
-  //     searchTerm: debouncedSearchTerm || undefined, // ensure it's included in the query
-  //   };
-
-  //   Object.keys(args).forEach((k) => {
-  //     if (args[k] === undefined || args[k] === null || args[k] === "")
-  //       delete args[k]; // Clean empty or undefined values
-  //   });
-
-  //   return args;
-  // }, [
-  //   currentPage,
-  //   itemsPerPage,
-  //   id,
-  //   startDate,
-  //   endDate,
-  //   searchTerm, // searchTerm should be included
-  //   filterPaymentMode,
-  //   filterPaymentStatus,
-  //   filterCategory,
-  // ]);
-
-  // const shouldSkip = !id;
-
   const queryArgs = useMemo(() => {
     const args = {
       page: currentPage,
@@ -536,7 +501,6 @@ const CashInOutTable = () => {
       bookId: id,
       category: filterCategory || undefined,
       loanId: filterLoanId || undefined,
-      voucherNo: filterVoucherNo || undefined,
       supplierId: supplier || undefined,
       paymentMode: filterPaymentMode || undefined,
       paymentStatus: filterPaymentStatus || undefined,
@@ -559,14 +523,12 @@ const CashInOutTable = () => {
     filterPaymentStatus,
     filterCategory,
     filterLoanId,
-    filterVoucherNo,
     supplier,
     debouncedSearchTerm,
   ]);
 
   const { data, isLoading, isError, error, refetch } = useGetAllCashInOutQuery(
     queryArgs,
-    // { skip: shouldSkip },
   );
   const { data: allCashInOutRes } = useGetAllCashInOutWithoutQueryQuery();
   const { data: logoData } = useGetAllLogoQuery();
@@ -1307,7 +1269,6 @@ const CashInOutTable = () => {
     setFilterPaymentStatus("");
     setFilterCategory("");
     setFilterLoanId("");
-    setFilterVoucherNo("");
     setSupplier("");
     setCurrentPage(1);
     setStartPage(1);
@@ -1806,51 +1767,72 @@ const CashInOutTable = () => {
           </button>
         </div>
 
-        {/* Right: Search Input */}
-        <div className="relative w-full sm:max-w-[520px]">
-          <input
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setCurrentPage(1);
-              setStartPage(1);
-            }}
-            placeholder={t.search}
-            className="w-full rounded-lg border border-gray-200 bg-white px-5 py-3 pr-12 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 shadow-sm"
-          />
-          <Search
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500"
-            size={18}
-          />
-        </div>
-
-        {/* Right: Report Menu */}
-        <div className="flex w-full justify-end sm:w-auto">
-          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-md">
-            <ReportMenu
-              isOpen={isReportMenuOpen}
-              setIsOpen={setIsReportMenuOpen}
-              onGoogleSheet={handleReportSheet}
-              onPdf={handleReportPdf}
-              disabled={isLoading || !id}
+        {/* Right: Search Input + Per Page Dropdown + Report Menu */}
+        <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:w-auto">
+          {/* Search Input */}
+          <div className="relative w-full sm:w-[300px] md:w-[380px]">
+            <input
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+                setStartPage(1);
+              }}
+              placeholder={t.search}
+              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 pr-10 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 shadow-sm"
             />
+            <Search
+              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400"
+              size={18}
+            />
+          </div>
+
+          {/* Per Page Dropdown (right side of search bar) */}
+          <div className="w-full sm:w-[100px]">
+            <Select
+              options={[10, 20, 50, 100].map((value) => ({
+                value,
+                label: String(value),
+              }))}
+              value={{ value: itemsPerPage, label: String(itemsPerPage) }}
+              onChange={(selected) => {
+                setItemsPerPage(selected?.value || 10);
+                setCurrentPage(1);
+                setStartPage(1);
+              }}
+              styles={selectStyles}
+              className="text-black"
+            />
+          </div>
+
+          {/* Report Menu */}
+          <div className="flex shrink-0 justify-end sm:w-auto">
+            <div className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 shadow-sm">
+              <ReportMenu
+                isOpen={isReportMenuOpen}
+                setIsOpen={setIsReportMenuOpen}
+                onGoogleSheet={handleReportSheet}
+                onPdf={handleReportPdf}
+                disabled={isLoading || !id}
+              />
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-12 gap-4 items-end mb-6 w-full [&>*]:min-w-0">
+      {/* Filters - Full Width Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 items-end mb-6 w-full [&>*]:min-w-0">
         <DateRangeFilter
           startDate={startDate}
           endDate={endDate}
           onStartDateChange={setStartDate}
           onEndDateChange={setEndDate}
           compact
-          className="md:col-span-2 xl:col-span-3"
+          className="w-full"
         />
 
-        <div className="flex flex-col">
-          <label className="text-sm text-slate-600 mb-1">
+        <div className="flex flex-col w-full">
+          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">
             {t.payment_mode}
           </label>
           <Select
@@ -1864,12 +1846,12 @@ const CashInOutTable = () => {
             placeholder={t.all || "All"}
             isClearable
             styles={selectStyles}
-            className="text-black"
+            className="text-black w-full"
           />
         </div>
 
-        <div className="flex flex-col">
-          <label className="text-sm text-slate-600 mb-1">
+        <div className="flex flex-col w-full">
+          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">
             {t.payment_status}
           </label>
           <Select
@@ -1885,12 +1867,14 @@ const CashInOutTable = () => {
             placeholder={t.all || "All"}
             isClearable
             styles={selectStyles}
-            className="text-black"
+            className="text-black w-full"
           />
         </div>
 
-        <div className="flex flex-col">
-          <label className="text-sm text-slate-600 mb-1">Loan</label>
+        <div className="flex flex-col w-full">
+          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">
+            Loan
+          </label>
           <Select
             options={loanSelectOptions}
             value={
@@ -1902,13 +1886,13 @@ const CashInOutTable = () => {
             placeholder="Search loan"
             isClearable
             styles={selectStyles}
-            className="text-black"
+            className="text-black w-full"
           />
         </div>
 
-        <div className="flex flex-col">
-          <label className="text-sm text-slate-600 mb-1">
-            {t.category || "Category"}:
+        <div className="flex flex-col w-full">
+          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">
+            {t.category || "Category"}
           </label>
           <Select
             options={categoryFilterOptions}
@@ -1921,25 +1905,12 @@ const CashInOutTable = () => {
             placeholder={t.all || "All"}
             isClearable
             styles={selectStyles}
-            className="text-black"
-          />
-        </div>
-        <div className="flex flex-col">
-          <label className="text-sm text-slate-600 mb-1">Voucher No</label>
-          <input
-            value={filterVoucherNo}
-            onChange={(e) => {
-              setFilterVoucherNo(e.target.value);
-              setCurrentPage(1);
-              setStartPage(1);
-            }}
-            placeholder="HG-0034"
-            className="h-11 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 shadow-sm"
+            className="text-black w-full"
           />
         </div>
 
-        <div className="flex flex-col">
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
+        <div className="flex flex-col w-full">
+          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">
             {t.supplier}
           </label>
           <Select
@@ -1957,35 +1928,16 @@ const CashInOutTable = () => {
             placeholder={t.search}
             isClearable
             styles={selectStyles}
-            className="text-black"
+            className="text-black w-full"
           />
         </div>
-        {/* ✅ Per Page Dropdown (same position like your screenshot) */}
-        <div className="flex flex-col">
-          <label className="text-sm text-slate-600 mb-1">
-            {t.per_page_label}
-          </label>
-          <Select
-            options={[10, 20, 50, 100].map((value) => ({
-              value,
-              label: String(value),
-            }))}
-            value={{ value: itemsPerPage, label: String(itemsPerPage) }}
-            onChange={(selected) => {
-              setItemsPerPage(selected?.value || 10);
-              setCurrentPage(1);
-              setStartPage(1);
-            }}
-            styles={selectStyles}
-            className="text-black"
-          />
-        </div>
-        <div className="flex flex-col">
-          <label className="text-sm text-transparent mb-1 select-none">
+
+        <div className="flex flex-col w-full">
+          <label className="text-sm text-transparent mb-1.5 select-none hidden sm:block">
             Clear
           </label>
           <button
-            className="h-11 w-full bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-700 transition rounded-xl px-4 text-sm font-semibold"
+            className="h-11 w-full bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-700 transition rounded-xl px-4 text-sm font-semibold flex items-center justify-center"
             onClick={clearFilters}
             type="button"
           >
@@ -1996,29 +1948,17 @@ const CashInOutTable = () => {
 
       {/* Table */}
       <div className="w-full max-w-full overflow-x-auto overscroll-x-contain">
-        <table className="w-full min-w-[1520px] divide-y divide-slate-200">
+        <table className="w-full min-w-[900px] divide-y divide-slate-200">
           <thead className="bg-slate-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 {t.date}
               </th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                {t.document || "Document"}
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 {t.category || "Category"}
               </th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                {t.supplier || "Supplier"}
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 {t.payment_mode}
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                {t.bank || "Bank"}
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                {t.bank_account || "Bank Account"}
               </th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 {t.payment_status}
@@ -2042,14 +1982,6 @@ const CashInOutTable = () => {
             {products.map((rp) => {
               const rowId = rp.Id ?? rp.id;
 
-              const safePath = String(rp.file || "").replace(/\\/g, "/");
-              const fileUrl = buildFileUrl(rp.file);
-              const ext = safePath.split(".").pop()?.toLowerCase();
-              const isImage = ["jpg", "jpeg", "png", "webp", "gif"].includes(
-                ext,
-              );
-              const isPdf = ext === "pdf";
-
               return (
                 <motion.tr
                   key={rowId}
@@ -2060,40 +1992,6 @@ const CashInOutTable = () => {
                 >
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                     {rp.date || "-"}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                    {!safePath ? (
-                      "---"
-                    ) : isImage ? (
-                      <a href={fileUrl} target="_blank" rel="noreferrer">
-                        <img
-                          src={fileUrl}
-                          alt="document"
-                          className="h-12 w-12 object-cover rounded-xl border border-slate-200 hover:opacity-80"
-                          onError={(e) => {
-                            e.currentTarget.style.display = "none";
-                          }}
-                        />
-                      </a>
-                    ) : isPdf ? (
-                      <a
-                        href={fileUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs hover:bg-indigo-700"
-                      >
-                        {t.view_pdf || "View PDF"}
-                      </a>
-                    ) : (
-                      <a
-                        href={fileUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-indigo-600 underline"
-                      >
-                        Open File
-                      </a>
-                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                     <div className="space-y-1">
@@ -2115,20 +2013,7 @@ const CashInOutTable = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                    {getSupplierName(rp)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                     {rp.paymentMode || "---"}
-                  </td>
-
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                    {rp.paymentMode === "Bank" ? rp.bankName || "---" : "---"}
-                  </td>
-
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                    {rp.paymentMode === "Bank"
-                      ? rp.bankAccount || "---"
-                      : "---"}
                   </td>
 
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
