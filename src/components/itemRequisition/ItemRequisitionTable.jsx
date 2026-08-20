@@ -35,12 +35,17 @@ import {
   drawPdfBrandBlock,
 } from "../../utils/pdfBranding";
 
-const initialForm = {
+const createInitialItemRow = () => ({
+  id: Date.now() + Math.random(),
   itemId: "",
-  supplierId: "",
   quantity: "",
   unit: "Pcs",
   amount: "",
+});
+
+const initialForm = {
+  items: [createInitialItemRow()],
+  supplierId: "",
   date: new Date().toISOString().slice(0, 10),
   note: "",
   remarks: "",
@@ -209,7 +214,14 @@ const ItemRequisitionTable = () => {
     return buildAssetUrl(logoRecord?.file);
   }, [logoData]);
   const resetForm = () => {
-    setForm(initialForm);
+    setForm({
+      items: [createInitialItemRow()],
+      supplierId: "",
+      date: new Date().toISOString().slice(0, 10),
+      note: "",
+      remarks: "",
+      file: null,
+    });
     setEditingRecord(null);
   };
 
@@ -221,11 +233,16 @@ const ItemRequisitionTable = () => {
   const openEditModal = (record) => {
     setEditingRecord(record);
     setForm({
-      itemId: record.itemId || "",
+      items: [
+        {
+          id: record.Id,
+          itemId: record.itemId || record.item?.Id || "",
+          quantity: record.quantity || "",
+          unit: record.unit || "Pcs",
+          amount: record.amount || "",
+        },
+      ],
       supplierId: record.supplierId || "",
-      quantity: record.quantity || "",
-      unit: record.unit || "Pcs",
-      amount: record.amount || "",
       date: record.date || new Date().toISOString().slice(0, 10),
       note: record.note || "",
       remarks: record.remarks || "",
@@ -246,26 +263,33 @@ const ItemRequisitionTable = () => {
     }));
   };
 
-  const buildPayload = () => {
-    const formData = new FormData();
-    const payload = {
-      ...form,
-      itemId: Number(form.itemId),
-      quantity: Number(form.quantity || 0),
-      amount: Number(form.amount || 0),
-      userId: localStorage.getItem("userId"),
-    };
+  const addItemRow = () => {
+    setForm((prev) => ({
+      ...prev,
+      items: [...(prev?.items || []), createInitialItemRow()],
+    }));
+  };
 
-    Object.entries(payload).forEach(([key, value]) => {
-      if (key === "file") return;
-      appendFormValue(formData, key, value);
+  const removeItemRow = (id) => {
+    setForm((prev) => {
+      const itemsList = prev?.items || [];
+      return {
+        ...prev,
+        items:
+          itemsList.length > 1
+            ? itemsList.filter((item) => item.id !== id)
+            : itemsList,
+      };
     });
+  };
 
-    if (form.file instanceof File) {
-      formData.append("file", form.file);
-    }
-
-    return formData;
+  const updateItemRow = (id, key, value) => {
+    setForm((prev) => ({
+      ...prev,
+      items: (prev?.items || []).map((item) =>
+        item.id === id ? { ...item, [key]: value } : item,
+      ),
+    }));
   };
 
   const openVoucher = (record) => {
@@ -460,28 +484,68 @@ const ItemRequisitionTable = () => {
   const handleSubmit = async (event) => {
     event.preventDefault();
 
-    if (!form.itemId) {
-      toast.error("Please select an item");
+    if (!form.items || !form.items.length) {
+      toast.error("Please add at least one item");
       return;
     }
 
-    if (Number(form.quantity || 0) <= 0) {
-      toast.error("Quantity must be greater than 0");
-      return;
+    for (let i = 0; i < form.items.length; i += 1) {
+      const row = form.items[i];
+      if (!row.itemId) {
+        toast.error(`Please select an item for row ${i + 1}`);
+        return;
+      }
+      if (Number(row.quantity || 0) <= 0) {
+        toast.error(`Quantity must be greater than 0 for row ${i + 1}`);
+        return;
+      }
     }
 
     try {
-      const payload = buildPayload();
-
       if (editingRecord) {
+        const itemRow = form.items[0];
+        const formData = new FormData();
+        formData.append("itemId", Number(itemRow.itemId));
+        formData.append("quantity", Number(itemRow.quantity || 0));
+        formData.append("unit", itemRow.unit || "Pcs");
+        formData.append("amount", Number(itemRow.amount || 0));
+        formData.append("supplierId", form.supplierId || "");
+        formData.append("date", form.date || "");
+        formData.append("note", form.note || "");
+        formData.append("userId", localStorage.getItem("userId") || "");
+        if (form.file instanceof File) {
+          formData.append("file", form.file);
+        }
+
         await updateItemRequisition({
           id: editingRecord.Id,
-          data: payload,
+          data: formData,
         }).unwrap();
         toast.success("Item requisition updated");
       } else {
-        await insertItemRequisition(payload).unwrap();
-        toast.success("Item requisition created");
+        const formData = new FormData();
+        const itemsPayload = form.items.map((row) => ({
+          itemId: Number(row.itemId),
+          quantity: Number(row.quantity || 0),
+          unit: row.unit || "Pcs",
+          amount: Number(row.amount || 0),
+        }));
+
+        formData.append("items", JSON.stringify(itemsPayload));
+        formData.append("supplierId", form.supplierId || "");
+        formData.append("date", form.date || "");
+        formData.append("note", form.note || "");
+        formData.append("userId", localStorage.getItem("userId") || "");
+        if (form.file instanceof File) {
+          formData.append("file", form.file);
+        }
+
+        await insertItemRequisition(formData).unwrap();
+        toast.success(
+          form.items.length > 1
+            ? `${form.items.length} item requisitions created`
+            : "Item requisition created",
+        );
       }
 
       closeModal();
@@ -832,169 +896,242 @@ const ItemRequisitionTable = () => {
         isOpen={isModalOpen}
         onClose={closeModal}
         title={editingRecord ? "Edit Item Requisition" : "Add Item Requisition"}
-        maxWidth="max-w-3xl"
+        maxWidth="max-w-4xl"
       >
-        <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
-          <label className="space-y-2">
-            <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
-              Item
-            </span>
-            <Select
-              options={itemOptions}
-              value={makeSelectValue(itemOptions, form.itemId)}
-              onChange={(option) =>
-                setForm((prev) => ({
-                  ...prev,
-                  itemId: option?.value || "",
-                }))
-              }
-              isClearable
-              placeholder="Select manufacture item..."
-              classNamePrefix="react-select"
-              className="bg-white text-black"
-            />
-          </label>
-
-          <label className="space-y-2">
-            <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
-              Quantity
-            </span>
-            <div className="flex h-11 overflow-hidden rounded-xl border border-slate-200 bg-white focus-within:border-indigo-400">
-              <input
-                type="number"
-                min="1"
-                value={form.quantity}
-                onChange={(event) => updateForm("quantity", event.target.value)}
-                className="h-full min-w-0 flex-1 border-0 bg-transparent px-4 text-sm text-slate-800 outline-none"
-                required
-              />
-              <select
-                value={form.unit || "Pcs"}
-                onChange={(event) => updateForm("unit", event.target.value)}
-                className="h-full w-[118px] border-0 border-l border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-700 outline-none"
-              >
-                {unitOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </label>
-
-          <label className="space-y-2">
-            <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
-              Amount
-            </span>
-            <input
-              type="number"
-              min="0"
-              value={form.amount}
-              onChange={(event) => updateForm("amount", event.target.value)}
-              className="h-11 bg-white w-full rounded-xl border border-slate-200 px-4 text-sm text-slate-800 outline-none focus:border-indigo-400"
-            />
-          </label>
-
-          <label className="space-y-2">
-            <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
-              Date
-            </span>
-            <input
-              type="date"
-              value={form.date}
-              onChange={(event) => updateForm("date", event.target.value)}
-              className="h-11 bg-white w-full rounded-xl border border-slate-200 px-4 text-sm text-slate-800 outline-none focus:border-indigo-400"
-            />
-          </label>
-
-          <label className="space-y-2">
-            <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
-              Supplier
-            </span>
-            <Select
-              options={supplierOptions}
-              value={makeSelectValue(supplierOptions, form.supplierId)}
-              onChange={(option) =>
-                updateForm("supplierId", option?.value || "")
-              }
-              isClearable
-              placeholder="Select supplier..."
-              classNamePrefix="react-select"
-              className="bg-white text-black"
-            />
-          </label>
-
-          <label className="space-y-2 md:col-span-2">
-            <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
-              Note
-            </span>
-            <textarea
-              value={form.note}
-              onChange={(event) => updateForm("note", event.target.value)}
-              rows={3}
-              className="w-full bg-white rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-800 outline-none focus:border-indigo-400"
-            />
-          </label>
-
-          <div className="space-y-2 md:col-span-2">
-            <div className="flex items-center justify-between gap-3">
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Top Common Fields: Date & Supplier */}
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="space-y-2">
               <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
-                Document
+                Date
               </span>
-              {editingRecord?.file ? (
-                <div className="flex items-center gap-2">
-                  <a
-                    href={buildFileUrl(editingRecord.file)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-700"
-                  >
-                    View current
-                  </a>
-                  <a
-                    href={buildFileUrl(editingRecord.file)}
-                    download
-                    className="text-xs font-semibold text-emerald-600 hover:text-emerald-700"
-                  >
-                    Download
-                  </a>
-                </div>
-              ) : null}
-            </div>
-            <div className="relative group/file">
               <input
-                type="file"
-                accept=".jpg,.jpeg,.png,.gif,.webp,.pdf"
-                onChange={(event) =>
-                  updateForm("file", event.target.files?.[0] || null)
-                }
-                className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+                type="date"
+                value={form.date}
+                onChange={(event) => updateForm("date", event.target.value)}
+                className="h-11 bg-white w-full rounded-xl border border-slate-200 px-4 text-sm text-slate-800 outline-none focus:border-indigo-400"
               />
-              <div className="flex h-12 w-full items-center gap-3 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 px-4 transition group-hover/file:border-indigo-400 group-hover/file:bg-indigo-50">
-                <div className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-400 transition group-hover/file:text-indigo-600">
-                  <Plus size={16} />
+            </label>
+
+            <label className="space-y-2">
+              <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                Supplier
+              </span>
+              <Select
+                options={supplierOptions}
+                value={makeSelectValue(supplierOptions, form.supplierId)}
+                onChange={(option) =>
+                  updateForm("supplierId", option?.value || "")
+                }
+                isClearable
+                placeholder="Select supplier..."
+                classNamePrefix="react-select"
+                className="bg-white text-black"
+              />
+            </label>
+          </div>
+
+          {/* Items Section */}
+          <div className="space-y-3 pt-2 border-t border-slate-100">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-widest text-slate-700">
+                Items List ({form.items?.length || 1})
+              </span>
+              {!editingRecord && (
+                <button
+                  type="button"
+                  onClick={addItemRow}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50 px-3.5 py-1.5 text-xs font-semibold text-indigo-600 transition hover:bg-indigo-100 active:bg-indigo-200"
+                >
+                  <Plus size={15} />
+                  Add Item
+                </button>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              {(form.items || []).map((itemRow, index) => (
+                <div
+                  key={itemRow.id}
+                  className="relative rounded-2xl border border-slate-200 bg-slate-50/60 p-4 transition hover:border-slate-300"
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-bold text-slate-500">
+                      Item #{index + 1}
+                    </span>
+                    {!editingRecord && (form.items?.length || 0) > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeItemRow(itemRow.id)}
+                        className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                        title="Remove item"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <label className="space-y-1.5">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                        Item
+                      </span>
+                      <Select
+                        options={itemOptions}
+                        value={makeSelectValue(itemOptions, itemRow.itemId)}
+                        onChange={(option) =>
+                          updateItemRow(
+                            itemRow.id,
+                            "itemId",
+                            option?.value || "",
+                          )
+                        }
+                        isClearable
+                        placeholder="Select manufacture item..."
+                        classNamePrefix="react-select"
+                        className="bg-white text-black"
+                      />
+                    </label>
+
+                    <label className="space-y-1.5">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                        Quantity
+                      </span>
+                      <div className="flex h-10 overflow-hidden rounded-xl border border-slate-200 bg-white focus-within:border-indigo-400">
+                        <input
+                          type="number"
+                          min="1"
+                          value={itemRow.quantity}
+                          onChange={(event) =>
+                            updateItemRow(
+                              itemRow.id,
+                              "quantity",
+                              event.target.value,
+                            )
+                          }
+                          placeholder="Qty"
+                          className="h-full min-w-0 flex-1 border-0 bg-transparent px-3 text-sm text-slate-800 outline-none"
+                          required
+                        />
+                        <select
+                          value={itemRow.unit || "Pcs"}
+                          onChange={(event) =>
+                            updateItemRow(
+                              itemRow.id,
+                              "unit",
+                              event.target.value,
+                            )
+                          }
+                          className="h-full w-[100px] border-0 border-l border-slate-200 bg-slate-50 px-2 text-xs font-medium text-slate-700 outline-none"
+                        >
+                          {unitOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </label>
+
+                    <label className="space-y-1.5">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                        Amount
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={itemRow.amount}
+                        onChange={(event) =>
+                          updateItemRow(
+                            itemRow.id,
+                            "amount",
+                            event.target.value,
+                          )
+                        }
+                        placeholder="0.00"
+                        className="h-10 bg-white w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-800 outline-none focus:border-indigo-400"
+                      />
+                    </label>
+                  </div>
                 </div>
-                <span className="text-sm font-medium text-slate-500 transition group-hover/file:text-indigo-600">
-                  {form.file instanceof File
-                    ? form.file.name
-                    : "Select or drop file..."}
+              ))}
+            </div>
+          </div>
+
+          {/* Common Note & Document */}
+          <div className="grid gap-4 md:grid-cols-2 pt-2 border-t border-slate-100">
+            <label className="space-y-2 md:col-span-2">
+              <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                Note
+              </span>
+              <textarea
+                value={form.note}
+                onChange={(event) => updateForm("note", event.target.value)}
+                rows={3}
+                className="w-full bg-white rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-800 outline-none focus:border-indigo-400"
+              />
+            </label>
+
+            <div className="space-y-2 md:col-span-2">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
+                  Document
                 </span>
+                {editingRecord?.file ? (
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={buildFileUrl(editingRecord.file)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs font-semibold text-indigo-600 hover:text-indigo-700"
+                    >
+                      View current
+                    </a>
+                    <a
+                      href={buildFileUrl(editingRecord.file)}
+                      download
+                      className="text-xs font-semibold text-emerald-600 hover:text-emerald-700"
+                    >
+                      Download
+                    </a>
+                  </div>
+                ) : null}
+              </div>
+              <div className="relative group/file">
+                <input
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.gif,.webp,.pdf"
+                  onChange={(event) =>
+                    updateForm("file", event.target.files?.[0] || null)
+                  }
+                  className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+                />
+                <div className="flex h-12 w-full items-center gap-3 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 px-4 transition group-hover/file:border-indigo-400 group-hover/file:bg-indigo-50">
+                  <div className="grid h-8 w-8 place-items-center rounded-lg border border-slate-200 bg-white text-slate-400 transition group-hover/file:text-indigo-600">
+                    <Plus size={16} />
+                  </div>
+                  <span className="text-sm font-medium text-slate-500 transition group-hover/file:text-indigo-600">
+                    {form.file instanceof File
+                      ? form.file.name
+                      : "Select or drop file..."}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 border-t border-slate-100 pt-4 md:col-span-2">
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
             <button
               type="button"
               onClick={closeModal}
-              className="h-11 rounded-xl border border-slate-200 px-5 text-sm font-semibold text-slate-600"
+              className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 px-5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isCreating || isUpdating}
-              className="h-11 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white disabled:opacity-60"
+              className="inline-flex h-11 items-center justify-center rounded-xl bg-indigo-600 px-6 text-sm font-semibold text-white shadow-md transition hover:bg-indigo-700 disabled:opacity-50"
             >
               {isCreating || isUpdating ? "Saving..." : "Save"}
             </button>

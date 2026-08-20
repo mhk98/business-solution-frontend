@@ -37,6 +37,7 @@ import { useLayout } from "../../context/LayoutContext";
 import { translations } from "../../utils/translations";
 import { useGetAllSupplierWithoutQueryQuery } from "../../features/supplier/supplier";
 import { useGetAllSupplierHistoryQuery } from "../../features/supplierHistory/supplierHistory";
+import { useGetAllOwnerWithoutQueryQuery } from "../../features/ownerTransaction/ownerTransaction";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 import useDebounce from "../../hooks/useDebounce";
 
@@ -45,10 +46,7 @@ import {
   useInsertBankAccountMutation,
 } from "../../features/bankAccount/bankAccount";
 import { useGetAllLogoQuery } from "../../features/logo/logo";
-import {
-  DEFAULT_COMPANY_NAME,
-  buildAssetUrl,
-} from "../../utils/pdfBranding";
+import { DEFAULT_COMPANY_NAME, buildAssetUrl } from "../../utils/pdfBranding";
 
 const escapeVoucherHtml = (value) =>
   String(value ?? "")
@@ -58,8 +56,18 @@ const escapeVoucherHtml = (value) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
-const drawWrappedText = (ctx, text, x, y, maxWidth, lineHeight, maxLines = 3) => {
-  const normalizedText = String(text || "-").replace(/\s+/g, " ").trim();
+const drawWrappedText = (
+  ctx,
+  text,
+  x,
+  y,
+  maxWidth,
+  lineHeight,
+  maxLines = 3,
+) => {
+  const normalizedText = String(text || "-")
+    .replace(/\s+/g, " ")
+    .trim();
   const words = normalizedText.split(" ");
   const lines = [];
   let line = "";
@@ -81,6 +89,16 @@ const drawWrappedText = (ctx, text, x, y, maxWidth, lineHeight, maxLines = 3) =>
   });
 };
 
+const loadImageForCanvas = (url) =>
+  new Promise((resolve) => {
+    if (!url) return resolve(null);
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+
 const renderVoucherPdfFromCanvas = async ({
   voucherNo,
   voucherTitle,
@@ -91,6 +109,7 @@ const renderVoucherPdfFromCanvas = async ({
   note,
   widthMm,
   heightMm,
+  logoUrl,
 }) => {
   if (document.fonts?.ready) await document.fonts.ready;
 
@@ -116,25 +135,46 @@ const renderVoucherPdfFromCanvas = async ({
 
   const left = 54;
   const right = width - 54;
-  let y = 58;
+  let topY = 42;
 
-  ctx.fillStyle = "#111827";
-  setFont(18, 800);
-  ctx.fillText(DEFAULT_COMPANY_NAME, left, y + 18);
-  ctx.fillStyle = "#64748b";
-  setFont(13, 400);
-  ctx.fillText("Control Panel Cash Memo", left, y + 40);
+  const logoImg = logoUrl ? await loadImageForCanvas(logoUrl) : null;
+  let headerBottomY = topY + 48;
+
+  if (logoImg && logoImg.width && logoImg.height) {
+    const maxW = 210;
+    const maxH = 60;
+    const scaleFactor = Math.min(maxW / logoImg.width, maxH / logoImg.height);
+    const w = logoImg.width * scaleFactor;
+    const h = logoImg.height * scaleFactor;
+    ctx.drawImage(logoImg, left, topY, w, h);
+    ctx.fillStyle = "#64748b";
+    setFont(12, 400);
+    ctx.fillText("Control Panel Cash Memo", left, topY + h + 15);
+    headerBottomY = topY + h + 24;
+  } else {
+    ctx.fillStyle = "#111827";
+    setFont(20, 800);
+    ctx.fillText(DEFAULT_COMPANY_NAME, left, topY + 22);
+    ctx.fillStyle = "#64748b";
+    setFont(13, 400);
+    ctx.fillText("Control Panel Cash Memo", left, topY + 44);
+    headerBottomY = topY + 54;
+  }
 
   ctx.fillStyle = "#111827";
   setFont(22, 900);
   ctx.textAlign = "right";
-  ctx.fillText(String(voucherTitle || "Cash Memo").toUpperCase(), right, y + 18);
+  ctx.fillText(
+    String(voucherTitle || "Cash Memo").toUpperCase(),
+    right,
+    topY + 22,
+  );
   ctx.fillStyle = "#64748b";
   setFont(13, 400);
-  ctx.fillText("Date: " + (date || "-"), right, y + 42);
+  ctx.fillText("Date: " + (date || "-"), right, topY + 44);
   ctx.textAlign = "left";
 
-  y = 105;
+  let y = Math.max(115, headerBottomY);
   ctx.strokeStyle = "#9ca3af";
   ctx.lineWidth = 1;
   ctx.beginPath();
@@ -142,7 +182,7 @@ const renderVoucherPdfFromCanvas = async ({
   ctx.lineTo(right, y);
   ctx.stroke();
 
-  y = 132;
+  y = y + 24;
   const typeBoxWidth = 136;
   const metaGap = 18;
   const metaWidth = right - left - typeBoxWidth - metaGap;
@@ -159,7 +199,11 @@ const renderVoucherPdfFromCanvas = async ({
 
   ctx.textAlign = "center";
   setFont(14, 900);
-  ctx.fillText(isCashOut ? "CASH OUT" : "CASH IN", right - typeBoxWidth / 2, y + 31);
+  ctx.fillText(
+    isCashOut ? "CASH OUT" : "CASH IN",
+    right - typeBoxWidth / 2,
+    y + 31,
+  );
   ctx.textAlign = "left";
 
   y = 206;
@@ -198,7 +242,15 @@ const renderVoucherPdfFromCanvas = async ({
     ctx.fillText(String(label), left + 12, rowY + 20);
     ctx.fillStyle = "#111827";
     setFont(13, 400);
-    drawWrappedText(ctx, value, left + labelWidth + 12, rowY + 20, tableWidth - labelWidth - 24, 15, 1);
+    drawWrappedText(
+      ctx,
+      value,
+      left + labelWidth + 12,
+      rowY + 20,
+      tableWidth - labelWidth - 24,
+      15,
+      1,
+    );
   });
 
   y += tableHeight + 24;
@@ -258,14 +310,7 @@ const renderVoucherPdfFromCanvas = async ({
     unit: "mm",
     format: [widthMm, heightMm],
   });
-  pdf.addImage(
-    canvas.toDataURL("image/png"),
-    "PNG",
-    0,
-    0,
-    widthMm,
-    heightMm,
-  );
+  pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, widthMm, heightMm);
   return pdf;
 };
 
@@ -352,7 +397,9 @@ const CashInOutTable = () => {
     paymentStatus: "",
     bankName: "",
     bankAccount: "",
+    partyType: "",
     supplierId: "",
+    ownerId: "",
     lender: "",
     loanId: "",
     note: "",
@@ -403,6 +450,29 @@ const CashInOutTable = () => {
     String(category || "")
       .trim()
       .toLowerCase() === "loan";
+
+  const getPartyTypeFromRow = (row) => {
+    if (row?.supplierId) return "Supplier";
+    if (row?.loanId) return "Lender";
+    if (row?.ownerId) return "Owner";
+    return "";
+  };
+
+  const getPartySelectionError = (value) => {
+    if (
+      value?.partyType === "Supplier" &&
+      !String(value?.supplierId || "").trim()
+    ) {
+      return "Supplier is required!";
+    }
+    if (value?.partyType === "Lender" && !String(value?.loanId || "").trim()) {
+      return "Lender is required!";
+    }
+    if (value?.partyType === "Owner" && !String(value?.ownerId || "").trim()) {
+      return "Owner is required!";
+    }
+    return "";
+  };
 
   useEffect(() => {
     const updatePagesPerSet = () => {
@@ -466,11 +536,12 @@ const CashInOutTable = () => {
   useEffect(() => {
     if (
       !isLoanCategory(createProduct.category) &&
+      createProduct.partyType !== "Lender" &&
       (createProduct.lender || createProduct.loanId)
     ) {
       setCreateProduct((p) => ({ ...p, lender: "", loanId: "" }));
     }
-  }, [createProduct.category]);
+  }, [createProduct.category, createProduct.partyType]);
 
   // ✅ Bank না হলে bank fields reset (Edit)
   useEffect(() => {
@@ -486,11 +557,12 @@ const CashInOutTable = () => {
     if (!currentProduct) return;
     if (
       !isLoanCategory(currentProduct.category) &&
+      currentProduct.partyType !== "Lender" &&
       (currentProduct.lender || currentProduct.loanId)
     ) {
       setCurrentProduct((p) => ({ ...p, lender: "", loanId: "" }));
     }
-  }, [currentProduct?.category]);
+  }, [currentProduct?.category, currentProduct?.partyType]);
 
   const queryArgs = useMemo(() => {
     const args = {
@@ -527,9 +599,8 @@ const CashInOutTable = () => {
     debouncedSearchTerm,
   ]);
 
-  const { data, isLoading, isError, error, refetch } = useGetAllCashInOutQuery(
-    queryArgs,
-  );
+  const { data, isLoading, isError, error, refetch } =
+    useGetAllCashInOutQuery(queryArgs);
   const { data: allCashInOutRes } = useGetAllCashInOutWithoutQueryQuery();
   const { data: logoData } = useGetAllLogoQuery();
   const logoUrl = buildAssetUrl(logoData?.data?.file);
@@ -557,7 +628,9 @@ const CashInOutTable = () => {
     const rows = Array.isArray(allCashInOutRes?.data)
       ? allCashInOutRes.data
       : [];
-    const currentNote = String(createProduct.remarks || "").trim().toLowerCase();
+    const currentNote = String(createProduct.remarks || "")
+      .trim()
+      .toLowerCase();
 
     return rows
       .filter((row) => String(row?.bookId ?? "") === String(id ?? ""))
@@ -583,7 +656,8 @@ const CashInOutTable = () => {
         date: formatVoucherDate(row?.date),
         category: row?.category || "-",
         note: row?.remarks || row?.note || "",
-        voucherNo: row?.voucherNo || row?.voucher_no || row?.voucherNumber || "-",
+        voucherNo:
+          row?.voucherNo || row?.voucher_no || row?.voucherNumber || "-",
       }));
   }, [allCashInOutRes, createProduct.remarks, id]);
 
@@ -686,8 +760,7 @@ const CashInOutTable = () => {
     bankAccountsFromDB
       .filter(
         (ba) =>
-          !bankName ||
-          String(ba.bankName || "") === String(bankName || ""),
+          !bankName || String(ba.bankName || "") === String(bankName || ""),
       )
       .map((ba) => ({
         value: ba.accountNumber,
@@ -696,9 +769,9 @@ const CashInOutTable = () => {
       }));
 
   const getBankAccountSelectOptions = (bankName = "") => [
-      ...getBankAccountOptions(bankName),
-      { value: "__new_bank__", label: "+ New Bank Account" },
-    ];
+    ...getBankAccountOptions(bankName),
+    { value: "__new_bank__", label: "+ New Bank Account" },
+  ];
 
   const categoryFilterOptions = useMemo(
     () =>
@@ -729,7 +802,9 @@ const CashInOutTable = () => {
     return (
       categoryOptions.find(
         (category) =>
-          String(category.name || "").trim().toLowerCase() === key,
+          String(category.name || "")
+            .trim()
+            .toLowerCase() === key,
       ) || null
     );
   };
@@ -790,7 +865,9 @@ const CashInOutTable = () => {
       paymentStatus: "",
       bankName: "",
       bankAccount: "",
+      partyType: "",
       supplierId: "",
+      ownerId: "",
       lender: "",
       loanId: "",
       note: "",
@@ -843,7 +920,9 @@ const CashInOutTable = () => {
       amount: rp.amount ?? "",
       bankName: rp.bankName ?? "",
       bankAccount: rp.bankAccount ?? "",
+      partyType: getPartyTypeFromRow(rp),
       supplierId: rp.supplierId ?? "",
+      ownerId: rp.ownerId ?? "",
       loanId: rp.loanId ?? rp.loan?.Id ?? "",
       lender:
         rp.loan?.name ??
@@ -875,7 +954,9 @@ const CashInOutTable = () => {
       paymentStatus: rp.paymentStatus ?? "",
       amount: rp.amount ?? "",
       bankName: rp.bankName ?? "",
+      partyType: getPartyTypeFromRow(rp),
       supplierId: rp.supplierId ?? "",
+      ownerId: rp.ownerId ?? "",
       loanId: rp.loanId ?? rp.loan?.Id ?? "",
       lender:
         rp.loan?.name ??
@@ -912,11 +993,15 @@ const CashInOutTable = () => {
       let finalCategoryId = currentProduct.categoryId || "";
 
       if (
-        isLoanCategory(finalCategoryName) &&
+        (isLoanCategory(finalCategoryName) ||
+          currentProduct.partyType === "Lender") &&
         !String(currentProduct.loanId || "").trim()
       ) {
         return toast.error("Loan is required!");
       }
+
+      const partySelectionError = getPartySelectionError(currentProduct);
+      if (partySelectionError) return toast.error(partySelectionError);
 
       // If the category is new and being added dynamically
       if (isNewCategoryEdit) {
@@ -938,8 +1023,26 @@ const CashInOutTable = () => {
         "note",
         (currentProduct.note || currentProduct.remarks || "").trim(),
       );
-      formData.append("supplierId", currentProduct?.supplierId || "");
-      formData.append("loanId", currentProduct?.loanId || "");
+      formData.append("partyType", currentProduct?.partyType || "");
+      formData.append(
+        "supplierId",
+        currentProduct?.partyType === "Supplier"
+          ? currentProduct?.supplierId || ""
+          : "",
+      );
+      formData.append(
+        "loanId",
+        currentProduct?.partyType === "Lender" ||
+          isLoanCategory(finalCategoryName)
+          ? currentProduct?.loanId || ""
+          : "",
+      );
+      formData.append(
+        "ownerId",
+        currentProduct?.partyType === "Owner"
+          ? currentProduct?.ownerId || ""
+          : "",
+      );
       formData.append("lender", selectedEditLoan?.name || "");
       formData.append("status", currentProduct.status);
       formData.append("date", currentProduct.date);
@@ -1023,11 +1126,15 @@ const CashInOutTable = () => {
       }
 
       if (
-        isLoanCategory(finalCategoryName) &&
+        (isLoanCategory(finalCategoryName) ||
+          createProduct.partyType === "Lender") &&
         !String(createProduct.loanId || "").trim()
       ) {
         return toast.error("Loan is required!");
       }
+
+      const partySelectionError = getPartySelectionError(createProduct);
+      if (partySelectionError) return toast.error(partySelectionError);
 
       // Form data preparation for submission
       const formData = new FormData();
@@ -1057,8 +1164,26 @@ const CashInOutTable = () => {
       formData.append("amount", String(Number(createProduct.amount)));
       formData.append("bookId", id);
       formData.append("actorRole", role);
-      formData.append("supplierId", createProduct?.supplierId);
-      formData.append("loanId", createProduct?.loanId || "");
+      formData.append("partyType", createProduct?.partyType || "");
+      formData.append(
+        "supplierId",
+        createProduct?.partyType === "Supplier"
+          ? createProduct?.supplierId || ""
+          : "",
+      );
+      formData.append(
+        "loanId",
+        createProduct?.partyType === "Lender" ||
+          isLoanCategory(finalCategoryName)
+          ? createProduct?.loanId || ""
+          : "",
+      );
+      formData.append(
+        "ownerId",
+        createProduct?.partyType === "Owner"
+          ? createProduct?.ownerId || ""
+          : "",
+      );
       formData.append("lender", selectedCreateLoan?.name || "");
       if (createProduct.file) formData.append("file", createProduct.file);
 
@@ -1074,9 +1199,11 @@ const CashInOutTable = () => {
           paymentStatus: "",
           bankName: "",
           bankAccount: "",
+          partyType: "",
           lender: "",
           loanId: "",
           supplierId: "",
+          ownerId: "",
           category: "",
           categoryId: "",
           remarks: "",
@@ -1131,11 +1258,15 @@ const CashInOutTable = () => {
       }
 
       if (
-        isLoanCategory(finalCategoryName) &&
+        (isLoanCategory(finalCategoryName) ||
+          createProduct.partyType === "Lender") &&
         !String(createProduct.loanId || "").trim()
       ) {
         return toast.error("Loan is required!");
       }
+
+      const partySelectionError = getPartySelectionError(createProduct);
+      if (partySelectionError) return toast.error(partySelectionError);
 
       // Form data preparation for submission
       const formData = new FormData();
@@ -1165,8 +1296,26 @@ const CashInOutTable = () => {
       formData.append("amount", String(Number(createProduct.amount)));
       formData.append("bookId", id);
       formData.append("actorRole", role);
-      formData.append("supplierId", createProduct?.supplierId);
-      formData.append("loanId", createProduct?.loanId || "");
+      formData.append("partyType", createProduct?.partyType || "");
+      formData.append(
+        "supplierId",
+        createProduct?.partyType === "Supplier"
+          ? createProduct?.supplierId || ""
+          : "",
+      );
+      formData.append(
+        "loanId",
+        createProduct?.partyType === "Lender" ||
+          isLoanCategory(finalCategoryName)
+          ? createProduct?.loanId || ""
+          : "",
+      );
+      formData.append(
+        "ownerId",
+        createProduct?.partyType === "Owner"
+          ? createProduct?.ownerId || ""
+          : "",
+      );
       formData.append("lender", selectedCreateLoan?.name || "");
       if (createProduct.file) formData.append("file", createProduct.file);
 
@@ -1182,9 +1331,11 @@ const CashInOutTable = () => {
           paymentStatus: "",
           bankName: "",
           bankAccount: "",
+          partyType: "",
           lender: "",
           loanId: "",
           supplierId: "",
+          ownerId: "",
           category: "",
           categoryId: "",
           remarks: "",
@@ -1428,6 +1579,7 @@ const CashInOutTable = () => {
       note: noteText,
       widthMm: voucherWidthMm,
       heightMm: voucherHeightMm,
+      logoUrl,
     });
 
     return {
@@ -1446,7 +1598,9 @@ const CashInOutTable = () => {
       setVoucherPreview({ open: true, blob, url, filename, title });
     } catch (error) {
       console.error("Voucher preview failed:", error);
-      toast.error(`Voucher preview failed: ${error?.message || "Unknown error"}`);
+      toast.error(
+        `Voucher preview failed: ${error?.message || "Unknown error"}`,
+      );
     }
   };
 
@@ -1515,6 +1669,19 @@ const CashInOutTable = () => {
     [suppliers],
   );
 
+  const { data: allOwnerRes, isLoading: isOwnerLoading } =
+    useGetAllOwnerWithoutQueryQuery();
+  const owners = allOwnerRes?.data || [];
+
+  const ownerOptions = useMemo(
+    () =>
+      (owners || []).map((owner) => ({
+        value: owner.Id,
+        label: owner.name,
+      })),
+    [owners],
+  );
+
   const getSupplierName = (row) => {
     const rowSupplier = suppliers.find(
       (item) => String(item.Id) === String(row?.supplierId),
@@ -1536,6 +1703,15 @@ const CashInOutTable = () => {
         label: loan.name,
       })),
     [activeLoans],
+  );
+
+  const partyTypeOptions = [
+    { value: "Supplier", label: "Supplier" },
+    { value: "Lender", label: "Lender" },
+    { value: "Owner", label: "Owner" },
+  ];
+  const cashInPartyTypeOptions = partyTypeOptions.filter(
+    (option) => option.value !== "Supplier",
   );
 
   const findLoanById = (loanId) =>
@@ -1638,6 +1814,140 @@ const CashInOutTable = () => {
         <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1 text-sky-700">
           Advance: ৳{supplierAdvanceAmount.toLocaleString()}
         </span>
+      </div>
+    );
+  };
+
+  const renderPartyFields = (
+    value,
+    onChange,
+    { showBalance = true, options = partyTypeOptions } = {},
+  ) => {
+    const partyType = value?.partyType || "";
+    const selectedPartyTypeOption =
+      options.find((option) => option.value === partyType) || null;
+    const updatePartyType = (nextType) => {
+      onChange({
+        ...value,
+        partyType: nextType,
+        supplierId: "",
+        loanId: "",
+        lender: "",
+        ownerId: "",
+      });
+    };
+
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm text-slate-600 mb-1">
+            Party Type
+          </label>
+          <Select
+            options={options}
+            value={selectedPartyTypeOption}
+            onChange={(selectedOption) =>
+              updatePartyType(selectedOption?.value || "")
+            }
+            placeholder="Select Party Type"
+            className="text-sm"
+            styles={selectStyles}
+            isClearable
+          />
+        </div>
+
+        {partyType === "Supplier" && selectedPartyTypeOption && (
+          <div>
+            <label className="block text-sm text-slate-600 mb-1">
+              Supplier Name
+            </label>
+            <Select
+              options={supplierOptions}
+              value={
+                supplierOptions.find(
+                  (option) =>
+                    String(option.value) === String(value?.supplierId),
+                ) || null
+              }
+              onChange={(selectedOption) =>
+                onChange({
+                  ...value,
+                  supplierId: selectedOption?.value || "",
+                  loanId: "",
+                  lender: "",
+                  ownerId: "",
+                })
+              }
+              placeholder={t.select_supplier || "Select Supplier"}
+              className="text-sm"
+              styles={selectStyles}
+              isClearable
+            />
+            {showBalance && renderSupplierBalance(value?.supplierId)}
+          </div>
+        )}
+
+        {partyType === "Lender" && (
+          <div>
+            <label className="block text-sm text-slate-600 mb-1">
+              Lender Name
+            </label>
+            <Select
+              options={loanSelectOptions}
+              value={
+                loanSelectOptions.find(
+                  (option) => String(option.value) === String(value?.loanId),
+                ) || null
+              }
+              onChange={(selectedOption) =>
+                onChange({
+                  ...value,
+                  supplierId: "",
+                  loanId: selectedOption?.value || "",
+                  lender: selectedOption?.label || "",
+                  ownerId: "",
+                })
+              }
+              placeholder="Select Lender"
+              className="text-sm"
+              styles={selectStyles}
+              isClearable
+            />
+            {renderLoanBalance(findLoanById(value?.loanId))}
+          </div>
+        )}
+
+        {partyType === "Owner" && (
+          <div>
+            <label className="block text-sm text-slate-600 mb-1">
+              Owner Name
+            </label>
+            <Select
+              options={ownerOptions}
+              value={
+                ownerOptions.find(
+                  (option) => String(option.value) === String(value?.ownerId),
+                ) || null
+              }
+              onChange={(selectedOption) =>
+                onChange({
+                  ...value,
+                  supplierId: "",
+                  loanId: "",
+                  lender: "",
+                  ownerId: selectedOption?.value || "",
+                })
+              }
+              placeholder={
+                isOwnerLoading ? "Loading Owners..." : "Select Owner"
+              }
+              className="text-sm"
+              styles={selectStyles}
+              isClearable
+              isLoading={isOwnerLoading}
+            />
+          </div>
+        )}
       </div>
     );
   };
@@ -2455,56 +2765,7 @@ const CashInOutTable = () => {
             )}
           </div>
 
-          {isLoanCategory(currentProduct?.category) && (
-            <div>
-              <label className="block text-sm text-slate-600 mb-1">Loan</label>
-              <Select
-                options={loanSelectOptions}
-                value={
-                  loanSelectOptions.find(
-                    (option) =>
-                      String(option.value) === String(currentProduct?.loanId),
-                  ) || null
-                }
-                onChange={(selectedOption) =>
-                  setCurrentProduct((p) => ({
-                    ...p,
-                    loanId: selectedOption?.value || "",
-                    lender: selectedOption?.label || "",
-                  }))
-                }
-                placeholder="Select Loan"
-                className="text-sm"
-                styles={selectStyles}
-                isClearable
-              />
-              {renderLoanBalance(selectedEditLoan)}
-            </div>
-          )}
-
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-              {t.supplier || "Supplier"}
-            </label>
-            <select
-              value={currentProduct?.supplierId || ""}
-              onChange={(e) =>
-                setCurrentProduct({
-                  ...currentProduct,
-                  supplierId: e.target.value,
-                })
-              }
-              className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-            >
-              <option value="">{t.select_supplier || "Select Supplier"}</option>
-              {suppliers?.map((s) => (
-                <option key={s.Id} value={s.Id}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-            {renderSupplierBalance(currentProduct?.supplierId)}
-          </div>
+          {renderPartyFields(currentProduct, setCurrentProduct)}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -2847,34 +3108,9 @@ const CashInOutTable = () => {
             )}
           </div>
 
-          {isLoanCategory(createProduct.category) && (
-            <div>
-              <label className="block text-sm text-slate-600 mb-1">
-                Loan Taken From
-              </label>
-              <Select
-                options={loanSelectOptions}
-                value={
-                  loanSelectOptions.find(
-                    (option) =>
-                      String(option.value) === String(createProduct?.loanId),
-                  ) || null
-                }
-                onChange={(selectedOption) =>
-                  setCreateProduct((p) => ({
-                    ...p,
-                    loanId: selectedOption?.value || "",
-                    lender: selectedOption?.label || "",
-                  }))
-                }
-                placeholder="Select Loan"
-                className="text-sm"
-                styles={selectStyles}
-                isClearable
-              />
-              {renderLoanBalance(selectedCreateLoan)}
-            </div>
-          )}
+          {renderPartyFields(createProduct, setCreateProduct, {
+            options: cashInPartyTypeOptions,
+          })}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="relative">
@@ -3134,6 +3370,8 @@ const CashInOutTable = () => {
             </>
           )}
 
+          {renderPartyFields(createProduct, setCreateProduct)}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm text-slate-600 mb-1">
@@ -3209,137 +3447,6 @@ const CashInOutTable = () => {
               )}
             </div>
 
-            {isLoanCategory(createProduct.category) && (
-              <div>
-                <label className="block text-sm text-slate-600 mb-1">
-                  Loan Given To
-                </label>
-                <Select
-                  options={loanSelectOptions}
-                  value={
-                    loanSelectOptions.find(
-                      (option) =>
-                        String(option.value) === String(createProduct?.loanId),
-                    ) || null
-                  }
-                  onChange={(selectedOption) =>
-                    setCreateProduct((p) => ({
-                      ...p,
-                      loanId: selectedOption?.value || "",
-                      lender: selectedOption?.label || "",
-                    }))
-                  }
-                  placeholder="Select Loan"
-                  className="text-sm"
-                  styles={selectStyles}
-                  isClearable
-                />
-                {renderLoanBalance(selectedCreateLoan)}
-              </div>
-            )}
-            {/* <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-                {t.supplier || "Supplier"}
-              </label>
-              <select
-                value={createProduct?.supplierId || ""}
-                onChange={(e) =>
-                  setCreateProduct({
-                    ...createProduct,
-                    supplierId: e.target.value,
-                  })
-                }
-                className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-              >
-                <option value="">
-                  {t.select_supplier || "Select Supplier"}
-                </option>
-                {suppliers?.map((s) => (
-                  <option key={s.Id} value={s.Id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </div> */}
-
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-                {t.supplier || "Supplier"}
-              </label>
-
-              <Select
-                options={supplierOptions}
-                value={
-                  supplierOptions.find(
-                    (option) => option.value === createProduct?.supplierId,
-                  ) || null
-                }
-                onChange={(selectedOption) =>
-                  setCreateProduct({
-                    ...createProduct,
-                    supplierId: selectedOption?.value || "",
-                  })
-                }
-                placeholder={t.select_supplier || "Select Supplier"}
-                className="text-sm"
-                styles={selectStyles}
-                isClearable
-              />
-
-              {renderSupplierBalance(createProduct?.supplierId)}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="relative">
-              <label className="block text-sm text-slate-600 mb-1">Note</label>
-              <input
-                type="text"
-                value={createProduct.remarks}
-                onChange={(e) =>
-                  setCreateProduct({
-                    ...createProduct,
-                    remarks: e.target.value,
-                  })
-                }
-                onFocus={() => setIsCreateCashOutNoteFocused(true)}
-                onBlur={() =>
-                  window.setTimeout(
-                    () => setIsCreateCashOutNoteFocused(false),
-                    120,
-                  )
-                }
-                className="h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 bg-white"
-              />
-              {isCreateCashOutNoteFocused &&
-                previousVoucherSuggestions.length > 0 && (
-                  <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-52 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl">
-                    {previousVoucherSuggestions.map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => {
-                          setCreateProduct((p) => ({
-                            ...p,
-                            remarks: item.note,
-                            category: p.category || item.category,
-                          }));
-                          setIsCreateCashOutNoteFocused(false);
-                        }}
-                        className="w-full border-b border-slate-100 px-3 py-2 text-left text-sm text-slate-700 last:border-b-0 hover:bg-slate-50"
-                      >
-                        <div className="font-semibold text-slate-900">
-                          {item.date}, {item.category}, {item.note}
-                        </div>
-                        <div className="mt-0.5 text-xs text-slate-500">
-                          Voucher No: {item.voucherNo}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-            </div>
             <div>
               <label className="block text-sm text-slate-600 mb-1">
                 Amount
@@ -3356,7 +3463,55 @@ const CashInOutTable = () => {
               />
             </div>
           </div>
-
+          <div>
+            <label className="block text-sm text-slate-600 mb-1">Note</label>
+            <input
+              type="text"
+              value={createProduct.remarks}
+              onChange={(e) =>
+                setCreateProduct({
+                  ...createProduct,
+                  remarks: e.target.value,
+                })
+              }
+              onFocus={() => setIsCreateCashOutNoteFocused(true)}
+              onBlur={() =>
+                window.setTimeout(
+                  () => setIsCreateCashOutNoteFocused(false),
+                  120,
+                )
+              }
+              className="h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 bg-white"
+            />
+            {isCreateCashOutNoteFocused &&
+              previousVoucherSuggestions.length > 0 && (
+                <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-52 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl">
+                  {previousVoucherSuggestions.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        setCreateProduct((p) => ({
+                          ...p,
+                          remarks: item.note,
+                          category: p.category || item.category,
+                        }));
+                        setIsCreateCashOutNoteFocused(false);
+                      }}
+                      className="w-full border-b border-slate-100 px-3 py-2 text-left text-sm text-slate-700 last:border-b-0 hover:bg-slate-50"
+                    >
+                      <div className="font-semibold text-slate-900">
+                        {item.date}, {item.category}, {item.note}
+                      </div>
+                      <div className="mt-0.5 text-xs text-slate-500">
+                        Voucher No: {item.voucherNo}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+          </div>
           <div>
             <label className="block text-sm text-slate-600 mb-1">
               Upload Document

@@ -14,6 +14,9 @@ import {
 } from "../../features/category/category";
 
 const ITEMS_PER_PAGE = 10;
+const CATEGORY_STATUS_OPTIONS = ["Expense", "Not Expense"];
+const getCategoryStatus = (status) =>
+  status === "Not Expense" ? "Not Expense" : "Expense";
 
 const CategoryTable = () => {
   const role = localStorage.getItem("role");
@@ -22,7 +25,10 @@ const CategoryTable = () => {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [currentCategory, setCurrentCategory] = useState(null);
-  const [createCategory, setCreateCategory] = useState({ name: "" });
+  const [createCategory, setCreateCategory] = useState({
+    name: "",
+    status: "Expense",
+  });
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 400);
 
@@ -72,11 +78,14 @@ const CategoryTable = () => {
     if (!name) return toast.error("Category name is required!");
 
     try {
-      const res = await insertCategory({ name }).unwrap();
+      const res = await insertCategory({
+        name,
+        status: createCategory.status || "Expense",
+      }).unwrap();
       if (res?.success) {
         toast.success("Category created successfully!");
         setIsCreateOpen(false);
-        setCreateCategory({ name: "" });
+        setCreateCategory({ name: "", status: "Expense" });
         refetch?.();
       } else {
         toast.error("Create failed!");
@@ -95,7 +104,7 @@ const CategoryTable = () => {
     try {
       const res = await updateCategory({
         id: currentCategory.Id,
-        data: { name },
+        data: { name, status: getCategoryStatus(currentCategory.status) },
       }).unwrap();
 
       if (res?.success) {
@@ -166,7 +175,7 @@ const CategoryTable = () => {
         {canManage && (
           <button
             onClick={() => {
-              setCreateCategory({ name: "" });
+              setCreateCategory({ name: "", status: "Expense" });
               setIsCreateOpen(true);
             }}
             type="button"
@@ -192,6 +201,15 @@ const CategoryTable = () => {
               <div className="min-w-0">
                 <div className="truncate text-[16px] font-semibold text-gray-900">
                   {item.name}
+                </div>
+                <div
+                  className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${
+                    getCategoryStatus(item.status) === "Not Expense"
+                      ? "bg-slate-100 text-slate-600"
+                      : "bg-emerald-50 text-emerald-700"
+                  }`}
+                >
+                  {getCategoryStatus(item.status)}
                 </div>
               </div>
             </div>
@@ -264,6 +282,28 @@ const CategoryTable = () => {
             />
           </div>
 
+          <div>
+            <label className="mb-2 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
+              Status
+            </label>
+            <select
+              value={getCategoryStatus(currentCategory?.status)}
+              onChange={(event) =>
+                setCurrentCategory((prev) => ({
+                  ...prev,
+                  status: event.target.value,
+                }))
+              }
+              className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
+            >
+              {CATEGORY_STATUS_OPTIONS.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div className="flex justify-end gap-3 border-t border-slate-100 pt-6">
             <button
               onClick={() => setIsEditOpen(false)}
@@ -295,12 +335,37 @@ const CategoryTable = () => {
               type="text"
               value={createCategory.name}
               onChange={(event) =>
-                setCreateCategory({ name: event.target.value })
+                setCreateCategory((prev) => ({
+                  ...prev,
+                  name: event.target.value,
+                }))
               }
               className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
               placeholder="Enter category name"
               required
             />
+          </div>
+
+          <div>
+            <label className="mb-2 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
+              Status
+            </label>
+            <select
+              value={createCategory.status}
+              onChange={(event) =>
+                setCreateCategory((prev) => ({
+                  ...prev,
+                  status: event.target.value,
+                }))
+              }
+              className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
+            >
+              {CATEGORY_STATUS_OPTIONS.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="flex justify-end gap-3 border-t border-slate-100 pt-6">

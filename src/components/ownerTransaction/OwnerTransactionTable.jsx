@@ -23,9 +23,7 @@ import {
 import useDebounce from "../../hooks/useDebounce";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 import Modal from "../common/Modal";
-import DateRangeFilter, {
-  getDatePresetRange,
-} from "../common/DateRangeFilter";
+import DateRangeFilter, { getDatePresetRange } from "../common/DateRangeFilter";
 
 const formatAmount = (value) => `৳${Number(value || 0).toLocaleString()}`;
 const today = () => new Date().toISOString().slice(0, 10);
@@ -48,7 +46,10 @@ const transactionEmptyForm = {
   status: "Active",
 };
 
-const OwnerTransactionTable = ({ ownerId: fixedOwnerId = "", ownerName = "" }) => {
+const OwnerTransactionTable = ({
+  ownerId: fixedOwnerId = "",
+  ownerName = "",
+}) => {
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 400);
   const [startDate, setStartDate] = useState(defaultDateRange.from);
@@ -141,7 +142,11 @@ const OwnerTransactionTable = ({ ownerId: fixedOwnerId = "", ownerName = "" }) =
 
   const openTransactionCreate = (type = "Deposit") => {
     setEditingTransaction(null);
-    setTransactionForm({ ...transactionEmptyForm, ownerId: fixedOwnerId || "", type });
+    setTransactionForm({
+      ...transactionEmptyForm,
+      ownerId: fixedOwnerId || "",
+      type,
+    });
     setTransactionModalOpen(true);
   };
 
@@ -392,9 +397,7 @@ const OwnerTransactionTable = ({ ownerId: fixedOwnerId = "", ownerName = "" }) =
         />
         <SummaryCard
           label="Net Owner Balance"
-          value={
-            meta.netBalance
-          }
+          value={meta.netBalance}
           tone="indigo"
           icon={<WalletCards size={18} />}
         />
@@ -406,7 +409,9 @@ const OwnerTransactionTable = ({ ownerId: fixedOwnerId = "", ownerName = "" }) =
             <p className="text-xs font-black uppercase tracking-widest text-indigo-500">
               Owner History
             </p>
-            <h2 className="mt-1 text-xl font-bold text-slate-900">{ownerName}</h2>
+            <h2 className="mt-1 text-xl font-bold text-slate-900">
+              {ownerName}
+            </h2>
           </div>
         ) : null}
         <section className="min-w-0 rounded-2xl border border-slate-200 bg-white">
@@ -433,7 +438,9 @@ const OwnerTransactionTable = ({ ownerId: fixedOwnerId = "", ownerName = "" }) =
                 </span>
                 <select
                   value={itemsPerPage}
-                  onChange={(event) => setItemsPerPage(Number(event.target.value))}
+                  onChange={(event) =>
+                    setItemsPerPage(Number(event.target.value))
+                  }
                   className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none focus:border-indigo-200 focus:ring-2 focus:ring-indigo-500/20"
                 >
                   {[20, 50, 100].map((value) => (
@@ -492,9 +499,10 @@ const OwnerTransactionTable = ({ ownerId: fixedOwnerId = "", ownerName = "" }) =
 
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-xs font-bold text-slate-500">
-                Selected: <span className="text-indigo-600">{selectedRows.length}</span>
+                Selected:{" "}
+                <span className="text-indigo-600">{selectedRows.length}</span>
               </p>
-              <div className="flex flex-wrap gap-3">
+              {/* <div className="flex flex-wrap gap-3">
                 <button
                   type="button"
                   onClick={() => openTransactionCreate("Deposit")}
@@ -511,7 +519,7 @@ const OwnerTransactionTable = ({ ownerId: fixedOwnerId = "", ownerName = "" }) =
                   <ArrowUpRight size={18} />
                   Withdraw
                 </button>
-              </div>
+              </div> */}
             </div>
           </div>
 
@@ -629,9 +637,16 @@ const OwnerTransactionTable = ({ ownerId: fixedOwnerId = "", ownerName = "" }) =
         }
         maxWidth="max-w-2xl"
       >
-        <form onSubmit={handleTransactionSave} className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <form
+          onSubmit={handleTransactionSave}
+          className="grid grid-cols-1 gap-4 md:grid-cols-2"
+        >
           {fixedOwnerId ? (
-            <FormInput label="Owner" value={ownerName || "Selected Owner"} onChange={() => {}} />
+            <FormInput
+              label="Owner"
+              value={ownerName || "Selected Owner"}
+              onChange={() => {}}
+            />
           ) : (
             <FormReactSelect
               label="Owner"

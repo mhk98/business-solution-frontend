@@ -7,7 +7,11 @@ import {
   ChevronRight,
   X,
   Calendar,
+  FileSpreadsheet,
+  FileText,
+  Printer,
 } from "lucide-react";
+import toast from "react-hot-toast";
 
 import { useLayout } from "../../context/LayoutContext";
 import { translations } from "../../utils/translations";
@@ -15,6 +19,12 @@ import { useGetAllItemWithoutQueryQuery } from "../../features/item/item";
 import { useGetAllItemMasterQuery } from "../../features/manufactureStock/manufactureStock";
 import { useGetAllManufactureStockQuery } from "../../features/manufactureStockBalance/manufactureStockBalance";
 import { useGetAllManufacturerWithoutQueryQuery } from "../../features/manufacturer/manufacturer";
+import { useGetAllLogoQuery } from "../../features/logo/logo";
+import {
+  DEFAULT_COMPANY_NAME,
+  buildAssetUrl,
+  drawPdfBrandBlock,
+} from "../../utils/pdfBranding";
 
 const ManufactureStockTable = ({ stockType = "item" }) => {
   const { language } = useLayout();
@@ -25,6 +35,12 @@ const ManufactureStockTable = ({ stockType = "item" }) => {
   const [endDate, setEndDate] = useState("");
   const [productName, setProductName] = useState("");
   const [manufacturerId, setManufacturerId] = useState("");
+
+  const { data: logoData } = useGetAllLogoQuery();
+  const logoRecord = Array.isArray(logoData?.data)
+    ? logoData.data[0]
+    : logoData?.data;
+  const logoUrl = useMemo(() => buildAssetUrl(logoRecord?.file), [logoRecord]);
 
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
@@ -178,11 +194,410 @@ const ManufactureStockTable = ({ stockType = "item" }) => {
     return cost / unitValue;
   };
 
+  const getItemBalance = (row) => {
+    const cost = Number(row?.cost || 0);
+    const unitValue = Number(row?.unitValue || 0);
+    const unitCost = getUnitCost(row);
+    if (cost > 0) return cost;
+    return unitValue * unitCost;
+  };
+
+  const totalBalance = useMemo(() => {
+    if (
+      data?.meta?.totalBalance !== undefined &&
+      data?.meta?.totalBalance !== null
+    ) {
+      return Number(data.meta.totalBalance);
+    }
+    return (rows || []).reduce((acc, row) => acc + getItemBalance(row), 0);
+  }, [data?.meta?.totalBalance, rows]);
+
   const formatMoney = (value) =>
     Number(value || 0).toLocaleString("en-US", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
+
+  const handleDownloadExcel = async () => {
+    if (!rows || rows.length === 0) {
+      toast.error("No data available to export.");
+      return;
+    }
+    try {
+      const XLSX = await import("xlsx");
+      const title = isManufactureStock ? "Factory Stock" : "Item Stock";
+
+      const exportData = rows.map((rp, index) => {
+        const itemBal = getItemBalance(rp);
+        const unitCostVal = getUnitCost(rp);
+        const rowData = {
+          SL: index + 1,
+          "Last Updated": rp.updatedAt
+            ? new Date(rp.updatedAt).toLocaleDateString()
+            : "—",
+          "Item Detail": rp.name || "N/A",
+        };
+
+        if (isManufactureStock) {
+          rowData["Manufacturer"] = rp.manufacturerName || "N/A";
+        }
+
+        rowData["In Hand Value"] = `${Number(rp.unitValue || 0)} ${rp.unit || "Pcs"}`;
+        rowData["Unit Cost"] = Number(unitCostVal.toFixed(2));
+        rowData["Balance"] = Number(itemBal.toFixed(2));
+
+        return rowData;
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, title);
+      XLSX.writeFile(
+        workbook,
+        `${title.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      );
+      toast.success("Google Sheet / Excel file exported!");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to export Google Sheet.");
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!rows || rows.length === 0) {
+      toast.error("No data available to export.");
+      return;
+    }
+    try {
+      const { jsPDF } = await import("jspdf");
+      const autoTable = (await import("jspdf-autotable")).default;
+
+      const title = isManufactureStock
+        ? "Factory Stock Report"
+        : "Item Stock Report";
+      const doc = new jsPDF("p", "mm", "a4");
+      const pageWidth = doc.internal.pageSize.getWidth();
+
+      let startY = 36;
+      if (logoUrl) {
+        try {
+          await drawPdfBrandBlock({
+            pdf: doc,
+            logoUrl,
+            companyName: DEFAULT_COMPANY_NAME,
+            x: 14,
+            topY: 12,
+            logoMaxWidth: 65,
+            logoMaxHeight: 22,
+            companySize: 11,
+            subtitle: title,
+            subtitleSize: 8,
+          });
+          startY = 48;
+        } catch (logoErr) {
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(16);
+          doc.setTextColor(30, 41, 59);
+          doc.text(title, 14, 18);
+        }
+      } else {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(16);
+        doc.setTextColor(30, 41, 59);
+        doc.text(DEFAULT_COMPANY_NAME, 14, 16);
+        doc.setFontSize(11);
+        doc.setTextColor(71, 85, 105);
+        doc.text(title, 14, 23);
+      }
+
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100, 116, 139);
+      doc.text(
+        `Generated: ${new Date().toLocaleDateString("en-US", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        })}`,
+        14,
+        startY - 4,
+      );
+      doc.text(
+        `Total Balance: ${formatMoney(totalBalance)}`,
+        pageWidth - 14,
+        startY - 4,
+        { align: "right" },
+      );
+
+      doc.setDrawColor(226, 232, 240);
+      doc.line(14, startY, pageWidth - 14, startY);
+
+      const headers = isManufactureStock
+        ? [
+            "SL",
+            "Last Updated",
+            "Item Detail",
+            "Manufacturer",
+            "In Hand Value",
+            "Unit Cost",
+            "Balance",
+          ]
+        : [
+            "SL",
+            "Last Updated",
+            "Item Detail",
+            "In Hand Value",
+            "Unit Cost",
+            "Balance",
+          ];
+
+      const bodyData = rows.map((rp, index) => {
+        const updated = rp.updatedAt
+          ? new Date(rp.updatedAt).toLocaleDateString("en-US", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            })
+          : "—";
+        const inHand = `${Number(rp.unitValue || 0)} ${rp.unit || "Pcs"}`;
+        const unitCostStr = formatMoney(getUnitCost(rp));
+        const balanceStr = formatMoney(getItemBalance(rp));
+
+        if (isManufactureStock) {
+          return [
+            index + 1,
+            updated,
+            rp.name || "N/A",
+            rp.manufacturerName || "N/A",
+            inHand,
+            unitCostStr,
+            balanceStr,
+          ];
+        }
+        return [
+          index + 1,
+          updated,
+          rp.name || "N/A",
+          inHand,
+          unitCostStr,
+          balanceStr,
+        ];
+      });
+
+      autoTable(doc, {
+        startY: startY + 4,
+        head: [headers],
+        body: bodyData,
+        theme: "striped",
+        styles: { fontSize: 8, cellPadding: 3 },
+        headStyles: {
+          fillColor: [79, 70, 229],
+          textColor: [255, 255, 255],
+          fontStyle: "bold",
+        },
+        columnStyles: {
+          0: { halign: "center", cellWidth: 12 },
+          [headers.length - 2]: { halign: "right" },
+          [headers.length - 1]: { halign: "right" },
+        },
+      });
+
+      doc.save(`${title.replace(/\s+/g, "_")}_A4.pdf`);
+      toast.success("A4 PDF downloaded successfully!");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to generate PDF.");
+    }
+  };
+
+  const handlePrint = () => {
+    if (!rows || rows.length === 0) {
+      toast.error("No data available to print.");
+      return;
+    }
+
+    const title = isManufactureStock
+      ? "Factory Stock Report"
+      : "Item Stock Report";
+    const dateStr = new Date().toLocaleDateString("en-US", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+
+    const logoHtml = logoUrl
+      ? `<img src="${logoUrl}" alt="Company Logo" style="max-height: 48px; max-width: 180px; object-fit: contain; margin-bottom: 6px;" />`
+      : `<h1 class="title">${DEFAULT_COMPANY_NAME}</h1>`;
+
+    const headersHtml = isManufactureStock
+      ? `<th>SL</th><th>Last Updated</th><th>Item Detail</th><th>Manufacturer</th><th style="text-align:center;">In Hand Value</th><th style="text-align:right;">Unit Cost</th><th style="text-align:right;">Balance</th>`
+      : `<th>SL</th><th>Last Updated</th><th>Item Detail</th><th style="text-align:center;">In Hand Value</th><th style="text-align:right;">Unit Cost</th><th style="text-align:right;">Balance</th>`;
+
+    const rowsHtml = rows
+      .map((rp, index) => {
+        const updated = rp.updatedAt
+          ? new Date(rp.updatedAt).toLocaleDateString("en-US", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            })
+          : "—";
+        const inHand = `${Number(rp.unitValue || 0)} ${rp.unit || "Pcs"}`;
+        const unitCostStr = formatMoney(getUnitCost(rp));
+        const balanceStr = formatMoney(getItemBalance(rp));
+
+        if (isManufactureStock) {
+          return `
+            <tr>
+              <td style="text-align:center;">${index + 1}</td>
+              <td>${updated}</td>
+              <td style="font-weight:600;">${rp.name || "N/A"}</td>
+              <td>${rp.manufacturerName || "N/A"}</td>
+              <td style="text-align:center;">${inHand}</td>
+              <td style="text-align:right;">${unitCostStr}</td>
+              <td style="text-align:right; font-weight:600;">${balanceStr}</td>
+            </tr>
+          `;
+        }
+        return `
+          <tr>
+            <td style="text-align:center;">${index + 1}</td>
+            <td>${updated}</td>
+            <td style="font-weight:600;">${rp.name || "N/A"}</td>
+            <td style="text-align:center;">${inHand}</td>
+            <td style="text-align:right;">${unitCostStr}</td>
+            <td style="text-align:right; font-weight:600;">${balanceStr}</td>
+          </tr>
+        `;
+      })
+      .join("");
+
+    const printWindow = window.open("", "_blank", "width=900,height=700");
+    if (!printWindow) {
+      toast.error("Please allow popups to print.");
+      return;
+    }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${title}</title>
+          <style>
+            @page {
+              size: A4;
+              margin: 15mm;
+            }
+            body {
+              font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+              color: #1e293b;
+              margin: 0;
+              padding: 0;
+              -webkit-print-color-adjust: exact;
+            }
+            .header {
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-end;
+              border-bottom: 2px solid #6366f1;
+              padding-bottom: 12px;
+              margin-bottom: 20px;
+            }
+            .title {
+              font-size: 18px;
+              font-weight: 800;
+              color: #0f172a;
+              margin: 4px 0 0 0;
+            }
+            .meta {
+              font-size: 11px;
+              color: #64748b;
+              margin-top: 4px;
+            }
+            .total-badge {
+              text-align: right;
+            }
+            .total-label {
+              font-size: 10px;
+              font-weight: 800;
+              color: #6366f1;
+              text-transform: uppercase;
+              letter-spacing: 0.1em;
+            }
+            .total-val {
+              font-size: 18px;
+              font-weight: 900;
+              color: #1e1b4b;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              margin-top: 10px;
+              font-size: 11px;
+            }
+            th {
+              background-color: #f8fafc;
+              color: #475569;
+              font-weight: 700;
+              text-transform: uppercase;
+              font-size: 9px;
+              letter-spacing: 0.05em;
+              padding: 8px 10px;
+              border-bottom: 1px solid #cbd5e1;
+            }
+            td {
+              padding: 8px 10px;
+              border-bottom: 1px solid #f1f5f9;
+            }
+            tr:nth-child(even) {
+              background-color: #fafafa;
+            }
+            .footer {
+              margin-top: 30px;
+              padding-top: 10px;
+              border-top: 1px solid #e2e8f0;
+              font-size: 10px;
+              color: #94a3b8;
+              display: flex;
+              justify-content: space-between;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              ${logoHtml}
+              <h2 class="title">${title}</h2>
+              <div class="meta">Generated Date: ${dateStr}</div>
+            </div>
+            <div class="total-badge">
+              <div class="total-label">Total Balance</div>
+              <div class="total-val">${formatMoney(totalBalance)}</div>
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>${headersHtml}</tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+          <div class="footer">
+            <div>Printed from Accounts System</div>
+            <div>A4 Format</div>
+          </div>
+          <script>
+            window.onload = function() {
+              window.focus();
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
 
   return (
     <motion.div
@@ -191,7 +606,7 @@ const ManufactureStockTable = ({ stockType = "item" }) => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-10">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
         <div>
           <h2 className="text-2xl font-black text-slate-900 tracking-tight">
             {isManufactureStock ? "Factory Stock" : "Item Stock"}
@@ -203,18 +618,45 @@ const ManufactureStockTable = ({ stockType = "item" }) => {
           </p>
         </div>
 
-        <div className="inline-flex items-center gap-4 bg-indigo-50 border border-indigo-100 px-6 py-3 rounded-2xl shadow-sm shadow-indigo-50">
-          <div className="h-10 w-10 bg-white rounded-xl flex items-center justify-center text-indigo-600 shadow-sm">
-            <ShoppingBasket size={20} />
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleDownloadExcel}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition active:scale-95 shadow-sm shadow-emerald-50"
+            >
+              <FileSpreadsheet size={17} />
+              Google Sheet
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 text-xs font-bold text-rose-700 hover:bg-rose-100 transition active:scale-95 shadow-sm shadow-rose-50"
+            >
+              <FileText size={17} />
+              PDF (A4)
+            </button>
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 hover:bg-slate-50 transition active:scale-95 shadow-sm"
+            >
+              <Printer size={17} />
+              Print
+            </button>
           </div>
-          <div>
-            <div className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em]">
-              {t.total_stock}
+
+          <div className="inline-flex items-center gap-4 bg-indigo-50 border border-indigo-100 px-6 py-3 rounded-2xl shadow-sm shadow-indigo-50">
+            <div className="h-10 w-10 bg-white rounded-xl flex items-center justify-center text-indigo-600 shadow-sm">
+              <ShoppingBasket size={20} />
             </div>
-            <div className="text-xl font-black text-indigo-900 tabular-nums">
-              {isLoading
-                ? t.syncing
-                : (data?.meta?.totalQuantity ?? 0).toLocaleString()}
+            <div>
+              <div className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em]">
+                {t.total_balance || "Total Balance"}
+              </div>
+              <div className="text-xl font-black text-indigo-900 tabular-nums">
+                {isLoading ? t.syncing : formatMoney(totalBalance)}
+              </div>
             </div>
           </div>
         </div>

@@ -826,6 +826,13 @@ export const SIDEBAR_ITEMS = [
         roles: ["superAdmin", "admin", "inventor"],
       },
       {
+        name: "Damage Return",
+        key: "damage_return",
+        icon: RotateCcw,
+        href: "/damage-return",
+        roles: ["superAdmin", "admin", "inventor"],
+      },
+      {
         name: "Damage Repairing Stock",
         key: "damage_repairing_stock",
         icon: Wrench,
@@ -837,6 +844,13 @@ export const SIDEBAR_ITEMS = [
         key: "damage_repairing",
         icon: Wrench,
         href: "/damage-repair",
+        roles: ["superAdmin", "admin", "inventor"],
+      },
+      {
+        name: "Damage Repairing Return",
+        key: "damage_repair_return",
+        icon: RotateCcw,
+        href: "/damage-repair-return",
         roles: ["superAdmin", "admin", "inventor"],
       },
       {

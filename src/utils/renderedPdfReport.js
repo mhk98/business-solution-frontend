@@ -119,12 +119,44 @@ const assetToDataUrl = async (url) => {
 
 const safeAssetToDataUrl = async (url) => {
   if (!url) return "";
+  if (url.startsWith("data:")) return url;
 
   try {
-    return await assetToDataUrl(url);
+    const response = await fetch(url);
+    if (response.ok) {
+      const blob = await response.blob();
+      return await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    }
   } catch (error) {
-    console.warn("Failed to load report logo:", error);
-    return "";
+    console.warn("Fetch failed for report logo, trying Image fallback:", error);
+  }
+
+  try {
+    return await new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "Anonymous";
+      img.onload = () => {
+        try {
+          const canvas = document.createElement("canvas");
+          canvas.width = img.naturalWidth || img.width || 200;
+          canvas.height = img.naturalHeight || img.height || 60;
+          const ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL("image/png"));
+        } catch (e) {
+          resolve(url);
+        }
+      };
+      img.onerror = () => resolve(url);
+      img.src = url;
+    });
+  } catch (e) {
+    return url;
   }
 };
 
@@ -191,11 +223,10 @@ const createPageHtml = ({
       }
 
       .pdf-render-logo-box {
-        width: 54px;
-        height: 54px;
-        border-radius: 12px;
+        max-width: 180px;
+        max-height: 54px;
+        border-radius: 8px;
         background: #ffffff;
-        border: 1px solid #dbe3ef;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -204,8 +235,8 @@ const createPageHtml = ({
       }
 
       .pdf-render-logo-box img {
-        max-width: 100%;
-        max-height: 100%;
+        max-width: 180px;
+        max-height: 54px;
         object-fit: contain;
         display: block;
       }

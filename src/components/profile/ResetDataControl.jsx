@@ -1,12 +1,14 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
 import { AnimatePresence, motion } from "framer-motion";
-import { AlertTriangle, DatabaseZap, X } from "lucide-react";
+import { AlertTriangle, Calendar, DatabaseZap, X } from "lucide-react";
 import { useHardResetDataMutation } from "../../features/systemReset/systemReset";
 
 const ResetDataControl = () => {
   const [resetModalOpen, setResetModalOpen] = useState(false);
   const [deletePercentage, setDeletePercentage] = useState("80");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [deleteConfirmationText, setDeleteConfirmationText] = useState("");
   const [pendingResetRequest, setPendingResetRequest] = useState(null);
   const [hardResetData, { isLoading: isResetting }] =
@@ -18,26 +20,39 @@ const ResetDataControl = () => {
   );
   const canConfirmDelete =
     pendingResetRequest &&
-    deleteConfirmationText.trim() === "Delete" &&
-    pendingResetRequest.percentage >= 1 &&
-    pendingResetRequest.percentage <= 100;
+    deleteConfirmationText.trim() === "Delete";
 
   const closeResetModal = ({ force = false } = {}) => {
     if (isResetting && !force) return;
     setResetModalOpen(false);
     setDeletePercentage("80");
+    setStartDate("");
+    setEndDate("");
     setDeleteConfirmationText("");
     setPendingResetRequest(null);
   };
 
   const openDeleteConfirmation = (mode) => {
-    if (Number(deletePercentage) < 1 || Number(deletePercentage) > 100) {
-      toast.error("Delete percentage must be between 1 and 100.");
-      return;
+    if (mode === "percentage") {
+      if (Number(deletePercentage) < 1 || Number(deletePercentage) > 100) {
+        toast.error("Delete percentage must be between 1 and 100.");
+        return;
+      }
+      setPendingResetRequest({ mode, percentage: normalizedDeletePercentage });
+    } else if (mode === "dateRange") {
+      if (!startDate || !endDate) {
+        toast.error("Please select both Start Date and End Date.");
+        return;
+      }
+      if (new Date(startDate) > new Date(endDate)) {
+        toast.error("Start Date cannot be after End Date.");
+        return;
+      }
+      setPendingResetRequest({ mode, startDate, endDate });
+    } else if (mode === "all") {
+      setPendingResetRequest({ mode, percentage: 100 });
     }
 
-    const percentage = mode === "all" ? 100 : normalizedDeletePercentage;
-    setPendingResetRequest({ mode, percentage });
     setDeleteConfirmationText("");
   };
 
@@ -48,6 +63,8 @@ const ResetDataControl = () => {
       const result = await hardResetData({
         mode: pendingResetRequest.mode,
         percentage: pendingResetRequest.percentage,
+        startDate: pendingResetRequest.startDate,
+        endDate: pendingResetRequest.endDate,
       }).unwrap();
       toast.success(
         `Hard delete completed. Deleted ${result?.data?.deletedTotal || 0} rows.`,
@@ -92,7 +109,7 @@ const ResetDataControl = () => {
               initial={{ scale: 0.96, y: 12 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.96, y: 12 }}
-              className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl"
+              className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
             >
               <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
                 <div className="flex items-center gap-3">
@@ -118,72 +135,144 @@ const ResetDataControl = () => {
                 </button>
               </div>
 
-              <div className="space-y-4 px-5 py-5">
+              <div className="space-y-5 px-5 py-5 overflow-y-auto custom-scrollbar">
                 {!pendingResetRequest ? (
                   <>
                     <p className="text-sm font-semibold leading-6 text-slate-700">
-                      কত percent data randomly hard delete করতে চান সেটা দিন,
-                      অথবা all data delete করুন।
+                      কত percent data randomly hard delete করতে চান বা তারিখ দিয়ে filter করে delete করতে চান সেটিং বেছে নিন, অথবা all data delete করুন।
                     </p>
 
-                    <label className="block">
-                      <span className="mb-2 block text-xs font-black uppercase tracking-wider text-slate-500">
-                        Delete Percentage
-                      </span>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="number"
-                          min="1"
-                          max="100"
-                          value={deletePercentage}
-                          onChange={(event) =>
-                            setDeletePercentage(event.target.value)
-                          }
-                          disabled={isResetting}
-                          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:border-rose-400 focus:ring-4 focus:ring-rose-100 disabled:opacity-60"
-                        />
-                        <span className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-slate-700">
-                          %
+                    {/* Percentage Section */}
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-3">
+                      <label className="block">
+                        <span className="mb-1.5 block text-xs font-black uppercase tracking-wider text-slate-500">
+                          Delete Percentage
                         </span>
-                      </div>
-                    </label>
-
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="number"
+                            min="1"
+                            max="100"
+                            value={deletePercentage}
+                            onChange={(event) =>
+                              setDeletePercentage(event.target.value)
+                            }
+                            disabled={isResetting}
+                            className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:border-rose-400 focus:ring-4 focus:ring-rose-100 disabled:opacity-60"
+                          />
+                          <span className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700">
+                            %
+                          </span>
+                        </div>
+                      </label>
                       <button
                         type="button"
                         onClick={() => openDeleteConfirmation("percentage")}
                         disabled={isResetting}
-                        className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-left hover:bg-amber-100 disabled:opacity-60"
+                        className="w-full rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-left hover:bg-amber-100 disabled:opacity-60"
                       >
                         <div className="text-sm font-black text-amber-800">
-                          Delete {normalizedDeletePercentage}%
+                          Delete {normalizedDeletePercentage}% Data
                         </div>
-                        <div className="mt-1 text-xs font-semibold text-amber-700">
-                          {normalizedDeletePercentage}% business data randomly
-                          hard delete হবে।
-                        </div>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => openDeleteConfirmation("all")}
-                        disabled={isResetting}
-                        className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-4 text-left hover:bg-rose-100 disabled:opacity-60"
-                      >
-                        <div className="text-sm font-black text-rose-800">
-                          Delete All
-                        </div>
-                        <div className="mt-1 text-xs font-semibold text-rose-700">
-                          সব business data hard delete হবে।
+                        <div className="mt-0.5 text-xs font-semibold text-amber-700">
+                          {normalizedDeletePercentage}% business data randomly hard delete হবে।
                         </div>
                       </button>
                     </div>
+
+                    {/* Date Range Section */}
+                    <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 space-y-3">
+                      <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-indigo-700">
+                        <Calendar size={15} /> Delete By Date Range
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-600 mb-1.5">
+                            Start Date
+                          </label>
+                          <div className="relative">
+                            <Calendar
+                              size={16}
+                              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-indigo-600"
+                            />
+                            <input
+                              type="date"
+                              value={startDate}
+                              onChange={(e) => setStartDate(e.target.value)}
+                              className="h-11 w-full rounded-xl border border-slate-300 bg-white pl-9 pr-3 text-sm font-bold text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 cursor-pointer shadow-sm [color-scheme:light]"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-600 mb-1.5">
+                            End Date
+                          </label>
+                          <div className="relative">
+                            <Calendar
+                              size={16}
+                              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-indigo-600"
+                            />
+                            <input
+                              type="date"
+                              value={endDate}
+                              onChange={(e) => setEndDate(e.target.value)}
+                              className="h-11 w-full rounded-xl border border-slate-300 bg-white pl-9 pr-3 text-sm font-bold text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 cursor-pointer shadow-sm [color-scheme:light]"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => openDeleteConfirmation("dateRange")}
+                        disabled={isResetting || !startDate || !endDate}
+                        className="w-full rounded-xl border border-indigo-200 bg-indigo-600 px-4 py-3 text-left text-white hover:bg-indigo-700 disabled:opacity-50"
+                      >
+                        <div className="text-sm font-black">
+                          Delete Date Range Data
+                        </div>
+                        <div className="mt-0.5 text-xs font-semibold opacity-90">
+                          {startDate && endDate
+                            ? `${startDate} থেকে ${endDate} তারিখের মধ্যে ব্যবসা সংক্রান্ত সব ডাটা মুছুন`
+                            : "তারিখ সিলেক্ট করে ব্যবসা সংক্রান্ত ডাটা মুছুন"}
+                        </div>
+                      </button>
+                    </div>
+
+                    {/* All Data Section */}
+                    <button
+                      type="button"
+                      onClick={() => openDeleteConfirmation("all")}
+                      disabled={isResetting}
+                      className="w-full rounded-xl border border-rose-200 bg-rose-50 px-4 py-4 text-left hover:bg-rose-100 disabled:opacity-60"
+                    >
+                      <div className="text-sm font-black text-rose-800">
+                        Delete All
+                      </div>
+                      <div className="mt-1 text-xs font-semibold text-rose-700">
+                        সব business data hard delete হবে।
+                      </div>
+                    </button>
                   </>
                 ) : (
                   <>
                     <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold leading-6 text-rose-800">
-                      Are you want to delete. Please{" "}
-                      <span className="font-black">Type Delete to confirm</span>
+                      {pendingResetRequest.mode === "dateRange" ? (
+                        <>
+                          আপনি কি নিশ্চিত যে{" "}
+                          <span className="font-black">
+                            {pendingResetRequest.startDate} থেকে {pendingResetRequest.endDate}
+                          </span>{" "}
+                          তারিখের ডাটা মুছতে চান? Please{" "}
+                          <span className="font-black">Type Delete to confirm</span>
+                        </>
+                      ) : (
+                        <>
+                          Are you sure you want to delete. Please{" "}
+                          <span className="font-black">Type Delete to confirm</span>
+                        </>
+                      )}
                     </div>
 
                     <label className="block">
@@ -209,6 +298,10 @@ const ResetDataControl = () => {
                     >
                       {isResetting
                         ? "Deleting..."
+                        : pendingResetRequest.mode === "dateRange"
+                        ? `Delete Data (${pendingResetRequest.startDate} to ${pendingResetRequest.endDate})`
+                        : pendingResetRequest.mode === "all"
+                        ? "Delete All Data"
                         : `Delete ${pendingResetRequest.percentage}% Data`}
                     </button>
 

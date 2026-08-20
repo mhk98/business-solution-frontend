@@ -72,6 +72,8 @@ const AdsCampaignKPIPage = lazy(() => import("./pages/AdsCampaignKPIPage"));
 const AutoProfitLossPage = lazy(() => import("./pages/AutoProfitLossPage"));
 const InventoryDashboardPage = lazy(() => import("./pages/InventoryDashboardPage"));
 const DamageStockPage = lazy(() => import("./pages/DamageStockPage"));
+const DamageReturnPage = lazy(() => import("./pages/DamageReturnPage"));
+const DamageRepairReturnPage = lazy(() => import("./pages/DamageRepairReturnPage"));
 const WarehousePage = lazy(() => import("./pages/WarehousePage"));
 const SupplierHistoryPage = lazy(() => import("./pages/SupplierHistoryPage"));
 const LoanPage = lazy(() => import("./pages/LoanPage"));
@@ -232,9 +234,11 @@ function App() {
                 <Route path="/sales-return" element={<AuthedRoute><ReturnProductPage /></AuthedRoute>} />
                 <Route path="/purchase-return" element={<AuthedRoute><PurchaseReturnProductPage /></AuthedRoute>} />
                 <Route path="/damage-stock" element={<AuthedRoute><DamageStockPage /></AuthedRoute>} />
-                <Route path="/damage-repairing-stock" element={<AuthedRoute><DamageRepairingStockPage /></AuthedRoute>} />
                 <Route path="/damage-product" element={<AuthedRoute><DamageProductPage /></AuthedRoute>} />
+                <Route path="/damage-return" element={<AuthedRoute><DamageReturnPage /></AuthedRoute>} />
+                <Route path="/damage-repairing-stock" element={<AuthedRoute><DamageRepairingStockPage /></AuthedRoute>} />
                 <Route path="/damage-repair" element={<AuthedRoute><DamageRepairPage /></AuthedRoute>} />
+                <Route path="/damage-repair-return" element={<AuthedRoute><DamageRepairReturnPage /></AuthedRoute>} />
                 <Route path="/damage-repaired" element={<AuthedRoute><DamageRepairedPage /></AuthedRoute>} />
                 <Route path="/confirm-order" element={<AuthedRoute><ConfirmOrderPage /></AuthedRoute>} />
                 <Route path="/reports" element={<AuthedRoute><ReportsPage /></AuthedRoute>} />

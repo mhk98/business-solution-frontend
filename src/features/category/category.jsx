@@ -55,9 +55,10 @@ export const categoryApi = createApi({
         endDate,
         name,
         searchTerm,
+        status,
       } = {}) => ({
         url: "/category",
-        params: { page, limit, startDate, endDate, name, searchTerm },
+        params: { page, limit, startDate, endDate, name, searchTerm, status },
       }),
       providesTags: ["category"],
       refetchOnMountOrArgChange: true,

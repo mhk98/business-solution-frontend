@@ -58,6 +58,8 @@ export const translations = {
     update_request_note: "Update Request / Note",
     // New Common UI
     total_cash_in: "Total CashIn",
+    total_stock: "Total Stock",
+    total_balance: "Total Balance",
     total_cash_out: "Total CashOut",
     net_balance: "Net Balance",
     payment_mode: "Payment Mode",
@@ -316,7 +318,10 @@ export const translations = {
     sales_return: "Sales Return",
     damage_stock: "Damage Stock",
     damage_product: "Damage Product",
+    damage_return: "Damage Return",
+    damage_repairing_stock: "Damage Repairing Stock",
     damage_repairing: "Damage Repairing",
+    damage_repair_return: "Damage Repairing Return",
     damage_repaired: "Damage Repaired",
     pos_panel: "POS",
     sell: "Sell",
@@ -428,6 +433,8 @@ export const translations = {
     // Common UI (BN)
     add: "যোগ করুন",
     total_purchase: "মোট ক্রয়",
+    total_stock: "মোট স্টক",
+    total_balance: "টোটাল ব্যালেন্স",
     from: "থেকে",
     select_assets: "সম্পদ নির্বাচন করুন",
     per_page: "প্রতি পেজে",

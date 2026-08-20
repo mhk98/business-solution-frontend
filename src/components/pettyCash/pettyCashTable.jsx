@@ -1,5 +1,13 @@
 import { motion } from "framer-motion";
-import { Edit, Minus, Notebook, Plus, Search, Trash2 } from "lucide-react";
+import {
+  Edit,
+  FileText,
+  Minus,
+  Notebook,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import {
@@ -25,11 +33,250 @@ import { translations } from "../../utils/translations";
 import { useLayout } from "../../context/LayoutContext";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 import useDebounce from "../../hooks/useDebounce";
+import { useGetAllLogoQuery } from "../../features/logo/logo";
+import { DEFAULT_COMPANY_NAME, buildAssetUrl } from "../../utils/pdfBranding";
 
 import {
   useGetAllBankAccountWithoutQueryQuery,
   useInsertBankAccountMutation,
 } from "../../features/bankAccount/bankAccount";
+
+const drawWrappedText = (
+  ctx,
+  text,
+  x,
+  y,
+  maxWidth,
+  lineHeight,
+  maxLines = 3,
+) => {
+  const normalizedText = String(text || "-")
+    .replace(/\s+/g, " ")
+    .trim();
+  const words = normalizedText.split(" ");
+  const lines = [];
+  let line = "";
+
+  words.forEach((word) => {
+    const testLine = line ? line + " " + word : word;
+    if (ctx.measureText(testLine).width > maxWidth && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = testLine;
+    }
+  });
+
+  if (line) lines.push(line);
+
+  lines.slice(0, maxLines).forEach((lineText, index) => {
+    ctx.fillText(lineText, x, y + index * lineHeight);
+  });
+};
+
+const loadImageForCanvas = (url) =>
+  new Promise((resolve) => {
+    if (!url) return resolve(null);
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+
+const renderVoucherPdfFromCanvas = async ({
+  voucherNo,
+  voucherTitle,
+  isCashOut,
+  date,
+  detailRows,
+  amount,
+  note,
+  logoUrl,
+}) => {
+  if (document.fonts?.ready) await document.fonts.ready;
+
+  const { jsPDF } = await import("jspdf");
+  const scale = 2;
+  const width = 575;
+  const height = 825;
+  const canvas = document.createElement("canvas");
+  canvas.width = width * scale;
+  canvas.height = height * scale;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(scale, scale);
+
+  const fontFamily = "Hind Siliguri, Plus Jakarta Sans, Arial, sans-serif";
+  const setFont = (size, weight = 400) => {
+    ctx.font = String(weight) + " " + size + "px " + fontFamily;
+  };
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, width, height);
+  ctx.strokeStyle = "#1f2937";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(38, 30, width - 76, height - 60);
+
+  const left = 54;
+  const right = width - 54;
+  let topY = 42;
+
+  const logoImg = logoUrl ? await loadImageForCanvas(logoUrl) : null;
+  let headerBottomY = topY + 48;
+
+  if (logoImg && logoImg.width && logoImg.height) {
+    const maxW = 210;
+    const maxH = 60;
+    const scaleFactor = Math.min(maxW / logoImg.width, maxH / logoImg.height);
+    const w = logoImg.width * scaleFactor;
+    const h = logoImg.height * scaleFactor;
+    ctx.drawImage(logoImg, left, topY, w, h);
+    ctx.fillStyle = "#64748b";
+    setFont(12, 400);
+    ctx.fillText("Control Panel Cash Memo", left, topY + h + 15);
+    headerBottomY = topY + h + 24;
+  } else {
+    ctx.fillStyle = "#111827";
+    setFont(20, 800);
+    ctx.fillText(DEFAULT_COMPANY_NAME, left, topY + 22);
+    ctx.fillStyle = "#64748b";
+    setFont(13, 400);
+    ctx.fillText("Control Panel Cash Memo", left, topY + 44);
+    headerBottomY = topY + 54;
+  }
+
+  ctx.fillStyle = "#111827";
+  setFont(22, 900);
+  ctx.textAlign = "right";
+  ctx.fillText(
+    String(voucherTitle || "Cash Memo").toUpperCase(),
+    right,
+    topY + 22,
+  );
+  ctx.fillStyle = "#64748b";
+  setFont(13, 400);
+  ctx.fillText("Date: " + (date || "-"), right, topY + 44);
+  ctx.textAlign = "left";
+
+  let y = Math.max(115, headerBottomY);
+  ctx.strokeStyle = "#9ca3af";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(left, y);
+  ctx.lineTo(right, y);
+  ctx.stroke();
+
+  y = y + 24;
+  const typeBoxWidth = 136;
+  const metaGap = 18;
+  const metaWidth = right - left - typeBoxWidth - metaGap;
+  ctx.strokeStyle = "#334155";
+  ctx.strokeRect(left, y, metaWidth, 50);
+  ctx.strokeRect(right - typeBoxWidth, y, typeBoxWidth, 50);
+
+  ctx.fillStyle = "#64748b";
+  setFont(12, 700);
+  ctx.fillText("Voucher No", left + 13, y + 19);
+  ctx.fillStyle = "#111827";
+  setFont(15, 900);
+  drawWrappedText(ctx, voucherNo, left + 13, y + 38, metaWidth - 26, 16, 1);
+
+  ctx.textAlign = "center";
+  setFont(14, 900);
+  ctx.fillText(
+    isCashOut ? "CASH OUT" : "CASH IN",
+    right - typeBoxWidth / 2,
+    y + 31,
+  );
+  ctx.textAlign = "left";
+
+  y = y + 74;
+  const tableWidth = right - left;
+  const headerHeight = 38;
+  const rowHeight = 31;
+  const labelWidth = 150;
+  const tableHeight = headerHeight + rowHeight * detailRows.length;
+
+  ctx.strokeStyle = "#d1d5db";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(left, y, tableWidth, tableHeight);
+  ctx.fillStyle = "#f8fafc";
+  ctx.fillRect(left + 1, y + 1, tableWidth - 2, headerHeight - 1);
+  ctx.fillStyle = "#111827";
+  setFont(15, 900);
+  ctx.fillText("Transaction Details", left + 12, y + 24);
+
+  ctx.beginPath();
+  ctx.moveTo(left, y + headerHeight);
+  ctx.lineTo(right, y + headerHeight);
+  ctx.moveTo(left + labelWidth, y + headerHeight);
+  ctx.lineTo(left + labelWidth, y + tableHeight);
+  ctx.stroke();
+
+  detailRows.forEach(([label, value], index) => {
+    const rowY = y + headerHeight + index * rowHeight;
+    if (index > 0) {
+      ctx.beginPath();
+      ctx.moveTo(left, rowY);
+      ctx.lineTo(right, rowY);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#334155";
+    setFont(13, 900);
+    ctx.fillText(String(label), left + 12, rowY + 20);
+    ctx.fillStyle = "#111827";
+    setFont(13, 400);
+    drawWrappedText(
+      ctx,
+      String(value || "-"),
+      left + labelWidth + 12,
+      rowY + 20,
+      tableWidth - labelWidth - 24,
+      15,
+      1,
+    );
+  });
+
+  y = y + tableHeight + 24;
+  ctx.strokeStyle = "#000000";
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(left, y, tableWidth, 54);
+  ctx.fillStyle = "#334155";
+  setFont(14, 800);
+  ctx.fillText("Paid Amount", left + 16, y + 33);
+  ctx.fillStyle = "#111827";
+  setFont(24, 900);
+  ctx.textAlign = "right";
+  ctx.fillText(amount, right - 46, y + 35);
+  setFont(11, 800);
+  ctx.fillText("BDT", right - 16, y + 35);
+  ctx.textAlign = "left";
+
+  y = y + 74;
+  ctx.fillStyle = "#111827";
+  setFont(13, 900);
+  ctx.fillText("Note", left, y);
+  y += 12;
+
+  const noteBoxHeight = height - 50 - y;
+  ctx.strokeStyle = "#cbd5e1";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(left, y, tableWidth, noteBoxHeight);
+  ctx.fillStyle = "#334155";
+  setFont(12, 400);
+  drawWrappedText(ctx, note, left + 14, y + 24, tableWidth - 28, 18, 4);
+
+  const imgData = canvas.toDataURL("image/png");
+  const voucherWidthMm = 5.75 * 25.4;
+  const voucherHeightMm = 8.25 * 25.4;
+  const pdf = new jsPDF({
+    orientation: "p",
+    unit: "mm",
+    format: [voucherWidthMm, voucherHeightMm],
+  });
+  pdf.addImage(imgData, "PNG", 0, 0, voucherWidthMm, voucherHeightMm);
+  return pdf;
+};
 
 const STATIC_CATEGORIES = [
   "Office Expense",
@@ -51,6 +298,101 @@ const PettyCashTable = ({ mode = "default" }) => {
   const [filterBook, setFilterBook] = useState("");
   const { language } = useLayout();
   const t = translations[language] || translations.EN;
+
+  const { data: logoData } = useGetAllLogoQuery();
+  const logoRecord = Array.isArray(logoData?.data)
+    ? logoData.data[0]
+    : logoData?.data;
+  const logoUrl = useMemo(() => buildAssetUrl(logoRecord?.file), [logoRecord]);
+
+  const [voucherPreview, setVoucherPreview] = useState({
+    open: false,
+    blob: null,
+    url: "",
+    filename: "",
+    title: "",
+  });
+
+  const createVoucherPdf = async (row) => {
+    const voucherNo =
+      row?.voucherNo ||
+      row?.voucher_no ||
+      `KM-${String(row?.Id || row?.id || Date.now()).padStart(4, "0")}`;
+    const voucherTitle = "Cash Memo";
+    const isCashOut =
+      String(row?.paymentStatus || "")
+        .toLowerCase()
+        .includes("cashout") ||
+      String(row?.type || "")
+        .toLowerCase()
+        .includes("out");
+    const amount = Number(row?.amount || 0).toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    const voucherWidthMm = 5.75 * 25.4;
+    const voucherHeightMm = 8.25 * 25.4;
+    const noteText = row?.remarks || row?.note || "-";
+    const detailRows = [
+      ["Book", row?.book?.name || "-"],
+      ["Category", row?.category || "-"],
+      ["Payment Mode", row?.paymentMode || "-"],
+      ["Payment Status", row?.paymentStatus || "-"],
+    ];
+    const pdf = await renderVoucherPdfFromCanvas({
+      voucherNo,
+      voucherTitle,
+      isCashOut,
+      date: row?.date || "-",
+      detailRows,
+      amount,
+      note: noteText,
+      widthMm: voucherWidthMm,
+      heightMm: voucherHeightMm,
+      logoUrl,
+    });
+
+    return {
+      pdf,
+      filename: `${voucherNo}.pdf`,
+      title: voucherTitle,
+    };
+  };
+
+  const handleVoucherOpen = async (row) => {
+    try {
+      if (voucherPreview.url) URL.revokeObjectURL(voucherPreview.url);
+      const { pdf, filename, title } = await createVoucherPdf(row);
+      const blob = pdf.output("blob");
+      const url = URL.createObjectURL(blob);
+      setVoucherPreview({ open: true, blob, url, filename, title });
+    } catch (error) {
+      console.error("Voucher preview failed:", error);
+      toast.error(
+        `Voucher preview failed: ${error?.message || "Unknown error"}`,
+      );
+    }
+  };
+
+  const handleVoucherDownload = () => {
+    if (!voucherPreview.blob || !voucherPreview.url) return;
+    const a = document.createElement("a");
+    a.href = voucherPreview.url;
+    a.download = voucherPreview.filename || "cash-memo.pdf";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+
+  const handleVoucherPrint = () => {
+    if (!voucherPreview.url) return;
+    const printWin = window.open(voucherPreview.url, "_blank");
+    if (printWin) {
+      printWin.focus();
+    } else {
+      toast.error("Please allow popups to print.");
+    }
+  };
 
   const [createProduct, setCreateProduct] = useState({
     paymentMode: "",
@@ -197,7 +539,6 @@ const PettyCashTable = ({ mode = "default" }) => {
     isRequisitionMode,
   ]);
 
-
   const { data, isLoading, isError, error, refetch } =
     useGetAllPettyCashQuery(queryArgs);
 
@@ -208,7 +549,6 @@ const PettyCashTable = ({ mode = "default" }) => {
       setTotalPages(Math.ceil((data?.meta?.count || 0) / itemsPerPage) || 1);
     }
   }, [data, isLoading, isError, error, itemsPerPage]);
-
 
   // ✅ Category: fetch all
   const {
@@ -820,7 +1160,6 @@ const PettyCashTable = ({ mode = "default" }) => {
   } = useGetAllBookWithoutQueryQuery();
   const books = allBookRes?.data || [];
 
-
   useEffect(() => {
     if (isErrorBook) console.error("Error fetching Books", errorBook);
   }, [isErrorBook, errorBook]);
@@ -833,7 +1172,6 @@ const PettyCashTable = ({ mode = "default" }) => {
       })),
     [books],
   );
-
 
   return (
     <motion.div
@@ -962,9 +1300,18 @@ const PettyCashTable = ({ mode = "default" }) => {
       </div> */}
 
       <div className="my-6 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-        {/* Left: Actions */}
-        <div className="flex w-full flex-col gap-4 sm:w-auto sm:flex-row sm:items-center sm:gap-5">
-          {/* Cash In (Primary) */}
+        {/* Left: Cash Out & Search Input */}
+        <div className="flex w-full flex-col gap-4 sm:w-auto sm:flex-row sm:items-center sm:gap-4">
+          {!isRequisitionMode && (
+            <button
+              type="button"
+              onClick={handleAddCashOut}
+              className="inline-flex w-full items-center justify-center gap-3 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-md hover:bg-indigo-700 active:bg-indigo-800 transition focus:outline-none focus:ring-2 focus:ring-indigo-500/30 sm:w-auto"
+            >
+              <Minus size={18} className="text-white" />
+              Cash Out
+            </button>
+          )}
 
           {isRequisitionMode && (
             <button
@@ -978,39 +1325,44 @@ const PettyCashTable = ({ mode = "default" }) => {
             </button>
           )}
 
+          <div className="relative w-full sm:w-[320px] md:w-[380px]">
+            <input
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+                setStartPage(1);
+              }}
+              placeholder="Search..."
+              className="w-full rounded-lg border border-gray-200 bg-white px-5 py-3 pr-12 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 shadow-sm"
+            />
+            <Search
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500"
+              size={18}
+            />
+          </div>
+        </div>
+
+        {/* Right: Per Page & Report Menu */}
+        <div className="flex w-full items-center justify-between sm:justify-end gap-4 sm:w-auto">
+          <div className="w-24 shrink-0">
+            <Select
+              options={[10, 20, 50, 100].map((v) => ({
+                value: v,
+                label: String(v),
+              }))}
+              value={{ value: itemsPerPage, label: String(itemsPerPage) }}
+              onChange={(selected) => {
+                setItemsPerPage(selected?.value || 10);
+                setCurrentPage(1);
+                setStartPage(1);
+              }}
+              styles={selectStyles}
+              className="text-black"
+            />
+          </div>
+
           {!isRequisitionMode && (
-            <button
-              type="button"
-              onClick={handleAddCashOut}
-              className="inline-flex w-full items-center justify-center gap-3 rounded-xl bg-indigo-600  px-5 py-3 text-sm font-semibold text-white shadow-md hover:bg-indigo-700 active:bg-indigo-800 transition focus:outline-none focus:ring-2 focus:ring-indigo-500/30 sm:w-auto"
-            >
-              <Minus size={18} className="text-white" />
-              Cash Out
-            </button>
-          )}
-        </div>
-
-        {/* Right: Search Input */}
-        <div className="relative w-full sm:max-w-[520px]">
-          <input
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setCurrentPage(1);
-              setStartPage(1);
-            }}
-            placeholder="Search..."
-            className="w-full rounded-lg border border-gray-200 bg-white px-5 py-3 pr-12 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 shadow-sm"
-          />
-          <Search
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500"
-            size={18}
-          />
-        </div>
-
-        {/* Right: Report Menu */}
-        {!isRequisitionMode && (
-          <div className="flex w-full justify-end sm:w-auto">
             <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-md">
               <ReportMenu
                 isOpen={isReportMenuOpen}
@@ -1020,12 +1372,12 @@ const PettyCashTable = ({ mode = "default" }) => {
                 disabled={isLoading}
               />
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-7 gap-4 items-center mb-6 w-full justify-center mx-auto">
+      <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-center mb-6 w-full justify-center mx-auto">
         <DateRangeFilter
           startDate={startDate}
           endDate={endDate}
@@ -1119,23 +1471,6 @@ const PettyCashTable = ({ mode = "default" }) => {
             className="text-black"
           />
         </div>
-        <div className="flex flex-col">
-          <label className="text-sm text-slate-600 mb-1">Per Page</label>
-          <Select
-            options={[10, 20, 50, 100].map((v) => ({
-              value: v,
-              label: String(v),
-            }))}
-            value={{ value: itemsPerPage, label: String(itemsPerPage) }}
-            onChange={(selected) => {
-              setItemsPerPage(selected?.value || 10);
-              setCurrentPage(1);
-              setStartPage(1);
-            }}
-            styles={selectStyles}
-            className="text-black"
-          />
-        </div>
 
         <div>
           <button
@@ -1159,16 +1494,10 @@ const PettyCashTable = ({ mode = "default" }) => {
                 Book
               </th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Document
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Category
               </th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Payment Mode
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Bank Account
               </th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Payment Status
@@ -1217,49 +1546,10 @@ const PettyCashTable = ({ mode = "default" }) => {
                     {rp.book?.name || "-"}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                    {!safePath ? (
-                      "-"
-                    ) : isImage ? (
-                      <a href={fileUrl} target="_blank" rel="noreferrer">
-                        <img
-                          src={fileUrl}
-                          alt="document"
-                          className="h-12 w-12 object-cover rounded border border-slate-200 hover:opacity-80"
-                          onError={(e) => {
-                            e.currentTarget.style.display = "none";
-                          }}
-                        />
-                      </a>
-                    ) : isPdf ? (
-                      <a
-                        href={fileUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="px-3 py-1 rounded bg-indigo-600 text-white text-xs hover:bg-indigo-700"
-                      >
-                        View PDF
-                      </a>
-                    ) : (
-                      <a
-                        href={fileUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-indigo-600 underline"
-                      >
-                        Open File
-                      </a>
-                    )}
-                  </td>
-
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                     {rp.category || "-"}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                     {rp.paymentMode || "-"}
-                  </td>
-
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                    {rp.paymentMode === "Bank" ? rp.bankName || "-" : "-"}
                   </td>
 
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
@@ -1367,6 +1657,15 @@ const PettyCashTable = ({ mode = "default" }) => {
                           <Notebook size={18} className="text-slate-700" />
                         </button>
                       )}
+
+                      <button
+                        onClick={() => handleVoucherOpen(rp)}
+                        className="text-indigo-600 hover:text-indigo-700 transition"
+                        title="View Invoice / Cash Memo"
+                        type="button"
+                      >
+                        <FileText size={18} />
+                      </button>
 
                       <button
                         onClick={() => handleEditClick(rp)}
@@ -2340,6 +2639,62 @@ const PettyCashTable = ({ mode = "default" }) => {
             >
               Close
             </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Voucher / Cash Memo Preview Modal */}
+      <Modal
+        isOpen={voucherPreview.open}
+        onClose={() =>
+          setVoucherPreview({
+            open: false,
+            blob: null,
+            url: "",
+            filename: "",
+            title: "",
+          })
+        }
+        title={voucherPreview.title || "Cash Memo"}
+        maxWidth="max-w-4xl"
+      >
+        <div className="space-y-4">
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={handleVoucherPrint}
+              className="h-10 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white shadow-md hover:bg-indigo-700"
+            >
+              Print
+            </button>
+            <button
+              type="button"
+              onClick={handleVoucherDownload}
+              className="h-10 rounded-xl border border-slate-200 px-5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Download
+            </button>
+          </div>
+
+          <div className="h-[70vh] overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+            {voucherPreview.url ? (
+              <object
+                data={voucherPreview.url}
+                type="application/pdf"
+                className="h-full w-full"
+                aria-label={`${voucherPreview.title || "Cash Memo"} Preview`}
+              >
+                <iframe
+                  src={voucherPreview.url}
+                  title={`${voucherPreview.title || "Cash Memo"} Preview`}
+                  className="h-full w-full"
+                />
+              </object>
+            ) : (
+              <div className="flex h-full items-center justify-center text-sm text-slate-500">
+                Cash Memo preview is not available.
+              </div>
+            )}
           </div>
         </div>
       </Modal>
