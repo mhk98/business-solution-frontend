@@ -839,6 +839,16 @@ const PettyCashTable = ({ mode = "default" }) => {
     if (!rowId) return toast.error("Invalid item!");
 
     try {
+      let finalCategoryName = currentProduct.category;
+
+      // If the category is new and being added dynamically
+      if (isNewCategoryEdit) {
+        const createdCategoryName =
+          await addCategoryByName(newCategoryNameEdit);
+        if (!createdCategoryName) return;
+        finalCategoryName = createdCategoryName; // Using the newly created category name
+      }
+
       const formData = new FormData();
       formData.append("paymentMode", currentProduct.paymentMode);
       formData.append("paymentStatus", currentProduct.paymentStatus);
@@ -846,6 +856,7 @@ const PettyCashTable = ({ mode = "default" }) => {
       formData.append("note", currentProduct.note);
       formData.append("status", currentProduct.status);
       formData.append("date", currentProduct.date);
+      formData.append("category", finalCategoryName); // Using category name here
       formData.append("userId", userId);
       formData.append("actorRole", role);
       formData.append(

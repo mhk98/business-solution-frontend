@@ -1,4 +1,5 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
+import { baseApi } from "../baseApi/api";
 
 const getAuthToken = () => localStorage.getItem("token");
 
@@ -52,6 +53,22 @@ export const pettyCashApi = createApi({
         method: "POST",
       }),
       invalidatesTags: ["pettyCash"],
+      // Approving creates a CashOut entry in the Book (a separate RTK Query
+      // API slice), so its cache needs to be invalidated explicitly here.
+      async onQueryStarted(id, { dispatch, queryFulfilled }) {
+        try {
+          await queryFulfilled;
+          dispatch(
+            baseApi.util.invalidateTags([
+              { type: "CashInOut", id: "LIST" },
+              { type: "Overview", id: "LIST" },
+              { type: "Overview", id: "DASHBOARD" },
+            ]),
+          );
+        } catch {
+          // approval failed; nothing to invalidate
+        }
+      },
     }),
 
     // ✅ FIXED: FILTER PARAMS PASSING

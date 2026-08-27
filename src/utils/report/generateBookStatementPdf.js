@@ -1,0 +1,819 @@
+import {
+  escapeHtml,
+  formatAmount,
+  safeAssetToDataUrl,
+  getEmbeddedFonts,
+} from "../renderedPdfReport";
+
+// Page geometry, all in mm (A4). The frame is drawn natively by jsPDF on
+// every page; content is composed from independently-rendered section
+// images so a section (a table + its total row) is never sliced mid-way
+// across a page boundary — if it doesn't fit, it moves to a fresh page.
+const PAGE_W_MM = 210;
+const PAGE_H_MM = 297;
+const CONTENT_MARGIN_MM = 18;
+const CONTENT_WIDTH_MM = PAGE_W_MM - 2 * CONTENT_MARGIN_MM;
+const SECTION_GAP_MM = 4;
+const PRINTABLE_BOTTOM_MM = PAGE_H_MM - CONTENT_MARGIN_MM;
+
+const MM_TO_PX = 794 / PAGE_W_MM; // matches the ~96dpi assumption used elsewhere in these reports
+const CONTENT_WIDTH_PX = Math.round(CONTENT_WIDTH_MM * MM_TO_PX);
+const RENDER_SCALE = 2;
+
+const pad2 = (value) => String(value).padStart(2, "0");
+
+const formatShortDate = (date) =>
+  `${pad2(date.getDate())}/${pad2(date.getMonth() + 1)}/${pad2(date.getFullYear() % 100)}`;
+
+const formatRowDate = (value) => {
+  const date = value ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime()) ? formatShortDate(date) : "-";
+};
+
+// A category's rows may span several days within the period — show the
+// span ("07/04/26-22/04/26") rather than just one transaction's date.
+const formatDateRangeLabel = (minDate, maxDate) => {
+  if (!minDate && !maxDate) return "-";
+  if (!minDate || !maxDate) return formatShortDate(minDate || maxDate);
+
+  const minLabel = formatShortDate(minDate);
+  const maxLabel = formatShortDate(maxDate);
+  return minLabel === maxLabel ? minLabel : `${minLabel}-${maxLabel}`;
+};
+
+const getCategoryName = (row) =>
+  row.categoryInfo?.name || row.category || "Uncategorized";
+
+const getTransactionDescription = (row) => row.remarks || row.note || "-";
+
+// Each Credit/Debit row here is one category, aggregated across every
+// transaction in the period, with the date range it spans — the summary
+// view that comes before the full per-transaction detail below it.
+const groupTransactionsByCategory = (transactions = []) => {
+  const groupsByStatus = { credit: new Map(), debit: new Map() };
+
+  transactions.forEach((row) => {
+    const status =
+      String(row.paymentStatus || "").toLowerCase() === "cashin"
+        ? "credit"
+        : "debit";
+    const key = row.categoryId ?? row.categoryInfo?.name ?? row.category ?? "uncategorized";
+    const groups = groupsByStatus[status];
+    const parsedDate = row.date ? new Date(row.date) : null;
+    const validDate =
+      parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate : null;
+
+    if (!groups.has(key)) {
+      groups.set(key, {
+        description: getCategoryName(row),
+        amount: 0,
+        minDate: validDate,
+        maxDate: validDate,
+      });
+    }
+
+    const group = groups.get(key);
+    group.amount += Number(row.amount || 0);
+    if (validDate) {
+      if (!group.minDate || validDate < group.minDate) group.minDate = validDate;
+      if (!group.maxDate || validDate > group.maxDate) group.maxDate = validDate;
+    }
+  });
+
+  const toSortedRows = (groups, tone) =>
+    Array.from(groups.values())
+      .map((group) => ({
+        date: formatDateRangeLabel(group.minDate, group.maxDate),
+        description: group.description,
+        amount: group.amount,
+        tone,
+        sortDate: group.minDate ? group.minDate.getTime() : 0,
+      }))
+      .sort((a, b) => a.sortDate - b.sortDate);
+
+  return {
+    credit: toSortedRows(groupsByStatus.credit, "credit"),
+    debit: toSortedRows(groupsByStatus.debit, "debit"),
+  };
+};
+
+// One row per real transaction (no aggregation) — Category is its own
+// column, Description comes from the transaction's note/remarks — split
+// into Credit and Debit lists and sorted chronologically.
+const getFlatTransactionRows = (transactions = []) => {
+  const credit = [];
+  const debit = [];
+
+  transactions.forEach((row) => {
+    const parsedDate = row.date ? new Date(row.date) : null;
+    const sortDate =
+      parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate.getTime() : 0;
+
+    const isCredit = String(row.paymentStatus || "").toLowerCase() === "cashin";
+    const entry = {
+      date: formatRowDate(row.date),
+      category: getCategoryName(row),
+      description: getTransactionDescription(row),
+      amount: Number(row.amount || 0),
+      tone: isCredit ? "credit" : "debit",
+      sortDate,
+    };
+
+    if (isCredit) {
+      credit.push(entry);
+    } else {
+      debit.push(entry);
+    }
+  });
+
+  // Group same-category rows together (all Loan rows, then all Steadfast
+  // Courier rows, etc.) instead of interleaving by date; sort by date within
+  // each category so the grouping still reads chronologically.
+  const byCategoryThenDate = (a, b) => {
+    const categoryCompare = a.category.localeCompare(b.category);
+    return categoryCompare !== 0 ? categoryCompare : a.sortDate - b.sortDate;
+  };
+
+  return {
+    credit: credit.sort(byCategoryThenDate),
+    debit: debit.sort(byCategoryThenDate),
+  };
+};
+
+// Column layout for the category-summary tables (matches the original
+// letterhead design — no separate category column, since the category
+// name *is* what fills that column for an aggregated row).
+const AGGREGATE_COLUMNS = [
+  { key: "sl", label: "ক্র. নং", widthPct: 9 },
+  { key: "date", label: "তারিখ", widthPct: 20 },
+  { key: "description", label: "ক্যাটেগরি", widthPct: 51 },
+  { key: "amount", label: "পরিমান", widthPct: 20, isAmount: true },
+];
+
+// Same layout as AGGREGATE_COLUMNS, but for the Total Credit & Debit
+// roll-up, whose rows are descriptive summary lines rather than categories.
+const TOTAL_SUMMARY_COLUMNS = [
+  { key: "sl", label: "ক্র. নং", widthPct: 9 },
+  { key: "date", label: "তারিখ", widthPct: 20 },
+  { key: "description", label: "বিবরণ", widthPct: 51 },
+  { key: "amount", label: "পরিমান", widthPct: 20, isAmount: true },
+];
+
+// Column layout for the per-transaction detail tables — one row per real
+// transaction, with its own Category column and note-based description.
+const DETAIL_COLUMNS = [
+  { key: "sl", label: "ক্র. নং", widthPct: 8 },
+  { key: "date", label: "তারিখ", widthPct: 15 },
+  { key: "category", label: "ক্যাটেগরি", widthPct: 17 },
+  { key: "description", label: "বিবরণ", widthPct: 40 },
+  { key: "amount", label: "পরিমান", widthPct: 20, isAmount: true },
+];
+
+const FRAGMENT_STYLES = `
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  .frag {
+    width: ${CONTENT_WIDTH_PX}px;
+    color: #111827;
+    font-family: "PdfNotoSansBengali", Arial, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .book-stmt-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 14px;
+    border-bottom: 3px solid #14294f;
+  }
+
+  .book-stmt-brand {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .book-stmt-logo-box {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: #eef2ff;
+    border: 2px solid #c9a227;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex: 0 0 auto;
+  }
+
+  .book-stmt-logo-box img {
+    max-width: 56px;
+    max-height: 56px;
+    object-fit: contain;
+  }
+
+  .book-stmt-company-name {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 700;
+    color: #14294f;
+  }
+
+  .book-stmt-book-name {
+    margin-top: 2px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #334155;
+  }
+
+  .book-stmt-address {
+    margin-top: 3px;
+    font-size: 11px;
+    color: #64748b;
+    max-width: 320px;
+  }
+
+  .book-stmt-contact {
+    text-align: right;
+    font-size: 11px;
+    color: #334155;
+  }
+
+  .contact-title {
+    font-weight: 700;
+    color: #14294f;
+    margin-bottom: 3px;
+  }
+
+  .contact-line {
+    margin-bottom: 3px;
+  }
+
+  .book-stmt-title-bar {
+    background: #eef1f6;
+    border: 1px solid #cbd5e1;
+    padding: 8px 16px;
+    text-align: center;
+  }
+
+  .book-stmt-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #14294f;
+  }
+
+  .ledger-heading {
+    background: #14294f;
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 12px;
+    padding: 6px 12px;
+  }
+
+  .ledger-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+
+  .ledger-table th {
+    background: #eef1f6;
+    color: #14294f;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 6px 8px;
+    text-align: left;
+    border: 1px solid #cbd5e1;
+  }
+
+  .ledger-table td {
+    box-sizing: border-box;
+    border: 1px solid #cbd5e1;
+    padding: 6px 8px;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+    font-size: 12px;
+  }
+
+  .ledger-table .amount { text-align: right; }
+  .ledger-table .amount-credit { color: #15803d; }
+  .ledger-table .amount-debit { color: #dc2626; }
+  .ledger-table .empty { text-align: center; color: #94a3b8; }
+
+  .ledger-table tfoot td {
+    font-weight: 700;
+    background: #e6f4ea;
+    color: #1f6b3a;
+  }
+`;
+
+const buildCell = (tag, column, content, tone) => {
+  const classes = [];
+  if (column.isAmount) {
+    classes.push("amount");
+    if (tone === "credit") classes.push("amount-credit");
+    if (tone === "debit") classes.push("amount-debit");
+  }
+  const cellClass = classes.length ? ` class="${classes.join(" ")}"` : "";
+  return `<${tag} style="width:${column.widthPct}%;"${cellClass}>${content}</${tag}>`;
+};
+
+const buildTableRows = (rows, startIndex, columns) =>
+  rows
+    .map((row, index) => {
+      const cells = columns
+        .map((column) => {
+          if (column.key === "sl") return buildCell("td", column, startIndex + index);
+          if (column.key === "amount") return buildCell("td", column, formatAmount(row.amount), row.tone);
+          return buildCell("td", column, escapeHtml(row[column.key] ?? "-"));
+        })
+        .join("");
+      return `<tr>${cells}</tr>`;
+    })
+    .join("");
+
+const buildTableHead = (columns) => `
+  <thead>
+    <tr>
+      ${columns.map((column) => buildCell("th", column, escapeHtml(column.label))).join("")}
+    </tr>
+  </thead>
+`;
+
+// One ledger section's navy title bar, on its own so it can be measured and
+// placed independently of the rows that follow it.
+const buildLedgerHeadingFragment = (title) => `
+  <div class="frag">
+    <div class="ledger-heading">${escapeHtml(title)}</div>
+  </div>
+`;
+
+// A page-sized "slice" of a ledger table: the column header row (repeated on
+// every continuation page) plus a subset of the rows, and the total row only
+// on the final slice — so a row is never split across pages, and the header
+// re-appears whenever a section continues onto a new page. `columns` picks
+// between the category-summary layout and the per-transaction detail layout.
+const buildLedgerTableChunkFragment = ({ rows, startIndex, includeFooter, totalLabel, total, columns }) => `
+  <div class="frag">
+    <table class="ledger-table">
+      ${buildTableHead(columns)}
+      <tbody>
+        ${
+          rows.length
+            ? buildTableRows(rows, startIndex, columns)
+            : `<tr><td colspan="${columns.length}" class="empty">কোন এন্ট্রি নেই</td></tr>`
+        }
+      </tbody>
+      ${
+        includeFooter
+          ? `<tfoot>
+              <tr>
+                <td colspan="${columns.length - 1}">${escapeHtml(totalLabel)}</td>
+                <td class="amount">${formatAmount(total)}</td>
+              </tr>
+            </tfoot>`
+          : ""
+      }
+    </table>
+  </div>
+`;
+
+const buildContactLine = (value) =>
+  value ? `<div class="contact-line">${escapeHtml(value)}</div>` : "";
+
+const buildHeaderFragment = ({ companyName, companyInfo, logoDataUrl, bookName }) => `
+  <div class="frag">
+    <div class="book-stmt-header">
+      <div class="book-stmt-brand">
+        <div class="book-stmt-logo-box">
+          ${logoDataUrl ? `<img src="${logoDataUrl}" alt="Logo" />` : ""}
+        </div>
+        <div>
+          <p class="book-stmt-company-name">${escapeHtml(companyName)}</p>
+          <div class="book-stmt-book-name">Book: ${escapeHtml(bookName)}</div>
+          ${
+            companyInfo?.address
+              ? `<div class="book-stmt-address">${escapeHtml(companyInfo.address)}</div>`
+              : ""
+          }
+        </div>
+      </div>
+
+      <div class="book-stmt-contact">
+        <div class="contact-title">Hotline:</div>
+        ${buildContactLine(companyInfo?.hotline)}
+        ${buildContactLine(companyInfo?.whatsapp)}
+        ${buildContactLine(companyInfo?.website)}
+        ${buildContactLine(companyInfo?.email)}
+      </div>
+    </div>
+  </div>
+`;
+
+const buildTitleBarFragment = (periodLabel) => `
+  <div class="frag">
+    <div class="book-stmt-title-bar">
+      <div class="book-stmt-title">${escapeHtml(periodLabel)}</div>
+    </div>
+  </div>
+`;
+
+const createRenderFrame = () => {
+  const iframe = document.createElement("iframe");
+
+  iframe.style.position = "fixed";
+  iframe.style.left = "-10000px";
+  iframe.style.top = "0";
+  iframe.style.width = `${CONTENT_WIDTH_PX}px`;
+  iframe.style.border = "0";
+  iframe.setAttribute("aria-hidden", "true");
+  document.body.appendChild(iframe);
+
+  return iframe;
+};
+
+// Renders one fragment (header, title bar, a ledger section, or the
+// signature) in isolation and returns it as a single image + its height in
+// mm, so the caller can place it as one atomic, unsplittable block.
+const renderFragment = async (html2canvas, fragmentHtml, regularFontDataUrl, boldFontDataUrl) => {
+  const html = `
+    <style>
+      @font-face {
+        font-family: "PdfNotoSansBengali";
+        src: url("${regularFontDataUrl}") format("truetype");
+        font-weight: 400;
+        font-style: normal;
+      }
+      @font-face {
+        font-family: "PdfNotoSansBengali";
+        src: url("${boldFontDataUrl}") format("truetype");
+        font-weight: 700;
+        font-style: normal;
+      }
+      ${FRAGMENT_STYLES}
+    </style>
+    ${fragmentHtml}
+  `;
+
+  const iframe = createRenderFrame();
+
+  try {
+    const frameDocument = iframe.contentDocument;
+    frameDocument.open();
+    frameDocument.write(`<!doctype html><html><body>${html}</body></html>`);
+    frameDocument.close();
+
+    await Promise.all([
+      frameDocument.fonts?.load('400 13px "PdfNotoSansBengali"', "মাধ্যমে"),
+      frameDocument.fonts?.load('700 21px "PdfNotoSansBengali"', "মাধ্যমে"),
+      frameDocument.fonts?.ready,
+    ]);
+
+    const contentEl = frameDocument.querySelector(".frag");
+    const heightPx = Math.ceil(contentEl.getBoundingClientRect().height);
+    iframe.style.height = `${heightPx}px`;
+
+    const canvas = await html2canvas(contentEl, {
+      backgroundColor: "#ffffff",
+      scale: RENDER_SCALE,
+      logging: false,
+      windowWidth: CONTENT_WIDTH_PX,
+      windowHeight: heightPx,
+    });
+
+    return {
+      dataUrl: canvas.toDataURL("image/png"),
+      heightMm: heightPx / MM_TO_PX,
+    };
+  } finally {
+    iframe.remove();
+  }
+};
+
+const drawPageFrame = (doc) => {
+  doc.setDrawColor(20, 41, 79); // navy
+  doc.setLineWidth(1.2);
+  doc.roundedRect(8, 8, PAGE_W_MM - 16, PAGE_H_MM - 16, 1, 1);
+  doc.setDrawColor(201, 162, 39); // gold
+  doc.setLineWidth(0.35);
+  doc.roundedRect(11, 11, PAGE_W_MM - 22, PAGE_H_MM - 22, 1, 1);
+};
+
+// Places one rendered fragment into `doc` at the running cursor position,
+// starting a fresh (framed) page first if it wouldn't otherwise fit.
+const placeFragment = (doc, cursor, fragment) => {
+  const startsNewPage = !cursor.pageHasContent || cursor.y + fragment.heightMm > PRINTABLE_BOTTOM_MM;
+
+  if (startsNewPage) {
+    if (cursor.pageHasContent) doc.addPage();
+    drawPageFrame(doc);
+    cursor.y = CONTENT_MARGIN_MM;
+    cursor.pageHasContent = false;
+  }
+
+  doc.addImage(
+    fragment.dataUrl,
+    "PNG",
+    CONTENT_MARGIN_MM,
+    cursor.y,
+    CONTENT_WIDTH_MM,
+    fragment.heightMm,
+    undefined,
+    "FAST",
+  );
+
+  cursor.y += fragment.heightMm + SECTION_GAP_MM;
+  cursor.pageHasContent = true;
+};
+
+// Same as placeFragment, but assumes the fit check already happened and the
+// image is meant to go at the current cursor position regardless.
+const placeFragmentDirect = (doc, cursor, fragment) => {
+  doc.addImage(
+    fragment.dataUrl,
+    "PNG",
+    CONTENT_MARGIN_MM,
+    cursor.y,
+    CONTENT_WIDTH_MM,
+    fragment.heightMm,
+    undefined,
+    "FAST",
+  );
+
+  cursor.y += fragment.heightMm + SECTION_GAP_MM;
+  cursor.pageHasContent = true;
+};
+
+// Places a full ledger section (heading + table + total row), packing as
+// many rows per page as actually fit — never cutting a row in half — and
+// repeating the column header whenever the table continues onto a new page.
+const placeLedgerSection = async (doc, html2canvas, cursor, {
+  title,
+  rows,
+  totalLabel,
+  total,
+  columns,
+  regularFontDataUrl,
+  boldFontDataUrl,
+}) => {
+  const render = (html) => renderFragment(html2canvas, html, regularFontDataUrl, boldFontDataUrl);
+
+  const headingFragment = await render(buildLedgerHeadingFragment(title));
+
+  if (!rows.length) {
+    const emptyChunk = await render(
+      buildLedgerTableChunkFragment({ rows: [], startIndex: 1, includeFooter: true, totalLabel, total, columns }),
+    );
+
+    // Orphan avoidance: keep the heading with its (empty) table together.
+    if (cursor.pageHasContent && cursor.y + headingFragment.heightMm + emptyChunk.heightMm > PRINTABLE_BOTTOM_MM) {
+      doc.addPage();
+      drawPageFrame(doc);
+      cursor.y = CONTENT_MARGIN_MM;
+      cursor.pageHasContent = false;
+    }
+
+    placeFragment(doc, cursor, headingFragment);
+    placeFragment(doc, cursor, emptyChunk);
+    return;
+  }
+
+  // Estimate an average row height by comparing an empty table (header only)
+  // against the full table (header + all rows), then use that to decide how
+  // many whole rows fit in the space actually left on the page.
+  const headerOnly = await render(
+    buildLedgerTableChunkFragment({ rows: [], startIndex: 1, includeFooter: false, totalLabel, total, columns }),
+  );
+  const fullBody = await render(
+    buildLedgerTableChunkFragment({ rows, startIndex: 1, includeFooter: false, totalLabel, total, columns }),
+  );
+  const perRowHeightMm = Math.max(
+    3,
+    (fullBody.heightMm - headerOnly.heightMm) / rows.length,
+  );
+
+  // Orphan avoidance: a heading shouldn't sit alone at the bottom of a page
+  // with its table starting fresh on the next — require room for the
+  // heading plus at least the column header and one data row together.
+  const minFollowHeightMm = headerOnly.heightMm + perRowHeightMm;
+  if (cursor.pageHasContent && cursor.y + headingFragment.heightMm + minFollowHeightMm > PRINTABLE_BOTTOM_MM) {
+    doc.addPage();
+    drawPageFrame(doc);
+    cursor.y = CONTENT_MARGIN_MM;
+    cursor.pageHasContent = false;
+  }
+
+  placeFragment(doc, cursor, headingFragment);
+
+  let startIndex = 0;
+
+  while (startIndex < rows.length) {
+    // Proactively move to a fresh page once there's only room for a token
+    // row or two — otherwise we'd cram in 1 row here, then immediately have
+    // to push the *next* row to a new page anyway, splitting what should be
+    // one continuous table into two small ones with a duplicated header.
+    if (cursor.pageHasContent && PRINTABLE_BOTTOM_MM - cursor.y < headerOnly.heightMm + perRowHeightMm) {
+      doc.addPage();
+      drawPageFrame(doc);
+      cursor.y = CONTENT_MARGIN_MM;
+      cursor.pageHasContent = false;
+    }
+
+    const remainingMm = PRINTABLE_BOTTOM_MM - cursor.y;
+    const availableForRowsMm = remainingMm - headerOnly.heightMm;
+    let rowsThatFit = Math.min(
+      rows.length - startIndex,
+      Math.max(1, Math.floor(availableForRowsMm / perRowHeightMm)),
+    );
+
+    // perRowHeightMm is a section-wide average — a locally-dense cluster of
+    // wrapped, multi-line rows (e.g. long descriptions) can be taller than
+    // that average predicts. Render the candidate chunk, and if it actually
+    // overflows the page, shrink it row-by-row and re-render until it truly
+    // fits — this check must run even for a chunk that's first on a fresh
+    // page, since that's exactly the case a page-relative check alone misses.
+    let chunkFragment;
+    let isLastChunk;
+
+    let fits;
+
+    for (;;) {
+      isLastChunk = startIndex + rowsThatFit >= rows.length;
+      chunkFragment = await render(
+        buildLedgerTableChunkFragment({
+          rows: rows.slice(startIndex, startIndex + rowsThatFit),
+          startIndex: startIndex + 1,
+          includeFooter: isLastChunk,
+          totalLabel,
+          total,
+          columns,
+        }),
+      );
+
+      fits = cursor.y + chunkFragment.heightMm <= PRINTABLE_BOTTOM_MM;
+      if (fits || rowsThatFit <= 1) break;
+
+      rowsThatFit -= 1;
+    }
+
+    // The estimate can also under-fill a page (same averaging issue, other
+    // direction) — greedily add more rows while there's still room, so a
+    // page is never left with just enough leftover space for a small
+    // trailing chunk that would render its own duplicate header below.
+    while (fits && startIndex + rowsThatFit < rows.length) {
+      const grownRowsThatFit = rowsThatFit + 1;
+      const grownIsLastChunk = startIndex + grownRowsThatFit >= rows.length;
+      const grownChunkFragment = await render(
+        buildLedgerTableChunkFragment({
+          rows: rows.slice(startIndex, startIndex + grownRowsThatFit),
+          startIndex: startIndex + 1,
+          includeFooter: grownIsLastChunk,
+          totalLabel,
+          total,
+          columns,
+        }),
+      );
+
+      if (cursor.y + grownChunkFragment.heightMm > PRINTABLE_BOTTOM_MM) break;
+
+      rowsThatFit = grownRowsThatFit;
+      isLastChunk = grownIsLastChunk;
+      chunkFragment = grownChunkFragment;
+    }
+
+    // Still doesn't fit even shrunk to 1 row — only possible when we're
+    // mid-page (a fresh page always has room for a single row). Start a
+    // fresh page and re-size this same chunk against the full page height.
+    if (cursor.pageHasContent && cursor.y + chunkFragment.heightMm > PRINTABLE_BOTTOM_MM) {
+      doc.addPage();
+      drawPageFrame(doc);
+      cursor.y = CONTENT_MARGIN_MM;
+      cursor.pageHasContent = false;
+      continue;
+    }
+
+    placeFragmentDirect(doc, cursor, chunkFragment);
+    startIndex += rowsThatFit;
+  }
+};
+
+// Renders one book's statement and appends it to `doc`, always starting on
+// a fresh page. Each section (header, ledger tables, signature) is composed
+// independently so none of them ever get sliced across a page boundary.
+const appendBookStatement = async (doc, html2canvas, cursor, book) => {
+  const { credit: summaryCredit, debit: summaryDebit } = groupTransactionsByCategory(book.transactions);
+  const { credit: detailCredit, debit: detailDebit } = getFlatTransactionRows(book.transactions);
+  const totalCredit = book.totalCredit ?? 0;
+  const totalDebit = book.totalDebit ?? 0;
+  const netBalance =
+    book.netBalance !== undefined ? book.netBalance : totalCredit - totalDebit;
+
+  // A new book always starts on its own fresh page.
+  cursor.pageHasContent = false;
+
+  const placeAtomic = async (fragmentHtml) => {
+    const fragment = await renderFragment(
+      html2canvas,
+      fragmentHtml,
+      book.regularFontDataUrl,
+      book.boldFontDataUrl,
+    );
+    placeFragment(doc, cursor, fragment);
+  };
+
+  const placeSection = (args) =>
+    placeLedgerSection(doc, html2canvas, cursor, {
+      ...args,
+      regularFontDataUrl: book.regularFontDataUrl,
+      boldFontDataUrl: book.boldFontDataUrl,
+    });
+
+  await placeAtomic(buildHeaderFragment(book));
+  await placeAtomic(buildTitleBarFragment(book.periodLabel));
+
+  // Category summary first (one row per category, date range, summed
+  // amount) — followed by the Total Credit & Debit roll-up.
+  await placeSection({
+    title: "ক্রেডিট",
+    rows: summaryCredit,
+    totalLabel: "মোট ক্রেডিট :",
+    total: totalCredit,
+    columns: AGGREGATE_COLUMNS,
+  });
+
+  await placeSection({
+    title: "ডেবিট",
+    rows: summaryDebit,
+    totalLabel: "মোট ডেবিট :",
+    total: totalDebit,
+    columns: AGGREGATE_COLUMNS,
+  });
+
+  await placeSection({
+    title: "মোট ক্রেডিট ও ডেবিট",
+    rows: [
+      { date: book.periodLabel, description: `${book.periodLabel} পর্যন্ত মোট ক্রেডিট`, amount: totalCredit, tone: "credit" },
+      { date: book.periodLabel, description: `${book.periodLabel} পর্যন্ত মোট ডেবিট`, amount: totalDebit, tone: "debit" },
+    ],
+    totalLabel: `একাউন্টে মোট ক্যাশ থাকবে (${book.periodLabel} পর্যন্ত)`,
+    total: netBalance,
+    columns: TOTAL_SUMMARY_COLUMNS,
+  });
+
+  // Then the full per-transaction detail (Category column, note-based
+  // description) for every Credit and Debit transaction.
+  await placeSection({
+    title: "ক্রেডিট",
+    rows: detailCredit,
+    totalLabel: "মোট ক্রেডিট :",
+    total: totalCredit,
+    columns: DETAIL_COLUMNS,
+  });
+
+  await placeSection({
+    title: "ডেবিট",
+    rows: detailDebit,
+    totalLabel: "মোট ডেবিট :",
+    total: totalDebit,
+    columns: DETAIL_COLUMNS,
+  });
+};
+
+// Generates one PDF containing every book's Credit/Debit statement, each
+// book starting on its own page — used for both the single-book "Statement"
+// action and the "All Books" combined report.
+export const generateBookStatementPdf = async ({
+  companyName = "KAFELA MART",
+  companyInfo = {},
+  logoUrl = "",
+  periodLabel = "",
+  books = [],
+}) => {
+  const { jsPDF } = await import("jspdf");
+  const html2canvas = (await import("html2canvas")).default;
+
+  const [logoDataUrl, [regularFontDataUrl, boldFontDataUrl]] = await Promise.all([
+    safeAssetToDataUrl(logoUrl),
+    getEmbeddedFonts(),
+  ]);
+
+  const doc = new jsPDF("p", "mm", "a4");
+  const cursor = { y: CONTENT_MARGIN_MM, pageHasContent: false };
+
+  for (const book of books) {
+    await appendBookStatement(doc, html2canvas, cursor, {
+      ...book,
+      companyName,
+      companyInfo,
+      logoDataUrl,
+      bookName: book.bookName || "Book",
+      periodLabel,
+      regularFontDataUrl,
+      boldFontDataUrl,
+    });
+  }
+
+  return doc.output("blob");
+};

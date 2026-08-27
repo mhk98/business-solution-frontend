@@ -32,12 +32,13 @@ import {
   useInsertCategoryMutation,
 } from "../../features/category/category";
 import Modal from "../common/Modal";
-import DateRangeFilter from "../common/DateRangeFilter";
+import DateRangeFilter, { getDatePresetRange } from "../common/DateRangeFilter";
 import { useLayout } from "../../context/LayoutContext";
 import { translations } from "../../utils/translations";
 import { useGetAllSupplierWithoutQueryQuery } from "../../features/supplier/supplier";
 import { useGetAllSupplierHistoryQuery } from "../../features/supplierHistory/supplierHistory";
 import { useGetAllOwnerWithoutQueryQuery } from "../../features/ownerTransaction/ownerTransaction";
+import { useGetAllDirectorWithoutQueryQuery } from "../../features/ownerTransaction/directorProfitShare";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 import useDebounce from "../../hooks/useDebounce";
 
@@ -101,6 +102,7 @@ const loadImageForCanvas = (url) =>
 
 const renderVoucherPdfFromCanvas = async ({
   voucherNo,
+  refNo,
   voucherTitle,
   isCashOut,
   date,
@@ -184,18 +186,24 @@ const renderVoucherPdfFromCanvas = async ({
 
   y = y + 24;
   const typeBoxWidth = 136;
-  const metaGap = 18;
-  const metaWidth = right - left - typeBoxWidth - metaGap;
+  const metaGap = 14;
+  const metaRemainingWidth = right - left - typeBoxWidth - metaGap * 2;
+  const voucherBoxWidth = metaRemainingWidth / 2;
+  const refBoxWidth = metaRemainingWidth / 2;
+  const refBoxX = left + voucherBoxWidth + metaGap;
   ctx.strokeStyle = "#334155";
-  ctx.strokeRect(left, y, metaWidth, 50);
+  ctx.strokeRect(left, y, voucherBoxWidth, 50);
+  ctx.strokeRect(refBoxX, y, refBoxWidth, 50);
   ctx.strokeRect(right - typeBoxWidth, y, typeBoxWidth, 50);
 
   ctx.fillStyle = "#64748b";
   setFont(12, 700);
   ctx.fillText("Voucher No", left + 13, y + 19);
+  ctx.fillText("Ref No", refBoxX + 13, y + 19);
   ctx.fillStyle = "#111827";
   setFont(15, 900);
-  drawWrappedText(ctx, voucherNo, left + 13, y + 38, metaWidth - 26, 16, 1);
+  drawWrappedText(ctx, voucherNo, left + 13, y + 38, voucherBoxWidth - 26, 16, 1);
+  drawWrappedText(ctx, refNo || "-", refBoxX + 13, y + 38, refBoxWidth - 26, 16, 1);
 
   ctx.textAlign = "center";
   setFont(14, 900);
@@ -400,6 +408,7 @@ const CashInOutTable = () => {
     partyType: "",
     supplierId: "",
     ownerId: "",
+    directorId: "",
     lender: "",
     loanId: "",
     note: "",
@@ -407,6 +416,7 @@ const CashInOutTable = () => {
     category: "",
     categoryId: "",
     remarks: "",
+    refNo: "",
     amount: "",
     file: null,
     date: new Date().toISOString().slice(0, 10),
@@ -417,8 +427,9 @@ const CashInOutTable = () => {
   const [products, setProducts] = useState([]);
 
   // filters
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const defaultDateRange = useMemo(() => getDatePresetRange("last30"), []);
+  const [startDate, setStartDate] = useState(defaultDateRange.from);
+  const [endDate, setEndDate] = useState(defaultDateRange.to);
   const [filterPaymentMode, setFilterPaymentMode] = useState("");
   const [filterPaymentStatus, setFilterPaymentStatus] = useState("");
 
@@ -455,6 +466,7 @@ const CashInOutTable = () => {
     if (row?.supplierId) return "Supplier";
     if (row?.loanId) return "Lender";
     if (row?.ownerId) return "Owner";
+    if (row?.directorId) return "Director";
     return "";
   };
 
@@ -470,6 +482,12 @@ const CashInOutTable = () => {
     }
     if (value?.partyType === "Owner" && !String(value?.ownerId || "").trim()) {
       return "Owner is required!";
+    }
+    if (
+      value?.partyType === "Director" &&
+      !String(value?.directorId || "").trim()
+    ) {
+      return "Director is required!";
     }
     return "";
   };
@@ -868,13 +886,15 @@ const CashInOutTable = () => {
       partyType: "",
       supplierId: "",
       ownerId: "",
-      lender: "",
+    directorId: "",
+    lender: "",
       loanId: "",
       note: "",
       status: "",
       category: "",
       categoryId: "",
       remarks: "",
+      refNo: "",
       amount: "",
       file: null,
       date: new Date().toISOString().slice(0, 10),
@@ -923,6 +943,7 @@ const CashInOutTable = () => {
       partyType: getPartyTypeFromRow(rp),
       supplierId: rp.supplierId ?? "",
       ownerId: rp.ownerId ?? "",
+      directorId: rp.directorId ?? "",
       loanId: rp.loanId ?? rp.loan?.Id ?? "",
       lender:
         rp.loan?.name ??
@@ -937,6 +958,7 @@ const CashInOutTable = () => {
       userId: userId,
       category: rp.categoryInfo?.name ?? rp.category ?? "",
       categoryId: rp.categoryId ?? rp.categoryInfo?.Id ?? "",
+      refNo: rp.refNo ?? "",
       file: null,
     });
     setIsNewCategoryEdit(false);
@@ -957,6 +979,7 @@ const CashInOutTable = () => {
       partyType: getPartyTypeFromRow(rp),
       supplierId: rp.supplierId ?? "",
       ownerId: rp.ownerId ?? "",
+      directorId: rp.directorId ?? "",
       loanId: rp.loanId ?? rp.loan?.Id ?? "",
       lender:
         rp.loan?.name ??
@@ -971,6 +994,7 @@ const CashInOutTable = () => {
       userId: userId,
       category: rp.categoryInfo?.name ?? rp.category ?? "",
       categoryId: rp.categoryId ?? rp.categoryInfo?.Id ?? "",
+      refNo: rp.refNo ?? "",
       file: null,
     });
     setIsNewCategoryEdit(false);
@@ -1043,6 +1067,12 @@ const CashInOutTable = () => {
           ? currentProduct?.ownerId || ""
           : "",
       );
+      formData.append(
+        "directorId",
+        currentProduct?.partyType === "Director"
+          ? currentProduct?.directorId || ""
+          : "",
+      );
       formData.append("lender", selectedEditLoan?.name || "");
       formData.append("status", currentProduct.status);
       formData.append("date", currentProduct.date);
@@ -1064,6 +1094,7 @@ const CashInOutTable = () => {
       formData.append("category", finalCategoryName);
       formData.append("categoryId", finalCategoryId);
       formData.append("remarks", currentProduct.remarks?.trim() || "");
+      formData.append("refNo", currentProduct.refNo?.trim() || "");
       formData.append("amount", String(Number(currentProduct.amount)));
       if (currentProduct.file) formData.append("file", currentProduct.file);
 
@@ -1161,6 +1192,7 @@ const CashInOutTable = () => {
       formData.append("category", finalCategoryName);
       formData.append("categoryId", finalCategoryId);
       formData.append("remarks", createProduct.remarks?.trim() || "");
+      formData.append("refNo", createProduct.refNo?.trim() || "");
       formData.append("amount", String(Number(createProduct.amount)));
       formData.append("bookId", id);
       formData.append("actorRole", role);
@@ -1184,6 +1216,12 @@ const CashInOutTable = () => {
           ? createProduct?.ownerId || ""
           : "",
       );
+      formData.append(
+        "directorId",
+        createProduct?.partyType === "Director"
+          ? createProduct?.directorId || ""
+          : "",
+      );
       formData.append("lender", selectedCreateLoan?.name || "");
       if (createProduct.file) formData.append("file", createProduct.file);
 
@@ -1204,9 +1242,11 @@ const CashInOutTable = () => {
           loanId: "",
           supplierId: "",
           ownerId: "",
+          directorId: "",
           category: "",
           categoryId: "",
           remarks: "",
+          refNo: "",
           note: "",
           amount: "",
           date: "",
@@ -1293,6 +1333,7 @@ const CashInOutTable = () => {
       formData.append("category", finalCategoryName);
       formData.append("categoryId", finalCategoryId);
       formData.append("remarks", createProduct.remarks?.trim() || "");
+      formData.append("refNo", createProduct.refNo?.trim() || "");
       formData.append("amount", String(Number(createProduct.amount)));
       formData.append("bookId", id);
       formData.append("actorRole", role);
@@ -1316,6 +1357,12 @@ const CashInOutTable = () => {
           ? createProduct?.ownerId || ""
           : "",
       );
+      formData.append(
+        "directorId",
+        createProduct?.partyType === "Director"
+          ? createProduct?.directorId || ""
+          : "",
+      );
       formData.append("lender", selectedCreateLoan?.name || "");
       if (createProduct.file) formData.append("file", createProduct.file);
 
@@ -1336,9 +1383,11 @@ const CashInOutTable = () => {
           loanId: "",
           supplierId: "",
           ownerId: "",
+          directorId: "",
           category: "",
           categoryId: "",
           remarks: "",
+          refNo: "",
           amount: "",
           date: "",
           file: null,
@@ -1414,8 +1463,8 @@ const CashInOutTable = () => {
 
   const clearFilters = () => {
     setSearchTerm("");
-    setStartDate("");
-    setEndDate("");
+    setStartDate(defaultDateRange.from);
+    setEndDate(defaultDateRange.to);
     setFilterPaymentMode("");
     setFilterPaymentStatus("");
     setFilterCategory("");
@@ -1539,6 +1588,7 @@ const CashInOutTable = () => {
 
   const createVoucherPdf = async (row) => {
     const voucherNo = row?.voucherNo || "-";
+    const refNo = row?.refNo || "-";
     const voucherTitle = "Cash Memo";
     const isCashOut = row?.paymentStatus === "CashOut";
     const rowSupplier = suppliers.find(
@@ -1571,6 +1621,7 @@ const CashInOutTable = () => {
     ];
     const pdf = await renderVoucherPdfFromCanvas({
       voucherNo,
+      refNo,
       voucherTitle,
       isCashOut,
       date: row?.date || "-",
@@ -1672,14 +1723,26 @@ const CashInOutTable = () => {
   const { data: allOwnerRes, isLoading: isOwnerLoading } =
     useGetAllOwnerWithoutQueryQuery();
   const owners = allOwnerRes?.data || [];
+  const { data: allDirectorRes, isLoading: isDirectorLoading } =
+    useGetAllDirectorWithoutQueryQuery();
+  const directors = allDirectorRes?.data || [];
 
   const ownerOptions = useMemo(
     () =>
       (owners || []).map((owner) => ({
         value: owner.Id,
-        label: owner.name,
+        label: `${owner.name} (Owner)`,
       })),
     [owners],
+  );
+
+  const directorOptions = useMemo(
+    () =>
+      (directors || []).map((director) => ({
+        value: director.Id,
+        label: `${director.name} (Director)`,
+      })),
+    [directors],
   );
 
   const getSupplierName = (row) => {
@@ -1700,7 +1763,7 @@ const CashInOutTable = () => {
     () =>
       (activeLoans || []).map((loan) => ({
         value: loan.Id,
-        label: loan.name,
+        label: `${loan.name} (Lender)`,
       })),
     [activeLoans],
   );
@@ -1709,6 +1772,7 @@ const CashInOutTable = () => {
     { value: "Supplier", label: "Supplier" },
     { value: "Lender", label: "Lender" },
     { value: "Owner", label: "Owner" },
+    { value: "Director", label: "Director" },
   ];
   const cashInPartyTypeOptions = partyTypeOptions.filter(
     (option) => option.value !== "Supplier",
@@ -1834,6 +1898,7 @@ const CashInOutTable = () => {
         loanId: "",
         lender: "",
         ownerId: "",
+        directorId: "",
       });
     };
 
@@ -1876,6 +1941,7 @@ const CashInOutTable = () => {
                   loanId: "",
                   lender: "",
                   ownerId: "",
+                  directorId: "",
                 })
               }
               placeholder={t.select_supplier || "Select Supplier"}
@@ -1906,6 +1972,7 @@ const CashInOutTable = () => {
                   loanId: selectedOption?.value || "",
                   lender: selectedOption?.label || "",
                   ownerId: "",
+                  directorId: "",
                 })
               }
               placeholder="Select Lender"
@@ -1936,6 +2003,7 @@ const CashInOutTable = () => {
                   loanId: "",
                   lender: "",
                   ownerId: selectedOption?.value || "",
+                  directorId: "",
                 })
               }
               placeholder={
@@ -1945,6 +2013,39 @@ const CashInOutTable = () => {
               styles={selectStyles}
               isClearable
               isLoading={isOwnerLoading}
+            />
+          </div>
+        )}
+
+        {partyType === "Director" && (
+          <div>
+            <label className="block text-sm text-slate-600 mb-1">
+              Director Name
+            </label>
+            <Select
+              options={directorOptions}
+              value={
+                directorOptions.find(
+                  (option) => String(option.value) === String(value?.directorId),
+                ) || null
+              }
+              onChange={(selectedOption) =>
+                onChange({
+                  ...value,
+                  supplierId: "",
+                  loanId: "",
+                  lender: "",
+                  ownerId: "",
+                  directorId: selectedOption?.value || "",
+                })
+              }
+              placeholder={
+                isDirectorLoading ? "Loading Directors..." : "Select Director"
+              }
+              className="text-sm"
+              styles={selectStyles}
+              isClearable
+              isLoading={isDirectorLoading}
             />
           </div>
         )}
@@ -2137,6 +2238,7 @@ const CashInOutTable = () => {
           endDate={endDate}
           onStartDateChange={setStartDate}
           onEndDateChange={setEndDate}
+          defaultFilter="last30"
           compact
           className="w-full"
         />
@@ -2801,6 +2903,22 @@ const CashInOutTable = () => {
             </div>
           </div>
 
+          <div>
+            <label className="block text-sm text-slate-600 mb-1">Ref No</label>
+            <input
+              type="text"
+              value={currentProduct?.refNo || ""}
+              onChange={(e) =>
+                setCurrentProduct({
+                  ...currentProduct,
+                  refNo: e.target.value,
+                })
+              }
+              className="h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 bg-white"
+              placeholder="Reference number"
+            />
+          </div>
+
           {isPrivilegedUser && (
             <div>
               <label className="block text-sm text-slate-600 mb-1">
@@ -3176,6 +3294,19 @@ const CashInOutTable = () => {
           </div>
 
           <div>
+            <label className="block text-sm text-slate-600 mb-1">Ref No</label>
+            <input
+              type="text"
+              value={createProduct.refNo || ""}
+              onChange={(e) =>
+                setCreateProduct({ ...createProduct, refNo: e.target.value })
+              }
+              className="h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 bg-white"
+              placeholder="Reference number"
+            />
+          </div>
+
+          <div>
             <label className="block text-sm text-slate-600 mb-1">
               Upload Document
             </label>
@@ -3511,6 +3642,18 @@ const CashInOutTable = () => {
                   ))}
                 </div>
               )}
+          </div>
+          <div>
+            <label className="block text-sm text-slate-600 mb-1">Ref No</label>
+            <input
+              type="text"
+              value={createProduct.refNo || ""}
+              onChange={(e) =>
+                setCreateProduct({ ...createProduct, refNo: e.target.value })
+              }
+              className="h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 bg-white"
+              placeholder="Reference number"
+            />
           </div>
           <div>
             <label className="block text-sm text-slate-600 mb-1">

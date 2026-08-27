@@ -2,9 +2,11 @@ import { motion } from "framer-motion";
 import {
   ChevronLeft,
   ChevronRight,
+  Download,
   Edit,
   Notebook,
   Plus,
+  Printer,
   ShoppingBasket,
   Trash2,
   X,
@@ -15,18 +17,64 @@ import Select from "react-select";
 
 import Modal from "../common/Modal";
 import DateRangeFilter from "../common/DateRangeFilter";
+import ReportPreviewModal from "../cashIn/ReportPreviewModal";
 import { useLayout } from "../../context/LayoutContext";
 import { translations } from "../../utils/translations";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 import {
   useDeleteManufactureMutation,
   useGetAllManufactureQuery,
+  useLazyGetAllManufactureQuery,
   useInsertManufactureMutation,
   useUpdateManufactureMutation,
 } from "../../features/manufacture/manufacture";
 import { useInsertSupplierHistoryMutation } from "../../features/supplierHistory/supplierHistory";
 import { useGetAllItemWithoutQueryQuery } from "../../features/item/item";
 import { useGetAllSupplierWithoutQueryQuery } from "../../features/supplier/supplier";
+import { useGetAllLogoQuery } from "../../features/logo/logo";
+import { buildAssetUrl } from "../../utils/pdfBranding";
+import { generateItemPurchaseHistoryPdf } from "../../utils/report/generateItemPurchaseHistoryPdf";
+
+const REPORT_ROW_LIMIT = 5000;
+
+const EMPTY_REPORT_PREVIEW = {
+  open: false,
+  loading: false,
+  autoPrint: false,
+  blobUrl: "",
+  title: "Item Purchase History",
+  downloadName: "item-purchase-history.pdf",
+};
+
+const readStoredUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem("authUser") || "null");
+  } catch {
+    return null;
+  }
+};
+
+const getReportUserName = () => {
+  const user = readStoredUser();
+  const fullName = `${user?.FirstName || ""} ${user?.LastName || ""}`.trim();
+
+  return (
+    fullName ||
+    user?.Name ||
+    user?.name ||
+    user?.Email ||
+    user?.email ||
+    localStorage.getItem("role") ||
+    "Unknown"
+  );
+};
+
+const formatReportDate = (value) => {
+  if (!value) return "";
+  const parts = String(value).slice(0, 10).split("-");
+  if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  return String(value);
+};
 
 const createItemLine = () => ({
   itemId: "",
@@ -269,6 +317,29 @@ const ManufactureTable = () => {
   const { data, isLoading, isError, error, refetch } =
     useGetAllManufactureQuery(queryArgs);
 
+  const [fetchAllManufacture] = useLazyGetAllManufactureQuery();
+  const { data: logoData } = useGetAllLogoQuery();
+  const logoUrl = buildAssetUrl(logoData?.data?.file);
+  const [reportPreview, setReportPreview] = useState(EMPTY_REPORT_PREVIEW);
+
+  const closeReportPreview = () => {
+    if (reportPreview.blobUrl) URL.revokeObjectURL(reportPreview.blobUrl);
+    setReportPreview(EMPTY_REPORT_PREVIEW);
+  };
+
+  const getReportMetadata = () => ({
+    duration:
+      startDate && endDate
+        ? `${formatReportDate(startDate)} - ${formatReportDate(endDate)}`
+        : startDate
+          ? `From ${formatReportDate(startDate)}`
+          : endDate
+            ? `Until ${formatReportDate(endDate)}`
+            : "All Data",
+    generatedBy: getReportUserName(),
+    generatedAt: new Date().toLocaleString(),
+  });
+
   // useEffect(() => {
   //   if (isError) {
   //     console.error("Error fetching received product data", error);
@@ -337,6 +408,62 @@ const ManufactureTable = () => {
 
   const getDisplayedTotalCost = (unitCost, unitValue) =>
     Number(unitCost || 0) * Number(unitValue || 0);
+
+  const handleGenerateReport = async (autoPrint) => {
+    setReportPreview({
+      ...EMPTY_REPORT_PREVIEW,
+      open: true,
+      loading: true,
+      autoPrint,
+    });
+
+    try {
+      const args = {
+        page: 1,
+        limit: REPORT_ROW_LIMIT,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        itemId: itemId || undefined,
+        name: itemId ? undefined : itemName || undefined,
+      };
+
+      Object.keys(args).forEach((key) => {
+        if (args[key] === undefined || args[key] === null || args[key] === "") {
+          delete args[key];
+        }
+      });
+
+      const result = await fetchAllManufacture(args).unwrap();
+      const reportRows = (result?.data || []).map((rp) => ({
+        date: rp.date || "-",
+        product: resolveItemName(rp),
+        supplier: rp.item?.supplier?.name || rp.supplier?.name || "N/A",
+        unitValue: Number(rp.unitValue || 0),
+        unit: rp.unit || "Pcs",
+        unitCost: getUnitCost(rp),
+      }));
+
+      if (!reportRows.length) {
+        toast.error("No data found for this filter");
+        closeReportPreview();
+        return;
+      }
+
+      const blob = await generateItemPurchaseHistoryPdf({
+        rows: reportRows,
+        title: "Item Purchase History",
+        metadata: getReportMetadata(),
+        logoUrl,
+      });
+
+      const url = URL.createObjectURL(blob);
+      setReportPreview((prev) => ({ ...prev, loading: false, blobUrl: url }));
+    } catch (err) {
+      console.error("Item Purchase History PDF generation failed:", err);
+      toast.error("Failed to generate report PDF");
+      closeReportPreview();
+    }
+  };
 
   const updateCreateItem = (index, changes) => {
     setCreateProduct((prev) => ({
@@ -677,6 +804,23 @@ const ManufactureTable = () => {
                   : `৳${totalPurchaseAmount.toLocaleString("en-US")}`}
               </div>
             </div>
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => handleGenerateReport(false)}
+              className="inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white transition-all px-4 py-3 rounded-2xl text-sm font-bold active:scale-95"
+            >
+              <Download size={16} /> PDF Download
+            </button>
+            <button
+              type="button"
+              onClick={() => handleGenerateReport(true)}
+              className="inline-flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-60 text-white transition-all px-4 py-3 rounded-2xl text-sm font-bold active:scale-95"
+            >
+              <Printer size={16} /> Print
+            </button>
           </div>
 
           <button
@@ -1558,6 +1702,17 @@ const ManufactureTable = () => {
           </div>
         </div>
       </Modal>
+
+      <ReportPreviewModal
+        open={reportPreview.open}
+        onClose={closeReportPreview}
+        type="pdf"
+        blobUrl={reportPreview.blobUrl}
+        loading={reportPreview.loading}
+        title={reportPreview.title}
+        downloadName={reportPreview.downloadName}
+        autoPrint={reportPreview.autoPrint}
+      />
     </motion.div>
   );
 };

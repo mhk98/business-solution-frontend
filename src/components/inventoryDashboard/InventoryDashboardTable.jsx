@@ -14,6 +14,22 @@ const formatMoney = (value) => {
   })}`;
 };
 
+const getUnitPrice = (value) => Number(value || 0);
+
+const getVariantDisplayRows = (variants) => {
+  const list = Array.isArray(variants) ? variants : [];
+
+  return list
+    .filter((item) => item && (item.size || item.color || item.quantity))
+    .map((item) => ({
+      size: item?.size ? String(item.size) : "",
+      color: item?.color ? String(item.color) : "",
+      quantity: Number(item?.quantity) || 0,
+      purchase_price: Number(item?.purchase_price) || 0,
+      sale_price: Number(item?.sale_price) || 0,
+    }));
+};
+
 const getNumberValue = (...values) => {
   for (const value of values) {
     const numberValue = Number(value);
@@ -372,6 +388,18 @@ const InventoryOverviewTable = () => {
                 <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                   Quantity
                 </th>
+
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                  Purchase Price
+                </th>
+
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                  Sale Price
+                </th>
+
+                <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                  Variants
+                </th>
               </tr>
             </thead>
 
@@ -379,7 +407,7 @@ const InventoryOverviewTable = () => {
               {isLoading &&
                 Array.from({ length: 6 }).map((_, i) => (
                   <tr key={i} className="animate-pulse">
-                    {[...Array(4)].map((__, j) => (
+                    {[...Array(7)].map((__, j) => (
                       <td key={j} className="px-6 py-4">
                         <div className="h-4 rounded-lg bg-slate-100" />
                       </td>
@@ -387,34 +415,117 @@ const InventoryOverviewTable = () => {
                   </tr>
                 ))}
               {!isLoading &&
-                rows.map((rp) => (
-                  <motion.tr
-                    key={rp.Id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 0.2 }}
-                    className="hover:bg-slate-50"
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
-                      {rp.date}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-900">
-                      {rp.name || "-"}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-900">
-                      {getInventorySourceLabel(rp.source)}
-                    </td>
+                rows.map((rp) => {
+                  const variantDisplayRows = getVariantDisplayRows(
+                    rp.variants,
+                  );
+                  const hasVariants = variantDisplayRows.length > 0;
+                  const unitPurchasePrice = getUnitPrice(rp.unitPurchasePrice);
+                  const unitSalePrice = getUnitPrice(rp.unitSalePrice);
 
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                      {Number(rp.quantity || 0)}
-                    </td>
-                  </motion.tr>
-                ))}
+                  return (
+                    <motion.tr
+                      key={rp.Id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ duration: 0.2 }}
+                      className="hover:bg-slate-50"
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
+                        {rp.date}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-900">
+                        {rp.name || "-"}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-900">
+                        {getInventorySourceLabel(rp.source)}
+                      </td>
+
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                        {Number(rp.quantity || 0)}
+                      </td>
+
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {hasVariants ? (
+                          <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-500">
+                            Variant wise
+                          </span>
+                        ) : (
+                          <span className="text-sm font-semibold text-slate-900 tabular-nums">
+                            {formatMoney(unitPurchasePrice)}
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {hasVariants ? (
+                          <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-500">
+                            Variant wise
+                          </span>
+                        ) : (
+                          <span className="text-sm font-semibold text-slate-900 tabular-nums">
+                            {formatMoney(unitSalePrice)}
+                          </span>
+                        )}
+                      </td>
+
+                      <td className="px-6 py-4 min-w-[300px]">
+                        {hasVariants ? (
+                          <div className="flex flex-wrap gap-2">
+                            {variantDisplayRows.map((variant, index) => (
+                              <div
+                                key={`${rp.Id}-variant-${index}`}
+                                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2"
+                              >
+                                <div className="flex items-center gap-2 text-[11px] font-bold text-slate-800">
+                                  <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[10px] uppercase tracking-wide text-white">
+                                    {variant.size || "N/A"}
+                                  </span>
+                                  <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] uppercase tracking-wide text-indigo-700">
+                                    {variant.color || "N/A"}
+                                  </span>
+                                </div>
+                                <div className="mt-1.5 text-[11px] font-medium text-slate-500">
+                                  Qty{" "}
+                                  <span className="font-bold text-slate-900">
+                                    {variant.quantity}
+                                  </span>
+                                </div>
+                                <div className="mt-1.5 grid grid-cols-2 gap-2 text-[10px] font-semibold">
+                                  <div className="rounded-lg bg-emerald-50 px-2 py-1 text-emerald-700">
+                                    <span className="block uppercase tracking-wide text-emerald-500">
+                                      Buy
+                                    </span>
+                                    {formatMoney(
+                                      variant.purchase_price || unitPurchasePrice,
+                                    )}
+                                  </div>
+                                  <div className="rounded-lg bg-sky-50 px-2 py-1 text-sky-700">
+                                    <span className="block uppercase tracking-wide text-sky-500">
+                                      Sell
+                                    </span>
+                                    {formatMoney(
+                                      variant.sale_price || unitSalePrice,
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full border border-dashed border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] font-semibold text-slate-400">
+                            No variants
+                          </span>
+                        )}
+                      </td>
+                    </motion.tr>
+                  );
+                })}
 
               {!isLoading && rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={3}
+                    colSpan={7}
                     className="px-6 py-10 text-center text-sm text-slate-500"
                   >
                     No data found

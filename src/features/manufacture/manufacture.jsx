@@ -81,6 +81,7 @@ export const manufactureApi = baseApi.injectEndpoints({
 export const {
   useInsertManufactureMutation,
   useGetAllManufactureQuery,
+  useLazyGetAllManufactureQuery,
   useDeleteManufactureMutation,
   useUpdateManufactureMutation,
   useGetAllManufactureWithoutQueryQuery,

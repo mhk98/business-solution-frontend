@@ -35,6 +35,8 @@ import {
   RefreshCcw,
   ReceiptText,
   BookMarked,
+  ArrowLeftRight,
+  PiggyBank,
   BadgePercent,
   BadgeCheck,
   CircleDollarSign,
@@ -47,6 +49,7 @@ import {
   Fingerprint,
   TrendingUp,
   Tags,
+  CalendarRange,
 } from "lucide-react";
 import {
   REPORT_PERMISSION_KEYS,
@@ -133,7 +136,10 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "accounting_overview",
     "accounting_supplier",
     "book",
+    "monthly_reporting_book",
     "category",
+    "fund_transfer",
+    "account_balance",
     "petty_cash_requisition",
     "petty_cash",
     "loan",
@@ -238,7 +244,10 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "accounting_overview",
     "accounting_supplier",
     "book",
+    "monthly_reporting_book",
     "category",
+    "fund_transfer",
+    "account_balance",
     "petty_cash_requisition",
     "petty_cash",
     "loan",
@@ -359,7 +368,10 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "accounting_overview",
     "accounting_supplier",
     "book",
+    "monthly_reporting_book",
     "category",
+    "fund_transfer",
+    "account_balance",
     "petty_cash_requisition",
     "petty_cash",
     "loan",
@@ -932,10 +944,33 @@ export const SIDEBAR_ITEMS = [
         roles: ["superAdmin", "admin", "accountant"],
       },
       {
+        name: "Monthly Reporting Book",
+        key: "monthly_reporting_book",
+        icon: CalendarRange,
+        href: "/monthly-reporting-book",
+        matchPaths: ["/monthly-reporting-book/transactions"],
+        roles: ["superAdmin", "admin", "accountant"],
+        masterOnly: true,
+      },
+      {
         name: "Bank",
         key: "bank_account",
         icon: WalletCards,
         href: "/bank-account",
+        roles: ["superAdmin", "admin", "accountant"],
+      },
+      {
+        name: "Fund Transfer",
+        key: "fund_transfer",
+        icon: ArrowLeftRight,
+        href: "/fund-transfer",
+        roles: ["superAdmin", "admin", "accountant"],
+      },
+      {
+        name: "Account Balance",
+        key: "account_balance",
+        icon: PiggyBank,
+        href: "/account-balance",
         roles: ["superAdmin", "admin", "accountant"],
       },
       {
@@ -960,7 +995,7 @@ export const SIDEBAR_ITEMS = [
         roles: ["superAdmin", "admin", "accountant"],
       },
       {
-        name: "Loan History",
+        name: "Lender",
         key: "loan",
         icon: HandCoins,
         href: "/loan",
@@ -976,10 +1011,11 @@ export const SIDEBAR_ITEMS = [
         roles: ["superAdmin", "admin", "accountant"],
       },
       {
-        name: "Owner Transaction",
-        key: "owner_transaction",
-        icon: WalletCards,
-        href: "/owner-transaction",
+        name: "Director Profit Share",
+        key: "director_profit_share",
+        icon: User,
+        href: "/director-profit-share",
+        matchPaths: ["/director-profit-share/"],
         roles: ["superAdmin", "admin", "accountant"],
       },
       {
@@ -1823,6 +1859,14 @@ const normalizeRolePermissionMap = (value) => {
 
     if (defaultKeys.includes("owner")) {
       normalizedKeys.add("owner");
+    }
+
+    if (defaultKeys.includes("director_profit_share")) {
+      normalizedKeys.add("director_profit_share");
+    }
+
+    if (defaultKeys.includes("director_profit_share_transaction")) {
+      normalizedKeys.add("director_profit_share_transaction");
     }
 
     if (defaultKeys.includes("cs_work_reports")) {

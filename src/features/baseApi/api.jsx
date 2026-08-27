@@ -94,6 +94,8 @@ export const baseApi = createApi({
     "MasterPermission",
     "ApiGateway",
     "Attendance",
+    "FundTransfer",
+    "AccountBalance",
   ],
 
   endpoints: () => ({}),

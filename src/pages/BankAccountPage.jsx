@@ -152,6 +152,9 @@ const BankAccountPage = () => {
                     Account Number
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    Balance
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-600">
                     Actions
                   </th>
                 </tr>
@@ -169,6 +172,12 @@ const BankAccountPage = () => {
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-700">
                       {row.accountNumber}
+                    </td>
+                    <td className="px-6 py-4 text-right text-sm font-semibold text-slate-900">
+                      {Number(row.balance || 0).toLocaleString("en-US", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex justify-end gap-2">

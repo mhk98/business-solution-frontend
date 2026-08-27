@@ -164,7 +164,7 @@ const LoanTable = () => {
     try {
       const XLSX = await import("xlsx");
       const worksheetRows = [
-        { Field: "Report", Value: "Loan History" },
+        { Field: "Report", Value: "Lender History" },
         { Field: "Date Range", Value: dateRangeLabel },
         { Field: "Total Loan নিয়েছি", Value: exportSummary.totalLoanTaken },
         { Field: "Total পরিশোধ", Value: exportSummary.totalLoanPaid },
@@ -176,7 +176,7 @@ const LoanTable = () => {
         skipHeader: false,
       });
       const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Loan History");
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Lender History");
       XLSX.writeFile(workbook, getExportFileName("xlsx"));
     } catch (err) {
       toast.error("Google Sheet download failed.");
@@ -192,7 +192,7 @@ const LoanTable = () => {
       const doc = new jsPDF({ orientation: "landscape" });
 
       doc.setFontSize(16);
-      doc.text("Loan History", 14, 16);
+      doc.text("Lender History", 14, 16);
       doc.setFontSize(10);
       doc.text(`Date Range: ${dateRangeLabel}`, 14, 23);
       doc.text(`Total Loan: ${formatAmount(exportSummary.totalLoanTaken)}`, 14, 30);
@@ -248,7 +248,7 @@ const LoanTable = () => {
       <!doctype html>
       <html>
         <head>
-          <title>Loan History</title>
+          <title>Lender History</title>
           <style>
             body { font-family: Arial, sans-serif; color: #0f172a; padding: 24px; }
             h1 { font-size: 22px; margin: 0 0 6px; }
@@ -264,7 +264,7 @@ const LoanTable = () => {
           </style>
         </head>
         <body>
-          <h1>Loan History</h1>
+          <h1>Lender History</h1>
           <p class="muted">Date Range: ${escapeHtml(dateRangeLabel)}</p>
           <div class="summary">
             <div><span>Total Loan নিয়েছি</span><strong>${escapeHtml(formatAmount(exportSummary.totalLoanTaken))}</strong></div>

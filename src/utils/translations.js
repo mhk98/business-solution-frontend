@@ -83,6 +83,7 @@ export const translations = {
     payment_status_label: "Payment Status",
     bank_name: "Bank Name",
     bank_account: "Bank Account",
+    monthly_reporting_book: "Monthly Reporting Book",
     per_page_label: "Per Page",
     // Page Titles
     employee_salary_calculation: "Employee Salary Calculation",
@@ -487,6 +488,7 @@ export const translations = {
     payment_status_label: "পেমেন্ট অবস্থা",
     bank_name: "ব্যাংকের নাম",
     bank_account: "ব্যাংক অ্যাকাউন্ট",
+    monthly_reporting_book: "মাসিক রিপোর্টিং বুক",
     per_page_label: "প্রতি পেজে",
     // Page Titles (BN)
     employee_salary_calculation: "কর্মচারী বেতন গণনা",

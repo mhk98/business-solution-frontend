@@ -182,6 +182,9 @@ import { noticeApi } from "../features/notice/notice";
 import { taskApi } from "../features/task/task";
 import { chargeSettingApi } from "../features/chargeSetting/chargeSetting";
 import { ownerTransactionApi } from "../features/ownerTransaction/ownerTransaction";
+import { directorProfitShareApi } from "../features/ownerTransaction/directorProfitShare";
+import { monthlyReportingBookApi } from "../features/monthlyReportingBook/monthlyReportingBook";
+import { companyInfoApi } from "../features/companyInfo/companyInfo";
 
 // ✅ 1) Collect all apis once
 const apis = [
@@ -211,6 +214,8 @@ const apis = [
   expenseApi,
   bookApi,
   cashInOutApi,
+  monthlyReportingBookApi,
+  companyInfoApi,
   marketingBookApi,
   marketingExpenseApi,
   profitLossApi,
@@ -226,6 +231,7 @@ const apis = [
   supplierApi,
   loanApi,
   ownerTransactionApi,
+  directorProfitShareApi,
   supplierHistoryApi,
   wirehouseApi,
   warrantyroductApi,

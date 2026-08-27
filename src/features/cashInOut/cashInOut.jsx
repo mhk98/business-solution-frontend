@@ -1,6 +1,34 @@
 
 
 import { baseApi } from "../baseApi/api";
+import { ownerTransactionApi } from "../ownerTransaction/ownerTransaction";
+import { directorProfitShareApi } from "../ownerTransaction/directorProfitShare";
+import { loanApi } from "../loan/loan";
+import { bookApi } from "../book/book";
+import { bankAccountApi } from "../bankAccount/bankAccount";
+
+// A Cash In/Out entry with Party Type "Owner" or "Lender" also affects an
+// OwnerTransaction row or a Loan's balance, but those live in separate RTK
+// Query caches (ownerTransactionApi, loanApi). Invalidate them here so
+// Owner / Owner History / Lender pages refresh without a manual reload.
+const invalidateCrossApiCaches = async (dispatch, queryFulfilled) => {
+  try {
+    await queryFulfilled;
+    dispatch(ownerTransactionApi.util.invalidateTags(["Owner", "OwnerTransaction"]));
+    dispatch(
+      directorProfitShareApi.util.invalidateTags([
+        "Director",
+        "DirectorProfitShare",
+      ]),
+    );
+    dispatch(loanApi.util.invalidateTags(["loan"]));
+    // CashInOut's Bank/Cash entries feed into computed Bank/Cash balances.
+    dispatch(bookApi.util.invalidateTags(["book"]));
+    dispatch(bankAccountApi.util.invalidateTags(["bankAccount"]));
+  } catch {
+    // request failed; nothing to invalidate
+  }
+};
 
 export const cashInOutApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
@@ -11,10 +39,14 @@ export const cashInOutApi = baseApi.injectEndpoints({
         body: data,
       }),
       invalidatesTags: [
-        { type: "CashInOut", id: "LIST" },
+        { type: "CashInOut" },
         { type: "SupplierHistory", id: "LIST" },
         { type: "Overview", id: "LIST" },
+        { type: "Overview", id: "DASHBOARD" },
+        { type: "AccountBalance", id: "SUMMARY" },
       ],
+      onQueryStarted: (arg, { dispatch, queryFulfilled }) =>
+        invalidateCrossApiCaches(dispatch, queryFulfilled),
     }),
 
     updateCashInOut: build.mutation({
@@ -25,10 +57,14 @@ export const cashInOutApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: (res, err, arg) => [
         { type: "CashInOut", id: arg.id },
-        { type: "CashInOut", id: "LIST" },
+        { type: "CashInOut" },
         { type: "SupplierHistory", id: "LIST" },
         { type: "Overview", id: "LIST" },
+        { type: "Overview", id: "DASHBOARD" },
+        { type: "AccountBalance", id: "SUMMARY" },
       ],
+      onQueryStarted: (arg, { dispatch, queryFulfilled }) =>
+        invalidateCrossApiCaches(dispatch, queryFulfilled),
     }),
 
     deleteCashInOut: build.mutation({
@@ -46,11 +82,15 @@ export const cashInOutApi = baseApi.injectEndpoints({
         const id = arg?.id ?? arg;
         return [
           { type: "CashInOut", id },
-          { type: "CashInOut", id: "LIST" },
+          { type: "CashInOut" },
           { type: "SupplierHistory", id: "LIST" },
           { type: "Overview", id: "LIST" },
+          { type: "Overview", id: "DASHBOARD" },
+          { type: "AccountBalance", id: "SUMMARY" },
         ];
       },
+      onQueryStarted: (arg, { dispatch, queryFulfilled }) =>
+        invalidateCrossApiCaches(dispatch, queryFulfilled),
     }),
 
     getAllCashInOut: build.query({
@@ -70,6 +110,7 @@ export const cashInOutApi = baseApi.injectEndpoints({
           voucherNo,
           bookId,
           supplierId,
+          directorId,
         } = arg;
 
         const params = {
@@ -87,6 +128,7 @@ export const cashInOutApi = baseApi.injectEndpoints({
           loanId,
           voucherNo,
           supplierId,
+          directorId,
         };
 
         Object.keys(params).forEach((k) => {

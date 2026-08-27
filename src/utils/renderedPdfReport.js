@@ -12,12 +12,12 @@ const REPORT_COLUMNS = [
 ];
 
 const ROWS_PER_PAGE = 16;
-const PAGE_WIDTH = 794;
+export const PAGE_WIDTH = 794;
 const PAGE_HEIGHT = 1123;
 
 let embeddedFontPromise = null;
 
-const escapeHtml = (value) =>
+export const escapeHtml = (value) =>
   String(value ?? "-")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -35,7 +35,7 @@ const getDocumentName = (filePath) => {
 const hasNumberValue = (value) =>
   value !== undefined && value !== null && value !== "";
 
-const formatAmount = (value) =>
+export const formatAmount = (value) =>
   Number(value || 0).toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -117,7 +117,7 @@ const assetToDataUrl = async (url) => {
   });
 };
 
-const safeAssetToDataUrl = async (url) => {
+export const safeAssetToDataUrl = async (url) => {
   if (!url) return "";
   if (url.startsWith("data:")) return url;
 
@@ -160,7 +160,7 @@ const safeAssetToDataUrl = async (url) => {
   }
 };
 
-const getEmbeddedFonts = () => {
+export const getEmbeddedFonts = () => {
   if (!embeddedFontPromise) {
     embeddedFontPromise = Promise.all([
       assetToDataUrl(notoSansBengaliRegularUrl),

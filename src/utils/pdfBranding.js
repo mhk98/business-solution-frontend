@@ -1,4 +1,4 @@
-export const DEFAULT_COMPANY_NAME = "KAFELA MART";
+export const DEFAULT_COMPANY_NAME = "Kafela Mart";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "";
 

@@ -1,4 +1,5 @@
-import { X } from "lucide-react";
+import { useRef } from "react";
+import { Printer, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const ReportPreviewModal = ({
@@ -8,15 +9,26 @@ const ReportPreviewModal = ({
   blobUrl,
   sheetPreview, // { title?, header:[], rows:[] }
   loading = false,
+  title: titleProp,
+  downloadName: downloadNameProp,
+  autoPrint = false,
 }) => {
-  if (!open) return null;
+  const iframeRef = useRef(null);
+  const hasAutoPrintedRef = useRef(false);
+
+  if (!open) {
+    hasAutoPrintedRef.current = false;
+    return null;
+  }
 
   const title =
+    titleProp ||
     sheetPreview?.title ||
     (type === "pdf" ? "PDF Report Preview" : "Sheet Report Preview");
 
   const downloadName =
-    type === "pdf" ? "cash-in-out-report.pdf" : "cash-in-out-report.xlsx";
+    downloadNameProp ||
+    (type === "pdf" ? "cash-in-out-report.pdf" : "cash-in-out-report.xlsx");
 
   const handleDownload = () => {
     if (!blobUrl) return;
@@ -26,6 +38,21 @@ const ReportPreviewModal = ({
     document.body.appendChild(a);
     a.click();
     a.remove();
+  };
+
+  const handlePrint = () => {
+    try {
+      iframeRef.current?.contentWindow?.print();
+    } catch (e) {
+      window.open(blobUrl, "_blank");
+    }
+  };
+
+  const handleIframeLoad = () => {
+    if (autoPrint && !hasAutoPrintedRef.current) {
+      hasAutoPrintedRef.current = true;
+      handlePrint();
+    }
   };
 
   return (
@@ -70,10 +97,21 @@ const ReportPreviewModal = ({
           {/* Top Bar */}
           <div className="sticky top-0 z-50 flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-900">
             <div className="text-white font-semibold text-sm md:text-base truncate max-w-[60%]">
-              {type === "sheet" ? title : "PDF Preview"}
+              {type === "sheet" ? title : titleProp || "PDF Preview"}
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
+              {type === "pdf" && (
+                <button
+                  disabled={!blobUrl || loading}
+                  onClick={handlePrint}
+                  className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-white text-xs md:text-sm disabled:opacity-50"
+                >
+                  <Printer size={14} />
+                  Print
+                </button>
+              )}
+
               <button
                 disabled={!blobUrl || loading}
                 onClick={handleDownload}
@@ -103,9 +141,11 @@ const ReportPreviewModal = ({
             {!loading && type === "pdf" && blobUrl && (
               // ✅ PDF viewer (white page will show automatically)
               <iframe
+                ref={iframeRef}
                 title="pdf-preview"
                 src={blobUrl}
                 className="w-full h-full"
+                onLoad={handleIframeLoad}
               />
             )}
 

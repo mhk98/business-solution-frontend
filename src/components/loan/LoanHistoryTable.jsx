@@ -44,8 +44,8 @@ const LoanHistoryTable = () => {
     >
       <div className="mb-5 flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm text-slate-500">Loan History</p>
-          <h2 className="text-xl font-semibold text-slate-900">{loanName || "Loan"}</h2>
+          <p className="text-sm text-slate-500">Lender History</p>
+          <h2 className="text-xl font-semibold text-slate-900">{loanName || "Lender"}</h2>
         </div>
         <Link to="/loan" className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
           Back

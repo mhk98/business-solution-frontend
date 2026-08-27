@@ -33,6 +33,8 @@ const AccountingPage = lazy(() => import("./pages/AccountingPage"));
 const AccountingCategoryPage = lazy(() => import("./pages/AccountingCategoryPage"));
 const AccountingOverviewPage = lazy(() => import("./pages/AccountingOverviewPage"));
 const BankAccountPage = lazy(() => import("./pages/BankAccountPage"));
+const FundTransferPage = lazy(() => import("./pages/FundTransferPage"));
+const AccountBalancePage = lazy(() => import("./pages/AccountBalancePage"));
 const CashInOutPage = lazy(() => import("./pages/CashInOutPage"));
 const PurchaseReturnProductPage = lazy(() => import("./pages/PurchaseReturnProductPage"));
 const ReceiveablePage = lazy(() => import("./pages/ReceiveablePage"));
@@ -66,6 +68,8 @@ const PosReportPage = lazy(() => import("./pages/PosReportPage"));
 const InventoryOverviewPage = lazy(() => import("./pages/InventoryOverviewPage"));
 const StockAlertPage = lazy(() => import("./pages/StockAlertPage"));
 const MarketingBookPage = lazy(() => import("./pages/MarketingBookPage"));
+const MonthlyReportingBookPage = lazy(() => import("./pages/MonthlyReportingBookPage"));
+const MonthlyReportingBookTransactionsPage = lazy(() => import("./pages/MonthlyReportingBookTransactionsPage"));
 const MarketingExpensePage = lazy(() => import("./pages/MarketingExpensePage"));
 const PerformanceTrackerPage = lazy(() => import("./pages/PerformanceTrackerPage"));
 const AdsCampaignKPIPage = lazy(() => import("./pages/AdsCampaignKPIPage"));
@@ -80,7 +84,8 @@ const LoanPage = lazy(() => import("./pages/LoanPage"));
 const LoanHistoryPage = lazy(() => import("./pages/LoanHistoryPage"));
 const OwnerPage = lazy(() => import("./pages/OwnerPage"));
 const OwnerHistoryPage = lazy(() => import("./pages/OwnerHistoryPage"));
-const OwnerTransactionPage = lazy(() => import("./pages/OwnerTransactionPage"));
+const DirectorProfitSharePage = lazy(() => import("./pages/DirectorProfitSharePage"));
+const DirectorProfitShareHistoryPage = lazy(() => import("./pages/DirectorProfitShareHistoryPage"));
 const CreditLedgerPage = lazy(() => import("./pages/CreditLedgerPage"));
 const LogHistoryPage = lazy(() => import("./pages/LogHistoryPage"));
 const ManufacturePage = lazy(() => import("./pages/ManufacturePage"));
@@ -256,15 +261,20 @@ function App() {
                 <Route path="/loan/:lender" element={<AuthedRoute><LoanHistoryPage /></AuthedRoute>} />
                 <Route path="/owner" element={<AuthedRoute><OwnerPage /></AuthedRoute>} />
                 <Route path="/owner/:id" element={<AuthedRoute><OwnerHistoryPage /></AuthedRoute>} />
-                <Route path="/owner-transaction" element={<AuthedRoute><OwnerTransactionPage /></AuthedRoute>} />
+                <Route path="/director-profit-share" element={<AuthedRoute><DirectorProfitSharePage /></AuthedRoute>} />
+                <Route path="/director-profit-share/:id" element={<AuthedRoute><DirectorProfitShareHistoryPage /></AuthedRoute>} />
                 <Route path="/credit-ledger" element={<AuthedRoute><CreditLedgerPage /></AuthedRoute>} />
                 <Route path="/log-history" element={<AuthedRoute><LogHistoryPage /></AuthedRoute>} />
                 <Route path="/expense" element={<AuthedRoute><ExpensePage /></AuthedRoute>} />
                 <Route path="/accounting-overview" element={<AuthedRoute><AccountingOverviewPage /></AuthedRoute>} />
                 <Route path="/book" element={<AuthedRoute><AccountingPage /></AuthedRoute>} />
                 <Route path="/bank-account" element={<AuthedRoute><BankAccountPage /></AuthedRoute>} />
+                <Route path="/fund-transfer" element={<AuthedRoute><FundTransferPage /></AuthedRoute>} />
+                <Route path="/account-balance" element={<AuthedRoute><AccountBalancePage /></AuthedRoute>} />
                 <Route path="/category" element={<AuthedRoute><AccountingCategoryPage /></AuthedRoute>} />
                 <Route path="/book/:id" element={<AuthedRoute><CashInOutPage /></AuthedRoute>} />
+                <Route path="/monthly-reporting-book" element={<AuthedRoute><MonthlyReportingBookPage /></AuthedRoute>} />
+                <Route path="/monthly-reporting-book/transactions" element={<AuthedRoute><MonthlyReportingBookTransactionsPage /></AuthedRoute>} />
                 <Route path="/marketing-book" element={<AuthedRoute><MarketingBookPage /></AuthedRoute>} />
                 <Route path="/marketing-book/:id" element={<AuthedRoute><MarketingExpensePage /></AuthedRoute>} />
                 <Route path="/performance-tracker" element={<AuthedRoute><PerformanceTrackerPage /></AuthedRoute>} />

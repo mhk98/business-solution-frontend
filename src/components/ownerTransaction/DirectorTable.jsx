@@ -5,87 +5,87 @@ import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 import Select from "react-select";
 import {
-  useDeleteOwnerMutation,
-  useGetAllOwnerWithoutQueryQuery,
-  useInsertOwnerMutation,
-  useUpdateOwnerMutation,
-} from "../../features/ownerTransaction/ownerTransaction";
+  useDeleteDirectorMutation,
+  useGetAllDirectorWithoutQueryQuery,
+  useInsertDirectorMutation,
+  useUpdateDirectorMutation,
+} from "../../features/ownerTransaction/directorProfitShare";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 import Modal from "../common/Modal";
 
-const ownerEmptyForm = { name: "", note: "", status: "Active" };
+const directorEmptyForm = { name: "", note: "", status: "Active" };
 const formatAmount = (value) => `৳${Number(value || 0).toLocaleString()}`;
 
-const OwnerTable = () => {
+const DirectorTable = () => {
   const navigate = useNavigate();
-  const [selectedOwnerId, setSelectedOwnerId] = useState("");
-  const [ownerModalOpen, setOwnerModalOpen] = useState(false);
-  const [editingOwner, setEditingOwner] = useState(null);
-  const [ownerForm, setOwnerForm] = useState(ownerEmptyForm);
+  const [selectedDirectorId, setSelectedDirectorId] = useState("");
+  const [directorModalOpen, setDirectorModalOpen] = useState(false);
+  const [editingDirector, setEditingDirector] = useState(null);
+  const [directorForm, setDirectorForm] = useState(directorEmptyForm);
 
-  const { data: ownerRes, isLoading: ownersLoading } =
-    useGetAllOwnerWithoutQueryQuery();
-  const [insertOwner, { isLoading: creatingOwner }] = useInsertOwnerMutation();
-  const [updateOwner, { isLoading: updatingOwner }] = useUpdateOwnerMutation();
-  const [deleteOwner] = useDeleteOwnerMutation();
+  const { data: directorRes, isLoading: directorsLoading } =
+    useGetAllDirectorWithoutQueryQuery();
+  const [insertDirector, { isLoading: creatingDirector }] = useInsertDirectorMutation();
+  const [updateDirector, { isLoading: updatingDirector }] = useUpdateDirectorMutation();
+  const [deleteDirector] = useDeleteDirectorMutation();
 
-  const owners = ownerRes?.data || [];
-  const ownerSaving = creatingOwner || updatingOwner;
-  const ownerOptions = useMemo(
+  const directors = directorRes?.data || [];
+  const directorSaving = creatingDirector || updatingDirector;
+  const directorOptions = useMemo(
     () =>
-      owners.map((owner) => ({
-        value: String(owner.Id),
-        label: owner.name,
+      directors.map((director) => ({
+        value: String(director.Id),
+        label: director.name,
       })),
-    [owners],
+    [directors],
   );
-  const selectedOwnerOption =
-    ownerOptions.find((option) => option.value === String(selectedOwnerId)) ||
+  const selectedDirectorOption =
+    directorOptions.find((option) => option.value === String(selectedDirectorId)) ||
     null;
-  const visibleOwners = selectedOwnerId
-    ? owners.filter((owner) => String(owner.Id) === String(selectedOwnerId))
-    : owners;
+  const visibleDirectors = selectedDirectorId
+    ? directors.filter((director) => String(director.Id) === String(selectedDirectorId))
+    : directors;
 
-  const openOwnerCreate = () => {
-    setEditingOwner(null);
-    setOwnerForm(ownerEmptyForm);
-    setOwnerModalOpen(true);
+  const openDirectorCreate = () => {
+    setEditingDirector(null);
+    setDirectorForm(directorEmptyForm);
+    setDirectorModalOpen(true);
   };
 
-  const openOwnerEdit = (owner) => {
-    setEditingOwner(owner);
-    setOwnerForm({
-      name: owner.name || "",
-      note: owner.note || "",
-      status: owner.status || "Active",
+  const openDirectorEdit = (director) => {
+    setEditingDirector(director);
+    setDirectorForm({
+      name: director.name || "",
+      note: director.note || "",
+      status: director.status || "Active",
     });
-    setOwnerModalOpen(true);
+    setDirectorModalOpen(true);
   };
 
-  const closeOwnerModal = () => {
-    setOwnerModalOpen(false);
-    setEditingOwner(null);
-    setOwnerForm(ownerEmptyForm);
+  const closeDirectorModal = () => {
+    setDirectorModalOpen(false);
+    setEditingDirector(null);
+    setDirectorForm(directorEmptyForm);
   };
 
-  const handleOwnerSave = async (event) => {
+  const handleDirectorSave = async (event) => {
     event.preventDefault();
     const payload = {
-      name: ownerForm.name.trim(),
-      note: ownerForm.note.trim(),
-      status: ownerForm.status || "Active",
+      name: directorForm.name.trim(),
+      note: directorForm.note.trim(),
+      status: directorForm.status || "Active",
     };
-    if (!payload.name) return toast.error("Owner name is required!");
+    if (!payload.name) return toast.error("Director name is required!");
 
     try {
-      const res = editingOwner
-        ? await updateOwner({ id: editingOwner.Id, data: payload }).unwrap()
-        : await insertOwner(payload).unwrap();
+      const res = editingDirector
+        ? await updateDirector({ id: editingDirector.Id, data: payload }).unwrap()
+        : await insertDirector(payload).unwrap();
       if (res?.success) {
-        const savedOwnerId = res?.data?.Id || res?.data?.id || editingOwner?.Id;
-        if (savedOwnerId) setSelectedOwnerId(String(savedOwnerId));
-        toast.success(editingOwner ? "Owner updated!" : "Owner added!");
-        closeOwnerModal();
+        const savedDirectorId = res?.data?.Id || res?.data?.id || editingDirector?.Id;
+        if (savedDirectorId) setSelectedDirectorId(String(savedDirectorId));
+        toast.success(editingDirector ? "Director updated!" : "Director added!");
+        closeDirectorModal();
       } else {
         toast.error(res?.message || "Save failed!");
       }
@@ -94,18 +94,18 @@ const OwnerTable = () => {
     }
   };
 
-  const handleOwnerDelete = async (owner) => {
+  const handleDirectorDelete = async (director) => {
     const confirmed = await requestDeleteConfirmation({
-      title: "Delete owner?",
-      itemName: owner.name,
+      title: "Delete director?",
+      itemName: director.name,
     });
     if (!confirmed) return;
 
     try {
-      const res = await deleteOwner(owner.Id).unwrap();
+      const res = await deleteDirector(director.Id).unwrap();
       if (res?.success) {
-        if (String(selectedOwnerId) === String(owner.Id)) setSelectedOwnerId("");
-        toast.success("Owner deleted!");
+        if (String(selectedDirectorId) === String(director.Id)) setSelectedDirectorId("");
+        toast.success("Director deleted!");
       } else {
         toast.error(res?.message || "Delete failed!");
       }
@@ -114,15 +114,15 @@ const OwnerTable = () => {
     }
   };
 
-  const openOwnerHistory = (owner) => {
-    if (!owner?.Id) return;
-    navigate(`/owner/${owner.Id}`);
+  const openDirectorHistory = (director) => {
+    if (!director?.Id) return;
+    navigate(`/director-profit-share/${director.Id}`);
   };
 
-  const handleRowKeyDown = (event, owner) => {
+  const handleRowKeyDown = (event, director) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      openOwnerHistory(owner);
+      openDirectorHistory(director);
     }
   };
 
@@ -135,36 +135,36 @@ const OwnerTable = () => {
     >
       <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 md:flex-row md:items-center md:justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Owners</h2>
+          <h2 className="text-2xl font-bold text-slate-900">Directors</h2>
           <p className="text-sm text-slate-500">
             Create, edit, delete, and open transaction history.
           </p>
         </div>
         <button
           type="button"
-          onClick={openOwnerCreate}
+          onClick={openDirectorCreate}
           className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white hover:bg-indigo-700"
         >
           <Plus size={16} />
-          Add Owner
+          Add Director
         </button>
       </div>
 
       <div className="mt-5 max-w-xl">
         <div className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-slate-400">
           <Search size={14} />
-          Search Owner
+          Search Director
         </div>
         <Select
-          value={selectedOwnerOption}
+          value={selectedDirectorOption}
           onChange={(selected) =>
-            setSelectedOwnerId(selected?.value ? String(selected.value) : "")
+            setSelectedDirectorId(selected?.value ? String(selected.value) : "")
           }
-          options={ownerOptions}
-          placeholder={ownersLoading ? "Loading owners..." : "Search owner..."}
+          options={directorOptions}
+          placeholder={directorsLoading ? "Loading directors..." : "Search director..."}
           isClearable
           isSearchable
-          isLoading={ownersLoading}
+          isLoading={directorsLoading}
           styles={selectStyles}
           classNamePrefix="react-select"
         />
@@ -174,7 +174,9 @@ const OwnerTable = () => {
         <table className="min-w-full divide-y divide-slate-200">
           <thead className="bg-slate-50">
             <tr>
-              <TableHead>Owner Name</TableHead>
+              <TableHead>Director Name</TableHead>
+              <TableHead>Invest Amount</TableHead>
+              <TableHead>Profit Amount</TableHead>
               <TableHead>Balance</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Note</TableHead>
@@ -182,13 +184,13 @@ const OwnerTable = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
-            {visibleOwners.map((owner) => (
+            {visibleDirectors.map((director) => (
               <tr
-                key={owner.Id}
+                key={director.Id}
                 role="button"
                 tabIndex={0}
-                onClick={() => openOwnerHistory(owner)}
-                onKeyDown={(event) => handleRowKeyDown(event, owner)}
+                onClick={() => openDirectorHistory(director)}
+                onKeyDown={(event) => handleRowKeyDown(event, director)}
                 className="cursor-pointer hover:bg-slate-50 focus:outline-none focus-visible:bg-indigo-50"
               >
                 <td className="px-5 py-4">
@@ -196,19 +198,21 @@ const OwnerTable = () => {
                     <span className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-50 text-indigo-600">
                       <UserRound size={18} />
                     </span>
-                    {owner.name}
+                    {director.name}
                   </div>
                 </td>
-                <TableCell strong>{formatAmount(owner.netBalance)}</TableCell>
-                <TableCell>{owner.status || "Active"}</TableCell>
-                <TableCell>{owner.note || "---"}</TableCell>
+                <TableCell strong>{formatAmount(director.totalInvest)}</TableCell>
+                <TableCell strong>{formatAmount(director.totalProfit)}</TableCell>
+                <TableCell strong>{formatAmount(director.netBalance)}</TableCell>
+                <TableCell>{director.status || "Active"}</TableCell>
+                <TableCell>{director.note || "---"}</TableCell>
                 <td className="px-5 py-4">
                   <div className="flex justify-end gap-2">
                     <button
                       type="button"
                       onClick={(event) => {
                         event.stopPropagation();
-                        openOwnerEdit(owner);
+                        openDirectorEdit(director);
                       }}
                       className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-indigo-600 hover:bg-indigo-50"
                     >
@@ -218,7 +222,7 @@ const OwnerTable = () => {
                       type="button"
                       onClick={(event) => {
                         event.stopPropagation();
-                        handleOwnerDelete(owner);
+                        handleDirectorDelete(director);
                       }}
                       className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-rose-600 hover:bg-rose-50"
                     >
@@ -228,10 +232,10 @@ const OwnerTable = () => {
                 </td>
               </tr>
             ))}
-            {!ownersLoading && visibleOwners.length === 0 ? (
+            {!directorsLoading && visibleDirectors.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-6 py-10 text-center text-sm text-slate-500">
-                  No owner found
+                <td colSpan={7} className="px-6 py-10 text-center text-sm text-slate-500">
+                  No director found
                 </td>
               </tr>
             ) : null}
@@ -240,22 +244,22 @@ const OwnerTable = () => {
       </div>
 
       <Modal
-        isOpen={ownerModalOpen}
-        onClose={closeOwnerModal}
-        title={editingOwner ? "Edit Owner" : "Add Owner"}
+        isOpen={directorModalOpen}
+        onClose={closeDirectorModal}
+        title={editingDirector ? "Edit Director" : "Add Director"}
         maxWidth="max-w-lg"
       >
-        <form onSubmit={handleOwnerSave} className="space-y-4">
+        <form onSubmit={handleDirectorSave} className="space-y-4">
           <FormInput
-            label="Owner Name"
-            value={ownerForm.name}
-            onChange={(value) => setOwnerForm((p) => ({ ...p, name: value }))}
-            placeholder="Owner name"
+            label="Director Name"
+            value={directorForm.name}
+            onChange={(value) => setDirectorForm((p) => ({ ...p, name: value }))}
+            placeholder="Director name"
           />
           <FormSelect
             label="Status"
-            value={ownerForm.status}
-            onChange={(value) => setOwnerForm((p) => ({ ...p, status: value }))}
+            value={directorForm.status}
+            onChange={(value) => setDirectorForm((p) => ({ ...p, status: value }))}
             options={[
               { value: "Active", label: "Active" },
               { value: "Inactive", label: "Inactive" },
@@ -263,13 +267,13 @@ const OwnerTable = () => {
           />
           <FormTextarea
             label="Note"
-            value={ownerForm.note}
-            onChange={(value) => setOwnerForm((p) => ({ ...p, note: value }))}
+            value={directorForm.note}
+            onChange={(value) => setDirectorForm((p) => ({ ...p, note: value }))}
             placeholder="Optional note"
           />
           <ModalActions
-            onCancel={closeOwnerModal}
-            loading={ownerSaving}
+            onCancel={closeDirectorModal}
+            loading={directorSaving}
             submitLabel="Save"
           />
         </form>
@@ -396,4 +400,4 @@ const ModalActions = ({ onCancel, loading, submitLabel }) => (
   </div>
 );
 
-export default OwnerTable;
+export default DirectorTable;
