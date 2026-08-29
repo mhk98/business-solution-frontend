@@ -30,6 +30,11 @@ const formatRowDate = (value) => {
   return date && !Number.isNaN(date.getTime()) ? formatShortDate(date) : "-";
 };
 
+const formatQuantity = (value) =>
+  Number(value || 0).toLocaleString("en-US", {
+    maximumFractionDigits: 2,
+  });
+
 // A category's rows may span several days within the period — show the
 // span ("07/04/26-22/04/26") rather than just one transaction's date.
 const formatDateRangeLabel = (minDate, maxDate) => {
@@ -57,7 +62,11 @@ const groupTransactionsByCategory = (transactions = []) => {
       String(row.paymentStatus || "").toLowerCase() === "cashin"
         ? "credit"
         : "debit";
-    const key = row.categoryId ?? row.categoryInfo?.name ?? row.category ?? "uncategorized";
+    const key =
+      row.categoryId ??
+      row.categoryInfo?.name ??
+      row.category ??
+      "uncategorized";
     const groups = groupsByStatus[status];
     const parsedDate = row.date ? new Date(row.date) : null;
     const validDate =
@@ -75,8 +84,10 @@ const groupTransactionsByCategory = (transactions = []) => {
     const group = groups.get(key);
     group.amount += Number(row.amount || 0);
     if (validDate) {
-      if (!group.minDate || validDate < group.minDate) group.minDate = validDate;
-      if (!group.maxDate || validDate > group.maxDate) group.maxDate = validDate;
+      if (!group.minDate || validDate < group.minDate)
+        group.minDate = validDate;
+      if (!group.maxDate || validDate > group.maxDate)
+        group.maxDate = validDate;
     }
   });
 
@@ -107,7 +118,9 @@ const getFlatTransactionRows = (transactions = []) => {
   transactions.forEach((row) => {
     const parsedDate = row.date ? new Date(row.date) : null;
     const sortDate =
-      parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate.getTime() : 0;
+      parsedDate && !Number.isNaN(parsedDate.getTime())
+        ? parsedDate.getTime()
+        : 0;
 
     const isCredit = String(row.paymentStatus || "").toLowerCase() === "cashin";
     const entry = {
@@ -167,6 +180,95 @@ const DETAIL_COLUMNS = [
   { key: "category", label: "ক্যাটেগরি", widthPct: 17 },
   { key: "description", label: "বিবরণ", widthPct: 40 },
   { key: "amount", label: "পরিমান", widthPct: 20, isAmount: true },
+];
+
+const INVENTORY_STOCK_COLUMNS = [
+  { key: "sl", label: "#", widthPct: 5 },
+  { key: "productsName", label: "প্রোডাক্টস নাম", widthPct: 27 },
+  {
+    key: "stockProduct",
+    label: "স্টক প্রোডাক্ট",
+    widthPct: 12,
+    isQuantity: true,
+  },
+  {
+    key: "damageStock",
+    label: "ড্যামেজ স্টক",
+    widthPct: 12,
+    isQuantity: true,
+  },
+  {
+    key: "repairingStock",
+    label: "রিপেয়ারিং স্টক",
+    widthPct: 12,
+    isQuantity: true,
+  },
+  { key: "totalStock", label: "টোটাল স্টক", widthPct: 10, isQuantity: true },
+  {
+    key: "purchasePrice",
+    label: "পারচেস প্রাইস",
+    widthPct: 11,
+    isAmount: true,
+  },
+  {
+    key: "totalPurchaseCost",
+    label: "ক্লোজিং পারচেস কস্ট",
+    widthPct: 11,
+    isAmount: true,
+  },
+];
+
+// Builds the same wide-format column shape as INVENTORY_STOCK_COLUMNS
+// (# | name | ...sub-stock columns... | Total Stock | Purchase Price |
+// Closing Purchase Cost) for a stock pool with a different, generic name
+// column and a variable number of sub-stock columns (currently always 2:
+// Item/Factory or Packaging Item/Packaging Factory).
+const buildWideStockColumns = (subColumns) => {
+  const perSubWidthPct = subColumns.length === 3 ? 12 : 18;
+
+  return [
+    { key: "sl", label: "#", widthPct: 5 },
+    { key: "name", label: "নাম", widthPct: 27 },
+    ...subColumns.map((column) => ({
+      key: column.key,
+      label: column.label,
+      widthPct: perSubWidthPct,
+      isQuantity: true,
+    })),
+    { key: "totalStock", label: "টোটাল স্টক", widthPct: 10, isQuantity: true },
+    {
+      key: "purchasePrice",
+      label: "পারচেস প্রাইস",
+      widthPct: 11,
+      isAmount: true,
+    },
+    {
+      key: "totalPurchaseCost",
+      label: "ক্লোজিং পারচেস কস্ট",
+      widthPct: 11,
+      isAmount: true,
+    },
+  ];
+};
+
+const ITEM_FACTORY_STOCK_COLUMNS = buildWideStockColumns([
+  { key: "itemStock", label: "আইটেম স্টক" },
+  { key: "factoryStock", label: "ফ্যাক্টরি স্টক" },
+]);
+
+const PACKAGING_STOCK_COLUMNS = buildWideStockColumns([
+  { key: "packagingItemStock", label: "প্যাকেজিং আইটেম স্টক" },
+  { key: "packagingFactoryStock", label: "প্যাকেজিং ফ্যাক্টরি স্টক" },
+]);
+
+const ITEM_FACTORY_SUB_FIELDS = [
+  { closingKey: "itemStockClosing", key: "itemStock" },
+  { closingKey: "factoryStockClosing", key: "factoryStock" },
+];
+
+const PACKAGING_SUB_FIELDS = [
+  { closingKey: "packagingItemStockClosing", key: "packagingItemStock" },
+  { closingKey: "packagingFactoryStockClosing", key: "packagingFactoryStock" },
 ];
 
 const FRAGMENT_STYLES = `
@@ -298,9 +400,15 @@ const FRAGMENT_STYLES = `
   }
 
   .ledger-table .amount { text-align: right; }
+  .ledger-table .quantity { text-align: right; }
   .ledger-table .amount-credit { color: #15803d; }
   .ledger-table .amount-debit { color: #dc2626; }
   .ledger-table .empty { text-align: center; color: #94a3b8; }
+  .ledger-table .summary-row td {
+    font-weight: 700;
+    background: #e6f4ea;
+    color: #1f6b3a;
+  }
 
   .ledger-table tfoot td {
     font-weight: 700;
@@ -316,6 +424,7 @@ const buildCell = (tag, column, content, tone) => {
     if (tone === "credit") classes.push("amount-credit");
     if (tone === "debit") classes.push("amount-debit");
   }
+  if (column.isQuantity) classes.push("quantity");
   const cellClass = classes.length ? ` class="${classes.join(" ")}"` : "";
   return `<${tag} style="width:${column.widthPct}%;"${cellClass}>${content}</${tag}>`;
 };
@@ -325,12 +434,25 @@ const buildTableRows = (rows, startIndex, columns) =>
     .map((row, index) => {
       const cells = columns
         .map((column) => {
-          if (column.key === "sl") return buildCell("td", column, startIndex + index);
-          if (column.key === "amount") return buildCell("td", column, formatAmount(row.amount), row.tone);
+          if (column.key === "sl")
+            return buildCell(
+              "td",
+              column,
+              row.isTotal ? "" : startIndex + index,
+            );
+          if (column.isAmount)
+            return buildCell(
+              "td",
+              column,
+              formatAmount(row[column.key]),
+              row.tone,
+            );
+          if (column.isQuantity)
+            return buildCell("td", column, formatQuantity(row[column.key]));
           return buildCell("td", column, escapeHtml(row[column.key] ?? "-"));
         })
         .join("");
-      return `<tr>${cells}</tr>`;
+      return `<tr${row.isTotal ? ' class="summary-row"' : ""}>${cells}</tr>`;
     })
     .join("");
 
@@ -355,7 +477,14 @@ const buildLedgerHeadingFragment = (title) => `
 // on the final slice — so a row is never split across pages, and the header
 // re-appears whenever a section continues onto a new page. `columns` picks
 // between the category-summary layout and the per-transaction detail layout.
-const buildLedgerTableChunkFragment = ({ rows, startIndex, includeFooter, totalLabel, total, columns }) => `
+const buildLedgerTableChunkFragment = ({
+  rows,
+  startIndex,
+  includeFooter,
+  totalLabel,
+  total,
+  columns,
+}) => `
   <div class="frag">
     <table class="ledger-table">
       ${buildTableHead(columns)}
@@ -367,7 +496,7 @@ const buildLedgerTableChunkFragment = ({ rows, startIndex, includeFooter, totalL
         }
       </tbody>
       ${
-        includeFooter
+        includeFooter && totalLabel
           ? `<tfoot>
               <tr>
                 <td colspan="${columns.length - 1}">${escapeHtml(totalLabel)}</td>
@@ -380,10 +509,146 @@ const buildLedgerTableChunkFragment = ({ rows, startIndex, includeFooter, totalL
   </div>
 `;
 
+const normalizeInventoryStockRows = (inventoryStockReport) => {
+  if (!inventoryStockReport) return [];
+
+  const rows = inventoryStockReport.data || [];
+  if (!rows.length) return [];
+
+  const normalizedRows = rows
+    .map((row) => {
+      const stockProduct = Number(row.stockProductClosing || 0);
+      const damageStock = Number(row.damageStockClosing || 0);
+      const repairingStock = Number(row.repairingStockClosing || 0);
+      const totalStock = stockProduct + damageStock + repairingStock;
+      const purchasePrice = Number(
+        row.stockProductPurchasePrice ||
+          row.damageStockPurchasePrice ||
+          row.repairingStockPurchasePrice ||
+          0,
+      );
+
+      return {
+        productsName: row.productsName || "-",
+        stockProduct,
+        damageStock,
+        repairingStock,
+        totalStock,
+        purchasePrice,
+        totalPurchaseCost: totalStock * purchasePrice,
+      };
+    })
+    .filter(
+      (row) =>
+        row.stockProduct > 0 ||
+        row.damageStock > 0 ||
+        row.repairingStock > 0 ||
+        row.totalPurchaseCost > 0,
+    );
+
+  if (!normalizedRows.length) return [];
+
+  const total = normalizedRows.reduce(
+    (acc, row) => ({
+      stockProduct: acc.stockProduct + row.stockProduct,
+      damageStock: acc.damageStock + row.damageStock,
+      repairingStock: acc.repairingStock + row.repairingStock,
+      totalStock: acc.totalStock + row.totalStock,
+      totalPurchaseCost: acc.totalPurchaseCost + row.totalPurchaseCost,
+    }),
+    {
+      stockProduct: 0,
+      damageStock: 0,
+      repairingStock: 0,
+      totalStock: 0,
+      totalPurchaseCost: 0,
+    },
+  );
+
+  return [
+    ...normalizedRows,
+    {
+      isTotal: true,
+      productsName: "মোট",
+      stockProduct: total.stockProduct,
+      damageStock: total.damageStock,
+      repairingStock: total.repairingStock,
+      totalStock: total.totalStock,
+      purchasePrice: 0,
+      totalPurchaseCost: total.totalPurchaseCost,
+    },
+  ];
+};
+
+// Generic sibling of normalizeInventoryStockRows for the closing-only stock
+// pools (Item/Factory, Packaging Item/Packaging Factory) — same wide-format
+// shape (name + sub-stock columns + Total Stock + Purchase Price + Closing
+// Purchase Cost + a "মোট" summary row), just keyed by whatever `subFields`
+// (closingKey → output key) the caller passes instead of the fixed
+// stockProduct/damageStock/repairingStock trio.
+const normalizeWideStockRows = (report, subFields) => {
+  if (!report) return [];
+
+  const rows = report.data || [];
+  if (!rows.length) return [];
+
+  const normalizedRows = rows
+    .map((row) => {
+      const result = { name: row.name || "-" };
+      let totalStock = 0;
+      subFields.forEach(({ closingKey, key }) => {
+        const value = Number(row[closingKey] || 0);
+        result[key] = value;
+        totalStock += value;
+      });
+      const purchasePrice = Number(row.purchasePrice || 0);
+      result.totalStock = totalStock;
+      result.purchasePrice = purchasePrice;
+      result.totalPurchaseCost = totalStock * purchasePrice;
+      return result;
+    })
+    .filter((row) => row.totalStock > 0 || row.totalPurchaseCost > 0);
+
+  if (!normalizedRows.length) return [];
+
+  const total = normalizedRows.reduce(
+    (acc, row) => {
+      const next = { ...acc };
+      subFields.forEach(({ key }) => {
+        next[key] = (acc[key] || 0) + row[key];
+      });
+      next.totalStock = acc.totalStock + row.totalStock;
+      next.totalPurchaseCost = acc.totalPurchaseCost + row.totalPurchaseCost;
+      return next;
+    },
+    { totalStock: 0, totalPurchaseCost: 0 },
+  );
+
+  return [
+    ...normalizedRows,
+    {
+      isTotal: true,
+      name: "মোট",
+      ...subFields.reduce(
+        (acc, { key }) => ({ ...acc, [key]: total[key] || 0 }),
+        {},
+      ),
+      totalStock: total.totalStock,
+      purchasePrice: 0,
+      totalPurchaseCost: total.totalPurchaseCost,
+    },
+  ];
+};
+
 const buildContactLine = (value) =>
   value ? `<div class="contact-line">${escapeHtml(value)}</div>` : "";
 
-const buildHeaderFragment = ({ companyName, companyInfo, logoDataUrl, bookName }) => `
+const buildHeaderFragment = ({
+  companyName,
+  companyInfo,
+  logoDataUrl,
+  bookName,
+}) => `
   <div class="frag">
     <div class="book-stmt-header">
       <div class="book-stmt-brand">
@@ -437,7 +702,12 @@ const createRenderFrame = () => {
 // Renders one fragment (header, title bar, a ledger section, or the
 // signature) in isolation and returns it as a single image + its height in
 // mm, so the caller can place it as one atomic, unsplittable block.
-const renderFragment = async (html2canvas, fragmentHtml, regularFontDataUrl, boldFontDataUrl) => {
+const renderFragment = async (
+  html2canvas,
+  fragmentHtml,
+  regularFontDataUrl,
+  boldFontDataUrl,
+) => {
   const html = `
     <style>
       @font-face {
@@ -504,7 +774,9 @@ const drawPageFrame = (doc) => {
 // Places one rendered fragment into `doc` at the running cursor position,
 // starting a fresh (framed) page first if it wouldn't otherwise fit.
 const placeFragment = (doc, cursor, fragment) => {
-  const startsNewPage = !cursor.pageHasContent || cursor.y + fragment.heightMm > PRINTABLE_BOTTOM_MM;
+  const startsNewPage =
+    !cursor.pageHasContent ||
+    cursor.y + fragment.heightMm > PRINTABLE_BOTTOM_MM;
 
   if (startsNewPage) {
     if (cursor.pageHasContent) doc.addPage();
@@ -549,26 +821,43 @@ const placeFragmentDirect = (doc, cursor, fragment) => {
 // Places a full ledger section (heading + table + total row), packing as
 // many rows per page as actually fit — never cutting a row in half — and
 // repeating the column header whenever the table continues onto a new page.
-const placeLedgerSection = async (doc, html2canvas, cursor, {
-  title,
-  rows,
-  totalLabel,
-  total,
-  columns,
-  regularFontDataUrl,
-  boldFontDataUrl,
-}) => {
-  const render = (html) => renderFragment(html2canvas, html, regularFontDataUrl, boldFontDataUrl);
+const placeLedgerSection = async (
+  doc,
+  html2canvas,
+  cursor,
+  {
+    title,
+    rows,
+    totalLabel,
+    total,
+    columns,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  },
+) => {
+  const render = (html) =>
+    renderFragment(html2canvas, html, regularFontDataUrl, boldFontDataUrl);
 
   const headingFragment = await render(buildLedgerHeadingFragment(title));
 
   if (!rows.length) {
     const emptyChunk = await render(
-      buildLedgerTableChunkFragment({ rows: [], startIndex: 1, includeFooter: true, totalLabel, total, columns }),
+      buildLedgerTableChunkFragment({
+        rows: [],
+        startIndex: 1,
+        includeFooter: true,
+        totalLabel,
+        total,
+        columns,
+      }),
     );
 
     // Orphan avoidance: keep the heading with its (empty) table together.
-    if (cursor.pageHasContent && cursor.y + headingFragment.heightMm + emptyChunk.heightMm > PRINTABLE_BOTTOM_MM) {
+    if (
+      cursor.pageHasContent &&
+      cursor.y + headingFragment.heightMm + emptyChunk.heightMm >
+        PRINTABLE_BOTTOM_MM
+    ) {
       doc.addPage();
       drawPageFrame(doc);
       cursor.y = CONTENT_MARGIN_MM;
@@ -584,10 +873,24 @@ const placeLedgerSection = async (doc, html2canvas, cursor, {
   // against the full table (header + all rows), then use that to decide how
   // many whole rows fit in the space actually left on the page.
   const headerOnly = await render(
-    buildLedgerTableChunkFragment({ rows: [], startIndex: 1, includeFooter: false, totalLabel, total, columns }),
+    buildLedgerTableChunkFragment({
+      rows: [],
+      startIndex: 1,
+      includeFooter: false,
+      totalLabel,
+      total,
+      columns,
+    }),
   );
   const fullBody = await render(
-    buildLedgerTableChunkFragment({ rows, startIndex: 1, includeFooter: false, totalLabel, total, columns }),
+    buildLedgerTableChunkFragment({
+      rows,
+      startIndex: 1,
+      includeFooter: false,
+      totalLabel,
+      total,
+      columns,
+    }),
   );
   const perRowHeightMm = Math.max(
     3,
@@ -598,7 +901,11 @@ const placeLedgerSection = async (doc, html2canvas, cursor, {
   // with its table starting fresh on the next — require room for the
   // heading plus at least the column header and one data row together.
   const minFollowHeightMm = headerOnly.heightMm + perRowHeightMm;
-  if (cursor.pageHasContent && cursor.y + headingFragment.heightMm + minFollowHeightMm > PRINTABLE_BOTTOM_MM) {
+  if (
+    cursor.pageHasContent &&
+    cursor.y + headingFragment.heightMm + minFollowHeightMm >
+      PRINTABLE_BOTTOM_MM
+  ) {
     doc.addPage();
     drawPageFrame(doc);
     cursor.y = CONTENT_MARGIN_MM;
@@ -614,7 +921,10 @@ const placeLedgerSection = async (doc, html2canvas, cursor, {
     // row or two — otherwise we'd cram in 1 row here, then immediately have
     // to push the *next* row to a new page anyway, splitting what should be
     // one continuous table into two small ones with a duplicated header.
-    if (cursor.pageHasContent && PRINTABLE_BOTTOM_MM - cursor.y < headerOnly.heightMm + perRowHeightMm) {
+    if (
+      cursor.pageHasContent &&
+      PRINTABLE_BOTTOM_MM - cursor.y < headerOnly.heightMm + perRowHeightMm
+    ) {
       doc.addPage();
       drawPageFrame(doc);
       cursor.y = CONTENT_MARGIN_MM;
@@ -686,7 +996,10 @@ const placeLedgerSection = async (doc, html2canvas, cursor, {
     // Still doesn't fit even shrunk to 1 row — only possible when we're
     // mid-page (a fresh page always has room for a single row). Start a
     // fresh page and re-size this same chunk against the full page height.
-    if (cursor.pageHasContent && cursor.y + chunkFragment.heightMm > PRINTABLE_BOTTOM_MM) {
+    if (
+      cursor.pageHasContent &&
+      cursor.y + chunkFragment.heightMm > PRINTABLE_BOTTOM_MM
+    ) {
       doc.addPage();
       drawPageFrame(doc);
       cursor.y = CONTENT_MARGIN_MM;
@@ -703,8 +1016,11 @@ const placeLedgerSection = async (doc, html2canvas, cursor, {
 // a fresh page. Each section (header, ledger tables, signature) is composed
 // independently so none of them ever get sliced across a page boundary.
 const appendBookStatement = async (doc, html2canvas, cursor, book) => {
-  const { credit: summaryCredit, debit: summaryDebit } = groupTransactionsByCategory(book.transactions);
-  const { credit: detailCredit, debit: detailDebit } = getFlatTransactionRows(book.transactions);
+  const { credit: summaryCredit, debit: summaryDebit } =
+    groupTransactionsByCategory(book.transactions);
+  const { credit: detailCredit, debit: detailDebit } = getFlatTransactionRows(
+    book.transactions,
+  );
   const totalCredit = book.totalCredit ?? 0;
   const totalDebit = book.totalDebit ?? 0;
   const netBalance =
@@ -751,17 +1067,6 @@ const appendBookStatement = async (doc, html2canvas, cursor, book) => {
     columns: AGGREGATE_COLUMNS,
   });
 
-  await placeSection({
-    title: "মোট ক্রেডিট ও ডেবিট",
-    rows: [
-      { date: book.periodLabel, description: `${book.periodLabel} পর্যন্ত মোট ক্রেডিট`, amount: totalCredit, tone: "credit" },
-      { date: book.periodLabel, description: `${book.periodLabel} পর্যন্ত মোট ডেবিট`, amount: totalDebit, tone: "debit" },
-    ],
-    totalLabel: `একাউন্টে মোট ক্যাশ থাকবে (${book.periodLabel} পর্যন্ত)`,
-    total: netBalance,
-    columns: TOTAL_SUMMARY_COLUMNS,
-  });
-
   // Then the full per-transaction detail (Category column, note-based
   // description) for every Credit and Debit transaction.
   await placeSection({
@@ -779,6 +1084,71 @@ const appendBookStatement = async (doc, html2canvas, cursor, book) => {
     total: totalDebit,
     columns: DETAIL_COLUMNS,
   });
+
+  await placeSection({
+    title: "মোট ক্রেডিট ও ডেবিট",
+    rows: [
+      {
+        date: book.periodLabel,
+        description: `${book.periodLabel} পর্যন্ত মোট ক্রেডিট`,
+        amount: totalCredit,
+        tone: "credit",
+      },
+      {
+        date: book.periodLabel,
+        description: `${book.periodLabel} পর্যন্ত মোট ডেবিট`,
+        amount: totalDebit,
+        tone: "debit",
+      },
+    ],
+    totalLabel: `একাউন্টে মোট ক্যাশ থাকবে (${book.periodLabel} পর্যন্ত)`,
+    total: netBalance,
+    columns: TOTAL_SUMMARY_COLUMNS,
+  });
+};
+
+const appendInventoryStockReport = async (
+  doc,
+  html2canvas,
+  cursor,
+  {
+    inventoryStockReport,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  },
+) => {
+  const rows = normalizeInventoryStockRows(inventoryStockReport);
+  if (!rows.length) return;
+
+  await placeLedgerSection(doc, html2canvas, cursor, {
+    title: "স্টক প্রোডাক্ট, ড্যামেজ স্টক ও রিপেয়ারিং স্টক",
+    rows,
+    totalLabel: null,
+    total: 0,
+    columns: INVENTORY_STOCK_COLUMNS,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+};
+
+const appendWideStockSection = async (
+  doc,
+  html2canvas,
+  cursor,
+  { report, title, subFields, columns, regularFontDataUrl, boldFontDataUrl },
+) => {
+  const rows = normalizeWideStockRows(report, subFields);
+  if (!rows.length) return;
+
+  await placeLedgerSection(doc, html2canvas, cursor, {
+    title,
+    rows,
+    totalLabel: null,
+    total: 0,
+    columns,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
 };
 
 // Generates one PDF containing every book's Credit/Debit statement, each
@@ -790,14 +1160,15 @@ export const generateBookStatementPdf = async ({
   logoUrl = "",
   periodLabel = "",
   books = [],
+  inventoryStockReport = null,
+  itemFactoryStock = null,
+  packagingStock = null,
 }) => {
   const { jsPDF } = await import("jspdf");
   const html2canvas = (await import("html2canvas")).default;
 
-  const [logoDataUrl, [regularFontDataUrl, boldFontDataUrl]] = await Promise.all([
-    safeAssetToDataUrl(logoUrl),
-    getEmbeddedFonts(),
-  ]);
+  const [logoDataUrl, [regularFontDataUrl, boldFontDataUrl]] =
+    await Promise.all([safeAssetToDataUrl(logoUrl), getEmbeddedFonts()]);
 
   const doc = new jsPDF("p", "mm", "a4");
   const cursor = { y: CONTENT_MARGIN_MM, pageHasContent: false };
@@ -814,6 +1185,30 @@ export const generateBookStatementPdf = async ({
       boldFontDataUrl,
     });
   }
+
+  await appendInventoryStockReport(doc, html2canvas, cursor, {
+    inventoryStockReport,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
+  await appendWideStockSection(doc, html2canvas, cursor, {
+    report: itemFactoryStock,
+    title: "আইটেম স্টক ও ফ্যাক্টরি স্টক",
+    subFields: ITEM_FACTORY_SUB_FIELDS,
+    columns: ITEM_FACTORY_STOCK_COLUMNS,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
+  await appendWideStockSection(doc, html2canvas, cursor, {
+    report: packagingStock,
+    title: "প্যাকেজিং আইটেম স্টক ও প্যাকেজিং ফ্যাক্টরি স্টক",
+    subFields: PACKAGING_SUB_FIELDS,
+    columns: PACKAGING_STOCK_COLUMNS,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
 
   return doc.output("blob");
 };

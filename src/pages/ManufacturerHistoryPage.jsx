@@ -11,7 +11,7 @@ import {
   Wallet,
 } from "lucide-react";
 import jsPDF from "jspdf";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -19,7 +19,6 @@ import Header from "../components/common/Header";
 import {
   useGetManufacturerTransactionsQuery,
   useGetSingleManufacturerQuery,
-  usePayManufacturerAmountMutation,
 } from "../features/manufacturer/manufacturer";
 import { useGetAllLogoQuery } from "../features/logo/logo";
 import {
@@ -49,8 +48,6 @@ const formatDate = (value) => {
     year: "numeric",
   });
 };
-
-const today = () => new Date().toISOString().slice(0, 10);
 
 const firstFilled = (...values) =>
   values.find((value) => String(value || "").trim()) || "";
@@ -274,13 +271,6 @@ const ManufacturerHistoryPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
-  const [paymentForm, setPaymentForm] = useState({
-    amount: "",
-    date: today(),
-    phone: "",
-    address: "",
-    note: "",
-  });
 
   const { data, isLoading, refetch } = useGetManufacturerTransactionsQuery(
     { id, page, limit: 20 },
@@ -291,7 +281,6 @@ const ManufacturerHistoryPage = () => {
   });
   const { data: logoData } = useGetAllLogoQuery();
   const logoUrl = buildAssetUrl(logoData?.data?.file);
-  const [payManufacturerAmount, payState] = usePayManufacturerAmountMutation();
 
   const rows = data?.data || [];
   const rawManufacturer = data?.manufacturer || {};
@@ -326,11 +315,15 @@ const ManufacturerHistoryPage = () => {
       ? rowSummary.totalCredit
       : apiTotalCredit;
 
+    const netBalance = totalCredit - totalDebit;
+
     return {
       totalDebit,
       totalCredit,
       paidAmount: totalCredit,
-      unpaidAmount: totalDebit - totalCredit,
+      totalAdvance: Math.max(netBalance, 0),
+      totalDue: Math.max(-netBalance, 0),
+      unpaidAmount: Math.max(-netBalance, 0),
     };
   }, [rawSummary, rowSummary, rows.length]);
   const manufacturer = useMemo(
@@ -358,47 +351,10 @@ const ManufacturerHistoryPage = () => {
     [latestManufacturer, rawManufacturer, rows],
   );
 
-  useEffect(() => {
-    setPaymentForm((prev) => ({
-      ...prev,
-      phone: prev.phone || manufacturer.phone || "",
-      address: prev.address || manufacturer.address || "",
-    }));
-  }, [manufacturer.phone, manufacturer.address]);
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil((data?.meta?.count || 0) / 20)),
     [data?.meta?.count],
   );
-
-  const handlePaymentSubmit = async (e) => {
-    e.preventDefault();
-    if (!paymentForm.amount || Number(paymentForm.amount) <= 0) {
-      toast.error("Please enter valid paid amount");
-      return;
-    }
-
-    try {
-      const res = await payManufacturerAmount({
-        id,
-        data: paymentForm,
-      }).unwrap();
-
-      if (res?.success !== false) {
-        toast.success("Payment saved successfully");
-        setPaymentForm((prev) => ({
-          amount: "",
-          date: today(),
-          phone: prev.phone,
-          address: prev.address,
-          note: "",
-        }));
-        setPage(1);
-        refetch?.();
-      }
-    } catch (err) {
-      toast.error(err?.data?.message || "Payment failed!");
-    }
-  };
 
   const buildPaymentInvoice = (transaction) =>
     createManufacturerPaymentInvoicePdf({
@@ -443,20 +399,20 @@ const ManufacturerHistoryPage = () => {
 
   const cards = [
     {
-      label: "Total Wage",
-      value: summary.totalDebit,
-      icon: ReceiptText,
-      className: "text-slate-900",
-    },
-    {
       label: "Paid Amount",
       value: summary.paidAmount,
       icon: CreditCard,
       className: "text-emerald-600",
     },
     {
-      label: "Unpaid Amount",
-      value: summary.unpaidAmount,
+      label: "Advance",
+      value: summary.totalAdvance,
+      icon: ReceiptText,
+      className: "text-sky-600",
+    },
+    {
+      label: "Due Amount",
+      value: summary.totalDue,
       icon: Wallet,
       className: "text-rose-600",
     },
@@ -523,88 +479,9 @@ const ManufacturerHistoryPage = () => {
             })}
           </div>
 
-          <form
-            onSubmit={handlePaymentSubmit}
-            className="rounded-3xl border border-slate-100 bg-white p-5 mb-8 shadow-sm"
-          >
-            <div className="flex flex-col lg:flex-row lg:items-end gap-4">
-              <div className="flex-1">
-                <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
-                  Paid Amount
-                </label>
-                <input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={paymentForm.amount}
-                  onChange={(e) =>
-                    setPaymentForm((prev) => ({
-                      ...prev,
-                      amount: e.target.value,
-                    }))
-                  }
-                  className="h-12 border border-slate-200 rounded-2xl px-4 w-full text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition font-bold"
-                  placeholder="Enter paid amount"
-                />
-              </div>
-              <div className="lg:w-64">
-                <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
-                  Phone
-                </label>
-                <input
-                  type="text"
-                  value={paymentForm.phone}
-                  onChange={(e) =>
-                    setPaymentForm((prev) => ({
-                      ...prev,
-                      phone: e.target.value,
-                    }))
-                  }
-                  className="h-12 border border-slate-200 rounded-2xl px-4 w-full text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition font-bold"
-                  placeholder="Phone number"
-                />
-              </div>
-              <div className="lg:w-48">
-                <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
-                  Date
-                </label>
-                <input
-                  type="date"
-                  value={paymentForm.date}
-                  onChange={(e) =>
-                    setPaymentForm((prev) => ({ ...prev, date: e.target.value }))
-                  }
-                  className="h-12 border border-slate-200 rounded-2xl px-4 w-full text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition font-bold"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={payState.isLoading}
-                className="h-12 px-8 rounded-2xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-700 transition shadow-xl shadow-indigo-100 active:scale-95 disabled:opacity-60"
-              >
-                {payState.isLoading ? "Saving..." : "Add Paid Amount"}
-              </button>
-            </div>
-            <textarea
-              value={paymentForm.address}
-              onChange={(e) =>
-                setPaymentForm((prev) => ({
-                  ...prev,
-                  address: e.target.value,
-                }))
-              }
-              className="mt-4 min-h-16 border border-slate-200 rounded-2xl px-4 py-3 w-full text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition font-medium resize-y"
-              placeholder="Manufacturer address..."
-            />
-            <textarea
-              value={paymentForm.note}
-              onChange={(e) =>
-                setPaymentForm((prev) => ({ ...prev, note: e.target.value }))
-              }
-              className="mt-4 min-h-20 border border-slate-200 rounded-2xl px-4 py-3 w-full text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition font-medium resize-y"
-              placeholder="Payment note..."
-            />
-          </form>
+          <div className="rounded-3xl border border-indigo-100 bg-indigo-50/60 px-5 py-4 mb-8 text-sm font-medium text-indigo-700">
+            Manufacturer payments are recorded from the <span className="font-black">Book</span> screen — select this manufacturer there to pay wages. This page is view-only.
+          </div>
 
           <div className="relative overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
             <div className="overflow-x-auto">

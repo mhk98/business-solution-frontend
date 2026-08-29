@@ -2,19 +2,11 @@ import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { BookMarked, Download, Printer, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import toast from "react-hot-toast";
 import Pagination from "../common/Pagination";
 import useDebounce from "../../hooks/useDebounce";
-import {
-  useGetMonthlyReportingSummaryQuery,
-  useLazyGetMonthlyReportingSummaryQuery,
-  useLazyGetBookStatementQuery,
-} from "../../features/monthlyReportingBook/monthlyReportingBook";
-import { useGetAllLogoQuery } from "../../features/logo/logo";
+import { useGetMonthlyReportingSummaryQuery } from "../../features/monthlyReportingBook/monthlyReportingBook";
 import { useGetAllBookWithoutQueryQuery } from "../../features/book/book";
-import { useGetAllCompanyInfoQuery } from "../../features/companyInfo/companyInfo";
-import { DEFAULT_COMPANY_NAME, buildAssetUrl } from "../../utils/pdfBranding";
-import { generateBookStatementPdf } from "../../utils/report/generateBookStatementPdf";
+import { useBookStatementExport } from "../../hooks/useBookStatementExport";
 import ReportPreviewModal from "../cashIn/ReportPreviewModal";
 import AccountingMonthFilter, {
   getAccountingCycleRange,
@@ -22,19 +14,6 @@ import AccountingMonthFilter, {
 } from "./AccountingMonthFilter";
 
 const defaultRange = getAccountingCycleRange(0);
-const REPORT_ROW_LIMIT = 5000;
-
-const EMPTY_PREVIEW = {
-  open: false,
-  loading: false,
-  autoPrint: false,
-  blobUrl: "",
-  title: "Statement",
-  downloadName: "statement.pdf",
-};
-
-const toSafeFileName = (text) =>
-  `${String(text || "statement").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`;
 
 const MonthlyReportingBookTable = () => {
   const [range, setRange] = useState({
@@ -93,100 +72,17 @@ const MonthlyReportingBookTable = () => {
     navigate(`/monthly-reporting-book/transactions?${params.toString()}`);
   };
 
-  // Shared branding for the statement PDF letterhead
-  const { data: logoData } = useGetAllLogoQuery();
-  const logoUrl = buildAssetUrl(logoData?.data?.file);
-  const { data: companyInfoRes } = useGetAllCompanyInfoQuery();
-  const companyInfo = companyInfoRes?.data || {};
+  const { preview, closePreview, exportStatement } = useBookStatementExport();
 
-  const [preview, setPreview] = useState(EMPTY_PREVIEW);
-
-  const closePreview = () => {
-    if (preview.blobUrl) URL.revokeObjectURL(preview.blobUrl);
-    setPreview(EMPTY_PREVIEW);
-  };
-
-  const [fetchSummaryRows] = useLazyGetMonthlyReportingSummaryQuery();
-  const [fetchBookStatement] = useLazyGetBookStatementQuery();
-
-  // Which books the statement should cover: the one selected in the filter,
-  // or — for "All Books" — every distinct book that has data in this period.
-  const resolveTargetBooks = async () => {
-    if (selectedBookId) {
-      return [{ Id: selectedBookId, name: selectedBookName || "Book" }];
-    }
-
-    const result = await fetchSummaryRows({
-      startDate: range.from,
-      endDate: range.to,
-      searchTerm: debouncedSearchTerm || undefined,
-      page: 1,
-      limit: REPORT_ROW_LIMIT,
-    }).unwrap();
-
-    const seen = new Map();
-    (result?.data || []).forEach((row) => {
-      if (row.bookId && !seen.has(row.bookId)) {
-        seen.set(row.bookId, { Id: row.bookId, name: row.bookName || "Book" });
-      }
-    });
-
-    return Array.from(seen.values());
-  };
-
-  const handleStatement = async (autoPrint) => {
-    setPreview({
-      ...EMPTY_PREVIEW,
-      open: true,
-      loading: true,
+  const handleStatement = (autoPrint) =>
+    exportStatement({
+      range,
+      bookId: selectedBookId,
+      bookName: selectedBookName,
+      searchTerm: debouncedSearchTerm,
       autoPrint,
       title: reportTitle,
-      downloadName: `${toSafeFileName(reportTitle)}.pdf`,
     });
-
-    try {
-      const targetBooks = await resolveTargetBooks();
-
-      if (!targetBooks.length) {
-        toast.error("No transactions found for this period");
-        closePreview();
-        return;
-      }
-
-      const statementResults = await Promise.all(
-        targetBooks.map((book) =>
-          fetchBookStatement({
-            bookId: book.Id,
-            startDate: range.from,
-            endDate: range.to,
-          }).unwrap(),
-        ),
-      );
-
-      const booksForPdf = statementResults.map((result, index) => ({
-        bookName: result?.meta?.bookName || targetBooks[index].name,
-        transactions: result?.data || [],
-        totalCredit: result?.meta?.totalCredit || 0,
-        totalDebit: result?.meta?.totalDebit || 0,
-        netBalance: result?.meta?.netBalance,
-      }));
-
-      const blob = await generateBookStatementPdf({
-        companyName: DEFAULT_COMPANY_NAME,
-        companyInfo,
-        logoUrl,
-        periodLabel: range.label,
-        books: booksForPdf,
-      });
-
-      const url = URL.createObjectURL(blob);
-      setPreview((prev) => ({ ...prev, loading: false, blobUrl: url }));
-    } catch (err) {
-      console.error("Statement PDF generation failed:", err);
-      toast.error("Failed to generate statement PDF");
-      closePreview();
-    }
-  };
 
   return (
     <motion.div

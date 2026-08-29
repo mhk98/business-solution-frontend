@@ -32,6 +32,7 @@ import {
   useUpdateLedgerHistoryMutation,
 } from "../../features/ledgerHistory/ledgerHistory";
 import { useGetAllSupplierWithoutQueryQuery } from "../../features/supplier/supplier";
+import { useGetAllManufacturerWithoutQueryQuery } from "../../features/manufacturer/manufacturer";
 import useDebounce from "../../hooks/useDebounce";
 import DateRangeFilter from "../common/DateRangeFilter";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
@@ -54,6 +55,13 @@ const ENTITY_TYPES = {
     secondaryPlaceholder: "+88 XXXXXXXXXXX",
     // extraLabel: "Department / Address",
     // extraPlaceholder: "Department or Address",
+  },
+  manufacturer: {
+    label: "Manufacturer",
+    nameLabel: "Manufacturer's Name",
+    namePlaceholder: "Manufacturer's Name",
+    secondaryLabel: "Phone Number",
+    secondaryPlaceholder: "+88 XXXXXXXXXXX",
   },
 };
 
@@ -269,6 +277,7 @@ const getInitialLedgerForm = () => ({
   name: "",
   supplierId: "",
   employeeId: "",
+  manufacturerId: "",
   phone: "",
   extra: "",
   note: "",
@@ -314,6 +323,7 @@ const getInitialLedgerHistoryForm = () => ({
 const ENTITY_TABS = [
   { key: "supplier", role: "Supplier", label: "Supplier" },
   { key: "employee", role: "Employee", label: "Employee" },
+  { key: "manufacturer", role: "Manufacturer", label: "Manufacturer" },
 ];
 
 const getSafeNumber = (value) => {
@@ -438,6 +448,12 @@ const normalizeLedgerEntity = (ledger, type, index) => ({
   employeeId: String(
     ledger?.employeeId ?? ledger?.employee_id ?? ledger?.EmployeeId ?? "",
   ),
+  manufacturerId: String(
+    ledger?.manufacturerId ??
+      ledger?.manufacturer_id ??
+      ledger?.ManufacturerId ??
+      "",
+  ),
 });
 
 const getEntityDisplayMeta = (entity) => {
@@ -524,6 +540,8 @@ const CreditLedgerTable = () => {
 
   const { data: supplierResponse } = useGetAllSupplierWithoutQueryQuery();
   const { data: employeeResponse } = useGetAllEmployeeListWithoutQueryQuery();
+  const { data: manufacturerResponse } =
+    useGetAllManufacturerWithoutQueryQuery();
   const { data: allBookRes } = useGetAllBookWithoutQueryQuery();
   const { data: bankAccountRes } = useGetAllBankAccountWithoutQueryQuery();
 
@@ -560,6 +578,19 @@ const CreditLedgerTable = () => {
         };
       }),
     [employeeResponse],
+  );
+
+  const manufacturerOptions = useMemo(
+    () =>
+      (manufacturerResponse?.data || []).map((manufacturer) => ({
+        value: String(manufacturer?.Id ?? manufacturer?.id ?? ""),
+        manufacturerId: String(manufacturer?.Id ?? manufacturer?.id ?? ""),
+        label: manufacturer?.name || "Unnamed Manufacturer",
+        name: manufacturer?.name || "",
+        phone: manufacturer?.phone || "",
+        extra: manufacturer?.address || "",
+      })),
+    [manufacturerResponse],
   );
 
   const bookOptions = useMemo(
@@ -650,6 +681,10 @@ const CreditLedgerTable = () => {
           createLedger.type === "supplier" ? createLedger.supplierId || "" : "",
         employeeId:
           createLedger.type === "employee" ? createLedger.employeeId || "" : "",
+        manufacturerId:
+          createLedger.type === "manufacturer"
+            ? createLedger.manufacturerId || ""
+            : "",
         phone: normalizedPhone
           ? `${selectedCountry.dialCode} ${normalizedPhone}`
           : "",
@@ -715,6 +750,10 @@ const CreditLedgerTable = () => {
         prev.type === "supplier" ? selectedOption?.supplierId || "" : "",
       employeeId:
         prev.type === "employee" ? selectedOption?.employeeId || "" : "",
+      manufacturerId:
+        prev.type === "manufacturer"
+          ? selectedOption?.manufacturerId || ""
+          : "",
       phone: selectedOption?.phone || "",
       extra: selectedOption?.extra || "",
     }));
@@ -785,7 +824,9 @@ const CreditLedgerTable = () => {
             const identityKey =
               tab.key === "supplier"
                 ? `supplier|${entity.supplierId || getEntityKey(entity)}`
-                : `employee|${entity.employeeId || getEntityKey(entity)}`;
+                : tab.key === "employee"
+                  ? `employee|${entity.employeeId || getEntityKey(entity)}`
+                  : `manufacturer|${entity.manufacturerId || getEntityKey(entity)}`;
 
             if (seen.has(identityKey)) return false;
             seen.add(identityKey);
@@ -883,11 +924,19 @@ const CreditLedgerTable = () => {
       const employeeId = String(
         entry?.employeeId ?? entry?.employee_id ?? entry?.EmployeeId ?? "",
       );
+      const manufacturerId = String(
+        entry?.manufacturerId ??
+          entry?.manufacturer_id ??
+          entry?.ManufacturerId ??
+          "",
+      );
       const key = supplierId
         ? `supplier|${supplierId}`
         : employeeId
           ? `employee|${employeeId}`
-          : "";
+          : manufacturerId
+            ? `manufacturer|${manufacturerId}`
+            : "";
 
       if (!key) return acc;
 
@@ -915,7 +964,9 @@ const CreditLedgerTable = () => {
         ? `supplier|${entity.supplierId}`
         : entity.type === "employee"
           ? `employee|${entity.employeeId}`
-          : "";
+          : entity.type === "manufacturer"
+            ? `manufacturer|${entity.manufacturerId}`
+            : "";
 
     return (
       ledgerHistorySummaryByEntity[historySummaryKey] ||
@@ -976,6 +1027,17 @@ const CreditLedgerTable = () => {
         );
       }
 
+      if (selectedEntity.type === "manufacturer") {
+        return (
+          String(
+            ledger?.manufacturerId ??
+              ledger?.manufacturer_id ??
+              ledger?.ManufacturerId ??
+              "",
+          ) === String(selectedEntity.manufacturerId || "")
+        );
+      }
+
       return false;
     });
   }, [ledgers, selectedEntity]);
@@ -994,6 +1056,12 @@ const CreditLedgerTable = () => {
     selectedLedger?.employeeId ??
       selectedLedger?.employee_id ??
       selectedEntity?.employeeId ??
+      "",
+  );
+  const selectedManufacturerId = String(
+    selectedLedger?.manufacturerId ??
+      selectedLedger?.manufacturer_id ??
+      selectedEntity?.manufacturerId ??
       "",
   );
   const shouldCreateHistoryCashOut =
@@ -1031,6 +1099,7 @@ const CreditLedgerTable = () => {
     limit: 1000,
     supplierId: selectedSupplierId || undefined,
     employeeId: selectedEmployeeId || undefined,
+    manufacturerId: selectedManufacturerId || undefined,
   });
   const ledgerHistoryRecords = useMemo(
     () => ledgerHistoryData?.data || [],
@@ -1039,7 +1108,12 @@ const CreditLedgerTable = () => {
 
   const selectedHistory = useMemo(() => {
     const isSupplierTab = activeTab === "supplier";
-    const targetId = isSupplierTab ? selectedSupplierId : selectedEmployeeId;
+    const isEmployeeTab = activeTab === "employee";
+    const targetId = isSupplierTab
+      ? selectedSupplierId
+      : isEmployeeTab
+        ? selectedEmployeeId
+        : selectedManufacturerId;
 
     if (!targetId) return [];
 
@@ -1051,10 +1125,15 @@ const CreditLedgerTable = () => {
                 entry?.supplier_id ??
                 entry?.SupplierId ??
                 "")
-            : (entry?.employeeId ??
-                entry?.employee_id ??
-                entry?.EmployeeId ??
-                ""),
+            : isEmployeeTab
+              ? (entry?.employeeId ??
+                  entry?.employee_id ??
+                  entry?.EmployeeId ??
+                  "")
+              : (entry?.manufacturerId ??
+                  entry?.manufacturer_id ??
+                  entry?.ManufacturerId ??
+                  ""),
         );
 
         return entryTargetId === targetId;
@@ -1103,7 +1182,13 @@ const CreditLedgerTable = () => {
         };
       })
       .reverse();
-  }, [activeTab, ledgerHistoryRecords, selectedEmployeeId, selectedSupplierId]);
+  }, [
+    activeTab,
+    ledgerHistoryRecords,
+    selectedEmployeeId,
+    selectedSupplierId,
+    selectedManufacturerId,
+  ]);
 
   const mainFilteredHistory = useMemo(() => {
     const startTime = mainHistoryStartDate
@@ -1191,7 +1276,9 @@ const CreditLedgerTable = () => {
       ? supplierOptions
       : createLedger.type === "employee"
         ? employeeOptions
-        : [];
+        : createLedger.type === "manufacturer"
+          ? manufacturerOptions
+          : [];
   const selectedCreateLedgerEntityOption =
     createLedgerEntityOptions.find(
       (option) =>
@@ -1200,10 +1287,14 @@ const CreditLedgerTable = () => {
           ? createLedger.supplierId
           : createLedger.type === "employee"
             ? createLedger.employeeId
-            : ""),
+            : createLedger.type === "manufacturer"
+              ? createLedger.manufacturerId
+              : ""),
     ) || null;
   const shouldUseEntityDropdown =
-    createLedger.type === "supplier" || createLedger.type === "employee";
+    createLedger.type === "supplier" ||
+    createLedger.type === "employee" ||
+    createLedger.type === "manufacturer";
   const isPhoneRequired = createLedger.type === "customer";
 
   const [insertLedgerHistory] = useInsertLedgerHistoryMutation();
@@ -1283,8 +1374,8 @@ const CreditLedgerTable = () => {
         ? numericLedgerId
         : undefined;
 
-    if (!selectedSupplierId && !selectedEmployeeId) {
-      toast.error("Supplier or employee reference not found.");
+    if (!selectedSupplierId && !selectedEmployeeId && !selectedManufacturerId) {
+      toast.error("Supplier, employee, or manufacturer reference not found.");
       return;
     }
 
@@ -1312,6 +1403,7 @@ const CreditLedgerTable = () => {
       ...(ledgerId ? { ledgerId } : {}),
       supplierId: selectedSupplierId || undefined,
       employeeId: selectedEmployeeId || undefined,
+      manufacturerId: selectedManufacturerId || undefined,
       bookId: Number(ledgerHistoryForm.bookId) || undefined,
       date: ledgerHistoryForm.date,
       note: ledgerHistoryForm.note,
@@ -1744,7 +1836,7 @@ const CreditLedgerTable = () => {
                 );
               })}
             </div> */}
-            <div className="grid grid-cols-2 gap-3 border-b border-slate-200 text-sm font-medium text-slate-500">
+            <div className="grid grid-cols-3 gap-3 border-b border-slate-200 text-sm font-medium text-slate-500">
               {ENTITY_TABS.map((tab) => {
                 const isActive = activeTab === tab.key;
 
@@ -2662,7 +2754,7 @@ const CreditLedgerTable = () => {
               >
                 <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
                   {/* Tabs */}
-                  <div className="rounded-lg bg-slate-200 p-1 grid grid-cols-2 gap-1">
+                  <div className="rounded-lg bg-slate-200 p-1 grid grid-cols-3 gap-1">
                     {Object.entries(ENTITY_TYPES).map(([key, value]) => {
                       const isActive = createLedger.type === key;
                       return (

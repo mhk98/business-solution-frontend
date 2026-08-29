@@ -44,6 +44,27 @@ export const inventoryOverviewApi = baseApi.injectEndpoints({
       refetchOnMountOrArgChange: true,
     }),
 
+    getInventoryReports: build.query({
+      query: (arg = {}) => {
+        const { page, limit, name, from, to, startDate, endDate } = arg;
+        const params = {
+          page,
+          limit,
+          name,
+          from: from || startDate,
+          to: to || endDate,
+        };
+        Object.keys(params).forEach((k) => {
+          if (params[k] === undefined || params[k] === null || params[k] === "")
+            delete params[k];
+        });
+
+        return { url: "/inventory/reports", params };
+      },
+      providesTags: [{ type: "InventoryOverview", id: "REPORTS" }],
+      refetchOnMountOrArgChange: true,
+    }),
+
     getInventoryMismatchAudit: build.query({
       query: (arg = {}) => {
         const { productId, mismatchOnly = true } = arg;
@@ -113,6 +134,7 @@ export const {
   useUpdateInventoryOverviewMutation,
   useDeleteInventoryOverviewMutation,
   useGetInventoryOverviewLowStockQuery,
+  useLazyGetInventoryReportsQuery,
   useGetInventoryMismatchAuditQuery,
   useFixInventoryMismatchMutation,
 } = inventoryOverviewApi;

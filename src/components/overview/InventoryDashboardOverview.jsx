@@ -10,6 +10,7 @@ import {
   ChevronRight,
   ClipboardList,
   Coins,
+  FileText,
   Monitor,
   Package,
   ReceiptText,
@@ -35,6 +36,9 @@ import {
 import DateRangeFilter, {
   getDatePresetRange,
 } from "../../components/common/DateRangeFilter";
+import { formatRangeLabel } from "../monthlyReportingBook/AccountingMonthFilter";
+import { useBookStatementExport } from "../../hooks/useBookStatementExport";
+import ReportPreviewModal from "../cashIn/ReportPreviewModal";
 import { useGetAllAssetsDamageQuery } from "../../features/assetsDamage/assetsDamage";
 import { useGetAllAssetsPurchaseQuery } from "../../features/assetsPurchase/assetsPurchase";
 import { useGetAllAssetsSaleQuery } from "../../features/assetsSale/assetsSale";
@@ -512,6 +516,16 @@ const InventoryDashboardOverview = () => {
 
   const { data, isLoading, isError, refetch } =
     useGetOverviewDashboardQuery(query);
+  const {
+    preview: bookPreview,
+    closePreview: closeBookPreview,
+    exportStatement: exportBookStatement,
+  } = useBookStatementExport();
+  const handlePrintDownloadBook = () =>
+    exportBookStatement({
+      range: { from, to, label: formatRangeLabel(from, to) },
+      autoPrint: false,
+    });
   const todayDate = useMemo(() => getTodayDate(), []);
   const attendanceMonthRange = useMemo(
     () => getAttendanceMonthRange(todayDate),
@@ -1181,6 +1195,14 @@ const InventoryDashboardOverview = () => {
             </p>
           </div>
           <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center xl:w-auto">
+            <button
+              type="button"
+              onClick={handlePrintDownloadBook}
+              className="inline-flex h-11 w-full shrink-0 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-black text-slate-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 sm:w-auto"
+            >
+              <FileText size={16} />
+              Print/Download Book
+            </button>
             <DateRangeFilter
               startDate={from}
               endDate={to}
@@ -1735,6 +1757,17 @@ const InventoryDashboardOverview = () => {
           <span>Version 1.0.0</span>
         </footer>
       </main>
+
+      <ReportPreviewModal
+        open={bookPreview.open}
+        onClose={closeBookPreview}
+        type="pdf"
+        blobUrl={bookPreview.blobUrl}
+        loading={bookPreview.loading}
+        title={bookPreview.title}
+        downloadName={bookPreview.downloadName}
+        autoPrint={bookPreview.autoPrint}
+      />
     </div>
   );
 };

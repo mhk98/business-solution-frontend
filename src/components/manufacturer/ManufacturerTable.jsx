@@ -320,7 +320,10 @@ const ManufacturerTable = () => {
                   Paid
                 </th>
                 <th className="px-6 py-5 text-right text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
-                  Unpaid
+                  Advance
+                </th>
+                <th className="px-6 py-5 text-right text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
+                  Due
                 </th>
                 <th className="px-6 py-5 text-center text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
                   Actions
@@ -354,8 +357,11 @@ const ManufacturerTable = () => {
                   <td className="px-6 py-5 whitespace-nowrap text-right text-sm font-black text-emerald-600">
                     {formatMoney(row.paidAmount)}
                   </td>
+                  <td className="px-6 py-5 whitespace-nowrap text-right text-sm font-black text-sky-600">
+                    {formatMoney(row.totalAdvance)}
+                  </td>
                   <td className="px-6 py-5 whitespace-nowrap text-right text-sm font-black text-rose-600">
-                    {formatMoney(row.unpaidAmount)}
+                    {formatMoney(row.totalDue)}
                   </td>
                   <td className="px-6 py-5 whitespace-nowrap text-center">
                     <div className="flex items-center justify-center gap-2">

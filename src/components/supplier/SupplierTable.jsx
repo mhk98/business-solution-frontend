@@ -37,8 +37,13 @@ const SupplierTable = () => {
   const [startPage, setStartPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [pagesPerSet, setPagesPerSet] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  const itemsPerPage = 10;
+  const handlePerPageChange = (e) => {
+    setItemsPerPage(Number(e.target.value));
+    setCurrentPage(1);
+    setStartPage(1);
+  };
 
   // ✅ Responsive pagination window
   useEffect(() => {
@@ -85,7 +90,7 @@ const SupplierTable = () => {
     if (!isLoading && data?.meta?.count != null) {
       setTotalPages(Math.max(1, Math.ceil(data.meta.count / itemsPerPage)));
     }
-  }, [data, isLoading, isError, error]);
+  }, [data, isLoading, isError, error, itemsPerPage]);
 
   // ✅ Modals
   const handleModalClose = () => setIsModalOpen(false);
@@ -329,15 +334,39 @@ const SupplierTable = () => {
           />
         </div>
 
-        {/* Add button */}
-        <button
-          onClick={handleAddSupplier}
-          type="button"
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#8400ff] px-4 text-sm font-semibold text-white hover:bg-indigo-700 transition"
-        >
-          <Plus size={18} />
-          Add New Supplier
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Per Page */}
+          <div className="flex items-center gap-2">
+            <label
+              htmlFor="supplierPerPage"
+              className="text-xs font-semibold uppercase tracking-wide text-slate-500"
+            >
+              Per Page
+            </label>
+            <select
+              id="supplierPerPage"
+              value={itemsPerPage}
+              onChange={handlePerPageChange}
+              className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
+            >
+              {[10, 25, 50, 100].map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Add button */}
+          <button
+            onClick={handleAddSupplier}
+            type="button"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#8400ff] px-4 text-sm font-semibold text-white hover:bg-indigo-700 transition"
+          >
+            <Plus size={18} />
+            Add New Supplier
+          </button>
+        </div>
       </div>
 
       {/* List */}

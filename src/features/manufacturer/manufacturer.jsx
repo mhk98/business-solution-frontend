@@ -74,17 +74,6 @@ export const manufacturerApi = baseApi.injectEndpoints({
       refetchOnMountOrArgChange: true,
     }),
 
-    payManufacturerAmount: build.mutation({
-      query: ({ id, data }) => ({
-        url: `manufacturer/${id}/payments`,
-        method: "POST",
-        body: data,
-      }),
-      invalidatesTags: (result, error, arg) => [
-        { type: "Manufacturer", id: arg.id },
-        { type: "Manufacturer", id: "LIST" },
-      ],
-    }),
   }),
 
   overrideExisting: false,
@@ -98,5 +87,4 @@ export const {
   useGetAllManufacturerWithoutQueryQuery,
   useGetSingleManufacturerQuery,
   useGetManufacturerTransactionsQuery,
-  usePayManufacturerAmountMutation,
 } = manufacturerApi;
