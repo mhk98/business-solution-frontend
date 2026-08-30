@@ -271,6 +271,132 @@ const PACKAGING_SUB_FIELDS = [
   { closingKey: "packagingFactoryStockClosing", key: "packagingFactoryStock" },
 ];
 
+const COURIER_PRODUCT_STOCK_COLUMNS = [
+  { key: "sl", label: "#", widthPct: 8 },
+  { key: "date", label: "তারিখ", widthPct: 22 },
+  { key: "status", label: "স্ট্যাটাস", widthPct: 40 },
+  { key: "amount", label: "পরিমান", widthPct: 30, isAmount: true },
+];
+
+const SALES_DUE_COLUMNS = [
+  { key: "sl", label: "#", widthPct: 8 },
+  { key: "name", label: "নাম", widthPct: 62 },
+  { key: "amount", label: "বাকি", widthPct: 30, isAmount: true },
+];
+
+const SALARY_ADVANCE_COLUMNS = [
+  { key: "sl", label: "#", widthPct: 8 },
+  { key: "name", label: "নাম", widthPct: 62 },
+  { key: "amount", label: "বাকি", widthPct: 30, isAmount: true },
+];
+
+const PENDING_PAYROLL_SALARY_COLUMNS = [
+  { key: "sl", label: "#", widthPct: 8 },
+  { key: "name", label: "কর্মচারী", widthPct: 62 },
+  { key: "amount", label: "বেতন", widthPct: 30, isAmount: true },
+];
+
+const MANUFACTURER_DUE_COLUMNS = [
+  { key: "sl", label: "#", widthPct: 8 },
+  { key: "name", label: "ম্যানুফ্যাকচার", widthPct: 62 },
+  { key: "amount", label: "বাকি", widthPct: 30, isAmount: true },
+];
+
+const SUPPLIER_DUE_COLUMNS = [
+  { key: "sl", label: "#", widthPct: 8 },
+  { key: "name", label: "সাপ্লাইয়ার", widthPct: 62 },
+  { key: "amount", label: "বাকি", widthPct: 30, isAmount: true },
+];
+
+const SUPPLIER_RECEIVABLE_COLUMNS = [
+  { key: "sl", label: "#", widthPct: 8 },
+  { key: "name", label: "সাপ্লাইয়ার", widthPct: 62 },
+  { key: "amount", label: "পরিমান", widthPct: 30, isAmount: true },
+];
+
+const MANUFACTURER_RECEIVABLE_COLUMNS = [
+  { key: "sl", label: "#", widthPct: 8 },
+  { key: "name", label: "ম্যানুফ্যাকচার", widthPct: 62 },
+  { key: "amount", label: "পরিমান", widthPct: 30, isAmount: true },
+];
+
+const PACKAGING_MANUFACTURER_RECEIVABLE_COLUMNS = [
+  { key: "sl", label: "#", widthPct: 8 },
+  { key: "name", label: "প্যাকেজিং ম্যানুফ্যাকচার", widthPct: 62 },
+  { key: "amount", label: "পরিমান", widthPct: 30, isAmount: true },
+];
+
+const LENDER_RECEIVABLE_COLUMNS = [
+  { key: "sl", label: "#", widthPct: 8 },
+  { key: "name", label: "লেন্ডার", widthPct: 62 },
+  { key: "amount", label: "পরিমান", widthPct: 30, isAmount: true },
+];
+
+const LENDER_PAYABLE_COLUMNS = [
+  { key: "sl", label: "#", widthPct: 8 },
+  { key: "name", label: "লেন্ডার", widthPct: 62 },
+  { key: "amount", label: "বাকি", widthPct: 30, isAmount: true },
+];
+
+const DIRECTOR_INVESTMENT_COLUMNS = [
+  { key: "sl", label: "#", widthPct: 8 },
+  { key: "name", label: "ডিরেক্টর", widthPct: 62 },
+  { key: "amount", label: "ইনভেস্ট", widthPct: 30, isAmount: true },
+];
+
+const GRAND_TOTAL_COLUMNS = [
+  { key: "sl", label: "#", widthPct: 10 },
+  { key: "description", label: "বিবরণ", widthPct: 60 },
+  { key: "amount", label: "পরিমান", widthPct: 30, isAmount: true },
+];
+
+const PAYABLE_TOTAL_COLUMNS = GRAND_TOTAL_COLUMNS;
+
+const getPayableTotalAmount = ({
+  pendingPayrollSalary,
+  manufacturerDue,
+  supplierDue,
+  lenderPayable,
+}) =>
+  Number(pendingPayrollSalary?.meta?.totalSalary || 0) +
+  Number(manufacturerDue?.meta?.totalDue || 0) +
+  Number(supplierDue?.meta?.totalDue || 0) +
+  Number(lenderPayable?.meta?.totalDue || 0);
+
+const getDirectorInvestmentTotalAmount = (directorInvestment) =>
+  Number(directorInvestment?.meta?.totalInvestAmount || 0);
+
+const getPayableAndDirectorInvestmentTotalAmount = ({
+  pendingPayrollSalary,
+  manufacturerDue,
+  supplierDue,
+  lenderPayable,
+  directorInvestment,
+}) =>
+  getPayableTotalAmount({
+    pendingPayrollSalary,
+    manufacturerDue,
+    supplierDue,
+    lenderPayable,
+  }) + getDirectorInvestmentTotalAmount(directorInvestment);
+
+const getGrandTotalAmount = ({
+  totalCashBalance,
+  salesDue,
+  salaryAdvance,
+  supplierReceivable,
+  manufacturerReceivable,
+  packagingManufacturerReceivable,
+  lenderReceivable,
+}) =>
+  Number(totalCashBalance || 0) +
+  Number(salesDue?.meta?.totalDue || 0) +
+  Number(salaryAdvance?.meta?.totalDue || 0) +
+  Number(supplierReceivable?.meta?.totalAdvance || 0) +
+  Number(manufacturerReceivable?.meta?.totalAdvance || 0) +
+  Number(packagingManufacturerReceivable?.meta?.totalAdvance || 0) +
+  Number(lenderReceivable?.meta?.totalAdvance || 0);
+
 const FRAGMENT_STYLES = `
   * { box-sizing: border-box; }
   body { margin: 0; }
@@ -636,6 +762,263 @@ const normalizeWideStockRows = (report, subFields) => {
       totalStock: total.totalStock,
       purchasePrice: 0,
       totalPurchaseCost: total.totalPurchaseCost,
+    },
+  ];
+};
+
+// Courier Product Stock isn't a stock-quantity pool like the ones above —
+// it's a simple dated ledger of courier charge entries (status + amount), so
+// it gets the plain detail-row shape (date | status | amount) with a "মোট"
+// total row appended, rather than the wide stock-column layout.
+const normalizeCourierProductStockRows = (courierProductStock) => {
+  if (!courierProductStock) return [];
+
+  const rows = courierProductStock.data || [];
+  if (!rows.length) return [];
+
+  const normalizedRows = rows.map((row) => ({
+    date: formatRowDate(row.date),
+    status: row.status || "-",
+    amount: Number(row.amount || 0),
+  }));
+
+  const total = normalizedRows.reduce((sum, row) => sum + row.amount, 0);
+
+  return [
+    ...normalizedRows,
+    {
+      isTotal: true,
+      date: "",
+      status: "মোট",
+      amount: total,
+    },
+  ];
+};
+
+// Sales Due and Salary Advance list whatever is currently outstanding
+// (due > 0) — a date-independent snapshot like the receivable sections
+// below, not a period ledger — so every row here always has something owed.
+const normalizeSalesDueRows = (salesDue) => {
+  if (!salesDue) return [];
+
+  const rows = salesDue.data || [];
+  if (!rows.length) return [];
+
+  const normalizedRows = rows.map((row) => ({
+    name: row.name || "-",
+    amount: Number(row.due || 0),
+  }));
+
+  const total = normalizedRows.reduce((sum, row) => sum + row.amount, 0);
+
+  return [
+    ...normalizedRows,
+    {
+      isTotal: true,
+      name: "মোট",
+      amount: total,
+    },
+  ];
+};
+
+const normalizeSalaryAdvanceRows = (salaryAdvance) => {
+  if (!salaryAdvance) return [];
+
+  const rows = salaryAdvance.data || [];
+  if (!rows.length) return [];
+
+  const normalizedRows = rows.map((row) => ({
+    name: row.name || "-",
+    amount: Number(row.due || 0),
+  }));
+
+  const total = normalizedRows.reduce((sum, row) => sum + row.amount, 0);
+
+  return [
+    ...normalizedRows,
+    {
+      isTotal: true,
+      name: "মোট",
+      amount: total,
+    },
+  ];
+};
+
+const normalizePendingPayrollSalaryRows = (pendingPayrollSalary) => {
+  if (!pendingPayrollSalary) return [];
+
+  const rows = pendingPayrollSalary.data || [];
+  if (!rows.length) return [];
+
+  const normalizedRows = rows.map((row) => ({
+    name: row.name || "-",
+    amount: Number(row.salary || 0),
+  }));
+
+  const total = normalizedRows.reduce((sum, row) => sum + row.amount, 0);
+
+  return [
+    ...normalizedRows,
+    {
+      isTotal: true,
+      name: "মোট",
+      amount: total,
+    },
+  ];
+};
+
+const normalizeDueRows = (report) => {
+  if (!report) return [];
+
+  const rows = report.data || [];
+  if (!rows.length) return [];
+
+  const normalizedRows = rows.map((row) => ({
+    name: row.name || "-",
+    amount: Number(row.due || 0),
+  }));
+
+  const total = normalizedRows.reduce((sum, row) => sum + row.amount, 0);
+
+  return [
+    ...normalizedRows,
+    {
+      isTotal: true,
+      name: "মোট",
+      amount: total,
+    },
+  ];
+};
+
+const normalizeLenderPayableRows = (lenderPayable) => normalizeDueRows(lenderPayable);
+
+const normalizeDirectorInvestmentRows = (directorInvestment) => {
+  if (!directorInvestment) return [];
+
+  const rows = directorInvestment.data || [];
+  if (!rows.length) return [];
+
+  const normalizedRows = rows.map((row) => ({
+    name: row.name || "-",
+    amount: Number(row.investAmount || 0),
+  }));
+
+  const total = normalizedRows.reduce((sum, row) => sum + row.amount, 0);
+
+  return [
+    ...normalizedRows,
+    {
+      isTotal: true,
+      name: "মোট",
+      amount: total,
+    },
+  ];
+};
+
+// Suppliers the company has overpaid (as of the report's `to` date) — money
+// the company will receive back from that supplier, either as goods or a
+// refund. Same plain detail-row shape as Courier Product Stock: one row per
+// supplier plus a "মোট" total row.
+const normalizeSupplierReceivableRows = (supplierReceivable) => {
+  if (!supplierReceivable) return [];
+
+  const rows = supplierReceivable.data || [];
+  if (!rows.length) return [];
+
+  const normalizedRows = rows.map((row) => ({
+    name: row.name || "-",
+    amount: Number(row.advance || 0),
+  }));
+
+  const total = normalizedRows.reduce((sum, row) => sum + row.amount, 0);
+
+  return [
+    ...normalizedRows,
+    {
+      isTotal: true,
+      name: "মোট",
+      amount: total,
+    },
+  ];
+};
+
+// Manufacturers the company has overpaid (as of the report's `to` date) —
+// money the company will receive back from that manufacturer, either as
+// wage work or a refund. Same shape as normalizeSupplierReceivableRows.
+const normalizeManufacturerReceivableRows = (manufacturerReceivable) => {
+  if (!manufacturerReceivable) return [];
+
+  const rows = manufacturerReceivable.data || [];
+  if (!rows.length) return [];
+
+  const normalizedRows = rows.map((row) => ({
+    name: row.name || "-",
+    amount: Number(row.advance || 0),
+  }));
+
+  const total = normalizedRows.reduce((sum, row) => sum + row.amount, 0);
+
+  return [
+    ...normalizedRows,
+    {
+      isTotal: true,
+      name: "মোট",
+      amount: total,
+    },
+  ];
+};
+
+// Packaging manufacturers the company has overpaid (as of the report's `to`
+// date) — money the company will receive back from that packaging
+// manufacturer, either as wage work or a refund. Same shape as
+// normalizeManufacturerReceivableRows.
+const normalizePackagingManufacturerReceivableRows = (
+  packagingManufacturerReceivable,
+) => {
+  if (!packagingManufacturerReceivable) return [];
+
+  const rows = packagingManufacturerReceivable.data || [];
+  if (!rows.length) return [];
+
+  const normalizedRows = rows.map((row) => ({
+    name: row.name || "-",
+    amount: Number(row.advance || 0),
+  }));
+
+  const total = normalizedRows.reduce((sum, row) => sum + row.amount, 0);
+
+  return [
+    ...normalizedRows,
+    {
+      isTotal: true,
+      name: "মোট",
+      amount: total,
+    },
+  ];
+};
+
+// Lenders the company has overpaid (as of the report's `to` date) — money
+// the company will receive back from that lender, since it repaid more than
+// it ever borrowed from them. Same shape as normalizeManufacturerReceivableRows.
+const normalizeLenderReceivableRows = (lenderReceivable) => {
+  if (!lenderReceivable) return [];
+
+  const rows = lenderReceivable.data || [];
+  if (!rows.length) return [];
+
+  const normalizedRows = rows.map((row) => ({
+    name: row.name || "-",
+    amount: Number(row.advance || 0),
+  }));
+
+  const total = normalizedRows.reduce((sum, row) => sum + row.amount, 0);
+
+  return [
+    ...normalizedRows,
+    {
+      isTotal: true,
+      name: "মোট",
+      amount: total,
     },
   ];
 };
@@ -1131,6 +1514,461 @@ const appendInventoryStockReport = async (
   });
 };
 
+const appendCourierProductStockSection = async (
+  doc,
+  html2canvas,
+  cursor,
+  { courierProductStock, regularFontDataUrl, boldFontDataUrl },
+) => {
+  const rows = normalizeCourierProductStockRows(courierProductStock);
+  if (!rows.length) return;
+
+  await placeLedgerSection(doc, html2canvas, cursor, {
+    title: "কুরিয়ার প্রোডাক্ট স্টক",
+    rows,
+    totalLabel: null,
+    total: 0,
+    columns: COURIER_PRODUCT_STOCK_COLUMNS,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+};
+
+const appendSalesDueSection = async (
+  doc,
+  html2canvas,
+  cursor,
+  { salesDue, regularFontDataUrl, boldFontDataUrl },
+) => {
+  const rows = normalizeSalesDueRows(salesDue);
+  if (!rows.length) return;
+
+  await placeLedgerSection(doc, html2canvas, cursor, {
+    title: "সেলস বাকি",
+    rows,
+    totalLabel: null,
+    total: 0,
+    columns: SALES_DUE_COLUMNS,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+};
+
+const appendSalaryAdvanceSection = async (
+  doc,
+  html2canvas,
+  cursor,
+  { salaryAdvance, regularFontDataUrl, boldFontDataUrl },
+) => {
+  const rows = normalizeSalaryAdvanceRows(salaryAdvance);
+  if (!rows.length) return;
+
+  await placeLedgerSection(doc, html2canvas, cursor, {
+    title: "বেতন অগ্রিম",
+    rows,
+    totalLabel: null,
+    total: 0,
+    columns: SALARY_ADVANCE_COLUMNS,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+};
+
+const appendSupplierReceivableSection = async (
+  doc,
+  html2canvas,
+  cursor,
+  { supplierReceivable, regularFontDataUrl, boldFontDataUrl },
+) => {
+  const rows = normalizeSupplierReceivableRows(supplierReceivable);
+  if (!rows.length) return;
+
+  await placeLedgerSection(doc, html2canvas, cursor, {
+    title: "কোম্পানি পাবে (সাপ্লাইয়ার)",
+    rows,
+    totalLabel: null,
+    total: 0,
+    columns: SUPPLIER_RECEIVABLE_COLUMNS,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+};
+
+const appendManufacturerReceivableSection = async (
+  doc,
+  html2canvas,
+  cursor,
+  { manufacturerReceivable, regularFontDataUrl, boldFontDataUrl },
+) => {
+  const rows = normalizeManufacturerReceivableRows(manufacturerReceivable);
+  if (!rows.length) return;
+
+  await placeLedgerSection(doc, html2canvas, cursor, {
+    title: "কোম্পানি পাবে (ম্যানুফ্যাকচার)",
+    rows,
+    totalLabel: null,
+    total: 0,
+    columns: MANUFACTURER_RECEIVABLE_COLUMNS,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+};
+
+const appendPackagingManufacturerReceivableSection = async (
+  doc,
+  html2canvas,
+  cursor,
+  { packagingManufacturerReceivable, regularFontDataUrl, boldFontDataUrl },
+) => {
+  const rows = normalizePackagingManufacturerReceivableRows(
+    packagingManufacturerReceivable,
+  );
+  if (!rows.length) return;
+
+  await placeLedgerSection(doc, html2canvas, cursor, {
+    title: "কোম্পানি পাবে (প্যাকেজিং ম্যানুফ্যাকচার)",
+    rows,
+    totalLabel: null,
+    total: 0,
+    columns: PACKAGING_MANUFACTURER_RECEIVABLE_COLUMNS,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+};
+
+const appendLenderReceivableSection = async (
+  doc,
+  html2canvas,
+  cursor,
+  { lenderReceivable, regularFontDataUrl, boldFontDataUrl },
+) => {
+  const rows = normalizeLenderReceivableRows(lenderReceivable);
+  if (!rows.length) return;
+
+  await placeLedgerSection(doc, html2canvas, cursor, {
+    title: "কোম্পানি পাবে (লেন্ডার)",
+    rows,
+    totalLabel: null,
+    total: 0,
+    columns: LENDER_RECEIVABLE_COLUMNS,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+};
+
+const appendPendingPayrollSalarySection = async (
+  doc,
+  html2canvas,
+  cursor,
+  { pendingPayrollSalary, regularFontDataUrl, boldFontDataUrl },
+) => {
+  const rows = normalizePendingPayrollSalaryRows(pendingPayrollSalary);
+  if (!rows.length) return;
+
+  await placeLedgerSection(doc, html2canvas, cursor, {
+    title: "পেন্ডিং বেতন",
+    rows,
+    totalLabel: null,
+    total: 0,
+    columns: PENDING_PAYROLL_SALARY_COLUMNS,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+};
+
+const appendManufacturerDueSection = async (
+  doc,
+  html2canvas,
+  cursor,
+  { manufacturerDue, regularFontDataUrl, boldFontDataUrl },
+) => {
+  const rows = normalizeDueRows(manufacturerDue);
+  if (!rows.length) return;
+
+  await placeLedgerSection(doc, html2canvas, cursor, {
+    title: "ম্যানুফ্যাকচার বাকি",
+    rows,
+    totalLabel: null,
+    total: 0,
+    columns: MANUFACTURER_DUE_COLUMNS,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+};
+
+const appendSupplierDueSection = async (
+  doc,
+  html2canvas,
+  cursor,
+  { supplierDue, regularFontDataUrl, boldFontDataUrl },
+) => {
+  const rows = normalizeDueRows(supplierDue);
+  if (!rows.length) return;
+
+  await placeLedgerSection(doc, html2canvas, cursor, {
+    title: "সাপ্লাইয়ার বাকি",
+    rows,
+    totalLabel: null,
+    total: 0,
+    columns: SUPPLIER_DUE_COLUMNS,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+};
+
+const appendLenderPayableSection = async (
+  doc,
+  html2canvas,
+  cursor,
+  { lenderPayable, regularFontDataUrl, boldFontDataUrl },
+) => {
+  const rows = normalizeLenderPayableRows(lenderPayable);
+  if (!rows.length) return;
+
+  await placeLedgerSection(doc, html2canvas, cursor, {
+    title: "কোম্পানির কাছে পাবে (লেন্ডার)",
+    rows,
+    totalLabel: null,
+    total: 0,
+    columns: LENDER_PAYABLE_COLUMNS,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+};
+
+const appendPayableTotalSection = async (
+  doc,
+  html2canvas,
+  cursor,
+  {
+    pendingPayrollSalary,
+    manufacturerDue,
+    supplierDue,
+    lenderPayable,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  },
+) => {
+  const pendingSalaryTotal = Number(pendingPayrollSalary?.meta?.totalSalary || 0);
+  const manufacturerDueTotal = Number(manufacturerDue?.meta?.totalDue || 0);
+  const supplierDueTotal = Number(supplierDue?.meta?.totalDue || 0);
+  const lenderPayableTotal = Number(lenderPayable?.meta?.totalDue || 0);
+  const total = getPayableTotalAmount({
+    pendingPayrollSalary,
+    manufacturerDue,
+    supplierDue,
+    lenderPayable,
+  });
+
+  if (total <= 0) return;
+
+  await placeLedgerSection(doc, html2canvas, cursor, {
+    title: "সর্বমোট বাকি",
+    rows: [
+      { description: "পেন্ডিং বেতন", amount: pendingSalaryTotal },
+      { description: "ম্যানুফ্যাকচার বাকি", amount: manufacturerDueTotal },
+      { description: "সাপ্লাইয়ার বাকি", amount: supplierDueTotal },
+      {
+        description: "কোম্পানির কাছে পাবে (লেন্ডার)",
+        amount: lenderPayableTotal,
+      },
+    ],
+    totalLabel: "সর্বমোট",
+    total,
+    columns: PAYABLE_TOTAL_COLUMNS,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+};
+
+const appendPayableAndDirectorInvestmentTotalSection = async (
+  doc,
+  html2canvas,
+  cursor,
+  {
+    pendingPayrollSalary,
+    manufacturerDue,
+    supplierDue,
+    lenderPayable,
+    directorInvestment,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  },
+) => {
+  const payableTotal = getPayableTotalAmount({
+    pendingPayrollSalary,
+    manufacturerDue,
+    supplierDue,
+    lenderPayable,
+  });
+  const directorInvestTotal =
+    getDirectorInvestmentTotalAmount(directorInvestment);
+  const total = getPayableAndDirectorInvestmentTotalAmount({
+    pendingPayrollSalary,
+    manufacturerDue,
+    supplierDue,
+    lenderPayable,
+    directorInvestment,
+  });
+
+  if (total <= 0) return;
+
+  await placeLedgerSection(doc, html2canvas, cursor, {
+    title: "সর্বমোট বাকি ও ডিরেক্টর ইনভেস্ট",
+    rows: [
+      { description: "সর্বমোট বাকি", amount: payableTotal },
+      { description: "ডিরেক্টর ইনভেস্ট", amount: directorInvestTotal },
+    ],
+    totalLabel: "সর্বমোট",
+    total,
+    columns: PAYABLE_TOTAL_COLUMNS,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+};
+
+const appendProfitLossSection = async (
+  doc,
+  html2canvas,
+  cursor,
+  {
+    totalCashBalance,
+    salesDue,
+    salaryAdvance,
+    supplierReceivable,
+    manufacturerReceivable,
+    packagingManufacturerReceivable,
+    lenderReceivable,
+    pendingPayrollSalary,
+    manufacturerDue,
+    supplierDue,
+    lenderPayable,
+    directorInvestment,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  },
+) => {
+  const grandTotal = getGrandTotalAmount({
+    totalCashBalance,
+    salesDue,
+    salaryAdvance,
+    supplierReceivable,
+    manufacturerReceivable,
+    packagingManufacturerReceivable,
+    lenderReceivable,
+  });
+  const payableAndInvestmentTotal = getPayableAndDirectorInvestmentTotalAmount({
+    pendingPayrollSalary,
+    manufacturerDue,
+    supplierDue,
+    lenderPayable,
+    directorInvestment,
+  });
+  const result = grandTotal - payableAndInvestmentTotal;
+  const resultLabel = result >= 0 ? "Profit" : "Loss";
+
+  await placeLedgerSection(doc, html2canvas, cursor, {
+    title: "Profit / Loss",
+    rows: [
+      { description: "গ্র্যান্ড টোটাল (ক্যাশ ও প্রাপ্য)", amount: grandTotal },
+      {
+        description: "সর্বমোট বাকি ও ডিরেক্টর ইনভেস্ট",
+        amount: payableAndInvestmentTotal,
+      },
+    ],
+    totalLabel: resultLabel,
+    total: Math.abs(result),
+    columns: PAYABLE_TOTAL_COLUMNS,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+};
+
+const appendDirectorInvestmentSection = async (
+  doc,
+  html2canvas,
+  cursor,
+  { directorInvestment, regularFontDataUrl, boldFontDataUrl },
+) => {
+  const rows = normalizeDirectorInvestmentRows(directorInvestment);
+  if (!rows.length) return;
+
+  await placeLedgerSection(doc, html2canvas, cursor, {
+    title: "ডিরেক্টর ইনভেস্ট",
+    rows,
+    totalLabel: null,
+    total: 0,
+    columns: DIRECTOR_INVESTMENT_COLUMNS,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+};
+
+// Combines the account's net cash position with every "money owed to the
+// company" figure already computed above (Sales Due, Salary Advance, and
+// the four receivable sections) into one grand total — the bottom-line
+// summary the rest of this report builds up to.
+const appendGrandTotalSection = async (
+  doc,
+  html2canvas,
+  cursor,
+  {
+    totalCashBalance,
+    salesDue,
+    salaryAdvance,
+    supplierReceivable,
+    manufacturerReceivable,
+    packagingManufacturerReceivable,
+    lenderReceivable,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  },
+) => {
+  const cashTotal = Number(totalCashBalance || 0);
+  const salesDueTotal = Number(salesDue?.meta?.totalDue || 0);
+  const salaryAdvanceTotal = Number(salaryAdvance?.meta?.totalDue || 0);
+  const supplierTotal = Number(supplierReceivable?.meta?.totalAdvance || 0);
+  const manufacturerTotal = Number(
+    manufacturerReceivable?.meta?.totalAdvance || 0,
+  );
+  const packagingManufacturerTotal = Number(
+    packagingManufacturerReceivable?.meta?.totalAdvance || 0,
+  );
+  const lenderTotal = Number(lenderReceivable?.meta?.totalAdvance || 0);
+  const grandTotal = getGrandTotalAmount({
+    totalCashBalance,
+    salesDue,
+    salaryAdvance,
+    supplierReceivable,
+    manufacturerReceivable,
+    packagingManufacturerReceivable,
+    lenderReceivable,
+  });
+
+  const rows = [
+    { description: "একাউন্টে মোট ক্যাশ", amount: cashTotal },
+    { description: "সেলস বাকি", amount: salesDueTotal },
+    { description: "বেতন অগ্রিম", amount: salaryAdvanceTotal },
+    { description: "কোম্পানি পাবে (সাপ্লাইয়ার)", amount: supplierTotal },
+    { description: "কোম্পানি পাবে (ম্যানুফ্যাকচার)", amount: manufacturerTotal },
+    {
+      description: "কোম্পানি পাবে (প্যাকেজিং ম্যানুফ্যাকচার)",
+      amount: packagingManufacturerTotal,
+    },
+    { description: "কোম্পানি পাবে (লেন্ডার)", amount: lenderTotal },
+  ];
+
+  await placeLedgerSection(doc, html2canvas, cursor, {
+    title: "গ্র্যান্ড টোটাল (ক্যাশ ও প্রাপ্য)",
+    rows,
+    totalLabel: "সর্বমোট",
+    total: grandTotal,
+    columns: GRAND_TOTAL_COLUMNS,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+};
+
 const appendWideStockSection = async (
   doc,
   html2canvas,
@@ -1163,6 +2001,18 @@ export const generateBookStatementPdf = async ({
   inventoryStockReport = null,
   itemFactoryStock = null,
   packagingStock = null,
+  courierProductStock = null,
+  supplierReceivable = null,
+  manufacturerReceivable = null,
+  packagingManufacturerReceivable = null,
+  lenderReceivable = null,
+  salesDue = null,
+  salaryAdvance = null,
+  pendingPayrollSalary = null,
+  supplierDue = null,
+  manufacturerDue = null,
+  lenderPayable = null,
+  directorInvestment = null,
 }) => {
   const { jsPDF } = await import("jspdf");
   const html2canvas = (await import("html2canvas")).default;
@@ -1172,6 +2022,14 @@ export const generateBookStatementPdf = async ({
 
   const doc = new jsPDF("p", "mm", "a4");
   const cursor = { y: CONTENT_MARGIN_MM, pageHasContent: false };
+
+  const totalCashBalance = books.reduce((sum, book) => {
+    const totalCredit = book.totalCredit ?? 0;
+    const totalDebit = book.totalDebit ?? 0;
+    const netBalance =
+      book.netBalance !== undefined ? book.netBalance : totalCredit - totalDebit;
+    return sum + netBalance;
+  }, 0);
 
   for (const book of books) {
     await appendBookStatement(doc, html2canvas, cursor, {
@@ -1209,6 +2067,144 @@ export const generateBookStatementPdf = async ({
     regularFontDataUrl,
     boldFontDataUrl,
   });
+
+  await appendCourierProductStockSection(doc, html2canvas, cursor, {
+    courierProductStock,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
+  await appendSalesDueSection(doc, html2canvas, cursor, {
+    salesDue,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
+  await appendSalaryAdvanceSection(doc, html2canvas, cursor, {
+    salaryAdvance,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
+  await appendSupplierReceivableSection(doc, html2canvas, cursor, {
+    supplierReceivable,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
+  await appendManufacturerReceivableSection(doc, html2canvas, cursor, {
+    manufacturerReceivable,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
+  await appendPackagingManufacturerReceivableSection(doc, html2canvas, cursor, {
+    packagingManufacturerReceivable,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
+  await appendLenderReceivableSection(doc, html2canvas, cursor, {
+    lenderReceivable,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
+  await appendGrandTotalSection(doc, html2canvas, cursor, {
+    totalCashBalance,
+    salesDue,
+    salaryAdvance,
+    supplierReceivable,
+    manufacturerReceivable,
+    packagingManufacturerReceivable,
+    lenderReceivable,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
+  await appendPendingPayrollSalarySection(doc, html2canvas, cursor, {
+    pendingPayrollSalary,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
+  await appendManufacturerDueSection(doc, html2canvas, cursor, {
+    manufacturerDue,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
+  await appendSupplierDueSection(doc, html2canvas, cursor, {
+    supplierDue,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
+  await appendLenderPayableSection(doc, html2canvas, cursor, {
+    lenderPayable,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
+  await appendPayableTotalSection(doc, html2canvas, cursor, {
+    pendingPayrollSalary,
+    manufacturerDue,
+    supplierDue,
+    lenderPayable,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
+  await appendDirectorInvestmentSection(doc, html2canvas, cursor, {
+    directorInvestment,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
+  await appendPayableAndDirectorInvestmentTotalSection(
+    doc,
+    html2canvas,
+    cursor,
+    {
+      pendingPayrollSalary,
+      manufacturerDue,
+      supplierDue,
+      lenderPayable,
+      directorInvestment,
+      regularFontDataUrl,
+      boldFontDataUrl,
+    },
+  );
+
+  await appendProfitLossSection(doc, html2canvas, cursor, {
+    totalCashBalance,
+    salesDue,
+    salaryAdvance,
+    supplierReceivable,
+    manufacturerReceivable,
+    packagingManufacturerReceivable,
+    lenderReceivable,
+    pendingPayrollSalary,
+    manufacturerDue,
+    supplierDue,
+    lenderPayable,
+    directorInvestment,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
+  // Page count isn't known until every section above has been placed, so
+  // the footer numbering is stamped on as a final pass over every page.
+  const totalPages = doc.internal.getNumberOfPages();
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(100, 116, 139);
+  for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {
+    doc.setPage(pageNumber);
+    doc.text(`Page ${pageNumber} of ${totalPages}`, PAGE_W_MM / 2, PAGE_H_MM - 12, {
+      align: "center",
+    });
+  }
 
   return doc.output("blob");
 };

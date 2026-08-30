@@ -19,6 +19,11 @@ const ReceivedProductPage = lazy(() => import("./pages/ReceivedProductPage"));
 const ReturnProductPage = lazy(() => import("./pages/ReturnProductPage"));
 const InTransitProductPage = lazy(() => import("./pages/InTransitProductPage"));
 const CourierNoEntryPage = lazy(() => import("./pages/CourierNoEntryPage"));
+const CourierProductStockPage = lazy(() =>
+  import("./pages/CourierProductStockPage"),
+);
+const SalesDuePage = lazy(() => import("./pages/SalesDuePage"));
+const SalaryAdvancePage = lazy(() => import("./pages/SalaryAdvancePage"));
 const MetaPage = lazy(() => import("./pages/MetaPage"));
 const GooglePage = lazy(() => import("./pages/GooglePage"));
 const TiktokPage = lazy(() => import("./pages/TiktokPage"));
@@ -236,6 +241,9 @@ function App() {
                 <Route path="/purchase-product" element={<AuthedRoute><ReceivedProductPage /></AuthedRoute>} />
                 <Route path="/intransit-product" element={<AuthedRoute><InTransitProductPage /></AuthedRoute>} />
                 <Route path="/courier-no-entry" element={<AuthedRoute><CourierNoEntryPage /></AuthedRoute>} />
+                <Route path="/courier-product-stock" element={<AuthedRoute><CourierProductStockPage /></AuthedRoute>} />
+                <Route path="/sales-due" element={<AuthedRoute><SalesDuePage /></AuthedRoute>} />
+                <Route path="/salary-advance" element={<AuthedRoute><SalaryAdvancePage /></AuthedRoute>} />
                 <Route path="/sales-return" element={<AuthedRoute><ReturnProductPage /></AuthedRoute>} />
                 <Route path="/purchase-return" element={<AuthedRoute><PurchaseReturnProductPage /></AuthedRoute>} />
                 <Route path="/damage-stock" element={<AuthedRoute><DamageStockPage /></AuthedRoute>} />

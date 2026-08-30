@@ -158,16 +158,22 @@ const PackagingManufacturerTable = () => {
         <table className="min-w-full divide-y divide-slate-100">
           <thead className="bg-slate-50/50">
             <tr>
-              {["Name", "Phone", "Paid", "Unpaid", "Address", "Actions"].map(
-                (h) => (
-                  <th
-                    key={h}
-                    className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]"
-                  >
-                    {h}
-                  </th>
-                ),
-              )}
+              {[
+                "Name",
+                "Phone",
+                "Paid",
+                "Advance",
+                "Due",
+                "Address",
+                "Actions",
+              ].map((h) => (
+                <th
+                  key={h}
+                  className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]"
+                >
+                  {h}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -182,8 +188,11 @@ const PackagingManufacturerTable = () => {
                 <td className="px-6 py-5 text-sm text-emerald-700 font-bold">
                   {Number(row.paidAmount || 0).toLocaleString()}
                 </td>
+                <td className="px-6 py-5 text-sm text-sky-700 font-bold">
+                  {Number(row.totalAdvance || 0).toLocaleString()}
+                </td>
                 <td className="px-6 py-5 text-sm text-rose-700 font-bold">
-                  {Number(row.unpaidAmount || 0).toLocaleString()}
+                  {Number(row.totalDue || 0).toLocaleString()}
                 </td>
                 <td className="px-6 py-5 text-sm text-slate-600">
                   {row.address || "N/A"}
@@ -295,7 +304,7 @@ const PackagingManufacturerTable = () => {
       >
         <form onSubmit={handlePayment} className="space-y-4">
           <div className="text-sm font-bold text-slate-700">
-            Unpaid: {Number(paying?.unpaidAmount || 0).toLocaleString()}
+            Due: {Number(paying?.totalDue || 0).toLocaleString()}
           </div>
           <input
             type="number"

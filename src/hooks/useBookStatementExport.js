@@ -142,6 +142,26 @@ export const useBookStatementExport = () => {
         inventoryStockReport,
         itemFactoryStock: statementInventoryStockReport?.itemFactoryStock || null,
         packagingStock: statementInventoryStockReport?.packagingStock || null,
+        courierProductStock:
+          statementInventoryStockReport?.courierProductStock || null,
+        supplierReceivable:
+          statementInventoryStockReport?.supplierReceivable || null,
+        manufacturerReceivable:
+          statementInventoryStockReport?.manufacturerReceivable || null,
+        packagingManufacturerReceivable:
+          statementInventoryStockReport?.packagingManufacturerReceivable ||
+          null,
+        lenderReceivable:
+          statementInventoryStockReport?.lenderReceivable || null,
+        salesDue: statementInventoryStockReport?.salesDue || null,
+        salaryAdvance: statementInventoryStockReport?.salaryAdvance || null,
+        pendingPayrollSalary:
+          statementInventoryStockReport?.pendingPayrollSalary || null,
+        supplierDue: statementInventoryStockReport?.supplierDue || null,
+        manufacturerDue: statementInventoryStockReport?.manufacturerDue || null,
+        lenderPayable: statementInventoryStockReport?.lenderPayable || null,
+        directorInvestment:
+          statementInventoryStockReport?.directorInvestment || null,
       });
 
       const url = URL.createObjectURL(blob);

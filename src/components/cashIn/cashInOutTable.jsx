@@ -39,6 +39,8 @@ import { useGetAllSupplierWithoutQueryQuery } from "../../features/supplier/supp
 import { useGetAllSupplierHistoryQuery } from "../../features/supplierHistory/supplierHistory";
 import { useGetAllOwnerWithoutQueryQuery } from "../../features/ownerTransaction/ownerTransaction";
 import { useGetAllDirectorWithoutQueryQuery } from "../../features/ownerTransaction/directorProfitShare";
+import { useGetAllManufacturerWithoutQueryQuery } from "../../features/manufacturer/manufacturer";
+import { useGetAllPackagingManufacturerWithoutQueryQuery } from "../../features/packagingManufacturer/packagingManufacturer";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 import useDebounce from "../../hooks/useDebounce";
 
@@ -407,6 +409,8 @@ const CashInOutTable = () => {
     bankAccount: "",
     partyType: "",
     supplierId: "",
+    manufacturerId: "",
+    packagingManufacturerId: "",
     ownerId: "",
     directorId: "",
     lender: "",
@@ -464,6 +468,8 @@ const CashInOutTable = () => {
 
   const getPartyTypeFromRow = (row) => {
     if (row?.supplierId) return "Supplier";
+    if (row?.manufacturerId) return "Manufacturer";
+    if (row?.packagingManufacturerId) return "Packaging Manufacturer";
     if (row?.loanId) return "Lender";
     if (row?.ownerId) return "Owner";
     if (row?.directorId) return "Director";
@@ -476,6 +482,18 @@ const CashInOutTable = () => {
       !String(value?.supplierId || "").trim()
     ) {
       return "Supplier is required!";
+    }
+    if (
+      value?.partyType === "Manufacturer" &&
+      !String(value?.manufacturerId || "").trim()
+    ) {
+      return "Manufacturer is required!";
+    }
+    if (
+      value?.partyType === "Packaging Manufacturer" &&
+      !String(value?.packagingManufacturerId || "").trim()
+    ) {
+      return "Packaging Manufacturer is required!";
     }
     if (value?.partyType === "Lender" && !String(value?.loanId || "").trim()) {
       return "Lender is required!";
@@ -885,6 +903,8 @@ const CashInOutTable = () => {
       bankAccount: "",
       partyType: "",
       supplierId: "",
+      manufacturerId: "",
+      packagingManufacturerId: "",
       ownerId: "",
     directorId: "",
     lender: "",
@@ -942,6 +962,8 @@ const CashInOutTable = () => {
       bankAccount: rp.bankAccount ?? "",
       partyType: getPartyTypeFromRow(rp),
       supplierId: rp.supplierId ?? "",
+      manufacturerId: rp.manufacturerId ?? "",
+      packagingManufacturerId: rp.packagingManufacturerId ?? "",
       ownerId: rp.ownerId ?? "",
       directorId: rp.directorId ?? "",
       loanId: rp.loanId ?? rp.loan?.Id ?? "",
@@ -978,6 +1000,8 @@ const CashInOutTable = () => {
       bankName: rp.bankName ?? "",
       partyType: getPartyTypeFromRow(rp),
       supplierId: rp.supplierId ?? "",
+      manufacturerId: rp.manufacturerId ?? "",
+      packagingManufacturerId: rp.packagingManufacturerId ?? "",
       ownerId: rp.ownerId ?? "",
       directorId: rp.directorId ?? "",
       loanId: rp.loanId ?? rp.loan?.Id ?? "",
@@ -1052,6 +1076,18 @@ const CashInOutTable = () => {
         "supplierId",
         currentProduct?.partyType === "Supplier"
           ? currentProduct?.supplierId || ""
+          : "",
+      );
+      formData.append(
+        "manufacturerId",
+        currentProduct?.partyType === "Manufacturer"
+          ? currentProduct?.manufacturerId || ""
+          : "",
+      );
+      formData.append(
+        "packagingManufacturerId",
+        currentProduct?.partyType === "Packaging Manufacturer"
+          ? currentProduct?.packagingManufacturerId || ""
           : "",
       );
       formData.append(
@@ -1204,6 +1240,18 @@ const CashInOutTable = () => {
           : "",
       );
       formData.append(
+        "manufacturerId",
+        createProduct?.partyType === "Manufacturer"
+          ? createProduct?.manufacturerId || ""
+          : "",
+      );
+      formData.append(
+        "packagingManufacturerId",
+        createProduct?.partyType === "Packaging Manufacturer"
+          ? createProduct?.packagingManufacturerId || ""
+          : "",
+      );
+      formData.append(
         "loanId",
         createProduct?.partyType === "Lender" ||
           isLoanCategory(finalCategoryName)
@@ -1241,6 +1289,8 @@ const CashInOutTable = () => {
           lender: "",
           loanId: "",
           supplierId: "",
+          manufacturerId: "",
+          packagingManufacturerId: "",
           ownerId: "",
           directorId: "",
           category: "",
@@ -1345,6 +1395,18 @@ const CashInOutTable = () => {
           : "",
       );
       formData.append(
+        "manufacturerId",
+        createProduct?.partyType === "Manufacturer"
+          ? createProduct?.manufacturerId || ""
+          : "",
+      );
+      formData.append(
+        "packagingManufacturerId",
+        createProduct?.partyType === "Packaging Manufacturer"
+          ? createProduct?.packagingManufacturerId || ""
+          : "",
+      );
+      formData.append(
         "loanId",
         createProduct?.partyType === "Lender" ||
           isLoanCategory(finalCategoryName)
@@ -1382,6 +1444,8 @@ const CashInOutTable = () => {
           lender: "",
           loanId: "",
           supplierId: "",
+          manufacturerId: "",
+          packagingManufacturerId: "",
           ownerId: "",
           directorId: "",
           category: "",
@@ -1594,11 +1658,16 @@ const CashInOutTable = () => {
     const rowSupplier = suppliers.find(
       (item) => String(item.Id) === String(row?.supplierId),
     );
+    const rowManufacturer = manufacturers.find(
+      (item) => String(item.Id) === String(row?.manufacturerId),
+    );
     const receiverName =
       row?.supplier?.name ||
       row?.supplierName ||
       rowSupplier?.name ||
       rowSupplier?.supplierName ||
+      row?.manufacturer?.name ||
+      rowManufacturer?.name ||
       "-";
     const amount = Number(row?.amount || 0).toLocaleString("en-US", {
       minimumFractionDigits: 2,
@@ -1745,6 +1814,88 @@ const CashInOutTable = () => {
     [directors],
   );
 
+  const { data: allManufacturerRes, isLoading: isManufacturerLoading } =
+    useGetAllManufacturerWithoutQueryQuery();
+  const manufacturers = allManufacturerRes?.data || [];
+
+  const manufacturerOptions = useMemo(
+    () =>
+      (manufacturers || []).map((manufacturer) => ({
+        value: manufacturer.Id,
+        label: manufacturer.name,
+      })),
+    [manufacturers],
+  );
+
+  const renderManufacturerBalance = (manufacturerId) => {
+    if (!manufacturerId) return null;
+
+    if (isManufacturerLoading) {
+      return (
+        <p className="mt-2 text-xs font-semibold text-slate-500">
+          Loading manufacturer balance...
+        </p>
+      );
+    }
+
+    const manufacturer = manufacturers.find(
+      (item) => String(item.Id) === String(manufacturerId),
+    );
+
+    return (
+      <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold">
+        <span className="rounded-full border border-rose-100 bg-rose-50 px-3 py-1 text-rose-700">
+          Due: ৳{Number(manufacturer?.totalDue || 0).toLocaleString()}
+        </span>
+        <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1 text-sky-700">
+          Advance: ৳{Number(manufacturer?.totalAdvance || 0).toLocaleString()}
+        </span>
+      </div>
+    );
+  };
+
+  const {
+    data: allPackagingManufacturerRes,
+    isLoading: isPackagingManufacturerLoading,
+  } = useGetAllPackagingManufacturerWithoutQueryQuery();
+  const packagingManufacturers = allPackagingManufacturerRes?.data || [];
+
+  const packagingManufacturerOptions = useMemo(
+    () =>
+      (packagingManufacturers || []).map((manufacturer) => ({
+        value: manufacturer.Id,
+        label: manufacturer.name,
+      })),
+    [packagingManufacturers],
+  );
+
+  const renderPackagingManufacturerBalance = (packagingManufacturerId) => {
+    if (!packagingManufacturerId) return null;
+
+    if (isPackagingManufacturerLoading) {
+      return (
+        <p className="mt-2 text-xs font-semibold text-slate-500">
+          Loading packaging manufacturer balance...
+        </p>
+      );
+    }
+
+    const manufacturer = packagingManufacturers.find(
+      (item) => String(item.Id) === String(packagingManufacturerId),
+    );
+
+    return (
+      <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold">
+        <span className="rounded-full border border-rose-100 bg-rose-50 px-3 py-1 text-rose-700">
+          Due: ৳{Number(manufacturer?.totalDue || 0).toLocaleString()}
+        </span>
+        <span className="rounded-full border border-sky-100 bg-sky-50 px-3 py-1 text-sky-700">
+          Advance: ৳{Number(manufacturer?.totalAdvance || 0).toLocaleString()}
+        </span>
+      </div>
+    );
+  };
+
   const getSupplierName = (row) => {
     const rowSupplier = suppliers.find(
       (item) => String(item.Id) === String(row?.supplierId),
@@ -1770,12 +1921,17 @@ const CashInOutTable = () => {
 
   const partyTypeOptions = [
     { value: "Supplier", label: "Supplier" },
+    { value: "Manufacturer", label: "Manufacturer" },
+    { value: "Packaging Manufacturer", label: "Packaging Manufacturer" },
     { value: "Lender", label: "Lender" },
     { value: "Owner", label: "Owner" },
     { value: "Director", label: "Director" },
   ];
   const cashInPartyTypeOptions = partyTypeOptions.filter(
-    (option) => option.value !== "Supplier",
+    (option) =>
+      option.value !== "Supplier" &&
+      option.value !== "Manufacturer" &&
+      option.value !== "Packaging Manufacturer",
   );
 
   const findLoanById = (loanId) =>
@@ -1895,6 +2051,8 @@ const CashInOutTable = () => {
         ...value,
         partyType: nextType,
         supplierId: "",
+        manufacturerId: "",
+        packagingManufacturerId: "",
         loanId: "",
         lender: "",
         ownerId: "",
@@ -1938,6 +2096,8 @@ const CashInOutTable = () => {
                 onChange({
                   ...value,
                   supplierId: selectedOption?.value || "",
+                  manufacturerId: "",
+                  packagingManufacturerId: "",
                   loanId: "",
                   lender: "",
                   ownerId: "",
@@ -1950,6 +2110,88 @@ const CashInOutTable = () => {
               isClearable
             />
             {showBalance && renderSupplierBalance(value?.supplierId)}
+          </div>
+        )}
+
+        {partyType === "Manufacturer" && selectedPartyTypeOption && (
+          <div>
+            <label className="block text-sm text-slate-600 mb-1">
+              Manufacturer Name
+            </label>
+            <Select
+              options={manufacturerOptions}
+              value={
+                manufacturerOptions.find(
+                  (option) =>
+                    String(option.value) === String(value?.manufacturerId),
+                ) || null
+              }
+              onChange={(selectedOption) =>
+                onChange({
+                  ...value,
+                  supplierId: "",
+                  manufacturerId: selectedOption?.value || "",
+                  packagingManufacturerId: "",
+                  loanId: "",
+                  lender: "",
+                  ownerId: "",
+                  directorId: "",
+                })
+              }
+              placeholder={
+                isManufacturerLoading
+                  ? "Loading Manufacturers..."
+                  : "Select Manufacturer"
+              }
+              className="text-sm"
+              styles={selectStyles}
+              isClearable
+              isLoading={isManufacturerLoading}
+            />
+            {showBalance && renderManufacturerBalance(value?.manufacturerId)}
+          </div>
+        )}
+
+        {partyType === "Packaging Manufacturer" && selectedPartyTypeOption && (
+          <div>
+            <label className="block text-sm text-slate-600 mb-1">
+              Packaging Manufacturer Name
+            </label>
+            <Select
+              options={packagingManufacturerOptions}
+              value={
+                packagingManufacturerOptions.find(
+                  (option) =>
+                    String(option.value) ===
+                    String(value?.packagingManufacturerId),
+                ) || null
+              }
+              onChange={(selectedOption) =>
+                onChange({
+                  ...value,
+                  supplierId: "",
+                  manufacturerId: "",
+                  packagingManufacturerId: selectedOption?.value || "",
+                  loanId: "",
+                  lender: "",
+                  ownerId: "",
+                  directorId: "",
+                })
+              }
+              placeholder={
+                isPackagingManufacturerLoading
+                  ? "Loading Packaging Manufacturers..."
+                  : "Select Packaging Manufacturer"
+              }
+              className="text-sm"
+              styles={selectStyles}
+              isClearable
+              isLoading={isPackagingManufacturerLoading}
+            />
+            {showBalance &&
+              renderPackagingManufacturerBalance(
+                value?.packagingManufacturerId,
+              )}
           </div>
         )}
 
@@ -1969,6 +2211,8 @@ const CashInOutTable = () => {
                 onChange({
                   ...value,
                   supplierId: "",
+                  manufacturerId: "",
+                  packagingManufacturerId: "",
                   loanId: selectedOption?.value || "",
                   lender: selectedOption?.label || "",
                   ownerId: "",
@@ -2000,6 +2244,8 @@ const CashInOutTable = () => {
                 onChange({
                   ...value,
                   supplierId: "",
+                  manufacturerId: "",
+                  packagingManufacturerId: "",
                   loanId: "",
                   lender: "",
                   ownerId: selectedOption?.value || "",
@@ -2033,6 +2279,8 @@ const CashInOutTable = () => {
                 onChange({
                   ...value,
                   supplierId: "",
+                  manufacturerId: "",
+                  packagingManufacturerId: "",
                   loanId: "",
                   lender: "",
                   ownerId: "",

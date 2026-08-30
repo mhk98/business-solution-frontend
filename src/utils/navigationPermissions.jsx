@@ -805,6 +805,13 @@ export const SIDEBAR_ITEMS = [
         href: "/courier-no-entry",
         roles: ["superAdmin", "admin", "inventor"],
       },
+      {
+        name: "Courier Product Stock",
+        key: "courier_product_stock",
+        icon: PackageSearch,
+        href: "/courier-product-stock",
+        roles: ["superAdmin", "admin", "inventor"],
+      },
 
       {
         name: "Sales Return",
@@ -992,6 +999,20 @@ export const SIDEBAR_ITEMS = [
         key: "petty_cash",
         icon: HandCoins,
         href: "/petty-cash",
+        roles: ["superAdmin", "admin", "accountant"],
+      },
+      {
+        name: "Sales Due",
+        key: "sales_due",
+        icon: ReceiptText,
+        href: "/sales-due",
+        roles: ["superAdmin", "admin", "accountant"],
+      },
+      {
+        name: "Salary Advance",
+        key: "salary_advance",
+        icon: BadgeDollarSign,
+        href: "/salary-advance",
         roles: ["superAdmin", "admin", "accountant"],
       },
       {
