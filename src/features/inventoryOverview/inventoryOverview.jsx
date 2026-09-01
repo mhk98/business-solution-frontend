@@ -112,6 +112,20 @@ export const inventoryOverviewApi = baseApi.injectEndpoints({
       ],
     }),
 
+    // Unit Purchase / Sale Price edit on the Stock Product screen.
+    // Backend restricts this route to admin & superAdmin.
+    updateInventoryPrice: build.mutation({
+      query: ({ id, data }) => ({
+        url: `/inventory-master/${id}/price`,
+        method: "PATCH",
+        body: data,
+      }),
+      invalidatesTags: (res, err, arg) => [
+        { type: "InventoryOverview", id: arg.id },
+        { type: "InventoryOverview", id: "LIST" },
+      ],
+    }),
+
     fixInventoryMismatch: build.mutation({
       query: (productId) => ({
         url: `/inventory-master/audit/fix/${productId}`,
@@ -137,4 +151,5 @@ export const {
   useLazyGetInventoryReportsQuery,
   useGetInventoryMismatchAuditQuery,
   useFixInventoryMismatchMutation,
+  useUpdateInventoryPriceMutation,
 } = inventoryOverviewApi;

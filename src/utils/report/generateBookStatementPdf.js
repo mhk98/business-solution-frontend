@@ -890,7 +890,8 @@ const normalizeDueRows = (report) => {
   ];
 };
 
-const normalizeLenderPayableRows = (lenderPayable) => normalizeDueRows(lenderPayable);
+const normalizeLenderPayableRows = (lenderPayable) =>
+  normalizeDueRows(lenderPayable);
 
 const normalizeDirectorInvestmentRows = (directorInvestment) => {
   if (!directorInvestment) return [];
@@ -1494,11 +1495,7 @@ const appendInventoryStockReport = async (
   doc,
   html2canvas,
   cursor,
-  {
-    inventoryStockReport,
-    regularFontDataUrl,
-    boldFontDataUrl,
-  },
+  { inventoryStockReport, regularFontDataUrl, boldFontDataUrl },
 ) => {
   const rows = normalizeInventoryStockRows(inventoryStockReport);
   if (!rows.length) return;
@@ -1749,7 +1746,9 @@ const appendPayableTotalSection = async (
     boldFontDataUrl,
   },
 ) => {
-  const pendingSalaryTotal = Number(pendingPayrollSalary?.meta?.totalSalary || 0);
+  const pendingSalaryTotal = Number(
+    pendingPayrollSalary?.meta?.totalSalary || 0,
+  );
   const manufacturerDueTotal = Number(manufacturerDue?.meta?.totalDue || 0);
   const supplierDueTotal = Number(supplierDue?.meta?.totalDue || 0);
   const lenderPayableTotal = Number(lenderPayable?.meta?.totalDue || 0);
@@ -1950,7 +1949,10 @@ const appendGrandTotalSection = async (
     { description: "সেলস বাকি", amount: salesDueTotal },
     { description: "বেতন অগ্রিম", amount: salaryAdvanceTotal },
     { description: "কোম্পানি পাবে (সাপ্লাইয়ার)", amount: supplierTotal },
-    { description: "কোম্পানি পাবে (ম্যানুফ্যাকচার)", amount: manufacturerTotal },
+    {
+      description: "কোম্পানি পাবে (ম্যানুফ্যাকচার)",
+      amount: manufacturerTotal,
+    },
     {
       description: "কোম্পানি পাবে (প্যাকেজিং ম্যানুফ্যাকচার)",
       amount: packagingManufacturerTotal,
@@ -2027,7 +2029,9 @@ export const generateBookStatementPdf = async ({
     const totalCredit = book.totalCredit ?? 0;
     const totalDebit = book.totalDebit ?? 0;
     const netBalance =
-      book.netBalance !== undefined ? book.netBalance : totalCredit - totalDebit;
+      book.netBalance !== undefined
+        ? book.netBalance
+        : totalCredit - totalDebit;
     return sum + netBalance;
   }, 0);
 
@@ -2201,9 +2205,14 @@ export const generateBookStatementPdf = async ({
   doc.setTextColor(100, 116, 139);
   for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {
     doc.setPage(pageNumber);
-    doc.text(`Page ${pageNumber} of ${totalPages}`, PAGE_W_MM / 2, PAGE_H_MM - 12, {
-      align: "center",
-    });
+    doc.text(
+      `Page ${pageNumber} of ${totalPages}`,
+      PAGE_W_MM / 2,
+      PAGE_H_MM - 12,
+      {
+        align: "center",
+      },
+    );
   }
 
   return doc.output("blob");

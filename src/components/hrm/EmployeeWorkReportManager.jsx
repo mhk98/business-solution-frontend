@@ -24,6 +24,7 @@ import {
   useUpdateEmployeeWorkReportMutation,
 } from "../../features/employeeWorkReport/employeeWorkReport";
 import { useGetAllEmployeeListWithoutQueryQuery } from "../../features/employeeList/employeeList";
+import { useGetAllInventoryOverviewWithoutQueryQuery } from "../../features/inventoryOverview/inventoryOverview";
 import useDebounce from "../../hooks/useDebounce";
 
 const formatDateInput = (date) => {
@@ -113,6 +114,8 @@ const REPORT_EXPORT_COLUMNS = [
   { key: "totalAssign", label: "Total Assign" },
   { key: "totalOrder", label: "Total Order" },
   { key: "totalAmount", label: "Total Amount" },
+  { key: "totalSalePrice", label: "Total Sale Price" },
+  { key: "totalPurchasePrice", label: "Total Purchase Price" },
 ];
 
 const toReportNumber = (value) => Number(value) || 0;
@@ -123,6 +126,12 @@ const escapeHtml = (value) =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+
+const sumProductsField = (row, field) =>
+  (row.products || []).reduce(
+    (sum, item) => sum + (Number(item?.[field]) || 0),
+    0,
+  );
 
 const getReportCellValue = (row, key) => {
   if (key === "failed") {
@@ -149,6 +158,9 @@ const getReportCellValue = (row, key) => {
   if (key === "totalAssign") return toReportNumber(row.totalAssign);
   if (key === "totalOrder") return toReportNumber(row.totalOrder);
   if (key === "totalAmount") return toReportNumber(row.totalAmount);
+  if (key === "totalSalePrice") return sumProductsField(row, "salePrice");
+  if (key === "totalPurchasePrice")
+    return sumProductsField(row, "purchasePrice");
   return row[key] ?? "";
 };
 
@@ -170,6 +182,17 @@ const EMPTY_FORM = REPORT_FIELDS.reduce(
   { reportDate: today, saleType: "" },
 );
 
+const createProductRow = () => ({
+  id: `${Date.now()}-${Math.random()}`,
+  productId: "",
+  productName: "",
+  quantity: "",
+  purchasePrice: "",
+  salePrice: "",
+  unitPurchasePrice: "",
+  unitSalePrice: "",
+});
+
 const EmployeeWorkReportManager = () => {
   const role = localStorage.getItem("role") || "user";
   const canManageReports = ["superAdmin", "admin"].includes(role);
@@ -187,6 +210,7 @@ const EmployeeWorkReportManager = () => {
   const [pageSize, setPageSize] = useState(10);
   const [selectedReportIds, setSelectedReportIds] = useState([]);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [productRows, setProductRows] = useState([]);
 
   const currentReportArgs = useMemo(
     () => ({ page: 1, limit: 1, reportDate: form.reportDate }),
@@ -218,6 +242,7 @@ const EmployeeWorkReportManager = () => {
       skip: !canManageReports,
     },
   );
+  const { data: inventoryRes } = useGetAllInventoryOverviewWithoutQueryQuery();
   const { data: currentReportRes, refetch: refetchCurrent } =
     useGetMyEmployeeWorkReportsQuery(currentReportArgs);
   const {
@@ -253,6 +278,31 @@ const EmployeeWorkReportManager = () => {
           }`,
         })),
     [employeeListRes],
+  );
+
+  const productOptions = useMemo(
+    () =>
+      (inventoryRes?.data || []).map((product) => ({
+        value: product.Id,
+        label: product.name,
+        purchasePrice: Number(product.purchase_price || 0),
+        salePrice: Number(product.sale_price || 0),
+      })),
+    [inventoryRes],
+  );
+
+  const productTotals = useMemo(
+    () => ({
+      totalSalePrice: productRows.reduce(
+        (sum, row) => sum + (Number(row.salePrice) || 0),
+        0,
+      ),
+      totalPurchasePrice: productRows.reduce(
+        (sum, row) => sum + (Number(row.purchasePrice) || 0),
+        0,
+      ),
+    }),
+    [productRows],
   );
 
   const currentReport = currentReportRes?.data?.[0];
@@ -324,6 +374,60 @@ const EmployeeWorkReportManager = () => {
   const resetForm = () => {
     setEditingId(null);
     setForm({ ...EMPTY_FORM, reportDate: today });
+    setProductRows([]);
+  };
+
+  const addProductRow = () => {
+    setProductRows((prev) => [...prev, createProductRow()]);
+  };
+
+  const removeProductRow = (rowId) => {
+    setProductRows((prev) => prev.filter((row) => row.id !== rowId));
+  };
+
+  const updateProductRow = (rowId, key, value) => {
+    setProductRows((prev) =>
+      prev.map((row) => (row.id === rowId ? { ...row, [key]: value } : row)),
+    );
+  };
+
+  const updateProductQuantity = (rowId, value) => {
+    setProductRows((prev) =>
+      prev.map((row) => {
+        if (row.id !== rowId) return row;
+        const unitSalePrice = Number(row.unitSalePrice) || 0;
+        const unitPurchasePrice = Number(row.unitPurchasePrice) || 0;
+        const quantity = Number(value) || 0;
+        return {
+          ...row,
+          quantity: value,
+          salePrice: unitSalePrice ? unitSalePrice * quantity : row.salePrice,
+          purchasePrice: unitPurchasePrice
+            ? unitPurchasePrice * quantity
+            : row.purchasePrice,
+        };
+      }),
+    );
+  };
+
+  const handleProductSelect = (rowId, option) => {
+    setProductRows((prev) =>
+      prev.map((row) => {
+        if (row.id !== rowId) return row;
+        const unitSalePrice = option ? option.salePrice : "";
+        const unitPurchasePrice = option ? option.purchasePrice : "";
+        const quantity = Number(row.quantity) || 0;
+        return {
+          ...row,
+          productId: option?.value || "",
+          productName: option?.label || "",
+          unitPurchasePrice,
+          unitSalePrice,
+          purchasePrice: unitPurchasePrice ? unitPurchasePrice * quantity : "",
+          salePrice: unitSalePrice ? unitSalePrice * quantity : "",
+        };
+      }),
+    );
   };
 
   const openReportModal = () => {
@@ -350,6 +454,15 @@ const EmployeeWorkReportManager = () => {
       (acc, field) => ({ ...acc, [field.key]: form[field.key] || 0 }),
       {},
     ),
+    products: productRows
+      .filter((row) => row.productId && Number(row.quantity) > 0)
+      .map((row) => ({
+        productId: row.productId,
+        productName: row.productName,
+        quantity: Number(row.quantity) || 0,
+        purchasePrice: Number(row.purchasePrice) || 0,
+        salePrice: Number(row.salePrice) || 0,
+      })),
   });
 
   const handleSubmit = async (e) => {
@@ -387,6 +500,23 @@ const EmployeeWorkReportManager = () => {
           (acc, field) => ({ ...acc, [field.key]: row[field.key] ?? "" }),
           {},
         ),
+      }),
+    );
+    setProductRows(
+      (row.products || []).map((product) => {
+        const matchedOption = productOptions.find(
+          (option) => option.value === product.productId,
+        );
+        return {
+          id: `${Date.now()}-${Math.random()}`,
+          productId: product.productId || "",
+          productName: product.productName || "",
+          quantity: product.quantity ?? "",
+          purchasePrice: product.purchasePrice ?? "",
+          salePrice: product.salePrice ?? "",
+          unitPurchasePrice: matchedOption ? matchedOption.purchasePrice : "",
+          unitSalePrice: matchedOption ? matchedOption.salePrice : "",
+        };
       }),
     );
     setIsReportModalOpen(true);
@@ -638,14 +768,14 @@ const EmployeeWorkReportManager = () => {
                 className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
               />
             </label>
-              <DateRangeFilter
-                startDate={fromDate}
-                endDate={toDate}
-                onStartDateChange={setFromDate}
-                onEndDateChange={setToDate}
-                compact
-                className="sm:col-span-2"
-              />
+            <DateRangeFilter
+              startDate={fromDate}
+              endDate={toDate}
+              onStartDateChange={setFromDate}
+              onEndDateChange={setToDate}
+              compact
+              className="sm:col-span-2"
+            />
           </div>
 
           <div className="mt-5 max-h-[58vh] max-w-full overflow-auto rounded-2xl border border-slate-200">
@@ -717,6 +847,8 @@ const EmployeeWorkReportManager = () => {
                                 "totalAssign",
                                 "totalOrder",
                                 "totalAmount",
+                                "totalSalePrice",
+                                "totalPurchasePrice",
                               ].includes(column.key)
                                 ? "font-semibold text-slate-900"
                                 : ""
@@ -731,14 +863,17 @@ const EmployeeWorkReportManager = () => {
                                   {row.user?.Email || "-"}
                                 </div>
                               </div>
-                            ) : column.key === "totalAmount" ? (
-                              Number(row.totalAmount || 0).toLocaleString(
-                                undefined,
-                                {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2,
-                                },
-                              )
+                            ) : [
+                                "totalAmount",
+                                "totalSalePrice",
+                                "totalPurchasePrice",
+                              ].includes(column.key) ? (
+                              Number(
+                                getReportCellValue(row, column.key) || 0,
+                              ).toLocaleString(undefined, {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })
                             ) : (
                               getReportCellValue(row, column.key) || "-"
                             )}
@@ -888,6 +1023,100 @@ const EmployeeWorkReportManager = () => {
                   options={SALE_TYPE_OPTIONS}
                   placeholder="Select sale type"
                 />
+                <div className="space-y-3 border-t border-slate-100 pt-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-bold text-slate-900">
+                      Products
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={addProductRow}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 transition hover:bg-indigo-100"
+                    >
+                      <Plus size={14} /> Add Product
+                    </button>
+                  </div>
+
+                  {productRows.length === 0 && (
+                    <p className="rounded-xl border border-dashed border-slate-200 px-4 py-3 text-xs text-slate-400">
+                      No product added yet.
+                    </p>
+                  )}
+
+                  {productRows.map((row, index) => (
+                    <div
+                      key={row.id}
+                      className="rounded-xl border border-slate-200 p-3"
+                    >
+                      <div className="mb-2 flex items-center justify-between">
+                        <span className="text-xs font-semibold text-slate-500">
+                          Product #{index + 1}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeProductRow(row.id)}
+                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition hover:bg-red-50 hover:text-red-500"
+                          aria-label="Remove product"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap items-end gap-3">
+                        <label className="block min-w-[200px] flex-[2]">
+                          <div className="mb-2 text-sm font-semibold text-slate-700">
+                            Product Name
+                          </div>
+                          <Select
+                            styles={selectStyles}
+                            options={productOptions}
+                            value={
+                              productOptions.find(
+                                (option) => option.value === row.productId,
+                              ) || null
+                            }
+                            onChange={(option) =>
+                              handleProductSelect(row.id, option)
+                            }
+                            placeholder="Select product"
+                            isClearable
+                          />
+                        </label>
+                        <div className="w-24">
+                          <InputField
+                            label="Quantity"
+                            type="number"
+                            min="0"
+                            value={row.quantity}
+                            onChange={(value) =>
+                              updateProductQuantity(row.id, value)
+                            }
+                          />
+                        </div>
+                        <div className="w-28">
+                          <InputField
+                            label="Sale"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={row.salePrice}
+                            onChange={(value) =>
+                              updateProductRow(row.id, "salePrice", value)
+                            }
+                          />
+                        </div>
+                        <div className="w-28">
+                          <InputField
+                            label="Purchase"
+                            type="number"
+                            value={row.purchasePrice}
+                            readOnly
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
                 <div className="grid gap-3 sm:grid-cols-2">
                   {REPORT_FIELDS.map((field) => (
                     <InputField
@@ -901,6 +1130,18 @@ const EmployeeWorkReportManager = () => {
                       readOnly={AUTO_TOTAL_FIELDS.includes(field.key)}
                     />
                   ))}
+                  <InputField
+                    label="Total Sale Price"
+                    type="number"
+                    value={productTotals.totalSalePrice}
+                    readOnly
+                  />
+                  <InputField
+                    label="Total Purchase Price"
+                    type="number"
+                    value={productTotals.totalPurchasePrice}
+                    readOnly
+                  />
                 </div>
               </div>
 

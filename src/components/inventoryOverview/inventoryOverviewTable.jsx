@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Wrench,
   CheckCircle2,
+  Pencil,
 } from "lucide-react";
 
 import { useGetAllProductWithoutQueryQuery } from "../../features/product/product";
@@ -19,9 +20,11 @@ import {
   useFixInventoryMismatchMutation,
   useGetAllInventoryOverviewQuery,
   useGetInventoryMismatchAuditQuery,
+  useUpdateInventoryPriceMutation,
 } from "../../features/inventoryOverview/inventoryOverview";
 import { useLayout } from "../../context/LayoutContext";
 import { translations } from "../../utils/translations";
+import Modal from "../common/Modal";
 
 const sanitizeSkuSegment = (value) =>
   String(value || "")
@@ -110,6 +113,62 @@ const formatVariantLabel = (variant = {}) => {
 const InventoryOverviewTable = () => {
   const { language } = useLayout();
   const t = translations[language] || translations.EN;
+
+  const role = localStorage.getItem("role");
+  const canEditPrice = role === "superAdmin" || role === "admin";
+
+  const [priceEditRow, setPriceEditRow] = useState(null);
+  const [priceForm, setPriceForm] = useState({
+    purchase_price: "",
+    sale_price: "",
+  });
+  const [updateInventoryPrice, { isLoading: isSavingPrice }] =
+    useUpdateInventoryPriceMutation();
+
+  const openPriceEdit = (row) => {
+    setPriceEditRow(row);
+    setPriceForm({
+      purchase_price: String(Number(row.purchase_price || 0)),
+      sale_price: String(Number(row.sale_price || 0)),
+    });
+  };
+
+  const closePriceEdit = () => {
+    setPriceEditRow(null);
+    setPriceForm({ purchase_price: "", sale_price: "" });
+  };
+
+  const handleSavePrice = async () => {
+    if (!priceEditRow?.Id) return;
+
+    const purchase = Number(priceForm.purchase_price);
+    const sale = Number(priceForm.sale_price);
+    if (!Number.isFinite(purchase) || purchase < 0) {
+      return toast.error("Unit purchase price must be a non-negative number");
+    }
+    if (!Number.isFinite(sale) || sale < 0) {
+      return toast.error("Unit sale price must be a non-negative number");
+    }
+
+    try {
+      const res = await updateInventoryPrice({
+        id: priceEditRow.Id,
+        data: {
+          purchase_price: Math.round(purchase),
+          sale_price: Math.round(sale),
+        },
+      }).unwrap();
+      if (res?.success === false) {
+        toast.error(res?.message || "Price update failed");
+        return;
+      }
+      toast.success("Stock product price updated");
+      closePriceEdit();
+    } catch (err) {
+      toast.error(err?.data?.message || "Price update failed");
+    }
+  };
+
   const [rows, setRows] = useState([]);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -480,6 +539,11 @@ const InventoryOverviewTable = () => {
                 <th className="px-6 py-5 text-center text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
                   {t.in_hand_qty || "In Hand Quantity"}
                 </th>
+                {canEditPrice && (
+                  <th className="px-6 py-5 text-center text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
+                    Actions
+                  </th>
+                )}
               </tr>
             </thead>
 
@@ -611,6 +675,24 @@ const InventoryOverviewTable = () => {
                         {Number(rp.quantity || 0).toLocaleString()}
                       </span>
                     </td>
+                    {canEditPrice && (
+                      <td className="px-6 py-5 whitespace-nowrap text-center">
+                        {hasVariants ? (
+                          <span className="text-[11px] font-semibold text-slate-400">
+                            Variant wise
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => openPriceEdit(rp)}
+                            title="Edit unit prices"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white transition hover:bg-indigo-50 active:scale-95"
+                          >
+                            <Pencil className="text-indigo-600" size={16} />
+                          </button>
+                        )}
+                      </td>
+                    )}
                   </motion.tr>
                 );
               })}
@@ -678,6 +760,77 @@ const InventoryOverviewTable = () => {
           </button>
         </div>
       </div>
+
+      <Modal
+        isOpen={canEditPrice && !!priceEditRow}
+        onClose={closePriceEdit}
+        title="Edit Unit Prices"
+        maxWidth="max-w-md"
+      >
+        <div className="space-y-4">
+          <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm font-bold text-slate-700">
+            {priceEditRow ? resolveProductName(priceEditRow) : ""}
+          </div>
+
+          <div>
+            <label className="mb-2 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
+              Unit Purchase Price (৳)
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={priceForm.purchase_price}
+              onChange={(event) =>
+                setPriceForm((prev) => ({
+                  ...prev,
+                  purchase_price: event.target.value,
+                }))
+              }
+              className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
+              placeholder="0"
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
+              Unit Sale Price (৳)
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={priceForm.sale_price}
+              onChange={(event) =>
+                setPriceForm((prev) => ({
+                  ...prev,
+                  sale_price: event.target.value,
+                }))
+              }
+              className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
+              placeholder="0"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 border-t border-slate-100 pt-6">
+            <button
+              type="button"
+              onClick={closePriceEdit}
+              className="rounded-2xl border border-slate-200 px-6 py-3 text-sm font-bold text-slate-500 transition hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSavePrice}
+              disabled={isSavingPrice}
+              className="rounded-2xl bg-indigo-600 px-10 py-3 text-sm font-bold text-white shadow-xl shadow-indigo-100 transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isSavingPrice ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </motion.div>
   );
 };

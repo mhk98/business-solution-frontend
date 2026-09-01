@@ -132,7 +132,15 @@ const ORDER_REPORT_COLUMNS = [
   { key: "notResponseReceived", label: "Not Response" },
   { key: "totalOrder", label: "Total Order" },
   { key: "totalAmount", label: "Total Amount" },
+  { key: "totalSalePrice", label: "Total Sale Price" },
+  { key: "totalPurchasePrice", label: "Total Purchase Price" },
 ];
+
+const sumProductsField = (row, field) =>
+  (row.products || []).reduce(
+    (sum, item) => sum + (Number(item?.[field]) || 0),
+    0,
+  );
 const AUTO_TOTAL_FIELDS = ["totalAssign", "totalOrder"];
 const AUTO_TOTAL_SOURCE_FIELDS = [
   ...TOTAL_ASSIGN_SOURCE_FIELDS,
@@ -268,10 +276,15 @@ const DailyProfitLossUserPage = () => {
   const isSuperAdmin = role === "superAdmin";
   const canManageReports = ["superAdmin", "admin", "marketer"].includes(role);
   const currentUserId = Number(localStorage.getItem("userId") || 0);
+  // Total Amount is sensitive: only superAdmin, or the user who owns the
+  // entry, may see it. Non-superAdmins who see other people's reports
+  // (admin/marketer) never see the cross-user aggregate.
+  const canSeeAggregateAmount = isSuperAdmin || !canManageReports;
   const { canUseMasterPermission } = useCanUseMasterPermission();
   const canSeeSensitiveSummary = canUseMasterPermission;
   const canManageProfitLossHistoryActions = canUseMasterPermission;
-  const { data: masterPermissionData } = useGetMasterPermissionEmailOptionsQuery();
+  const { data: masterPermissionData } =
+    useGetMasterPermissionEmailOptionsQuery();
   const masterPermissionEmailOptions = useMemo(() => {
     const emails = new Set([DEFAULT_MASTER_PERMISSION_EMAIL]);
 
@@ -486,16 +499,20 @@ const DailyProfitLossUserPage = () => {
       iconBg: "#FFF7ED",
       iconColor: "#C2410C",
     },
-    {
-      name: "Total Amount",
-      value: totals.totalAmount.toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      }),
-      icon: BarChart3,
-      iconBg: "#F0F9FF",
-      iconColor: "#0369A1",
-    },
+    ...(canSeeAggregateAmount
+      ? [
+          {
+            name: "Total Amount",
+            value: totals.totalAmount.toLocaleString(undefined, {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            }),
+            icon: BarChart3,
+            iconBg: "#F0F9FF",
+            iconColor: "#0369A1",
+          },
+        ]
+      : []),
   ];
 
   // ── Calculation summary ──
@@ -922,7 +939,9 @@ const DailyProfitLossUserPage = () => {
   const handleSendEmail = (row) => {
     setSelectedInvoiceRow(row);
     setClientEmail(
-      canUseMasterPermission ? "" : masterPermissionEmailOptions[0]?.value || "",
+      canUseMasterPermission
+        ? ""
+        : masterPermissionEmailOptions[0]?.value || "",
     );
     setIsEmailModalOpen(true);
   };
@@ -1165,22 +1184,36 @@ const DailyProfitLossUserPage = () => {
                   )}
                   {!isLoading &&
                     reports.map((row) => {
-                      const canMutateRow =
+                      const isRowOwner =
                         Number(row.user?.Id) === currentUserId;
+                      const canMutateRow = isRowOwner;
+                      const canSeeRowAmount = isSuperAdmin || isRowOwner;
                       return (
                         <tr key={row.Id} className="hover:bg-slate-50">
                           {ORDER_REPORT_COLUMNS.map((column) => {
                             const value =
                               column.key === "name"
                                 ? row.employee?.name || row.name || "-"
-                                : column.key === "totalAmount"
-                                  ? Number(row.totalAmount || 0).toLocaleString(
-                                      undefined,
-                                      {
+                                : [
+                                      "totalAmount",
+                                      "totalSalePrice",
+                                      "totalPurchasePrice",
+                                    ].includes(column.key)
+                                  ? canSeeRowAmount
+                                    ? Number(
+                                        column.key === "totalAmount"
+                                          ? row.totalAmount || 0
+                                          : sumProductsField(
+                                              row,
+                                              column.key === "totalSalePrice"
+                                                ? "salePrice"
+                                                : "purchasePrice",
+                                            ),
+                                      ).toLocaleString(undefined, {
                                         minimumFractionDigits: 2,
                                         maximumFractionDigits: 2,
-                                      },
-                                    )
+                                      })
+                                    : "—"
                                   : column.key === "reportDate"
                                     ? row.reportDate || "-"
                                     : Number(
@@ -1195,6 +1228,8 @@ const DailyProfitLossUserPage = () => {
                                     "name",
                                     "totalOrder",
                                     "totalAmount",
+                                    "totalSalePrice",
+                                    "totalPurchasePrice",
                                   ].includes(column.key)
                                     ? "font-semibold text-slate-900"
                                     : ""
@@ -1749,82 +1784,82 @@ const DailyProfitLossUserPage = () => {
 
       {/* ── Email Invoice Modal ── */}
       {isEmailModalOpen && selectedInvoiceRow && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-3 sm:p-6">
-            <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-4 shadow-xl sm:p-6">
-              <h3 className="text-lg font-bold text-slate-900">
-                Send Invoice Email
-              </h3>
-              <div className="mt-4 space-y-3">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
-                  <p className="font-semibold text-slate-900">
-                    Invoice #{`PL-${selectedInvoiceRow.Id}`}
-                  </p>
-                  <p className="mt-1 text-slate-600">
-                    Date: {formatDate(selectedInvoiceRow.createdAt)}
-                  </p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/40 p-3 sm:p-6">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-4 shadow-xl sm:p-6">
+            <h3 className="text-lg font-bold text-slate-900">
+              Send Invoice Email
+            </h3>
+            <div className="mt-4 space-y-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
+                <p className="font-semibold text-slate-900">
+                  Invoice #{`PL-${selectedInvoiceRow.Id}`}
+                </p>
+                <p className="mt-1 text-slate-600">
+                  Date: {formatDate(selectedInvoiceRow.createdAt)}
+                </p>
+                <p className="text-slate-600">
+                  Sales Type: {selectedInvoiceRow.salesType || "-"}
+                </p>
+                {isSuperAdmin && (
                   <p className="text-slate-600">
-                    Sales Type: {selectedInvoiceRow.salesType || "-"}
+                    Profit/Loss:{" "}
+                    <span
+                      className={`font-bold ${safeNumber(selectedInvoiceRow.profitLoss) >= 0 ? "text-emerald-600" : "text-red-600"}`}
+                    >
+                      {formatCurrency(selectedInvoiceRow.profitLoss)}
+                    </span>
                   </p>
-                  {isSuperAdmin && (
-                    <p className="text-slate-600">
-                      Profit/Loss:{" "}
-                      <span
-                        className={`font-bold ${safeNumber(selectedInvoiceRow.profitLoss) >= 0 ? "text-emerald-600" : "text-red-600"}`}
-                      >
-                        {formatCurrency(selectedInvoiceRow.profitLoss)}
-                      </span>
-                    </p>
-                  )}
+                )}
+              </div>
+              <label className="block">
+                <div className="mb-2 text-sm font-semibold text-slate-700">
+                  Client Emails
                 </div>
-                <label className="block">
-                  <div className="mb-2 text-sm font-semibold text-slate-700">
-                    Client Emails
-                  </div>
-                  {canUseMasterPermission ? (
-                    <EmailChipsInput
-                      ref={emailInputRef}
-                      value={clientEmail}
-                      onChange={setClientEmail}
-                      placeholder="Type email and press Enter"
-                      disabled={sendingEmail}
-                    />
-                  ) : (
-                    <Select
-                      value={
-                        masterPermissionEmailOptions.find(
-                          (option) => option.value === clientEmail,
-                        ) || null
-                      }
-                      onChange={(option) => setClientEmail(option?.value || "")}
-                      options={masterPermissionEmailOptions}
-                      placeholder="Select master permission email"
-                      isDisabled={sendingEmail}
-                      isSearchable
-                      styles={selectStyles}
-                    />
-                  )}
-                </label>
-                <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
-                  <button
-                    type="button"
-                    onClick={handleCloseEmailModal}
-                    className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSubmitInvoiceEmail}
+                {canUseMasterPermission ? (
+                  <EmailChipsInput
+                    ref={emailInputRef}
+                    value={clientEmail}
+                    onChange={setClientEmail}
+                    placeholder="Type email and press Enter"
                     disabled={sendingEmail}
-                    className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
-                  >
-                    {sendingEmail ? "Sending..." : "Send Email"}
-                  </button>
-                </div>
+                  />
+                ) : (
+                  <Select
+                    value={
+                      masterPermissionEmailOptions.find(
+                        (option) => option.value === clientEmail,
+                      ) || null
+                    }
+                    onChange={(option) => setClientEmail(option?.value || "")}
+                    options={masterPermissionEmailOptions}
+                    placeholder="Select master permission email"
+                    isDisabled={sendingEmail}
+                    isSearchable
+                    styles={selectStyles}
+                  />
+                )}
+              </label>
+              <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={handleCloseEmailModal}
+                  className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSubmitInvoiceEmail}
+                  disabled={sendingEmail}
+                  className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
+                >
+                  {sendingEmail ? "Sending..." : "Send Email"}
+                </button>
               </div>
             </div>
           </div>
-        )}
+        </div>
+      )}
     </div>
   );
 };
