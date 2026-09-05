@@ -67,5 +67,8 @@ export const inventorySummaryApi = baseApi.injectEndpoints({
   overrideExisting: false,
 });
 
-export const { useGetInventorySummaryQuery, useGetInventoryListQuery } =
-  inventorySummaryApi;
+export const {
+  useGetInventorySummaryQuery,
+  useGetInventoryListQuery,
+  useLazyGetInventoryListQuery,
+} = inventorySummaryApi;

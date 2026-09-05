@@ -4,6 +4,7 @@ import {
   CalendarDays,
   CreditCard,
   Pencil,
+  Plus,
   Search,
   Trash2,
   Truck,
@@ -18,6 +19,7 @@ import {
 } from "../../../features/chargeSetting/chargeSetting";
 import { useGetAllBankAccountWithoutQueryQuery } from "../../../features/bankAccount/bankAccount";
 import { useGetAllBookWithoutQueryQuery } from "../../../features/book/book";
+import DateRangeFilter from "../../common/DateRangeFilter";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -92,7 +94,10 @@ const ChargeSettingsManager = ({ chargeType }) => {
   const isDeliveryAdvance = chargeType === "deliveryAdvance";
   const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [error, setError] = useState("");
   const [createChargeSetting, { isLoading: isCreating }] =
     useCreateChargeSettingMutation();
@@ -105,11 +110,15 @@ const ChargeSettingsManager = ({ chargeType }) => {
     limit: 20,
     chargeType,
     searchTerm: searchTerm.trim(),
+    from: dateFrom,
+    to: dateTo,
   });
   const { data: allBookRes } = useGetAllBookWithoutQueryQuery();
   const { data: bankAccountRes } = useGetAllBankAccountWithoutQueryQuery();
 
   const rows = data?.data || [];
+  const totalAmount = data?.meta?.totalAmount ?? 0;
+  const totalCount = data?.meta?.count ?? rows.length;
   const books = allBookRes?.data || [];
   const bankAccounts = bankAccountRes?.data || [];
   const isSaving = isCreating || isUpdating;
@@ -143,6 +152,16 @@ const ChargeSettingsManager = ({ chargeType }) => {
     setError("");
   };
 
+  const openAddModal = () => {
+    resetForm();
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    resetForm();
+  };
+
   const handleEdit = (row) => {
     setEditingId(row.Id);
     setForm({
@@ -155,6 +174,7 @@ const ChargeSettingsManager = ({ chargeType }) => {
       note: row.note || "",
     });
     setError("");
+    setIsModalOpen(true);
   };
 
   const handleDelete = async (row) => {
@@ -164,7 +184,10 @@ const ChargeSettingsManager = ({ chargeType }) => {
     try {
       setError("");
       await deleteChargeSetting({ id: row.Id, chargeType }).unwrap();
-      if (editingId === row.Id) resetForm();
+      if (editingId === row.Id) {
+        setIsModalOpen(false);
+        resetForm();
+      }
     } catch (err) {
       setError(err?.data?.message || "Failed to delete charge");
     }
@@ -226,6 +249,7 @@ const ChargeSettingsManager = ({ chargeType }) => {
       } else {
         await createChargeSetting(payload).unwrap();
       }
+      setIsModalOpen(false);
       resetForm();
     } catch (err) {
       setError(
@@ -237,186 +261,242 @@ const ChargeSettingsManager = ({ chargeType }) => {
 
   return (
     <div className="w-full bg-white shadow-sm rounded-xl p-6 border border-gray-200">
-      <div className="flex items-center gap-3 border-b border-slate-100 pb-5">
-        <div
-          className={`h-11 w-11 rounded-xl border flex items-center justify-center ${accentClasses[copy.accent]}`}
-        >
-          <Icon size={20} />
-        </div>
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">{copy.title}</h2>
-          <p className="text-sm text-gray-500">{copy.subtitle}</p>
-        </div>
-      </div>
-
-      <form
-        onSubmit={handleSubmit}
-        className="mt-6 grid grid-cols-1 gap-3 lg:grid-cols-[180px_180px_1fr_auto]"
-      >
-        <div className="relative">
-          <CalendarDays
-            size={16}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-          />
-          <input
-            type="date"
-            value={form.date}
-            onChange={(event) =>
-              setForm((prev) => ({ ...prev, date: event.target.value }))
-            }
-            className="h-11 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-900 outline-none focus:border-indigo-400"
-          />
-        </div>
-        <div className="relative">
-          <Banknote
-            size={16}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-          />
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={form.amount}
-            onChange={(event) =>
-              setForm((prev) => ({ ...prev, amount: event.target.value }))
-            }
-            className="h-11 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-900 outline-none focus:border-indigo-400"
-            placeholder="Amount"
-          />
-        </div>
-        <input
-          value={form.note}
-          onChange={(event) =>
-            setForm((prev) => ({ ...prev, note: event.target.value }))
-          }
-          className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-indigo-400"
-          placeholder="Note"
-        />
-        <button
-          type="submit"
-          disabled={isSaving}
-          className="h-11 rounded-lg bg-indigo-600 px-5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
-        >
-          {isSaving ? "Saving..." : editingId ? "Update" : "Add"}
-        </button>
-
-        {isDeliveryAdvance && (
-          <div className="grid grid-cols-1 gap-3 lg:col-span-4 lg:grid-cols-2 xl:grid-cols-4">
-            <select
-              value={form.bookId}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, bookId: event.target.value }))
-              }
-              className={selectClass}
-            >
-              <option value="">Select Book</option>
-              {books.map((book) => (
-                <option key={book.Id} value={book.Id}>
-                  {book.name}
-                </option>
-              ))}
-            </select>
-            <select
-              value={form.paymentMode}
-              onChange={(event) =>
-                setForm((prev) => ({
-                  ...prev,
-                  paymentMode: event.target.value,
-                  bankName: "",
-                  bankAccount: "",
-                }))
-              }
-              className={selectClass}
-            >
-              <option value="">Payment Mode</option>
-              {paymentModeOptions.map((mode) => (
-                <option key={mode} value={mode}>
-                  {mode}
-                </option>
-              ))}
-            </select>
-            {form.paymentMode === "Bank" && (
-              <>
-                <select
-                  value={form.bankName}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      bankName: event.target.value,
-                      bankAccount: "",
-                    }))
-                  }
-                  className={selectClass}
-                >
-                  <option value="">Select Bank</option>
-                  {bankOptions.map((bank) => (
-                    <option key={bank.bankName} value={bank.bankName}>
-                      {bank.bankName}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={form.bankAccount}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      bankAccount: event.target.value,
-                    }))
-                  }
-                  className={selectClass}
-                >
-                  <option value="">Select Bank Account</option>
-                  {filteredBankAccounts.map((account) => (
-                    <option key={account.Id} value={account.accountNumber}>
-                      {account.accountNumber} ({account.bankName})
-                    </option>
-                  ))}
-                </select>
-              </>
-            )}
+      <div className="flex flex-col gap-4 border-b border-slate-100 pb-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <div
+            className={`h-11 w-11 rounded-xl border flex items-center justify-center ${accentClasses[copy.accent]}`}
+          >
+            <Icon size={20} />
           </div>
-        )}
-      </form>
-
-      {editingId && (
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">
+              {copy.title}
+            </h2>
+            <p className="text-sm text-gray-500">{copy.subtitle}</p>
+          </div>
+        </div>
         <button
           type="button"
-          onClick={resetForm}
-          className="mt-3 inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          onClick={openAddModal}
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 text-sm font-semibold text-white hover:bg-indigo-700"
         >
-          <X size={15} />
-          Cancel edit
+          <Plus size={16} />
+          Add {copy.title}
         </button>
+      </div>
+
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+          <div className="w-full max-w-lg rounded-xl bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+              <h3 className="text-base font-semibold text-gray-900">
+                {editingId ? `Update ${copy.title}` : `Add ${copy.title}`}
+              </h3>
+              <button
+                type="button"
+                onClick={closeModal}
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-3 px-6 py-5">
+              <div className="relative">
+                <CalendarDays
+                  size={16}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+                <input
+                  type="date"
+                  value={form.date}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, date: event.target.value }))
+                  }
+                  className="h-11 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-900 outline-none focus:border-indigo-400"
+                />
+              </div>
+              <div className="relative">
+                <Banknote
+                  size={16}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.amount}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, amount: event.target.value }))
+                  }
+                  className="h-11 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-900 outline-none focus:border-indigo-400"
+                  placeholder="Amount"
+                />
+              </div>
+              <input
+                value={form.note}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, note: event.target.value }))
+                }
+                className="h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-indigo-400"
+                placeholder="Note"
+              />
+
+              {isDeliveryAdvance && (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <select
+                    value={form.bookId}
+                    onChange={(event) =>
+                      setForm((prev) => ({ ...prev, bookId: event.target.value }))
+                    }
+                    className={selectClass}
+                  >
+                    <option value="">Select Book</option>
+                    {books.map((book) => (
+                      <option key={book.Id} value={book.Id}>
+                        {book.name}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={form.paymentMode}
+                    onChange={(event) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        paymentMode: event.target.value,
+                        bankName: "",
+                        bankAccount: "",
+                      }))
+                    }
+                    className={selectClass}
+                  >
+                    <option value="">Payment Mode</option>
+                    {paymentModeOptions.map((mode) => (
+                      <option key={mode} value={mode}>
+                        {mode}
+                      </option>
+                    ))}
+                  </select>
+                  {form.paymentMode === "Bank" && (
+                    <>
+                      <select
+                        value={form.bankName}
+                        onChange={(event) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            bankName: event.target.value,
+                            bankAccount: "",
+                          }))
+                        }
+                        className={selectClass}
+                      >
+                        <option value="">Select Bank</option>
+                        {bankOptions.map((bank) => (
+                          <option key={bank.bankName} value={bank.bankName}>
+                            {bank.bankName}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={form.bankAccount}
+                        onChange={(event) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            bankAccount: event.target.value,
+                          }))
+                        }
+                        className={selectClass}
+                      >
+                        <option value="">Select Bank Account</option>
+                        {filteredBankAccounts.map((account) => (
+                          <option key={account.Id} value={account.accountNumber}>
+                            {account.accountNumber} ({account.bankName})
+                          </option>
+                        ))}
+                      </select>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {error && <p className="text-sm text-red-600">{error}</p>}
+
+              <div className="mt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="h-11 rounded-lg border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="h-11 rounded-lg bg-indigo-600 px-5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+                >
+                  {isSaving ? "Saving..." : editingId ? "Update" : "Add"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
-      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-
       <div className="mt-8">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div
+          className={`flex flex-col gap-1 rounded-xl border px-5 py-4 sm:flex-row sm:items-center sm:justify-between ${accentClasses[copy.accent]}`}
+        >
+          <span className="text-xs font-semibold uppercase tracking-wide opacity-80">
+            {dateFrom || dateTo
+              ? `Total Amount (${dateFrom || "…"} to ${dateTo || "…"})`
+              : "Total Amount (All Data)"}
+          </span>
+          <span className="text-xl font-bold">
+            {formatAmount(totalAmount)}
+            <span className="ml-2 text-xs font-medium opacity-70">
+              ({totalCount} {totalCount === 1 ? "entry" : "entries"})
+            </span>
+          </span>
+        </div>
+
+        <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
             Saved Charges
           </h3>
-          <div className="relative w-full sm:w-80">
-            <Search
-              size={16}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <DateRangeFilter
+              compact
+              label="Date"
+              defaultFilter=""
+              startDate={dateFrom}
+              endDate={dateTo}
+              onStartDateChange={setDateFrom}
+              onEndDateChange={setDateTo}
+              className="sm:w-auto"
+              selectWrapperClassName="sm:w-44"
             />
-            <input
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-9 text-sm text-slate-900 outline-none focus:border-indigo-400"
-              placeholder="Search note"
-            />
-            {searchTerm && (
-              <button
-                type="button"
-                onClick={() => setSearchTerm("")}
-                className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                title="Clear search"
-              >
-                <X size={15} />
-              </button>
-            )}
+            <div className="relative w-full sm:w-64">
+              <Search
+                size={16}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              />
+              <input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                className="h-11 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-9 text-sm text-slate-900 outline-none focus:border-indigo-400"
+                placeholder="Search note"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                  title="Clear search"
+                >
+                  <X size={15} />
+                </button>
+              )}
+            </div>
           </div>
         </div>
 

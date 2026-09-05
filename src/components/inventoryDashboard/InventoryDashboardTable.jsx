@@ -1,10 +1,35 @@
-import { useEffect, useMemo, useState } from "react";
-import { useGetInventoryListQuery } from "../../features/inventoryDashboard/inventoryDashboard";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useGetInventoryListQuery,
+  useLazyGetInventoryListQuery,
+} from "../../features/inventoryDashboard/inventoryDashboard";
 import { useGetAllProductWithoutQueryQuery } from "../../features/product/product";
+import { useGetAllLogoQuery } from "../../features/logo/logo";
 import Select from "react-select";
 import { motion } from "framer-motion";
-import { ShoppingBasket, TrendingUp, TrendingDown } from "lucide-react";
+import toast from "react-hot-toast";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
+import { useReactToPrint } from "react-to-print";
+import {
+  ShoppingBasket,
+  TrendingUp,
+  TrendingDown,
+  Printer,
+  FileDown,
+  FileSpreadsheet,
+} from "lucide-react";
 import DateRangeFilter from "../common/DateRangeFilter";
+import { DEFAULT_COMPANY_NAME, buildAssetUrl, drawPdfBrandBlock } from "../../utils/pdfBranding";
+
+const MAX_REPORT_ROWS = 5000;
+
+const printCellStyle = {
+  border: "1px solid #cbd5e1",
+  padding: "6px 8px",
+  verticalAlign: "top",
+};
 
 const formatMoney = (value) => {
   const amount = Number(value || 0);
@@ -87,6 +112,29 @@ const getInventoryTotalPages = ({ meta, rows, page, limit }) => {
   return Math.max(1, pagesFromCount, hasNextPage ? page + 1 : page);
 };
 
+const describeVariantsForExport = (variants) => {
+  const rows = getVariantDisplayRows(variants);
+  if (!rows.length) return "-";
+  return rows
+    .map((v) => `${v.size || "-"}/${v.color || "-"} x${v.quantity}`)
+    .join(", ");
+};
+
+const buildExportRow = (rp) => {
+  const variantRows = getVariantDisplayRows(rp.variants);
+  const hasVariants = variantRows.length > 0;
+
+  return {
+    date: rp.date,
+    product: rp.name || "-",
+    category: getInventorySourceLabel(rp.source),
+    quantity: Number(rp.quantity || 0),
+    purchasePrice: hasVariants ? null : getUnitPrice(rp.unitPurchasePrice),
+    salePrice: hasVariants ? null : getUnitPrice(rp.unitSalePrice),
+    variants: describeVariantsForExport(rp.variants),
+  };
+};
+
 const InventoryOverviewTable = () => {
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
@@ -123,6 +171,187 @@ const InventoryOverviewTable = () => {
     limit,
   });
   const endPage = Math.min(startPage + pagesPerSet - 1, totalPages);
+
+  // ✅ Report (Print / PDF / Excel) support
+  const { data: logoRes } = useGetAllLogoQuery();
+  const logoUrl = useMemo(() => {
+    const logoRecord = Array.isArray(logoRes?.data) ? logoRes.data[0] : logoRes?.data;
+    return buildAssetUrl(logoRecord?.file);
+  }, [logoRes]);
+
+  const [fetchInventoryReportRows, { isFetching: isPreparingReport }] =
+    useLazyGetInventoryListQuery();
+  const [reportRows, setReportRows] = useState([]);
+  const printRef = useRef(null);
+
+  const triggerPrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: `Inventory_Overview_${new Date().toISOString().slice(0, 10)}`,
+  });
+
+  const getFilterSummaryText = () => {
+    const parts = [];
+    parts.push(category || "All Data");
+    if (startDate || endDate) parts.push(`${startDate || "…"} to ${endDate || "…"}`);
+    if (productName) parts.push(`Product: ${productName}`);
+    return parts.join(" · ");
+  };
+
+  const loadFullReportRows = async () => {
+    const count = Number(data?.meta?.count || 0);
+    if (!count) {
+      toast.error("No data to export for the current filters");
+      return null;
+    }
+    if (count > MAX_REPORT_ROWS) {
+      toast.error(
+        `Too many rows (${count.toLocaleString()}) to export at once. Please narrow the date range or filters (max ${MAX_REPORT_ROWS.toLocaleString()}).`,
+      );
+      return null;
+    }
+    try {
+      const res = await fetchInventoryReportRows({
+        ...query,
+        page: 1,
+        limit: count,
+      }).unwrap();
+      return (res?.data ?? []).flat();
+    } catch (err) {
+      console.error("Failed to prepare inventory report:", err);
+      toast.error("Failed to prepare report data");
+      return null;
+    }
+  };
+
+  const handlePrintReport = async () => {
+    const fullRows = await loadFullReportRows();
+    if (!fullRows) return;
+    setReportRows(fullRows);
+  };
+
+  useEffect(() => {
+    if (reportRows.length) triggerPrint();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reportRows]);
+
+  const handleDownloadPdf = async () => {
+    const fullRows = await loadFullReportRows();
+    if (!fullRows) return;
+
+    const doc = new jsPDF({ orientation: "landscape" });
+    // jsPDF's built-in fonts have no glyph for ৳ (U+09F3) and corrupt the
+    // whole string when it appears, so PDF-native text uses "Tk" instead.
+    const formatMoneyForPdf = (value) =>
+      `Tk ${Number(value || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+    await drawPdfBrandBlock({
+      pdf: doc,
+      logoUrl,
+      companyName: DEFAULT_COMPANY_NAME,
+      x: 14,
+      topY: 12,
+      logoMaxWidth: 32,
+      logoMaxHeight: 18,
+      subtitle: "Inventory Overview Report",
+    });
+
+    doc.setFontSize(9);
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Filters: ${getFilterSummaryText()}`, 14, 46);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 51);
+
+    doc.setFontSize(10);
+    doc.setTextColor(17, 24, 39);
+    doc.text(`Total Units: ${(data?.meta?.totalQuantity ?? 0).toLocaleString()}`, 14, 59);
+    doc.text(`Total Purchase: ${formatMoneyForPdf(data?.meta?.totalPurchaseValue ?? 0)}`, 110, 59);
+    doc.text(`Total Sale: ${formatMoneyForPdf(data?.meta?.totalSaleValue ?? 0)}`, 210, 59);
+
+    const body = fullRows.map((rp) => {
+      const exportRow = buildExportRow(rp);
+      return [
+        exportRow.date,
+        exportRow.product,
+        exportRow.category,
+        exportRow.quantity,
+        exportRow.purchasePrice === null ? "Variant wise" : formatMoneyForPdf(exportRow.purchasePrice),
+        exportRow.salePrice === null ? "Variant wise" : formatMoneyForPdf(exportRow.salePrice),
+        exportRow.variants,
+      ];
+    });
+
+    autoTable(doc, {
+      head: [["Date", "Product", "Category", "Quantity", "Purchase Price", "Sale Price", "Variants"]],
+      body,
+      startY: 66,
+      theme: "grid",
+      headStyles: { fillColor: [79, 70, 229], textColor: 255 },
+      styles: { fontSize: 8, cellPadding: 3, overflow: "linebreak" },
+      columnStyles: {
+        3: { cellWidth: 20 },
+        4: { cellWidth: 28 },
+        5: { cellWidth: 28 },
+      },
+    });
+
+    doc.save(`Inventory_Overview_${new Date().toISOString().slice(0, 10)}.pdf`);
+    toast.success("PDF report downloaded");
+  };
+
+  const handleExportExcel = async () => {
+    const fullRows = await loadFullReportRows();
+    if (!fullRows) return;
+
+    const header = ["Date", "Product", "Category", "Quantity", "Purchase Price", "Sale Price", "Variants"];
+    const rowsAoa = fullRows.map((rp) => {
+      const exportRow = buildExportRow(rp);
+      return [
+        exportRow.date,
+        exportRow.product,
+        exportRow.category,
+        exportRow.quantity,
+        exportRow.purchasePrice === null ? "Variant wise" : exportRow.purchasePrice,
+        exportRow.salePrice === null ? "Variant wise" : exportRow.salePrice,
+        exportRow.variants,
+      ];
+    });
+
+    const aoa = [
+      [DEFAULT_COMPANY_NAME],
+      ["Inventory Overview Report"],
+      [`Filters: ${getFilterSummaryText()}`],
+      [`Generated on: ${new Date().toLocaleString()}`],
+      [],
+      ["Total Units", "Total Purchase", "Total Sale"],
+      [
+        data?.meta?.totalQuantity ?? 0,
+        Number(data?.meta?.totalPurchaseValue ?? 0).toFixed(2),
+        Number(data?.meta?.totalSaleValue ?? 0).toFixed(2),
+      ],
+      [],
+      header,
+      ...rowsAoa,
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: header.length - 1 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: header.length - 1 } },
+    ];
+    ws["!cols"] = [
+      { wch: 14 },
+      { wch: 24 },
+      { wch: 20 },
+      { wch: 10 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 40 },
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Inventory Overview");
+    XLSX.writeFile(wb, `Inventory_Overview_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    toast.success("Excel report downloaded — open it directly in Google Sheets or Excel");
+  };
 
   useEffect(() => {
     if (isError) console.error("Inventory list error:", error);
@@ -294,6 +523,37 @@ const InventoryOverviewTable = () => {
           </div>
         </div>
       </div>
+
+      <div className="flex flex-wrap items-center gap-3 mb-6">
+        <button
+          type="button"
+          onClick={handlePrintReport}
+          disabled={isLoading || isPreparingReport}
+          className="inline-flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 transition rounded-xl px-4 py-2.5 text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Printer size={16} /> Print Report
+        </button>
+        <button
+          type="button"
+          onClick={handleDownloadPdf}
+          disabled={isLoading || isPreparingReport}
+          className="inline-flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 transition rounded-xl px-4 py-2.5 text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <FileDown size={16} /> Download PDF
+        </button>
+        <button
+          type="button"
+          onClick={handleExportExcel}
+          disabled={isLoading || isPreparingReport}
+          className="inline-flex items-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 transition rounded-xl px-4 py-2.5 text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <FileSpreadsheet size={16} /> Excel / Google Sheet
+        </button>
+        {isPreparingReport ? (
+          <span className="text-xs font-semibold text-slate-400">Preparing report…</span>
+        ) : null}
+      </div>
+
       <div className="max-w-8xl mx-auto px-4 lg:px-8 py-6">
         {/* Filters row */}
         <div className="mt-5 grid grid-cols-1 md:grid-cols-6 gap-4 items-end w-full">
@@ -575,6 +835,119 @@ const InventoryOverviewTable = () => {
           >
             Next
           </button>
+        </div>
+      </div>
+
+      {/* Off-screen printable report, cloned by react-to-print on demand */}
+      <div style={{ position: "fixed", left: "-10000px", top: 0 }} aria-hidden="true">
+        <div
+          ref={printRef}
+          style={{
+            width: "1000px",
+            padding: "24px",
+            fontFamily: "Arial, sans-serif",
+            color: "#111827",
+            background: "#ffffff",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              borderBottom: "2px solid #4f46e5",
+              paddingBottom: 12,
+              marginBottom: 16,
+            }}
+          >
+            {logoUrl ? (
+              <img src={logoUrl} alt="Logo" style={{ height: 48, objectFit: "contain" }} />
+            ) : null}
+            <div>
+              <div style={{ fontSize: 20, fontWeight: 800 }}>{DEFAULT_COMPANY_NAME}</div>
+              <div style={{ fontSize: 12, color: "#64748b" }}>Inventory Overview Report</div>
+            </div>
+          </div>
+
+          <div style={{ fontSize: 11, color: "#475569", marginBottom: 12 }}>
+            <div>Filters: {getFilterSummaryText()}</div>
+            <div>Generated on: {new Date().toLocaleString()}</div>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, 1fr)",
+              gap: 10,
+              marginBottom: 16,
+            }}
+          >
+            <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 12px" }}>
+              <div style={{ fontSize: 10, color: "#6366f1", textTransform: "uppercase", fontWeight: 700 }}>
+                Total Units
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 800 }}>
+                {(data?.meta?.totalQuantity ?? 0).toLocaleString()}
+              </div>
+            </div>
+            <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 12px" }}>
+              <div style={{ fontSize: 10, color: "#059669", textTransform: "uppercase", fontWeight: 700 }}>
+                Total Purchase
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 800 }}>
+                {formatMoney(data?.meta?.totalPurchaseValue ?? 0)}
+              </div>
+            </div>
+            <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, padding: "10px 12px" }}>
+              <div style={{ fontSize: 10, color: "#0284c7", textTransform: "uppercase", fontWeight: 700 }}>
+                Total Sale
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 800 }}>
+                {formatMoney(data?.meta?.totalSaleValue ?? 0)}
+              </div>
+            </div>
+          </div>
+
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+            <thead>
+              <tr>
+                {["Date", "Product", "Category", "Quantity", "Purchase Price", "Sale Price", "Variants"].map((h) => (
+                  <th
+                    key={h}
+                    style={{
+                      border: "1px solid #cbd5e1",
+                      background: "#4f46e5",
+                      color: "#ffffff",
+                      padding: "6px 8px",
+                      textAlign: "left",
+                    }}
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {reportRows.map((rp) => {
+                const exportRow = buildExportRow(rp);
+                return (
+                  <tr key={rp.Id}>
+                    <td style={printCellStyle}>{exportRow.date}</td>
+                    <td style={printCellStyle}>{exportRow.product}</td>
+                    <td style={printCellStyle}>{exportRow.category}</td>
+                    <td style={printCellStyle}>{exportRow.quantity}</td>
+                    <td style={printCellStyle}>
+                      {exportRow.purchasePrice === null ? "Variant wise" : formatMoney(exportRow.purchasePrice)}
+                    </td>
+                    <td style={printCellStyle}>
+                      {exportRow.salePrice === null ? "Variant wise" : formatMoney(exportRow.salePrice)}
+                    </td>
+                    <td style={printCellStyle}>{exportRow.variants}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
     </main>

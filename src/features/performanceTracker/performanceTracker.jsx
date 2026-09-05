@@ -55,14 +55,30 @@ export const performanceTrackerApi = baseApi.injectEndpoints({
         method: "PUT",
         body: data,
       }),
-      invalidatesTags: [{ type: "PerformanceTracker", id: "CHANNELS" }],
+      invalidatesTags: [
+        { type: "PerformanceTracker", id: "CHANNELS" },
+        { type: "PerformanceTracker", id: "ADS_ACCOUNTS" },
+        { type: "PerformanceTracker", id: "PRODUCTS" },
+        { type: "PerformanceTracker", id: "ENTRIES" },
+        { type: "PerformanceTracker", id: "DASHBOARD" },
+        { type: "PerformanceTracker", id: "COMPARE" },
+        { type: "PerformanceTracker", id: "TARGETS" },
+      ],
     }),
     deletePerformanceTrackerChannel: build.mutation({
       query: (id) => ({
         url: `/performance-tracker/channels/${id}`,
         method: "DELETE",
       }),
-      invalidatesTags: [{ type: "PerformanceTracker", id: "CHANNELS" }],
+      invalidatesTags: [
+        { type: "PerformanceTracker", id: "CHANNELS" },
+        { type: "PerformanceTracker", id: "ADS_ACCOUNTS" },
+        { type: "PerformanceTracker", id: "PRODUCTS" },
+        { type: "PerformanceTracker", id: "ENTRIES" },
+        { type: "PerformanceTracker", id: "DASHBOARD" },
+        { type: "PerformanceTracker", id: "COMPARE" },
+        { type: "PerformanceTracker", id: "TARGETS" },
+      ],
     }),
     getPerformanceTrackerAdsAccounts: build.query({
       query: (params = {}) => ({
@@ -86,7 +102,10 @@ export const performanceTrackerApi = baseApi.injectEndpoints({
         method: "POST",
         body: data,
       }),
-      invalidatesTags: [{ type: "PerformanceTracker", id: "ADS_ACCOUNTS" }],
+      invalidatesTags: [
+        { type: "PerformanceTracker", id: "ADS_ACCOUNTS" },
+        { type: "PerformanceTracker", id: "DASHBOARD" },
+      ],
     }),
     updatePerformanceTrackerAdsAccount: build.mutation({
       query: ({ id, data }) => ({
@@ -94,14 +113,23 @@ export const performanceTrackerApi = baseApi.injectEndpoints({
         method: "PUT",
         body: data,
       }),
-      invalidatesTags: [{ type: "PerformanceTracker", id: "ADS_ACCOUNTS" }],
+      invalidatesTags: [
+        { type: "PerformanceTracker", id: "ADS_ACCOUNTS" },
+        { type: "PerformanceTracker", id: "DASHBOARD" },
+        { type: "PerformanceTracker", id: "COMPARE" },
+      ],
     }),
     deletePerformanceTrackerAdsAccount: build.mutation({
       query: (id) => ({
         url: `/performance-tracker/ads-accounts/${id}`,
         method: "DELETE",
       }),
-      invalidatesTags: [{ type: "PerformanceTracker", id: "ADS_ACCOUNTS" }],
+      invalidatesTags: [
+        { type: "PerformanceTracker", id: "ADS_ACCOUNTS" },
+        { type: "PerformanceTracker", id: "ENTRIES" },
+        { type: "PerformanceTracker", id: "DASHBOARD" },
+        { type: "PerformanceTracker", id: "COMPARE" },
+      ],
     }),
     getPerformanceTrackerProducts: build.query({
       query: (params = {}) => ({
@@ -125,7 +153,10 @@ export const performanceTrackerApi = baseApi.injectEndpoints({
         method: "POST",
         body: data,
       }),
-      invalidatesTags: [{ type: "PerformanceTracker", id: "PRODUCTS" }],
+      invalidatesTags: [
+        { type: "PerformanceTracker", id: "PRODUCTS" },
+        { type: "PerformanceTracker", id: "DASHBOARD" },
+      ],
     }),
     updatePerformanceTrackerProduct: build.mutation({
       query: ({ id, data }) => ({
@@ -133,14 +164,23 @@ export const performanceTrackerApi = baseApi.injectEndpoints({
         method: "PUT",
         body: data,
       }),
-      invalidatesTags: [{ type: "PerformanceTracker", id: "PRODUCTS" }],
+      invalidatesTags: [
+        { type: "PerformanceTracker", id: "PRODUCTS" },
+        { type: "PerformanceTracker", id: "DASHBOARD" },
+        { type: "PerformanceTracker", id: "COMPARE" },
+      ],
     }),
     deletePerformanceTrackerProduct: build.mutation({
       query: (id) => ({
         url: `/performance-tracker/products/${id}`,
         method: "DELETE",
       }),
-      invalidatesTags: [{ type: "PerformanceTracker", id: "PRODUCTS" }],
+      invalidatesTags: [
+        { type: "PerformanceTracker", id: "PRODUCTS" },
+        { type: "PerformanceTracker", id: "ENTRIES" },
+        { type: "PerformanceTracker", id: "DASHBOARD" },
+        { type: "PerformanceTracker", id: "COMPARE" },
+      ],
     }),
     getPerformanceTrackerEntries: build.query({
       query: (params = {}) => ({

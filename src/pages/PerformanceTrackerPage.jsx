@@ -70,6 +70,8 @@ const formatNumber = (value, digits = 2) =>
   });
 const formatLocal = (value) => `৳${formatNumber(value)}`;
 const formatUsd = (value) => `$${formatNumber(value)}`;
+const axisNumberFormatter = (value) =>
+  new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 }).format(numberValue(value));
 
 const getPresetRange = (preset) => {
   const now = new Date();
@@ -179,6 +181,7 @@ const DateFilters = ({
   channels = [],
   adsAccounts = [],
   products = [],
+  showEntityFilters = true,
 }) => {
   const applyPreset = (value) => {
     setPreset(value);
@@ -188,39 +191,49 @@ const DateFilters = ({
   const filteredProducts = products.filter((item) => !channelId || Number(item.channel_id) === Number(channelId));
 
   return (
-    <div className="grid gap-3 rounded-[8px] border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-3 xl:grid-cols-[minmax(170px,240px)_minmax(170px,240px)_minmax(170px,240px)_160px_150px_150px]">
-      <Field label="Channel">
-        <select
-          className={inputClass}
-          value={channelId}
-          onChange={(e) => {
-            setChannelId(e.target.value);
-            setAdsAccountId?.("");
-            setProductId?.("");
-          }}
-        >
-          <option value="">All Channels</option>
-          {channels.map((channel) => (
-            <option key={channel.Id} value={channel.Id}>{channel.name}</option>
-          ))}
-        </select>
-      </Field>
-      <Field label="Ads Account">
-        <select className={inputClass} value={adsAccountId} onChange={(e) => setAdsAccountId?.(e.target.value)}>
-          <option value="">All Ads Accounts</option>
-          {filteredAdsAccounts.map((adsAccount) => (
-            <option key={adsAccount.Id} value={adsAccount.Id}>{adsAccount.name}</option>
-          ))}
-        </select>
-      </Field>
-      <Field label="Product">
-        <select className={inputClass} value={productId} onChange={(e) => setProductId?.(e.target.value)}>
-          <option value="">All Products</option>
-          {filteredProducts.map((product) => (
-            <option key={product.Id} value={product.Id}>{product.name}</option>
-          ))}
-        </select>
-      </Field>
+    <div
+      className={`grid gap-3 rounded-[8px] border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-3 ${
+        showEntityFilters
+          ? "xl:grid-cols-[minmax(170px,240px)_minmax(170px,240px)_minmax(170px,240px)_160px_150px_150px]"
+          : "xl:grid-cols-[160px_150px_150px]"
+      }`}
+    >
+      {showEntityFilters ? (
+        <>
+          <Field label="Channel">
+            <select
+              className={inputClass}
+              value={channelId}
+              onChange={(e) => {
+                setChannelId(e.target.value);
+                setAdsAccountId?.("");
+                setProductId?.("");
+              }}
+            >
+              <option value="">All Channels</option>
+              {channels.map((channel) => (
+                <option key={channel.Id} value={channel.Id}>{channel.name}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Ads Account">
+            <select className={inputClass} value={adsAccountId} onChange={(e) => setAdsAccountId?.(e.target.value)}>
+              <option value="">All Ads Accounts</option>
+              {filteredAdsAccounts.map((adsAccount) => (
+                <option key={adsAccount.Id} value={adsAccount.Id}>{adsAccount.name}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Product">
+            <select className={inputClass} value={productId} onChange={(e) => setProductId?.(e.target.value)}>
+              <option value="">All Products</option>
+              {filteredProducts.map((product) => (
+                <option key={product.Id} value={product.Id}>{product.name}</option>
+              ))}
+            </select>
+          </Field>
+        </>
+      ) : null}
       <Field label="Date Range">
         <select className={inputClass} value={preset} onChange={(e) => applyPreset(e.target.value)}>
           <option value="today">Today</option>
@@ -571,30 +584,30 @@ const PerformanceTrackerPage = () => {
                   <MetricCard title="Total Spend (Local)" value={dashboardLoading ? "..." : formatLocal(summary.spend_local)} icon={DollarSign} />
                   <MetricCard title="Total Revenue" value={dashboardLoading ? "..." : formatLocal(summary.total_revenue_local)} icon={TrendingUp} tone="green" />
                   <MetricCard title="Total Orders" value={dashboardLoading ? "..." : formatNumber(summary.total_orders, 0)} icon={Users} tone="slate" />
-                  <MetricCard title="ROAS" value={`${formatNumber(summary.roas)}x`} icon={BarChart3} tone={summary.is_below_roas_threshold ? "red" : "green"} />
-                  <MetricCard title="Marketing Cost %" value={`${formatNumber(summary.marketing_cost_percent)}%`} icon={Target} tone={summary.is_over_target ? "red" : "green"} />
-                  <MetricCard title="Revenue per USD" value={formatLocal(summary.revenue_per_usd)} icon={DollarSign} tone="amber" />
+                  <MetricCard title="ROAS" value={dashboardLoading ? "..." : `${formatNumber(summary.roas)}x`} icon={BarChart3} tone={summary.is_below_roas_threshold ? "red" : "green"} />
+                  <MetricCard title="Marketing Cost %" value={dashboardLoading ? "..." : `${formatNumber(summary.marketing_cost_percent)}%`} icon={Target} tone={summary.is_over_target ? "red" : "green"} />
+                  <MetricCard title="Revenue per USD" value={dashboardLoading ? "..." : formatLocal(summary.revenue_per_usd)} icon={DollarSign} tone="amber" />
                 </div>
 
                 <div className="grid gap-5 xl:grid-cols-2">
                   <ChartBox title="Spend vs Revenue over time">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={timeline}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" /><YAxis /><Tooltip formatter={(v) => formatLocal(v)} /><Legend /><Line type="monotone" dataKey="spend_local" name="Spend" stroke="#ef4444" strokeWidth={2} /><Line type="monotone" dataKey="total_revenue_local" name="Revenue" stroke="#22c55e" strokeWidth={2} /></LineChart>
+                      <LineChart data={timeline}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" /><YAxis width={70} tickFormatter={axisNumberFormatter} /><Tooltip formatter={(v) => formatLocal(v)} /><Legend /><Line type="monotone" dataKey="spend_local" name="Spend" stroke="#ef4444" strokeWidth={2} /><Line type="monotone" dataKey="total_revenue_local" name="Revenue" stroke="#22c55e" strokeWidth={2} /></LineChart>
                     </ResponsiveContainer>
                   </ChartBox>
                   <ChartBox title="ROAS Trend">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={timeline}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" /><YAxis /><Tooltip /><ReferenceLine y={summary.roas_alert_threshold || 3} stroke="#f59e0b" strokeDasharray="4 4" /><Line type="monotone" dataKey="roas" stroke="#6366f1" strokeWidth={2} /></LineChart>
+                      <LineChart data={timeline}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" /><YAxis width={70} tickFormatter={axisNumberFormatter} /><Tooltip /><ReferenceLine y={summary.roas_alert_threshold || 3} stroke="#f59e0b" strokeDasharray="4 4" /><Line type="monotone" dataKey="roas" stroke="#6366f1" strokeWidth={2} /></LineChart>
                     </ResponsiveContainer>
                   </ChartBox>
                   <ChartBox title="Daily Orders Trend">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={timeline}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" /><YAxis /><Tooltip /><Bar dataKey="total_orders" name="Orders" fill="#14b8a6" radius={[6, 6, 0, 0]} /></BarChart>
+                      <BarChart data={timeline}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" /><YAxis width={70} tickFormatter={axisNumberFormatter} /><Tooltip /><Bar dataKey="total_orders" name="Orders" fill="#14b8a6" radius={[6, 6, 0, 0]} /></BarChart>
                     </ResponsiveContainer>
                   </ChartBox>
                   <ChartBox title="Cost per Order Trend">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={timeline}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" /><YAxis /><Tooltip formatter={(v) => formatLocal(v)} /><Line type="monotone" dataKey="cost_per_order" stroke="#f97316" strokeWidth={2} /></LineChart>
+                      <LineChart data={timeline}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" /><YAxis width={70} tickFormatter={axisNumberFormatter} /><Tooltip formatter={(v) => formatLocal(v)} /><Line type="monotone" dataKey="cost_per_order" stroke="#f97316" strokeWidth={2} /></LineChart>
                     </ResponsiveContainer>
                   </ChartBox>
                   <ChartBox title="Cost % vs Target">
@@ -608,21 +621,21 @@ const PerformanceTrackerPage = () => {
                   {!channelId ? (
                     <ChartBox title="Orders by Channel">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={ordersByChannel}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip /><Bar dataKey="orders" fill="#8b5cf6" radius={[6, 6, 0, 0]} /></BarChart>
+                        <BarChart data={ordersByChannel}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis width={60} tickFormatter={axisNumberFormatter} /><Tooltip /><Bar dataKey="orders" fill="#8b5cf6" radius={[6, 6, 0, 0]} /></BarChart>
                       </ResponsiveContainer>
                     </ChartBox>
                   ) : null}
                   {!adsAccountId ? (
                     <ChartBox title="Orders by Ads Account">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={ordersByAdsAccount}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip /><Bar dataKey="orders" fill="#0ea5e9" radius={[6, 6, 0, 0]} /></BarChart>
+                        <BarChart data={ordersByAdsAccount}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis width={60} tickFormatter={axisNumberFormatter} /><Tooltip /><Bar dataKey="orders" fill="#0ea5e9" radius={[6, 6, 0, 0]} /></BarChart>
                       </ResponsiveContainer>
                     </ChartBox>
                   ) : null}
                   {!productId ? (
                     <ChartBox title="Orders by Product">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={ordersByProduct}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip /><Bar dataKey="orders" fill="#10b981" radius={[6, 6, 0, 0]} /></BarChart>
+                        <BarChart data={ordersByProduct}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis width={60} tickFormatter={axisNumberFormatter} /><Tooltip /><Bar dataKey="orders" fill="#10b981" radius={[6, 6, 0, 0]} /></BarChart>
                       </ResponsiveContainer>
                     </ChartBox>
                   ) : null}
@@ -633,19 +646,11 @@ const PerformanceTrackerPage = () => {
             {activeTab === "compare" ? (
               <>
                 <DateFilters
-                  channelId=""
-                  setChannelId={() => {}}
-                  adsAccountId=""
-                  setAdsAccountId={() => {}}
-                  productId=""
-                  setProductId={() => {}}
                   preset={preset}
                   setPreset={setPreset}
                   range={range}
                   setRange={setRange}
-                  channels={[]}
-                  adsAccounts={[]}
-                  products={[]}
+                  showEntityFilters={false}
                 />
                 <div className="rounded-[8px] border border-slate-200 bg-white p-4">
                   <div className="mb-4 flex flex-wrap gap-2">
@@ -705,12 +710,12 @@ const PerformanceTrackerPage = () => {
                 <div className="grid gap-5 xl:grid-cols-2">
                   <ChartBox title={`Revenue per USD by ${compareMode === "adsAccounts" ? "Ads Account" : compareMode === "products" ? "Product" : "Channel"}`}>
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={compareRows}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip formatter={(v) => formatLocal(v)} /><Bar dataKey="value" fill="#6366f1" radius={[6, 6, 0, 0]} /></BarChart>
+                      <BarChart data={compareRows}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis width={70} tickFormatter={axisNumberFormatter} /><Tooltip formatter={(v) => formatLocal(v)} /><Bar dataKey="value" fill="#6366f1" radius={[6, 6, 0, 0]} /></BarChart>
                     </ResponsiveContainer>
                   </ChartBox>
                   <ChartBox title="Revenue per USD Trend">
                     <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={compareTrend}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" /><YAxis /><Tooltip formatter={(v) => formatLocal(v)} /><Line type="monotone" dataKey="value" stroke="#22c55e" strokeWidth={2} /></LineChart>
+                      <LineChart data={compareTrend}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="date" /><YAxis width={70} tickFormatter={axisNumberFormatter} /><Tooltip formatter={(v) => formatLocal(v)} /><Line type="monotone" dataKey="value" stroke="#22c55e" strokeWidth={2} /></LineChart>
                     </ResponsiveContainer>
                   </ChartBox>
                 </div>

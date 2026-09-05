@@ -39,9 +39,16 @@ export const chargeSettingApi = createApi({
       invalidatesTags: ["chargeSetting"],
     }),
     getChargeSettings: build.query({
-      query: ({ page = 1, limit = 10, chargeType, searchTerm } = {}) => ({
+      query: ({
+        page = 1,
+        limit = 10,
+        chargeType,
+        searchTerm,
+        from,
+        to,
+      } = {}) => ({
         url: "/charge-settings",
-        params: { page, limit, chargeType, searchTerm },
+        params: { page, limit, chargeType, searchTerm, from, to },
       }),
       providesTags: ["chargeSetting"],
     }),
