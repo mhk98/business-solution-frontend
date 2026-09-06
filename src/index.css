@@ -165,6 +165,16 @@ input[type="date"] {
   color-scheme: light;
 }
 
+/* A single click anywhere on native date/time fields opens the picker
+   (see NativeDatePickerAutoOpen), so the whole field reads as clickable. */
+input[type="date"]:not(:disabled):not([readonly]),
+input[type="datetime-local"]:not(:disabled):not([readonly]),
+input[type="month"]:not(:disabled):not([readonly]),
+input[type="week"]:not(:disabled):not([readonly]),
+input[type="time"]:not(:disabled):not([readonly]) {
+  cursor: pointer;
+}
+
 input[type="date"]::-webkit-calendar-picker-indicator {
   opacity: 1;
   filter: none;

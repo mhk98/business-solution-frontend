@@ -43,6 +43,19 @@ const DOCUMENT_LABELS = {
   guardianIdCard: "Guardian ID Card",
 };
 
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+const PAGE_SIZE_STORAGE_KEY = "userManagement.pageSize";
+
+const getInitialPageSize = () => {
+  try {
+    const stored = Number(localStorage.getItem(PAGE_SIZE_STORAGE_KEY));
+    if (PAGE_SIZE_OPTIONS.includes(stored)) return stored;
+  } catch {
+    /* ignore */
+  }
+  return 10;
+};
+
 const getVisibleRoleOptions = (actorRole) =>
   ROLE_OPTIONS.filter(
     (role) =>
@@ -73,7 +86,18 @@ const UserManagementTable = () => {
   const [startPage, setStartPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [pagesPerSet, setPagesPerSet] = useState(10);
-  const itemsPerPage = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(getInitialPageSize);
+
+  const handlePageSizeChange = (nextSize) => {
+    setItemsPerPage(nextSize);
+    setCurrentPage(1);
+    setStartPage(1);
+    try {
+      localStorage.setItem(PAGE_SIZE_STORAGE_KEY, String(nextSize));
+    } catch {
+      /* ignore */
+    }
+  };
 
   // Edit user
   const [currentUser, setCurrentUser] = useState(null);
@@ -148,7 +172,7 @@ const UserManagementTable = () => {
     if (!isLoading && data?.meta?.count != null) {
       setTotalPages(Math.max(1, Math.ceil(data.meta.count / itemsPerPage)));
     }
-  }, [data, isLoading, isError, error]);
+  }, [data, isLoading, isError, error, itemsPerPage]);
 
   // Cleanup preview URLs
   useEffect(() => {
@@ -429,8 +453,8 @@ const UserManagementTable = () => {
         {/* Top bar */}
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-4">
           {/* Search */}
-          <div className="flex w-full flex-col gap-3 sm:max-w-[760px] sm:flex-row">
-            <div className="relative w-full sm:max-w-[520px]">
+          <div className="flex w-full flex-col gap-3 sm:flex-1 sm:flex-row sm:items-center">
+            <div className="relative w-full sm:flex-1 lg:max-w-[440px]">
               <input
                 value={searchTerm}
                 onChange={(e) => {
@@ -454,12 +478,25 @@ const UserManagementTable = () => {
                 setCurrentPage(1);
                 setStartPage(1);
               }}
-              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-indigo-200 focus:ring-2 focus:ring-indigo-500/20 sm:w-56"
+              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-indigo-200 focus:ring-2 focus:ring-indigo-500/20 sm:w-44"
             >
               <option value="">All Roles</option>
               {visibleRoleOptions.map((role) => (
                 <option key={role.value} value={role.value}>
                   {role.label}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={itemsPerPage}
+              onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-indigo-200 focus:ring-2 focus:ring-indigo-500/20 sm:w-36"
+              title="Rows per page"
+            >
+              {PAGE_SIZE_OPTIONS.map((size) => (
+                <option key={size} value={size}>
+                  {size} / page
                 </option>
               ))}
             </select>
@@ -607,8 +644,14 @@ const UserManagementTable = () => {
           )}
         </div>
 
+        {data?.meta?.count != null && (
+          <div className="mt-6 text-center text-sm text-slate-500 sm:text-right">
+            Showing {users.length} of {data.meta.count}
+          </div>
+        )}
+
         {/* Pagination */}
-        <div className="mt-6 flex items-center justify-center gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
+        <div className="mt-4 flex items-center justify-center gap-2 overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
           <button
             onClick={handlePreviousSet}
             disabled={startPage === 1}

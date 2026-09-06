@@ -54,7 +54,20 @@ const getTransactionDescription = (row) => row.remarks || row.note || "-";
 // Each Credit/Debit row here is one category, aggregated across every
 // transaction in the period, with the date range it spans — the summary
 // view that comes before the full per-transaction detail below it.
-const groupTransactionsByCategory = (transactions = []) => {
+// Category key used to line a row up with its opening balance from the API
+// (which keys strictly by categoryId).
+const getCategoryKey = (row) =>
+  row.categoryId !== undefined && row.categoryId !== null
+    ? String(row.categoryId)
+    : row.categoryInfo?.name ?? row.category ?? "uncategorized";
+
+const getOpeningAmount = (openingByCategory, key, tone) =>
+  Number(openingByCategory?.[key]?.[tone] || 0);
+
+const groupTransactionsByCategory = (
+  transactions = [],
+  openingByCategory = {},
+) => {
   const groupsByStatus = { credit: new Map(), debit: new Map() };
 
   transactions.forEach((row) => {
@@ -62,11 +75,7 @@ const groupTransactionsByCategory = (transactions = []) => {
       String(row.paymentStatus || "").toLowerCase() === "cashin"
         ? "credit"
         : "debit";
-    const key =
-      row.categoryId ??
-      row.categoryInfo?.name ??
-      row.category ??
-      "uncategorized";
+    const key = getCategoryKey(row);
     const groups = groupsByStatus[status];
     const parsedDate = row.date ? new Date(row.date) : null;
     const validDate =
@@ -74,6 +83,7 @@ const groupTransactionsByCategory = (transactions = []) => {
 
     if (!groups.has(key)) {
       groups.set(key, {
+        key,
         description: getCategoryName(row),
         amount: 0,
         minDate: validDate,
@@ -93,13 +103,20 @@ const groupTransactionsByCategory = (transactions = []) => {
 
   const toSortedRows = (groups, tone) =>
     Array.from(groups.values())
-      .map((group) => ({
-        date: formatDateRangeLabel(group.minDate, group.maxDate),
-        description: group.description,
-        amount: group.amount,
-        tone,
-        sortDate: group.minDate ? group.minDate.getTime() : 0,
-      }))
+      .map((group) => {
+        const opening = getOpeningAmount(openingByCategory, group.key, tone);
+        return {
+          date: formatDateRangeLabel(group.minDate, group.maxDate),
+          description: group.description,
+          opening,
+          amount: group.amount,
+          ending: opening + group.amount,
+          // ব্যালেন্স পার্থক্য = (সমাপনী ব্যালেন্স column) − (শুরু ব্যালেন্স column)
+          balanceDiff: group.amount - opening,
+          tone,
+          sortDate: group.minDate ? group.minDate.getTime() : 0,
+        };
+      })
       .sort((a, b) => a.sortDate - b.sortDate);
 
   return {
@@ -111,7 +128,7 @@ const groupTransactionsByCategory = (transactions = []) => {
 // One row per real transaction (no aggregation) — Category is its own
 // column, Description comes from the transaction's note/remarks — split
 // into Credit and Debit lists and sorted chronologically.
-const getFlatTransactionRows = (transactions = []) => {
+const getFlatTransactionRows = (transactions = [], openingByCategory = {}) => {
   const credit = [];
   const debit = [];
 
@@ -126,6 +143,7 @@ const getFlatTransactionRows = (transactions = []) => {
     const entry = {
       date: formatRowDate(row.date),
       category: getCategoryName(row),
+      categoryKey: getCategoryKey(row),
       description: getTransactionDescription(row),
       amount: Number(row.amount || 0),
       tone: isCredit ? "credit" : "debit",
@@ -147,9 +165,27 @@ const getFlatTransactionRows = (transactions = []) => {
     return categoryCompare !== 0 ? categoryCompare : a.sortDate - b.sortDate;
   };
 
+  // Running balance per category, seeded from that category's opening balance.
+  const withRunningBalance = (rows, tone) => {
+    const running = {};
+    return rows.map((row) => {
+      if (!(row.categoryKey in running)) {
+        running[row.categoryKey] = getOpeningAmount(
+          openingByCategory,
+          row.categoryKey,
+          tone,
+        );
+      }
+      const opening = running[row.categoryKey];
+      const ending = opening + row.amount;
+      running[row.categoryKey] = ending;
+      return { ...row, opening, ending, balanceDiff: row.amount - opening };
+    });
+  };
+
   return {
-    credit: credit.sort(byCategoryThenDate),
-    debit: debit.sort(byCategoryThenDate),
+    credit: withRunningBalance(credit.sort(byCategoryThenDate), "credit"),
+    debit: withRunningBalance(debit.sort(byCategoryThenDate), "debit"),
   };
 };
 
@@ -157,29 +193,44 @@ const getFlatTransactionRows = (transactions = []) => {
 // letterhead design — no separate category column, since the category
 // name *is* what fills that column for an aggregated row).
 const AGGREGATE_COLUMNS = [
-  { key: "sl", label: "ক্র. নং", widthPct: 9 },
-  { key: "date", label: "তারিখ", widthPct: 20 },
-  { key: "description", label: "ক্যাটেগরি", widthPct: 51 },
-  { key: "amount", label: "পরিমান", widthPct: 20, isAmount: true },
+  { key: "sl", label: "ক্র. নং", widthPct: 7 },
+  { key: "date", label: "তারিখ", widthPct: 15 },
+  { key: "description", label: "ক্যাটেগরি", widthPct: 28 },
+  { key: "opening", label: "শুরু ব্যালেন্স", widthPct: 17, isAmount: true },
+  { key: "ending", label: "সমাপনী ব্যালেন্স", widthPct: 17, isAmount: true },
+  // ব্যালেন্স পার্থক্য = সমাপনী ব্যালেন্স − শুরু ব্যালেন্স (এই period-এর movement).
+  { key: "amount", label: "ব্যালেন্স পার্থক্য", widthPct: 16, isAmount: true },
 ];
 
 // Same layout as AGGREGATE_COLUMNS, but for the Total Credit & Debit
 // roll-up, whose rows are descriptive summary lines rather than categories.
 const TOTAL_SUMMARY_COLUMNS = [
-  { key: "sl", label: "ক্র. নং", widthPct: 9 },
-  { key: "date", label: "তারিখ", widthPct: 20 },
-  { key: "description", label: "বিবরণ", widthPct: 51 },
-  { key: "amount", label: "পরিমান", widthPct: 20, isAmount: true },
+  { key: "sl", label: "ক্র. নং", widthPct: 7 },
+  { key: "date", label: "তারিখ", widthPct: 15 },
+  { key: "description", label: "বিবরণ", widthPct: 28 },
+  { key: "opening", label: "শুরু ব্যালেন্স", widthPct: 17, isAmount: true },
+  { key: "ending", label: "সমাপনী ব্যালেন্স", widthPct: 17, isAmount: true },
+  // ব্যালেন্স পার্থক্য = সমাপনী ব্যালেন্স − শুরু ব্যালেন্স (এই period-এর movement).
+  { key: "amount", label: "ব্যালেন্স পার্থক্য", widthPct: 16, isAmount: true },
+];
+
+// Book-level opening / ending / difference summary (net cash position).
+const BALANCE_SUMMARY_COLUMNS = [
+  { key: "sl", label: "ক্র. নং", widthPct: 8 },
+  { key: "description", label: "বিবরণ", widthPct: 60 },
+  { key: "amount", label: "পরিমান", widthPct: 32, isAmount: true },
 ];
 
 // Column layout for the per-transaction detail tables — one row per real
 // transaction, with its own Category column and note-based description.
 const DETAIL_COLUMNS = [
-  { key: "sl", label: "ক্র. নং", widthPct: 8 },
-  { key: "date", label: "তারিখ", widthPct: 15 },
-  { key: "category", label: "ক্যাটেগরি", widthPct: 17 },
-  { key: "description", label: "বিবরণ", widthPct: 40 },
-  { key: "amount", label: "পরিমান", widthPct: 20, isAmount: true },
+  { key: "sl", label: "ক্র. নং", widthPct: 6 },
+  { key: "date", label: "তারিখ", widthPct: 11 },
+  { key: "category", label: "ক্যাটেগরি", widthPct: 13 },
+  { key: "description", label: "বিবরণ", widthPct: 22 },
+  { key: "opening", label: "শুরু ব্যালেন্স", widthPct: 16, isAmount: true },
+  { key: "ending", label: "সমাপনী ব্যালেন্স", widthPct: 16, isAmount: true },
+  { key: "amount", label: "ব্যালেন্স পার্থক্য", widthPct: 16, isAmount: true },
 ];
 
 const INVENTORY_STOCK_COLUMNS = [
@@ -351,6 +402,48 @@ const GRAND_TOTAL_COLUMNS = [
 ];
 
 const PAYABLE_TOTAL_COLUMNS = GRAND_TOTAL_COLUMNS;
+
+// Assets sections at the bottom of the statement. Purchase / Sale / Damage
+// carry a date; Stock is a live snapshot.
+const ASSETS_DATED_COLUMNS = [
+  { key: "sl", label: "ক্র. নং", widthPct: 8 },
+  { key: "date", label: "তারিখ", widthPct: 15 },
+  { key: "name", label: "নাম", widthPct: 33 },
+  { key: "quantity", label: "পরিমাণ", widthPct: 12, isQuantity: true },
+  { key: "price", label: "দর", widthPct: 14, isAmount: true },
+  { key: "amount", label: "মোট", widthPct: 18, isAmount: true },
+];
+
+const ASSETS_STOCK_COLUMNS = [
+  { key: "sl", label: "ক্র. নং", widthPct: 8 },
+  { key: "name", label: "নাম", widthPct: 46 },
+  { key: "quantity", label: "পরিমাণ", widthPct: 14, isQuantity: true },
+  { key: "price", label: "দর", widthPct: 14, isAmount: true },
+  { key: "amount", label: "মোট", widthPct: 18, isAmount: true },
+];
+
+const normalizeAssetGroupRows = (group, { withDate }) => {
+  const rows = group?.data || [];
+  const normalized = rows.map((row) => ({
+    date: withDate ? formatRowDate(row.date) : "-",
+    name: row.name || "-",
+    quantity: Number(row.quantity || 0),
+    price: Number(row.price || 0),
+    amount: Number(row.total || 0),
+  }));
+
+  return [
+    ...normalized,
+    {
+      isTotal: true,
+      date: "",
+      name: "মোট",
+      quantity: Number(group?.totalQuantity || 0),
+      price: null,
+      amount: Number(group?.total || 0),
+    },
+  ];
+};
 
 const getPayableTotalAmount = ({
   pendingPayrollSalary,
@@ -541,6 +634,11 @@ const FRAGMENT_STYLES = `
     background: #e6f4ea;
     color: #1f6b3a;
   }
+
+  .ledger-table tfoot tr.loss td {
+    background: #fdecec;
+    color: #b91c1c;
+  }
 `;
 
 const buildCell = (tag, column, content, tone) => {
@@ -598,6 +696,40 @@ const buildLedgerHeadingFragment = (title) => `
   </div>
 `;
 
+// The table's total row. Default: one label cell spanning all-but-last column
+// plus the single `total`. When `footerTotals` (a map of column key -> value)
+// is given, every amount column gets its own total cell instead.
+const buildLedgerFooter = (columns, totalLabel, total, footerTotals, totalTone) => {
+  const lossClass = totalTone === "loss" ? ' class="loss"' : "";
+
+  if (!footerTotals) {
+    return `<tfoot>
+      <tr${lossClass}>
+        <td colspan="${columns.length - 1}">${escapeHtml(totalLabel)}</td>
+        <td class="amount">${formatAmount(total)}</td>
+      </tr>
+    </tfoot>`;
+  }
+
+  const amountColumns = columns.filter((column) => column.isAmount);
+  const labelSpan = columns.length - amountColumns.length;
+  const amountCells = amountColumns
+    .map((column) => {
+      const value = footerTotals[column.key];
+      return `<td class="amount">${
+        value === undefined || value === null ? "" : formatAmount(value)
+      }</td>`;
+    })
+    .join("");
+
+  return `<tfoot>
+    <tr${lossClass}>
+      <td colspan="${labelSpan}">${escapeHtml(totalLabel)}</td>
+      ${amountCells}
+    </tr>
+  </tfoot>`;
+};
+
 // A page-sized "slice" of a ledger table: the column header row (repeated on
 // every continuation page) plus a subset of the rows, and the total row only
 // on the final slice — so a row is never split across pages, and the header
@@ -609,7 +741,9 @@ const buildLedgerTableChunkFragment = ({
   includeFooter,
   totalLabel,
   total,
+  footerTotals,
   columns,
+  totalTone,
 }) => `
   <div class="frag">
     <table class="ledger-table">
@@ -623,12 +757,7 @@ const buildLedgerTableChunkFragment = ({
       </tbody>
       ${
         includeFooter && totalLabel
-          ? `<tfoot>
-              <tr>
-                <td colspan="${columns.length - 1}">${escapeHtml(totalLabel)}</td>
-                <td class="amount">${formatAmount(total)}</td>
-              </tr>
-            </tfoot>`
+          ? buildLedgerFooter(columns, totalLabel, total, footerTotals, totalTone)
           : ""
       }
     </table>
@@ -1214,6 +1343,8 @@ const placeLedgerSection = async (
     rows,
     totalLabel,
     total,
+    totalTone,
+    footerTotals,
     columns,
     regularFontDataUrl,
     boldFontDataUrl,
@@ -1232,6 +1363,8 @@ const placeLedgerSection = async (
         includeFooter: true,
         totalLabel,
         total,
+        totalTone,
+        footerTotals,
         columns,
       }),
     );
@@ -1342,6 +1475,8 @@ const placeLedgerSection = async (
           includeFooter: isLastChunk,
           totalLabel,
           total,
+          totalTone,
+          footerTotals,
           columns,
         }),
       );
@@ -1366,6 +1501,8 @@ const placeLedgerSection = async (
           includeFooter: grownIsLastChunk,
           totalLabel,
           total,
+          totalTone,
+          footerTotals,
           columns,
         }),
       );
@@ -1400,15 +1537,35 @@ const placeLedgerSection = async (
 // a fresh page. Each section (header, ledger tables, signature) is composed
 // independently so none of them ever get sliced across a page boundary.
 const appendBookStatement = async (doc, html2canvas, cursor, book) => {
+  const openingByCategory = book.openingByCategory || {};
   const { credit: summaryCredit, debit: summaryDebit } =
-    groupTransactionsByCategory(book.transactions);
+    groupTransactionsByCategory(book.transactions, openingByCategory);
   const { credit: detailCredit, debit: detailDebit } = getFlatTransactionRows(
     book.transactions,
+    openingByCategory,
   );
   const totalCredit = book.totalCredit ?? 0;
   const totalDebit = book.totalDebit ?? 0;
   const netBalance =
     book.netBalance !== undefined ? book.netBalance : totalCredit - totalDebit;
+  const openingCredit = book.openingTotalCredit ?? 0;
+  const openingDebit = book.openingTotalDebit ?? 0;
+  const openingNetBalance =
+    book.openingNetBalance !== undefined
+      ? book.openingNetBalance
+      : openingCredit - openingDebit;
+  const creditFooterTotals = {
+    opening: openingCredit,
+    amount: totalCredit,
+    ending: openingCredit + totalCredit,
+    balanceDiff: totalCredit - openingCredit,
+  };
+  const debitFooterTotals = {
+    opening: openingDebit,
+    amount: totalDebit,
+    ending: openingDebit + totalDebit,
+    balanceDiff: totalDebit - openingDebit,
+  };
 
   // A new book always starts on its own fresh page.
   cursor.pageHasContent = false;
@@ -1440,6 +1597,7 @@ const appendBookStatement = async (doc, html2canvas, cursor, book) => {
     rows: summaryCredit,
     totalLabel: "মোট ক্রেডিট :",
     total: totalCredit,
+    footerTotals: creditFooterTotals,
     columns: AGGREGATE_COLUMNS,
   });
 
@@ -1448,6 +1606,7 @@ const appendBookStatement = async (doc, html2canvas, cursor, book) => {
     rows: summaryDebit,
     totalLabel: "মোট ডেবিট :",
     total: totalDebit,
+    footerTotals: debitFooterTotals,
     columns: AGGREGATE_COLUMNS,
   });
 
@@ -1458,6 +1617,7 @@ const appendBookStatement = async (doc, html2canvas, cursor, book) => {
     rows: detailCredit,
     totalLabel: "মোট ক্রেডিট :",
     total: totalCredit,
+    footerTotals: creditFooterTotals,
     columns: DETAIL_COLUMNS,
   });
 
@@ -1466,6 +1626,7 @@ const appendBookStatement = async (doc, html2canvas, cursor, book) => {
     rows: detailDebit,
     totalLabel: "মোট ডেবিট :",
     total: totalDebit,
+    footerTotals: debitFooterTotals,
     columns: DETAIL_COLUMNS,
   });
 
@@ -1475,19 +1636,65 @@ const appendBookStatement = async (doc, html2canvas, cursor, book) => {
       {
         date: book.periodLabel,
         description: `${book.periodLabel} পর্যন্ত মোট ক্রেডিট`,
+        opening: openingCredit,
         amount: totalCredit,
+        ending: openingCredit + totalCredit,
+        balanceDiff: totalCredit - openingCredit,
         tone: "credit",
       },
       {
         date: book.periodLabel,
         description: `${book.periodLabel} পর্যন্ত মোট ডেবিট`,
+        opening: openingDebit,
         amount: totalDebit,
+        ending: openingDebit + totalDebit,
+        balanceDiff: totalDebit - openingDebit,
         tone: "debit",
       },
     ],
     totalLabel: `একাউন্টে মোট ক্যাশ থাকবে (${book.periodLabel} পর্যন্ত)`,
     total: netBalance,
+    footerTotals: {
+      opening: openingNetBalance,
+      amount: netBalance,
+      ending: openingNetBalance + netBalance,
+      balanceDiff: netBalance - openingNetBalance,
+    },
     columns: TOTAL_SUMMARY_COLUMNS,
+  });
+
+  // Book-level net cash position: opening (before the filter start),
+  // ending (up to the filter end) and their difference (the period movement).
+  const endingNetBalance = openingNetBalance + netBalance;
+  const balanceDifference = endingNetBalance - openingNetBalance;
+  const startLabel = book.statementStartDate
+    ? formatRowDate(book.statementStartDate)
+    : null;
+  const endLabel = book.statementEndDate
+    ? formatRowDate(book.statementEndDate)
+    : book.periodLabel;
+  const balanceTone = (value) => (value < 0 ? "debit" : "credit");
+
+  await placeSection({
+    title: "শুরু ব্যালেন্স, সমাপনী ব্যালেন্স ও পার্থক্য",
+    rows: [
+      {
+        description: startLabel
+          ? `শুরু ব্যালেন্স (${startLabel} এর আগে পর্যন্ত)`
+          : "শুরু ব্যালেন্স",
+        amount: openingNetBalance,
+        tone: balanceTone(openingNetBalance),
+      },
+      {
+        description: `সমাপনী ব্যালেন্স (${endLabel} পর্যন্ত)`,
+        amount: endingNetBalance,
+        tone: balanceTone(endingNetBalance),
+      },
+    ],
+    totalLabel: "পার্থক্য (সমাপনী − শুরু)",
+    total: balanceDifference,
+    totalTone: balanceDifference < 0 ? "loss" : undefined,
+    columns: BALANCE_SUMMARY_COLUMNS,
   });
 };
 
@@ -1864,7 +2071,8 @@ const appendProfitLossSection = async (
     directorInvestment,
   });
   const result = grandTotal - payableAndInvestmentTotal;
-  const resultLabel = result >= 0 ? "Profit" : "Loss";
+  const isLoss = result < 0;
+  const resultLabel = isLoss ? "Loss" : "Profit";
 
   await placeLedgerSection(doc, html2canvas, cursor, {
     title: "Profit / Loss",
@@ -1877,6 +2085,7 @@ const appendProfitLossSection = async (
     ],
     totalLabel: resultLabel,
     total: Math.abs(result),
+    totalTone: isLoss ? "loss" : "profit",
     columns: PAYABLE_TOTAL_COLUMNS,
     regularFontDataUrl,
     boldFontDataUrl,
@@ -1901,6 +2110,64 @@ const appendDirectorInvestmentSection = async (
     regularFontDataUrl,
     boldFontDataUrl,
   });
+};
+
+// Assets Stock / Purchase / Sale / Damage — date-filtered, each with its own
+// total, placed at the very bottom of the statement.
+const appendAssetsSections = async (
+  doc,
+  html2canvas,
+  cursor,
+  { assetsSummary, regularFontDataUrl, boldFontDataUrl },
+) => {
+  if (!assetsSummary) return;
+
+  const sections = [
+    {
+      key: "stock",
+      title: "অ্যাসেট স্টক",
+      withDate: false,
+      columns: ASSETS_STOCK_COLUMNS,
+    },
+    {
+      key: "purchase",
+      title: "অ্যাসেট ক্রয়",
+      withDate: true,
+      columns: ASSETS_DATED_COLUMNS,
+    },
+    {
+      key: "sale",
+      title: "অ্যাসেট বিক্রয়",
+      withDate: true,
+      columns: ASSETS_DATED_COLUMNS,
+    },
+    {
+      key: "damage",
+      title: "অ্যাসেট ড্যামেজ",
+      withDate: true,
+      columns: ASSETS_DATED_COLUMNS,
+    },
+  ];
+
+  for (const section of sections) {
+    try {
+      const rows = normalizeAssetGroupRows(assetsSummary[section.key], {
+        withDate: section.withDate,
+      });
+
+      await placeLedgerSection(doc, html2canvas, cursor, {
+        title: section.title,
+        rows,
+        totalLabel: null,
+        total: 0,
+        columns: section.columns,
+        regularFontDataUrl,
+        boldFontDataUrl,
+      });
+    } catch (error) {
+      console.error(`Assets section "${section.title}" failed:`, error);
+    }
+  }
 };
 
 // Combines the account's net cash position with every "money owed to the
@@ -2015,6 +2282,7 @@ export const generateBookStatementPdf = async ({
   manufacturerDue = null,
   lenderPayable = null,
   directorInvestment = null,
+  assetsSummary = null,
 }) => {
   const { jsPDF } = await import("jspdf");
   const html2canvas = (await import("html2canvas")).default;
@@ -2193,6 +2461,12 @@ export const generateBookStatementPdf = async ({
     supplierDue,
     lenderPayable,
     directorInvestment,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
+  await appendAssetsSections(doc, html2canvas, cursor, {
+    assetsSummary,
     regularFontDataUrl,
     boldFontDataUrl,
   });

@@ -42,6 +42,7 @@ import {
   CircleDollarSign,
   Factory,
   History,
+  UserX,
   FileText,
   FileSpreadsheet,
   CreditCard,
@@ -147,6 +148,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "owner_transaction",
     "credit_ledger",
     "log_history",
+    "daily_inactive_users",
     "notifications",
     "tasks",
     "settings",
@@ -1056,6 +1058,22 @@ export const SIDEBAR_ITEMS = [
     color: "#0f766e",
     href: "/log-history",
     roles: ["superAdmin", "admin", "accountant"],
+  },
+  {
+    name: "Work History",
+    key: "work_history",
+    icon: History,
+    color: "#4f46e5",
+    href: "/work-history",
+    roles: ["superAdmin"],
+  },
+  {
+    name: "Today Not Worked",
+    key: "daily_inactive_users",
+    icon: UserX,
+    color: "#dc2626",
+    href: "/today-not-worked",
+    roles: ["superAdmin"],
   },
   {
     name: "Notifications",
@@ -2087,7 +2105,9 @@ export const saveRolePermissionsForRole = (role, menuPermissions = []) => {
 
 export const getAllowedKeysForRole = (role) => {
   const stored = getStoredRolePermissions();
-  return new Set(expandPermissionKeys(stored[role] || []));
+  const keys = new Set(expandPermissionKeys(stored[role] || []));
+  if (role === "superAdmin" && keys.has("daily_inactive_users")) keys.add("work_history");
+  return keys;
 };
 
 export const isItemAllowed = (item, allowedKeys) => {

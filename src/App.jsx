@@ -11,6 +11,7 @@ import ErrorBoundary from "./components/common/ErrorBoundary";
 import LoadingBar from "./components/common/LoadingBar";
 import DeleteConfirmationProvider from "./components/common/DeleteConfirmationProvider";
 import DuplicateSameDayEntryHighlighter from "./components/common/DuplicateSameDayEntryHighlighter";
+import NativeDatePickerAutoOpen from "./components/common/NativeDatePickerAutoOpen";
 
 const OverviewPage = lazy(() => import("./pages/OverviewPage"));
 const ProductsPage = lazy(() => import("./pages/ProductsPage"));
@@ -93,6 +94,8 @@ const DirectorProfitSharePage = lazy(() => import("./pages/DirectorProfitSharePa
 const DirectorProfitShareHistoryPage = lazy(() => import("./pages/DirectorProfitShareHistoryPage"));
 const CreditLedgerPage = lazy(() => import("./pages/CreditLedgerPage"));
 const LogHistoryPage = lazy(() => import("./pages/LogHistoryPage"));
+const WorkHistoryPage = lazy(() => import("./pages/WorkHistoryPage"));
+const TodayNotWorkedPage = lazy(() => import("./pages/TodayNotWorkedPage"));
 const ManufacturePage = lazy(() => import("./pages/ManufacturePage"));
 const ManufacturerPage = lazy(() => import("./pages/ManufacturerPage"));
 const ManufacturerHistoryPage = lazy(() => import("./pages/ManufacturerHistoryPage"));
@@ -175,6 +178,7 @@ function App() {
           <div className="flex-1 min-w-0 relative z-10 min-h-dvh">
             <LoadingBar />
             <DuplicateSameDayEntryHighlighter />
+            <NativeDatePickerAutoOpen />
             <Suspense fallback={<PageLoader />}>
               <Routes>
                 <Route path="/login" element={<Login />} />
@@ -273,6 +277,8 @@ function App() {
                 <Route path="/director-profit-share/:id" element={<AuthedRoute><DirectorProfitShareHistoryPage /></AuthedRoute>} />
                 <Route path="/credit-ledger" element={<AuthedRoute><CreditLedgerPage /></AuthedRoute>} />
                 <Route path="/log-history" element={<AuthedRoute><LogHistoryPage /></AuthedRoute>} />
+                <Route path="/work-history" element={<AuthedRoute><WorkHistoryPage /></AuthedRoute>} />
+                <Route path="/today-not-worked" element={<AuthedRoute><TodayNotWorkedPage /></AuthedRoute>} />
                 <Route path="/expense" element={<AuthedRoute><ExpensePage /></AuthedRoute>} />
                 <Route path="/accounting-overview" element={<AuthedRoute><AccountingOverviewPage /></AuthedRoute>} />
                 <Route path="/book" element={<AuthedRoute><AccountingPage /></AuthedRoute>} />

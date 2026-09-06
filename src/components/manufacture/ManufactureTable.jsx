@@ -1393,7 +1393,22 @@ const ManufactureTable = () => {
                     key={index}
                     className="rounded-2xl border border-slate-200 bg-slate-50/50 p-3"
                   >
-                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(240px,1.25fr)_minmax(260px,1fr)_minmax(150px,0.65fr)_minmax(130px,0.55fr)_44px] lg:items-end">
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <span className="ml-1 text-[11px] font-black uppercase tracking-wider text-slate-400">
+                        {(t.item || "Item") + " " + (index + 1)}
+                      </span>
+                      {(createProduct.items || []).length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeCreateItem(index)}
+                          className="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg border border-red-100 bg-red-50 px-2 text-[11px] font-bold text-red-500 transition hover:bg-red-100 active:scale-95"
+                          title="Remove item"
+                        >
+                          <Trash2 size={13} /> {t.remove || "Remove"}
+                        </button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(200px,1.3fr)_minmax(230px,1fr)_minmax(110px,0.55fr)_minmax(110px,0.5fr)] lg:items-end">
                       <div className="min-w-0">
                         <label className="mb-1.5 ml-1 block text-[10px] font-black uppercase tracking-wider text-slate-500">
                           {t.item || "Item"}
@@ -1513,20 +1528,6 @@ const ManufactureTable = () => {
                         </div>
                       </div>
 
-                      <div className="flex lg:justify-end">
-                        {(createProduct.items || []).length > 1 ? (
-                          <button
-                            type="button"
-                            onClick={() => removeCreateItem(index)}
-                            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-red-100 bg-red-50 text-red-500 hover:bg-red-100 transition active:scale-95"
-                            title="Remove item"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        ) : (
-                          <div className="hidden h-11 w-11 lg:block" />
-                        )}
-                      </div>
                     </div>
                   </div>
                 ),

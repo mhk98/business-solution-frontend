@@ -185,6 +185,7 @@ import { ownerTransactionApi } from "../features/ownerTransaction/ownerTransacti
 import { directorProfitShareApi } from "../features/ownerTransaction/directorProfitShare";
 import { monthlyReportingBookApi } from "../features/monthlyReportingBook/monthlyReportingBook";
 import { companyInfoApi } from "../features/companyInfo/companyInfo";
+import { todayNotWorkedApi } from "../features/todayNotWorked/todayNotWorked";
 
 // ✅ 1) Collect all apis once
 const apis = [
@@ -272,6 +273,7 @@ const apis = [
   posReportApi,
   damageRepairApi,
   damageRepairedApi,
+  todayNotWorkedApi,
   authApi,
 ];
 

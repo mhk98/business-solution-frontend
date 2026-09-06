@@ -136,6 +136,14 @@ const ORDER_REPORT_COLUMNS = [
   { key: "totalPurchasePrice", label: "Total Purchase Price" },
 ];
 
+// Financial figures — Total Amount / Total Sale Price / Total Purchase
+// Price. These columns are hidden entirely for everyone except superAdmin.
+const SUPER_ADMIN_ONLY_REPORT_COLUMN_KEYS = [
+  "totalAmount",
+  "totalSalePrice",
+  "totalPurchasePrice",
+];
+
 const sumProductsField = (row, field) =>
   (row.products || []).reduce(
     (sum, item) => sum + (Number(item?.[field]) || 0),
@@ -276,10 +284,18 @@ const DailyProfitLossUserPage = () => {
   const isSuperAdmin = role === "superAdmin";
   const canManageReports = ["superAdmin", "admin", "marketer"].includes(role);
   const currentUserId = Number(localStorage.getItem("userId") || 0);
-  // Total Amount is sensitive: only superAdmin, or the user who owns the
-  // entry, may see it. Non-superAdmins who see other people's reports
-  // (admin/marketer) never see the cross-user aggregate.
-  const canSeeAggregateAmount = isSuperAdmin || !canManageReports;
+  // Total Amount is sensitive: only superAdmin may see it, no one else.
+  const canSeeAggregateAmount = isSuperAdmin;
+  const visibleReportColumns = useMemo(
+    () =>
+      isSuperAdmin
+        ? ORDER_REPORT_COLUMNS
+        : ORDER_REPORT_COLUMNS.filter(
+            (column) =>
+              !SUPER_ADMIN_ONLY_REPORT_COLUMN_KEYS.includes(column.key),
+          ),
+    [isSuperAdmin],
+  );
   const { canUseMasterPermission } = useCanUseMasterPermission();
   const canSeeSensitiveSummary = canUseMasterPermission;
   const canManageProfitLossHistoryActions = canUseMasterPermission;
@@ -1153,7 +1169,7 @@ const DailyProfitLossUserPage = () => {
               <table className="w-full min-w-[1120px] divide-y divide-slate-200 text-left text-sm">
                 <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
                   <tr>
-                    {ORDER_REPORT_COLUMNS.map((column) => (
+                    {visibleReportColumns.map((column) => (
                       <th key={column.key} className="px-4 py-3">
                         {column.label}
                       </th>
@@ -1165,7 +1181,7 @@ const DailyProfitLossUserPage = () => {
                   {isLoading && (
                     <tr>
                       <td
-                        colSpan={ORDER_REPORT_COLUMNS.length + 1}
+                        colSpan={visibleReportColumns.length + 1}
                         className="px-4 py-10 text-center text-slate-500"
                       >
                         Loading reports...
@@ -1175,7 +1191,7 @@ const DailyProfitLossUserPage = () => {
                   {!isLoading && reports.length === 0 && (
                     <tr>
                       <td
-                        colSpan={ORDER_REPORT_COLUMNS.length + 1}
+                        colSpan={visibleReportColumns.length + 1}
                         className="px-4 py-10 text-center text-slate-500"
                       >
                         No cs work report found.
@@ -1187,10 +1203,13 @@ const DailyProfitLossUserPage = () => {
                       const isRowOwner =
                         Number(row.user?.Id) === currentUserId;
                       const canMutateRow = isRowOwner;
-                      const canSeeRowAmount = isSuperAdmin || isRowOwner;
+                      // Total Amount / Total Sale Price / Total Purchase
+                      // Price are financial figures visible to superAdmin
+                      // only — not even the report owner.
+                      const canSeeRowAmount = isSuperAdmin;
                       return (
                         <tr key={row.Id} className="hover:bg-slate-50">
-                          {ORDER_REPORT_COLUMNS.map((column) => {
+                          {visibleReportColumns.map((column) => {
                             const value =
                               column.key === "name"
                                 ? row.employee?.name || row.name || "-"

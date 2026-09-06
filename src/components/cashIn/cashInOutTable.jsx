@@ -204,8 +204,24 @@ const renderVoucherPdfFromCanvas = async ({
   ctx.fillText("Ref No", refBoxX + 13, y + 19);
   ctx.fillStyle = "#111827";
   setFont(15, 900);
-  drawWrappedText(ctx, voucherNo, left + 13, y + 38, voucherBoxWidth - 26, 16, 1);
-  drawWrappedText(ctx, refNo || "-", refBoxX + 13, y + 38, refBoxWidth - 26, 16, 1);
+  drawWrappedText(
+    ctx,
+    voucherNo,
+    left + 13,
+    y + 38,
+    voucherBoxWidth - 26,
+    16,
+    1,
+  );
+  drawWrappedText(
+    ctx,
+    refNo || "-",
+    refBoxX + 13,
+    y + 38,
+    refBoxWidth - 26,
+    16,
+    1,
+  );
 
   ctx.textAlign = "center";
   setFont(14, 900);
@@ -421,6 +437,7 @@ const CashInOutTable = () => {
     categoryId: "",
     remarks: "",
     refNo: "",
+    fromParty: "",
     amount: "",
     file: null,
     date: new Date().toISOString().slice(0, 10),
@@ -906,8 +923,8 @@ const CashInOutTable = () => {
       manufacturerId: "",
       packagingManufacturerId: "",
       ownerId: "",
-    directorId: "",
-    lender: "",
+      directorId: "",
+      lender: "",
       loanId: "",
       note: "",
       status: "",
@@ -915,6 +932,7 @@ const CashInOutTable = () => {
       categoryId: "",
       remarks: "",
       refNo: "",
+      fromParty: "",
       amount: "",
       file: null,
       date: new Date().toISOString().slice(0, 10),
@@ -1131,6 +1149,7 @@ const CashInOutTable = () => {
       formData.append("categoryId", finalCategoryId);
       formData.append("remarks", currentProduct.remarks?.trim() || "");
       formData.append("refNo", currentProduct.refNo?.trim() || "");
+      formData.append("fromParty", currentProduct.fromParty?.trim() || "");
       formData.append("amount", String(Number(currentProduct.amount)));
       if (currentProduct.file) formData.append("file", currentProduct.file);
 
@@ -1208,6 +1227,7 @@ const CashInOutTable = () => {
       formData.append("voucherPrefix", "KM-");
       formData.append("paymentMode", createProduct.paymentMode);
       formData.append("paymentStatus", "CashIn");
+      formData.append("fromParty", createProduct.fromParty?.trim() || "");
       formData.append("date", createProduct.date);
       formData.append(
         "note",
@@ -1677,9 +1697,14 @@ const CashInOutTable = () => {
     const voucherHeightMm = 8.25 * 25.4;
     const safe = escapeVoucherHtml;
     const noteText = row?.remarks || row?.note || "-";
+    // Cash In: money is received BY the company FROM the entered party.
+    // Cash Out: money goes FROM the company TO the supplier/party.
+    const companyName = bookName || "Kafela Mart";
+    const fromLabel = isCashOut ? bookName || "-" : row?.fromParty || "-";
+    const receiverLabel = isCashOut ? receiverName : companyName;
     const detailRows = [
-      ["From", bookName || "-"],
-      ["Receiver", receiverName],
+      ["From", fromLabel],
+      ["Receiver", receiverLabel],
       ["Category", row?.category || "-"],
       ["Payment Mode", row?.paymentMode || "-"],
       ["Bank", row?.paymentMode === "Bank" ? row?.bankName || "-" : "-"],
@@ -2272,7 +2297,8 @@ const CashInOutTable = () => {
               options={directorOptions}
               value={
                 directorOptions.find(
-                  (option) => String(option.value) === String(value?.directorId),
+                  (option) =>
+                    String(option.value) === String(value?.directorId),
                 ) || null
               }
               onChange={(selectedOption) =>
@@ -3117,6 +3143,26 @@ const CashInOutTable = () => {
 
           {renderPartyFields(currentProduct, setCurrentProduct)}
 
+          {currentProduct?.paymentStatus !== "CashOut" && (
+            <div>
+              <label className="block text-sm text-slate-600 mb-1">
+                From (Received From)
+              </label>
+              <input
+                type="text"
+                value={currentProduct?.fromParty || ""}
+                onChange={(e) =>
+                  setCurrentProduct({
+                    ...currentProduct,
+                    fromParty: e.target.value,
+                  })
+                }
+                placeholder="Who the cash was received from"
+                className="h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 bg-white"
+              />
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm text-slate-600 mb-1">Note</label>
@@ -3477,6 +3523,27 @@ const CashInOutTable = () => {
           {renderPartyFields(createProduct, setCreateProduct, {
             options: cashInPartyTypeOptions,
           })}
+
+          <div>
+            <label className="block text-sm text-slate-600 mb-1">
+              From (Received From)
+            </label>
+            <input
+              type="text"
+              value={createProduct.fromParty || ""}
+              onChange={(e) =>
+                setCreateProduct({
+                  ...createProduct,
+                  fromParty: e.target.value,
+                })
+              }
+              placeholder="Who the cash was received from"
+              className="h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 bg-white"
+            />
+            <p className="mt-1 text-xs text-slate-400">
+              Shown as “From” on the cash memo. Receiver is always the company.
+            </p>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="relative">

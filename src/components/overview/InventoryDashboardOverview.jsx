@@ -1593,9 +1593,13 @@ const InventoryDashboardOverview = () => {
             title="Low Stock Alert"
             className="xl:col-span-6"
             action={
-              <span className="text-xs font-black text-indigo-600">
+              <button
+                type="button"
+                onClick={() => navigate("/stock-alert")}
+                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+              >
                 View All
-              </span>
+              </button>
             }
           >
             <div className="divide-y divide-slate-100">
@@ -1674,19 +1678,7 @@ const InventoryDashboardOverview = () => {
             </div>
           </Panel>
 
-          <Panel
-            title="Calendar"
-            className="xl:col-span-4"
-            action={
-              <button
-                type="button"
-                onClick={() => navigate("/hrm/attendance")}
-                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
-              >
-                View Full Calendar
-              </button>
-            }
-          >
+          <Panel title="Calendar" className="xl:col-span-4">
             <div className="px-4 py-4 sm:px-5">
               <div className="mb-4 flex items-center justify-between">
                 <button

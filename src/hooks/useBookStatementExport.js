@@ -116,10 +116,19 @@ export const useBookStatementExport = () => {
         totalCredit: result?.meta?.totalCredit || 0,
         totalDebit: result?.meta?.totalDebit || 0,
         netBalance: result?.meta?.netBalance,
+        openingByCategory: result?.meta?.openingByCategory || {},
+        openingTotalCredit: result?.meta?.openingTotalCredit || 0,
+        openingTotalDebit: result?.meta?.openingTotalDebit || 0,
+        openingNetBalance: result?.meta?.openingNetBalance || 0,
+        statementStartDate: result?.meta?.startDate || null,
+        statementEndDate: result?.meta?.endDate || null,
       }));
       const statementInventoryStockReport = statementResults.find(
         (result) => result?.meta?.inventoryStockReport,
       )?.meta?.inventoryStockReport;
+      const statementAssetsSummary = statementResults.find(
+        (result) => result?.meta?.assetsSummary,
+      )?.meta?.assetsSummary;
       const inventoryReportsResult =
         statementInventoryStockReport ||
         (await fetchInventoryReports({
@@ -139,6 +148,7 @@ export const useBookStatementExport = () => {
         logoUrl,
         periodLabel: range.label,
         books: booksForPdf,
+        assetsSummary: statementAssetsSummary || null,
         inventoryStockReport,
         itemFactoryStock: statementInventoryStockReport?.itemFactoryStock || null,
         packagingStock: statementInventoryStockReport?.packagingStock || null,
