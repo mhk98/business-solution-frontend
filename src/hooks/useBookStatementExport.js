@@ -129,6 +129,9 @@ export const useBookStatementExport = () => {
       const statementAssetsSummary = statementResults.find(
         (result) => result?.meta?.assetsSummary,
       )?.meta?.assetsSummary;
+      const statementPaymentModeSummary = statementResults.find(
+        (result) => result?.meta?.paymentModeSummary,
+      )?.meta?.paymentModeSummary;
       const inventoryReportsResult =
         statementInventoryStockReport ||
         (await fetchInventoryReports({
@@ -149,6 +152,7 @@ export const useBookStatementExport = () => {
         periodLabel: range.label,
         books: booksForPdf,
         assetsSummary: statementAssetsSummary || null,
+        paymentModeSummary: statementPaymentModeSummary || null,
         inventoryStockReport,
         itemFactoryStock: statementInventoryStockReport?.itemFactoryStock || null,
         packagingStock: statementInventoryStockReport?.packagingStock || null,

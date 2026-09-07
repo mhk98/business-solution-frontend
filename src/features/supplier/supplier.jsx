@@ -60,9 +60,9 @@ export const supplierApi = createApi({
     }),
 
     getAllSupplier: build.query({
-      query: ({ page, limit, searchTerm }) => ({
+      query: ({ page, limit, searchTerm, startDate, endDate }) => ({
         url: "/supplier",
-        params: { page, limit, searchTerm }, // Pass the page and limit as query params
+        params: { page, limit, searchTerm, startDate, endDate }, // Pass the page and limit as query params
       }),
       providesTags: ["supplier"],
       refetchOnMountOrArgChange: true,
@@ -70,8 +70,9 @@ export const supplierApi = createApi({
     }),
 
     getAllSupplierWithoutQuery: build.query({
-      query: () => ({
+      query: ({ startDate, endDate } = {}) => ({
         url: "/supplier/all",
+        params: { startDate, endDate },
       }),
       providesTags: ["supplier"],
 

@@ -10,6 +10,7 @@ import {
   useUpdateSupplierMutation,
 } from "../../features/supplier/supplier";
 import Modal from "../common/Modal";
+import DateRangeFilter from "../common/DateRangeFilter";
 import TableSkeleton from "../common/TableSkeleton";
 import { Link } from "react-router-dom";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
@@ -29,6 +30,19 @@ const SupplierTable = () => {
 
   const [currentProduct, setCurrentProduct] = useState(null);
   const [createProduct, setCreateProduct] = useState({ name: "" });
+
+  const [dateRange, setDateRange] = useState({ from: "", to: "" });
+  const dateParams = { startDate: dateRange.from || undefined, endDate: dateRange.to || undefined };
+
+  const handleDateFilter = (_type, range) => {
+    if (range.from && range.to && range.from > range.to) {
+      toast.error("Start date must be on or before end date");
+      return;
+    }
+    setDateRange(range);
+    setCurrentPage(1);
+    setStartPage(1);
+  };
 
   const [name, setName] = useState("");
   const debouncedName = useDebounce(name, 400); // search term
@@ -57,11 +71,12 @@ const SupplierTable = () => {
     return () => window.removeEventListener("resize", updatePagesPerSet);
   }, []);
 
-  const { data, isLoading, isError, error, refetch } = useGetAllSupplierQuery(
+  const { currentData: data, isFetching, isError, error, refetch } = useGetAllSupplierQuery(
     {
       page: currentPage,
       limit: itemsPerPage,
       searchTerm: debouncedName || undefined,
+      ...dateParams,
     },
     {
       pollingInterval: 3000,
@@ -72,14 +87,17 @@ const SupplierTable = () => {
   );
 
   // ✅ Get all suppliers summary from the same balance source used by rows
-  const { data: summaryData, isLoading: summaryLoading } =
-    useGetAllSupplierWithoutQueryQuery(undefined, {
+  const { currentData: summaryData, isFetching: summaryFetching } =
+    useGetAllSupplierWithoutQueryQuery(dateParams, {
       pollingInterval: 3000,
       refetchOnFocus: true,
       refetchOnMountOrArgChange: true,
       refetchOnReconnect: true,
     });
 
+  // Keep existing rows mounted during polling so the page height and scroll stay stable.
+  const isLoading = isFetching && !data;
+  const summaryLoading = summaryFetching && !summaryData;
   const suppliers = data?.data ?? [];
 
   useEffect(() => {
@@ -200,6 +218,18 @@ const SupplierTable = () => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
     >
+      <DateRangeFilter
+        startDate={dateRange.from}
+        endDate={dateRange.to}
+        onFilterTypeChange={handleDateFilter}
+        label="Transaction Date"
+        className="mb-6"
+      />
+      {dateRange.from || dateRange.to ? (
+        <p className="mb-4 text-sm text-slate-500">
+          Paid, advance and due reflect transactions in the selected date range.
+        </p>
+      ) : null}
       {/* Summary Cards */}
       {(() => {
         const summarySuppliers = Array.isArray(summaryData?.data)

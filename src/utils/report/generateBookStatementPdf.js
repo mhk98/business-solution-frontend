@@ -233,113 +233,117 @@ const DETAIL_COLUMNS = [
   { key: "amount", label: "ব্যালেন্স পার্থক্য", widthPct: 16, isAmount: true },
 ];
 
+// Each inventory stock pool (Stock Product / Damage Stock / Repairing Stock)
+// is rendered as its own table with an opening/closing/difference stock ledger:
+// # | product name | শুরু স্টক | সমাপনী স্টক | স্টক পার্থক্য | purchase price |
+// closing purchase cost.
 const INVENTORY_STOCK_COLUMNS = [
   { key: "sl", label: "#", widthPct: 5 },
   { key: "productsName", label: "প্রোডাক্টস নাম", widthPct: 27 },
-  {
-    key: "stockProduct",
-    label: "স্টক প্রোডাক্ট",
-    widthPct: 12,
-    isQuantity: true,
-  },
-  {
-    key: "damageStock",
-    label: "ড্যামেজ স্টক",
-    widthPct: 12,
-    isQuantity: true,
-  },
-  {
-    key: "repairingStock",
-    label: "রিপেয়ারিং স্টক",
-    widthPct: 12,
-    isQuantity: true,
-  },
-  { key: "totalStock", label: "টোটাল স্টক", widthPct: 10, isQuantity: true },
+  { key: "openingStock", label: "শুরু স্টক", widthPct: 12, isQuantity: true },
+  { key: "closingStock", label: "সমাপনী স্টক", widthPct: 12, isQuantity: true },
+  { key: "stockDiff", label: "স্টক পার্থক্য", widthPct: 12, isQuantity: true },
   {
     key: "purchasePrice",
     label: "পারচেস প্রাইস",
-    widthPct: 11,
+    widthPct: 14,
     isAmount: true,
   },
   {
     key: "totalPurchaseCost",
     label: "ক্লোজিং পারচেস কস্ট",
-    widthPct: 11,
+    widthPct: 18,
     isAmount: true,
   },
 ];
 
-// Builds the same wide-format column shape as INVENTORY_STOCK_COLUMNS
-// (# | name | ...sub-stock columns... | Total Stock | Purchase Price |
-// Closing Purchase Cost) for a stock pool with a different, generic name
-// column and a variable number of sub-stock columns (currently always 2:
-// Item/Factory or Packaging Item/Packaging Factory).
-const buildWideStockColumns = (subColumns) => {
-  const perSubWidthPct = subColumns.length === 3 ? 12 : 18;
-
-  return [
-    { key: "sl", label: "#", widthPct: 5 },
-    { key: "name", label: "নাম", widthPct: 27 },
-    ...subColumns.map((column) => ({
-      key: column.key,
-      label: column.label,
-      widthPct: perSubWidthPct,
-      isQuantity: true,
-    })),
-    { key: "totalStock", label: "টোটাল স্টক", widthPct: 10, isQuantity: true },
-    {
-      key: "purchasePrice",
-      label: "পারচেস প্রাইস",
-      widthPct: 11,
-      isAmount: true,
-    },
-    {
-      key: "totalPurchaseCost",
-      label: "ক্লোজিং পারচেস কস্ট",
-      widthPct: 11,
-      isAmount: true,
-    },
-  ];
-};
-
-const ITEM_FACTORY_STOCK_COLUMNS = buildWideStockColumns([
-  { key: "itemStock", label: "আইটেম স্টক" },
-  { key: "factoryStock", label: "ফ্যাক্টরি স্টক" },
-]);
-
-const PACKAGING_STOCK_COLUMNS = buildWideStockColumns([
-  { key: "packagingItemStock", label: "প্যাকেজিং আইটেম স্টক" },
-  { key: "packagingFactoryStock", label: "প্যাকেজিং ফ্যাক্টরি স্টক" },
-]);
-
-const ITEM_FACTORY_SUB_FIELDS = [
-  { closingKey: "itemStockClosing", key: "itemStock" },
-  { closingKey: "factoryStockClosing", key: "factoryStock" },
+const INVENTORY_STOCK_POOLS = [
+  { title: "স্টক প্রোডাক্ট", stockType: "stockProduct" },
+  { title: "ড্যামেজ স্টক", stockType: "damageStock" },
+  { title: "রিপেয়ারিং স্টক", stockType: "repairingStock" },
 ];
 
-const PACKAGING_SUB_FIELDS = [
-  { closingKey: "packagingItemStockClosing", key: "packagingItemStock" },
-  { closingKey: "packagingFactoryStockClosing", key: "packagingFactoryStock" },
+// Item / Factory / Packaging-Item / Packaging-Factory stock pools each render
+// as their own table with the same opening/closing/difference stock ledger as
+// the inventory-stock pools: # | নাম | শুরু স্টক | সমাপনী স্টক | স্টক পার্থক্য |
+// পারচেস প্রাইস | ক্লোজিং পারচেস কস্ট.
+const SPLIT_STOCK_COLUMNS = [
+  { key: "sl", label: "#", widthPct: 5 },
+  { key: "name", label: "নাম", widthPct: 27 },
+  { key: "openingStock", label: "শুরু স্টক", widthPct: 12, isQuantity: true },
+  { key: "closingStock", label: "সমাপনী স্টক", widthPct: 12, isQuantity: true },
+  { key: "stockDiff", label: "স্টক পার্থক্য", widthPct: 12, isQuantity: true },
+  {
+    key: "purchasePrice",
+    label: "পারচেস প্রাইস",
+    widthPct: 14,
+    isAmount: true,
+  },
+  {
+    key: "totalPurchaseCost",
+    label: "ক্লোজিং পারচেস কস্ট",
+    widthPct: 18,
+    isAmount: true,
+  },
 ];
 
+const ITEM_FACTORY_STOCK_POOLS = [
+  { title: "আইটেম স্টক", prefix: "itemStock" },
+  { title: "ফ্যাক্টরি স্টক", prefix: "factoryStock" },
+];
+
+const PACKAGING_STOCK_POOLS = [
+  { title: "প্যাকেজিং আইটেম স্টক", prefix: "packagingItemStock" },
+  { title: "প্যাকেজিং ফ্যাক্টরি স্টক", prefix: "packagingFactoryStock" },
+];
+
+// Courier Product Stock is summarised one row per status over the filter's
+// date range: তারিখ shows the range, শুরু স্টক = that status's total before the
+// range, সমাপনী স্টক = opening + range total, স্টক পার্থক্য = the range total,
+// and পরিমান (far right) = the same range total.
 const COURIER_PRODUCT_STOCK_COLUMNS = [
-  { key: "sl", label: "#", widthPct: 8 },
-  { key: "date", label: "তারিখ", widthPct: 22 },
-  { key: "status", label: "স্ট্যাটাস", widthPct: 40 },
-  { key: "amount", label: "পরিমান", widthPct: 30, isAmount: true },
+  { key: "sl", label: "#", widthPct: 5 },
+  { key: "date", label: "তারিখ", widthPct: 21 },
+  { key: "status", label: "স্ট্যাটাস", widthPct: 18 },
+  { key: "openingStock", label: "শুরু স্টক", widthPct: 14, isAmount: true },
+  { key: "closingStock", label: "সমাপনী স্টক", widthPct: 14, isAmount: true },
+  { key: "stockDiff", label: "স্টক পার্থক্য", widthPct: 14, isAmount: true },
+  { key: "amount", label: "পরিমান", widthPct: 14, isAmount: true },
 ];
 
-const SALES_DUE_COLUMNS = [
-  { key: "sl", label: "#", widthPct: 8 },
-  { key: "name", label: "নাম", widthPct: 62 },
-  { key: "amount", label: "বাকি", widthPct: 30, isAmount: true },
+// The snapshot receivable / due sections (Sales Due, Salary Advance, the four
+// "কোম্পানি পাবে" receivables, and the three "company owes" dues). শুরু
+// ব্যালেন্স / সমাপনী ব্যালেন্স are the party's balance scoped to the date
+// filter's start / end; ব্যালেন্স পার্থক্য is their difference. The far-right
+// amount column holds the party's current (unfiltered) total — labelled
+// "এডভান্স" for the advance-natured sections, "বাকি" for the due ones.
+const buildReceivableLedgerColumns = (nameLabel, amountLabel) => [
+  { key: "sl", label: "#", widthPct: 5 },
+  { key: "name", label: nameLabel, widthPct: 25 },
+  {
+    key: "openingBalance",
+    label: "শুরু ব্যালেন্স",
+    widthPct: 18,
+    isAmount: true,
+  },
+  {
+    key: "endingBalance",
+    label: "সমাপনী ব্যালেন্স",
+    widthPct: 18,
+    isAmount: true,
+  },
+  {
+    key: "balanceDiff",
+    label: "ব্যালেন্স পার্থক্য",
+    widthPct: 18,
+    isAmount: true,
+  },
+  { key: "amount", label: amountLabel, widthPct: 16, isAmount: true },
 ];
 
-const SALARY_ADVANCE_COLUMNS = [
-  { key: "sl", label: "#", widthPct: 8 },
-  { key: "name", label: "নাম", widthPct: 62 },
-  { key: "amount", label: "বাকি", widthPct: 30, isAmount: true },
-];
+const SALES_DUE_COLUMNS = buildReceivableLedgerColumns("নাম", "বাকি");
+
+const SALARY_ADVANCE_COLUMNS = buildReceivableLedgerColumns("নাম", "এডভান্স");
 
 const PENDING_PAYROLL_SALARY_COLUMNS = [
   { key: "sl", label: "#", widthPct: 8 },
@@ -347,47 +351,24 @@ const PENDING_PAYROLL_SALARY_COLUMNS = [
   { key: "amount", label: "বেতন", widthPct: 30, isAmount: true },
 ];
 
-const MANUFACTURER_DUE_COLUMNS = [
-  { key: "sl", label: "#", widthPct: 8 },
-  { key: "name", label: "ম্যানুফ্যাকচার", widthPct: 62 },
-  { key: "amount", label: "বাকি", widthPct: 30, isAmount: true },
-];
+const MANUFACTURER_DUE_COLUMNS =
+  buildReceivableLedgerColumns("ম্যানুফ্যাকচার", "বাকি");
 
-const SUPPLIER_DUE_COLUMNS = [
-  { key: "sl", label: "#", widthPct: 8 },
-  { key: "name", label: "সাপ্লাইয়ার", widthPct: 62 },
-  { key: "amount", label: "বাকি", widthPct: 30, isAmount: true },
-];
+const SUPPLIER_DUE_COLUMNS = buildReceivableLedgerColumns("সাপ্লাইয়ার", "বাকি");
 
-const SUPPLIER_RECEIVABLE_COLUMNS = [
-  { key: "sl", label: "#", widthPct: 8 },
-  { key: "name", label: "সাপ্লাইয়ার", widthPct: 62 },
-  { key: "amount", label: "পরিমান", widthPct: 30, isAmount: true },
-];
+const SUPPLIER_RECEIVABLE_COLUMNS =
+  buildReceivableLedgerColumns("সাপ্লাইয়ার", "এডভান্স");
 
-const MANUFACTURER_RECEIVABLE_COLUMNS = [
-  { key: "sl", label: "#", widthPct: 8 },
-  { key: "name", label: "ম্যানুফ্যাকচার", widthPct: 62 },
-  { key: "amount", label: "পরিমান", widthPct: 30, isAmount: true },
-];
+const MANUFACTURER_RECEIVABLE_COLUMNS =
+  buildReceivableLedgerColumns("ম্যানুফ্যাকচার", "এডভান্স");
 
-const PACKAGING_MANUFACTURER_RECEIVABLE_COLUMNS = [
-  { key: "sl", label: "#", widthPct: 8 },
-  { key: "name", label: "প্যাকেজিং ম্যানুফ্যাকচার", widthPct: 62 },
-  { key: "amount", label: "পরিমান", widthPct: 30, isAmount: true },
-];
+const PACKAGING_MANUFACTURER_RECEIVABLE_COLUMNS =
+  buildReceivableLedgerColumns("প্যাকেজিং ম্যানুফ্যাকচার", "এডভান্স");
 
-const LENDER_RECEIVABLE_COLUMNS = [
-  { key: "sl", label: "#", widthPct: 8 },
-  { key: "name", label: "লেন্ডার", widthPct: 62 },
-  { key: "amount", label: "পরিমান", widthPct: 30, isAmount: true },
-];
+const LENDER_RECEIVABLE_COLUMNS =
+  buildReceivableLedgerColumns("লেন্ডার", "এডভান্স");
 
-const LENDER_PAYABLE_COLUMNS = [
-  { key: "sl", label: "#", widthPct: 8 },
-  { key: "name", label: "লেন্ডার", widthPct: 62 },
-  { key: "amount", label: "বাকি", widthPct: 30, isAmount: true },
-];
+const LENDER_PAYABLE_COLUMNS = buildReceivableLedgerColumns("লেন্ডার", "বাকি");
 
 const DIRECTOR_INVESTMENT_COLUMNS = [
   { key: "sl", label: "#", widthPct: 8 },
@@ -402,6 +383,18 @@ const GRAND_TOTAL_COLUMNS = [
 ];
 
 const PAYABLE_TOTAL_COLUMNS = GRAND_TOTAL_COLUMNS;
+
+// Net cash per payment mode (Cash / Bank / …) over the date filter — sits
+// between Profit/Loss and the Assets sections. বর্তমান ব্যালেন্স (far right)
+// is the live figure, ignoring the date filter.
+const PAYMENT_MODE_COLUMNS = [
+  { key: "sl", label: "#", widthPct: 5 },
+  { key: "mode", label: "পেমেন্ট মোড", widthPct: 25 },
+  { key: "opening", label: "শুরু ব্যালেন্স", widthPct: 17, isAmount: true },
+  { key: "ending", label: "সমাপনী ব্যালেন্স", widthPct: 17, isAmount: true },
+  { key: "diff", label: "ব্যালেন্স পার্থক্য", widthPct: 17, isAmount: true },
+  { key: "current", label: "বর্তমান ব্যালেন্স", widthPct: 19, isAmount: true },
+];
 
 // Assets sections at the bottom of the statement. Purchase / Sale / Damage
 // carry a date; Stock is a live snapshot.
@@ -764,40 +757,45 @@ const buildLedgerTableChunkFragment = ({
   </div>
 `;
 
-const normalizeInventoryStockRows = (inventoryStockReport) => {
+// One inventory stock pool (Stock Product / Damage Stock / Repairing Stock) as
+// its own set of rows: name + opening stock + closing stock + their difference
+// (period movement) + purchase price + closing purchase cost, plus a trailing
+// "মোট" summary row. Products with no opening/closing stock and no cost in this
+// pool are dropped.
+const normalizeInventoryStockPoolRows = (inventoryStockReport, { stockType }) => {
   if (!inventoryStockReport) return [];
 
   const rows = inventoryStockReport.data || [];
   if (!rows.length) return [];
 
+  const openingKey = `${stockType}Opening`;
+  const closingKey = `${stockType}Closing`;
+  const priceKey = `${stockType}PurchasePrice`;
+  const costKey = `${stockType}ClosingPurchaseCost`;
+
   const normalizedRows = rows
     .map((row) => {
-      const stockProduct = Number(row.stockProductClosing || 0);
-      const damageStock = Number(row.damageStockClosing || 0);
-      const repairingStock = Number(row.repairingStockClosing || 0);
-      const totalStock = stockProduct + damageStock + repairingStock;
-      const purchasePrice = Number(
-        row.stockProductPurchasePrice ||
-          row.damageStockPurchasePrice ||
-          row.repairingStockPurchasePrice ||
-          0,
-      );
+      const openingStock = Number(row[openingKey] || 0);
+      const closingStock = Number(row[closingKey] || 0);
+      const purchasePrice = Number(row[priceKey] || 0);
+      const totalPurchaseCost =
+        row[costKey] != null
+          ? Number(row[costKey] || 0)
+          : closingStock * purchasePrice;
 
       return {
         productsName: row.productsName || "-",
-        stockProduct,
-        damageStock,
-        repairingStock,
-        totalStock,
+        openingStock,
+        closingStock,
+        stockDiff: closingStock - openingStock,
         purchasePrice,
-        totalPurchaseCost: totalStock * purchasePrice,
+        totalPurchaseCost,
       };
     })
     .filter(
       (row) =>
-        row.stockProduct > 0 ||
-        row.damageStock > 0 ||
-        row.repairingStock > 0 ||
+        row.openingStock !== 0 ||
+        row.closingStock !== 0 ||
         row.totalPurchaseCost > 0,
     );
 
@@ -805,19 +803,11 @@ const normalizeInventoryStockRows = (inventoryStockReport) => {
 
   const total = normalizedRows.reduce(
     (acc, row) => ({
-      stockProduct: acc.stockProduct + row.stockProduct,
-      damageStock: acc.damageStock + row.damageStock,
-      repairingStock: acc.repairingStock + row.repairingStock,
-      totalStock: acc.totalStock + row.totalStock,
+      openingStock: acc.openingStock + row.openingStock,
+      closingStock: acc.closingStock + row.closingStock,
       totalPurchaseCost: acc.totalPurchaseCost + row.totalPurchaseCost,
     }),
-    {
-      stockProduct: 0,
-      damageStock: 0,
-      repairingStock: 0,
-      totalStock: 0,
-      totalPurchaseCost: 0,
-    },
+    { openingStock: 0, closingStock: 0, totalPurchaseCost: 0 },
   );
 
   return [
@@ -825,58 +815,59 @@ const normalizeInventoryStockRows = (inventoryStockReport) => {
     {
       isTotal: true,
       productsName: "মোট",
-      stockProduct: total.stockProduct,
-      damageStock: total.damageStock,
-      repairingStock: total.repairingStock,
-      totalStock: total.totalStock,
+      openingStock: total.openingStock,
+      closingStock: total.closingStock,
+      stockDiff: total.closingStock - total.openingStock,
       purchasePrice: 0,
       totalPurchaseCost: total.totalPurchaseCost,
     },
   ];
 };
 
-// Generic sibling of normalizeInventoryStockRows for the closing-only stock
-// pools (Item/Factory, Packaging Item/Packaging Factory) — same wide-format
-// shape (name + sub-stock columns + Total Stock + Purchase Price + Closing
-// Purchase Cost + a "মোট" summary row), just keyed by whatever `subFields`
-// (closingKey → output key) the caller passes instead of the fixed
-// stockProduct/damageStock/repairingStock trio.
-const normalizeWideStockRows = (report, subFields) => {
+// One Item/Factory/Packaging stock pool as its own set of rows: name + opening
+// stock + closing stock + their difference + purchase price + closing purchase
+// cost, plus a trailing "মোট" summary row. Reads `${prefix}Opening` /
+// `${prefix}Closing` off each report row (see computeStockMovementClosingReport).
+const normalizeSplitStockPoolRows = (report, { prefix }) => {
   if (!report) return [];
 
   const rows = report.data || [];
   if (!rows.length) return [];
 
+  const openingKey = `${prefix}Opening`;
+  const closingKey = `${prefix}Closing`;
+
   const normalizedRows = rows
     .map((row) => {
-      const result = { name: row.name || "-" };
-      let totalStock = 0;
-      subFields.forEach(({ closingKey, key }) => {
-        const value = Number(row[closingKey] || 0);
-        result[key] = value;
-        totalStock += value;
-      });
+      const openingStock = Number(row[openingKey] || 0);
+      const closingStock = Number(row[closingKey] || 0);
       const purchasePrice = Number(row.purchasePrice || 0);
-      result.totalStock = totalStock;
-      result.purchasePrice = purchasePrice;
-      result.totalPurchaseCost = totalStock * purchasePrice;
-      return result;
+
+      return {
+        name: row.name || "-",
+        openingStock,
+        closingStock,
+        stockDiff: closingStock - openingStock,
+        purchasePrice,
+        totalPurchaseCost: closingStock * purchasePrice,
+      };
     })
-    .filter((row) => row.totalStock > 0 || row.totalPurchaseCost > 0);
+    .filter(
+      (row) =>
+        row.openingStock !== 0 ||
+        row.closingStock !== 0 ||
+        row.totalPurchaseCost > 0,
+    );
 
   if (!normalizedRows.length) return [];
 
   const total = normalizedRows.reduce(
-    (acc, row) => {
-      const next = { ...acc };
-      subFields.forEach(({ key }) => {
-        next[key] = (acc[key] || 0) + row[key];
-      });
-      next.totalStock = acc.totalStock + row.totalStock;
-      next.totalPurchaseCost = acc.totalPurchaseCost + row.totalPurchaseCost;
-      return next;
-    },
-    { totalStock: 0, totalPurchaseCost: 0 },
+    (acc, row) => ({
+      openingStock: acc.openingStock + row.openingStock,
+      closingStock: acc.closingStock + row.closingStock,
+      totalPurchaseCost: acc.totalPurchaseCost + row.totalPurchaseCost,
+    }),
+    { openingStock: 0, closingStock: 0, totalPurchaseCost: 0 },
   );
 
   return [
@@ -884,34 +875,55 @@ const normalizeWideStockRows = (report, subFields) => {
     {
       isTotal: true,
       name: "মোট",
-      ...subFields.reduce(
-        (acc, { key }) => ({ ...acc, [key]: total[key] || 0 }),
-        {},
-      ),
-      totalStock: total.totalStock,
+      openingStock: total.openingStock,
+      closingStock: total.closingStock,
+      stockDiff: total.closingStock - total.openingStock,
       purchasePrice: 0,
       totalPurchaseCost: total.totalPurchaseCost,
     },
   ];
 };
 
-// Courier Product Stock isn't a stock-quantity pool like the ones above —
-// it's a simple dated ledger of courier charge entries (status + amount), so
-// it gets the plain detail-row shape (date | status | amount) with a "মোট"
-// total row appended, rather than the wide stock-column layout.
-const normalizeCourierProductStockRows = (courierProductStock) => {
+// Courier Product Stock: one row per status over the filter's date range.
+// Backend (`getCourierProductStockReport`) groups by status and returns
+// `{ status, openingAmount (before the range), periodAmount (inside it),
+// endingAmount }`. পরিমান = periodAmount, শুরু স্টক = openingAmount,
+// সমাপনী স্টক = endingAmount, স্টক পার্থক্য = periodAmount. তারিখ shows the
+// range label. "মোট" row sums each column.
+const normalizeCourierProductStockRows = (courierProductStock, periodLabel) => {
   if (!courierProductStock) return [];
 
   const rows = courierProductStock.data || [];
   if (!rows.length) return [];
 
-  const normalizedRows = rows.map((row) => ({
-    date: formatRowDate(row.date),
-    status: row.status || "-",
-    amount: Number(row.amount || 0),
-  }));
+  const meta = courierProductStock.meta || {};
+  const fromDate =
+    meta.from && new Date(meta.from).getFullYear() >= 2000
+      ? new Date(meta.from)
+      : null;
+  const toDate = meta.to ? new Date(meta.to) : null;
+  const rangeLabel =
+    periodLabel ||
+    (fromDate || toDate ? formatDateRangeLabel(fromDate, toDate) : "-");
 
-  const total = normalizedRows.reduce((sum, row) => sum + row.amount, 0);
+  const normalizedRows = rows.map((row) => {
+    const openingStock = Number(row.openingAmount || 0);
+    const periodAmount = Number(row.periodAmount || 0);
+    const closingStock =
+      row.endingAmount != null
+        ? Number(row.endingAmount)
+        : openingStock + periodAmount;
+    return {
+      date: rangeLabel,
+      status: row.status || "-",
+      amount: periodAmount,
+      openingStock,
+      closingStock,
+      stockDiff: periodAmount,
+    };
+  });
+
+  const sum = (key) => normalizedRows.reduce((acc, row) => acc + row[key], 0);
 
   return [
     ...normalizedRows,
@@ -919,35 +931,60 @@ const normalizeCourierProductStockRows = (courierProductStock) => {
       isTotal: true,
       date: "",
       status: "মোট",
-      amount: total,
+      amount: sum("amount"),
+      openingStock: sum("openingStock"),
+      closingStock: sum("closingStock"),
+      stockDiff: sum("amount"),
     },
   ];
 };
 
-// Sales Due and Salary Advance list whatever is currently outstanding
-// (due > 0) — a date-independent snapshot like the receivable sections
-// below, not a period ledger — so every row here always has something owed.
+// Builds the ledger rows for the snapshot receivable / due sections. Each input
+// row is `{ name, amount (current unfiltered total → বাকি/পরিমান column),
+// openingBalance (balance as of the filter start), endingBalance (as of the
+// filter end) }`. ব্যালেন্স পার্থক্য = ending − opening. A "মোট" row summing
+// every column is appended.
+const toReceivableLedgerRows = (ledgerInputRows) => {
+  const ledgerRows = ledgerInputRows.map((row) => ({
+    name: row.name || "-",
+    amount: Number(row.amount || 0),
+    openingBalance: Number(row.openingBalance || 0),
+    endingBalance: Number(row.endingBalance || 0),
+    balanceDiff: Number(row.endingBalance || 0) - Number(row.openingBalance || 0),
+  }));
+
+  const sum = (key) => ledgerRows.reduce((acc, row) => acc + row[key], 0);
+
+  return [
+    ...ledgerRows,
+    {
+      isTotal: true,
+      name: "মোট",
+      amount: sum("amount"),
+      openingBalance: sum("openingBalance"),
+      endingBalance: sum("endingBalance"),
+      balanceDiff: sum("endingBalance") - sum("openingBalance"),
+    },
+  ];
+};
+
+// Sales Due and Salary Advance: বাকি = the entry's current outstanding (never
+// date-filtered); শুরু/সমাপনী ব্যালেন্স come from the backend scoped to the
+// filter range.
 const normalizeSalesDueRows = (salesDue) => {
   if (!salesDue) return [];
 
   const rows = salesDue.data || [];
   if (!rows.length) return [];
 
-  const normalizedRows = rows.map((row) => ({
-    name: row.name || "-",
-    amount: Number(row.due || 0),
-  }));
-
-  const total = normalizedRows.reduce((sum, row) => sum + row.amount, 0);
-
-  return [
-    ...normalizedRows,
-    {
-      isTotal: true,
-      name: "মোট",
-      amount: total,
-    },
-  ];
+  return toReceivableLedgerRows(
+    rows.map((row) => ({
+      name: row.name,
+      amount: row.due,
+      openingBalance: row.openingBalance,
+      endingBalance: row.endingBalance,
+    })),
+  );
 };
 
 const normalizeSalaryAdvanceRows = (salaryAdvance) => {
@@ -956,21 +993,14 @@ const normalizeSalaryAdvanceRows = (salaryAdvance) => {
   const rows = salaryAdvance.data || [];
   if (!rows.length) return [];
 
-  const normalizedRows = rows.map((row) => ({
-    name: row.name || "-",
-    amount: Number(row.due || 0),
-  }));
-
-  const total = normalizedRows.reduce((sum, row) => sum + row.amount, 0);
-
-  return [
-    ...normalizedRows,
-    {
-      isTotal: true,
-      name: "মোট",
-      amount: total,
-    },
-  ];
+  return toReceivableLedgerRows(
+    rows.map((row) => ({
+      name: row.name,
+      amount: row.due,
+      openingBalance: row.openingBalance,
+      endingBalance: row.endingBalance,
+    })),
+  );
 };
 
 const normalizePendingPayrollSalaryRows = (pendingPayrollSalary) => {
@@ -996,27 +1026,23 @@ const normalizePendingPayrollSalaryRows = (pendingPayrollSalary) => {
   ];
 };
 
+// Supplier Due / Manufacturer Due / Lender Payable — the "company owes"
+// mirror of the receivable sections. বাকি = the party's current unfiltered
+// due; শুরু/সমাপনী ব্যালেন্স come from the backend scoped to the date filter.
 const normalizeDueRows = (report) => {
   if (!report) return [];
 
   const rows = report.data || [];
   if (!rows.length) return [];
 
-  const normalizedRows = rows.map((row) => ({
-    name: row.name || "-",
-    amount: Number(row.due || 0),
-  }));
-
-  const total = normalizedRows.reduce((sum, row) => sum + row.amount, 0);
-
-  return [
-    ...normalizedRows,
-    {
-      isTotal: true,
-      name: "মোট",
-      amount: total,
-    },
-  ];
+  return toReceivableLedgerRows(
+    rows.map((row) => ({
+      name: row.name,
+      amount: row.due,
+      openingBalance: row.openingBalance,
+      endingBalance: row.endingBalance,
+    })),
+  );
 };
 
 const normalizeLenderPayableRows = (lenderPayable) =>
@@ -1045,6 +1071,39 @@ const normalizeDirectorInvestmentRows = (directorInvestment) => {
   ];
 };
 
+// Payment-mode net cash: backend rows are `{ mode, opening, ending, diff,
+// current }` (diff = the period movement; current = live, filter-independent).
+// A "মোট" row summing each column is appended.
+const normalizePaymentModeRows = (paymentModeSummary) => {
+  if (!Array.isArray(paymentModeSummary) || !paymentModeSummary.length) return [];
+
+  const rows = paymentModeSummary.map((row) => {
+    const opening = Number(row.opening || 0);
+    const ending = Number(row.ending || 0);
+    return {
+      mode: row.mode || "-",
+      opening,
+      ending,
+      diff: row.diff != null ? Number(row.diff) : ending - opening,
+      current: Number(row.current || 0),
+    };
+  });
+
+  const sum = (key) => rows.reduce((acc, row) => acc + row[key], 0);
+
+  return [
+    ...rows,
+    {
+      isTotal: true,
+      mode: "মোট",
+      opening: sum("opening"),
+      ending: sum("ending"),
+      diff: sum("diff"),
+      current: sum("current"),
+    },
+  ];
+};
+
 // Suppliers the company has overpaid (as of the report's `to` date) — money
 // the company will receive back from that supplier, either as goods or a
 // refund. Same plain detail-row shape as Courier Product Stock: one row per
@@ -1055,21 +1114,14 @@ const normalizeSupplierReceivableRows = (supplierReceivable) => {
   const rows = supplierReceivable.data || [];
   if (!rows.length) return [];
 
-  const normalizedRows = rows.map((row) => ({
-    name: row.name || "-",
-    amount: Number(row.advance || 0),
-  }));
-
-  const total = normalizedRows.reduce((sum, row) => sum + row.amount, 0);
-
-  return [
-    ...normalizedRows,
-    {
-      isTotal: true,
-      name: "মোট",
-      amount: total,
-    },
-  ];
+  return toReceivableLedgerRows(
+    rows.map((row) => ({
+      name: row.name,
+      amount: row.advance,
+      openingBalance: row.openingBalance,
+      endingBalance: row.endingBalance,
+    })),
+  );
 };
 
 // Manufacturers the company has overpaid (as of the report's `to` date) —
@@ -1081,21 +1133,14 @@ const normalizeManufacturerReceivableRows = (manufacturerReceivable) => {
   const rows = manufacturerReceivable.data || [];
   if (!rows.length) return [];
 
-  const normalizedRows = rows.map((row) => ({
-    name: row.name || "-",
-    amount: Number(row.advance || 0),
-  }));
-
-  const total = normalizedRows.reduce((sum, row) => sum + row.amount, 0);
-
-  return [
-    ...normalizedRows,
-    {
-      isTotal: true,
-      name: "মোট",
-      amount: total,
-    },
-  ];
+  return toReceivableLedgerRows(
+    rows.map((row) => ({
+      name: row.name,
+      amount: row.advance,
+      openingBalance: row.openingBalance,
+      endingBalance: row.endingBalance,
+    })),
+  );
 };
 
 // Packaging manufacturers the company has overpaid (as of the report's `to`
@@ -1110,21 +1155,14 @@ const normalizePackagingManufacturerReceivableRows = (
   const rows = packagingManufacturerReceivable.data || [];
   if (!rows.length) return [];
 
-  const normalizedRows = rows.map((row) => ({
-    name: row.name || "-",
-    amount: Number(row.advance || 0),
-  }));
-
-  const total = normalizedRows.reduce((sum, row) => sum + row.amount, 0);
-
-  return [
-    ...normalizedRows,
-    {
-      isTotal: true,
-      name: "মোট",
-      amount: total,
-    },
-  ];
+  return toReceivableLedgerRows(
+    rows.map((row) => ({
+      name: row.name,
+      amount: row.advance,
+      openingBalance: row.openingBalance,
+      endingBalance: row.endingBalance,
+    })),
+  );
 };
 
 // Lenders the company has overpaid (as of the report's `to` date) — money
@@ -1136,21 +1174,14 @@ const normalizeLenderReceivableRows = (lenderReceivable) => {
   const rows = lenderReceivable.data || [];
   if (!rows.length) return [];
 
-  const normalizedRows = rows.map((row) => ({
-    name: row.name || "-",
-    amount: Number(row.advance || 0),
-  }));
-
-  const total = normalizedRows.reduce((sum, row) => sum + row.amount, 0);
-
-  return [
-    ...normalizedRows,
-    {
-      isTotal: true,
-      name: "মোট",
-      amount: total,
-    },
-  ];
+  return toReceivableLedgerRows(
+    rows.map((row) => ({
+      name: row.name,
+      amount: row.advance,
+      openingBalance: row.openingBalance,
+      endingBalance: row.endingBalance,
+    })),
+  );
 };
 
 const buildContactLine = (value) =>
@@ -1704,27 +1735,29 @@ const appendInventoryStockReport = async (
   cursor,
   { inventoryStockReport, regularFontDataUrl, boldFontDataUrl },
 ) => {
-  const rows = normalizeInventoryStockRows(inventoryStockReport);
-  if (!rows.length) return;
+  for (const pool of INVENTORY_STOCK_POOLS) {
+    const rows = normalizeInventoryStockPoolRows(inventoryStockReport, pool);
+    if (!rows.length) continue;
 
-  await placeLedgerSection(doc, html2canvas, cursor, {
-    title: "স্টক প্রোডাক্ট, ড্যামেজ স্টক ও রিপেয়ারিং স্টক",
-    rows,
-    totalLabel: null,
-    total: 0,
-    columns: INVENTORY_STOCK_COLUMNS,
-    regularFontDataUrl,
-    boldFontDataUrl,
-  });
+    await placeLedgerSection(doc, html2canvas, cursor, {
+      title: pool.title,
+      rows,
+      totalLabel: null,
+      total: 0,
+      columns: INVENTORY_STOCK_COLUMNS,
+      regularFontDataUrl,
+      boldFontDataUrl,
+    });
+  }
 };
 
 const appendCourierProductStockSection = async (
   doc,
   html2canvas,
   cursor,
-  { courierProductStock, regularFontDataUrl, boldFontDataUrl },
+  { courierProductStock, periodLabel, regularFontDataUrl, boldFontDataUrl },
 ) => {
-  const rows = normalizeCourierProductStockRows(courierProductStock);
+  const rows = normalizeCourierProductStockRows(courierProductStock, periodLabel);
   if (!rows.length) return;
 
   await placeLedgerSection(doc, html2canvas, cursor, {
@@ -2092,6 +2125,26 @@ const appendProfitLossSection = async (
   });
 };
 
+const appendPaymentModeSection = async (
+  doc,
+  html2canvas,
+  cursor,
+  { paymentModeSummary, regularFontDataUrl, boldFontDataUrl },
+) => {
+  const rows = normalizePaymentModeRows(paymentModeSummary);
+  if (!rows.length) return;
+
+  await placeLedgerSection(doc, html2canvas, cursor, {
+    title: "পেমেন্ট মোড অনুযায়ী ব্যালেন্স",
+    rows,
+    totalLabel: null,
+    total: 0,
+    columns: PAYMENT_MODE_COLUMNS,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+};
+
 const appendDirectorInvestmentSection = async (
   doc,
   html2canvas,
@@ -2238,24 +2291,26 @@ const appendGrandTotalSection = async (
   });
 };
 
-const appendWideStockSection = async (
+const appendSplitStockSection = async (
   doc,
   html2canvas,
   cursor,
-  { report, title, subFields, columns, regularFontDataUrl, boldFontDataUrl },
+  { report, pools, regularFontDataUrl, boldFontDataUrl },
 ) => {
-  const rows = normalizeWideStockRows(report, subFields);
-  if (!rows.length) return;
+  for (const pool of pools) {
+    const rows = normalizeSplitStockPoolRows(report, pool);
+    if (!rows.length) continue;
 
-  await placeLedgerSection(doc, html2canvas, cursor, {
-    title,
-    rows,
-    totalLabel: null,
-    total: 0,
-    columns,
-    regularFontDataUrl,
-    boldFontDataUrl,
-  });
+    await placeLedgerSection(doc, html2canvas, cursor, {
+      title: pool.title,
+      rows,
+      totalLabel: null,
+      total: 0,
+      columns: SPLIT_STOCK_COLUMNS,
+      regularFontDataUrl,
+      boldFontDataUrl,
+    });
+  }
 };
 
 // Generates one PDF containing every book's Credit/Debit statement, each
@@ -2283,6 +2338,7 @@ export const generateBookStatementPdf = async ({
   lenderPayable = null,
   directorInvestment = null,
   assetsSummary = null,
+  paymentModeSummary = null,
 }) => {
   const { jsPDF } = await import("jspdf");
   const html2canvas = (await import("html2canvas")).default;
@@ -2322,26 +2378,23 @@ export const generateBookStatementPdf = async ({
     boldFontDataUrl,
   });
 
-  await appendWideStockSection(doc, html2canvas, cursor, {
+  await appendSplitStockSection(doc, html2canvas, cursor, {
     report: itemFactoryStock,
-    title: "আইটেম স্টক ও ফ্যাক্টরি স্টক",
-    subFields: ITEM_FACTORY_SUB_FIELDS,
-    columns: ITEM_FACTORY_STOCK_COLUMNS,
+    pools: ITEM_FACTORY_STOCK_POOLS,
     regularFontDataUrl,
     boldFontDataUrl,
   });
 
-  await appendWideStockSection(doc, html2canvas, cursor, {
+  await appendSplitStockSection(doc, html2canvas, cursor, {
     report: packagingStock,
-    title: "প্যাকেজিং আইটেম স্টক ও প্যাকেজিং ফ্যাক্টরি স্টক",
-    subFields: PACKAGING_SUB_FIELDS,
-    columns: PACKAGING_STOCK_COLUMNS,
+    pools: PACKAGING_STOCK_POOLS,
     regularFontDataUrl,
     boldFontDataUrl,
   });
 
   await appendCourierProductStockSection(doc, html2canvas, cursor, {
     courierProductStock,
+    periodLabel,
     regularFontDataUrl,
     boldFontDataUrl,
   });
@@ -2461,6 +2514,12 @@ export const generateBookStatementPdf = async ({
     supplierDue,
     lenderPayable,
     directorInvestment,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
+  await appendPaymentModeSection(doc, html2canvas, cursor, {
+    paymentModeSummary,
     regularFontDataUrl,
     boldFontDataUrl,
   });
