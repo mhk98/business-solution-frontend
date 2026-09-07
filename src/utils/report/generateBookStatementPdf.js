@@ -466,6 +466,20 @@ const getPayableAndDirectorInvestmentTotalAmount = ({
     lenderPayable,
   }) + getDirectorInvestmentTotalAmount(directorInvestment);
 
+// Total closing stock value (ক্লোজিং পারচেস কস্ট) across every stock section
+// plus the courier product stock — folded into the grand total alongside cash
+// and receivables.
+const getStockValueTotal = ({
+  inventoryStockReport,
+  itemFactoryStock,
+  packagingStock,
+  courierProductStock,
+}) =>
+  Number(inventoryStockReport?.meta?.totalPurchaseCost || 0) +
+  Number(itemFactoryStock?.meta?.totalPurchaseCost || 0) +
+  Number(packagingStock?.meta?.totalPurchaseCost || 0) +
+  Number(courierProductStock?.meta?.totalEndingAmount || 0);
+
 const getGrandTotalAmount = ({
   totalCashBalance,
   salesDue,
@@ -474,6 +488,10 @@ const getGrandTotalAmount = ({
   manufacturerReceivable,
   packagingManufacturerReceivable,
   lenderReceivable,
+  inventoryStockReport,
+  itemFactoryStock,
+  packagingStock,
+  courierProductStock,
 }) =>
   Number(totalCashBalance || 0) +
   Number(salesDue?.meta?.totalDue || 0) +
@@ -481,7 +499,13 @@ const getGrandTotalAmount = ({
   Number(supplierReceivable?.meta?.totalAdvance || 0) +
   Number(manufacturerReceivable?.meta?.totalAdvance || 0) +
   Number(packagingManufacturerReceivable?.meta?.totalAdvance || 0) +
-  Number(lenderReceivable?.meta?.totalAdvance || 0);
+  Number(lenderReceivable?.meta?.totalAdvance || 0) +
+  getStockValueTotal({
+    inventoryStockReport,
+    itemFactoryStock,
+    packagingStock,
+    courierProductStock,
+  });
 
 const FRAGMENT_STYLES = `
   * { box-sizing: border-box; }
@@ -2083,6 +2107,10 @@ const appendProfitLossSection = async (
     supplierDue,
     lenderPayable,
     directorInvestment,
+    inventoryStockReport,
+    itemFactoryStock,
+    packagingStock,
+    courierProductStock,
     regularFontDataUrl,
     boldFontDataUrl,
   },
@@ -2095,6 +2123,10 @@ const appendProfitLossSection = async (
     manufacturerReceivable,
     packagingManufacturerReceivable,
     lenderReceivable,
+    inventoryStockReport,
+    itemFactoryStock,
+    packagingStock,
+    courierProductStock,
   });
   const payableAndInvestmentTotal = getPayableAndDirectorInvestmentTotalAmount({
     pendingPayrollSalary,
@@ -2110,7 +2142,10 @@ const appendProfitLossSection = async (
   await placeLedgerSection(doc, html2canvas, cursor, {
     title: "Profit / Loss",
     rows: [
-      { description: "গ্র্যান্ড টোটাল (ক্যাশ ও প্রাপ্য)", amount: grandTotal },
+      {
+        description: "গ্র্যান্ড টোটাল (ক্যাশ, প্রাপ্য ও স্টক)",
+        amount: grandTotal,
+      },
       {
         description: "সর্বমোট বাকি ও ডিরেক্টর ইনভেস্ট",
         amount: payableAndInvestmentTotal,
@@ -2239,6 +2274,10 @@ const appendGrandTotalSection = async (
     manufacturerReceivable,
     packagingManufacturerReceivable,
     lenderReceivable,
+    inventoryStockReport,
+    itemFactoryStock,
+    packagingStock,
+    courierProductStock,
     regularFontDataUrl,
     boldFontDataUrl,
   },
@@ -2254,6 +2293,9 @@ const appendGrandTotalSection = async (
     packagingManufacturerReceivable?.meta?.totalAdvance || 0,
   );
   const lenderTotal = Number(lenderReceivable?.meta?.totalAdvance || 0);
+  const inv = inventoryStockReport?.meta || {};
+  const itemFactory = itemFactoryStock?.meta || {};
+  const packaging = packagingStock?.meta || {};
   const grandTotal = getGrandTotalAmount({
     totalCashBalance,
     salesDue,
@@ -2262,6 +2304,10 @@ const appendGrandTotalSection = async (
     manufacturerReceivable,
     packagingManufacturerReceivable,
     lenderReceivable,
+    inventoryStockReport,
+    itemFactoryStock,
+    packagingStock,
+    courierProductStock,
   });
 
   const rows = [
@@ -2278,10 +2324,42 @@ const appendGrandTotalSection = async (
       amount: packagingManufacturerTotal,
     },
     { description: "কোম্পানি পাবে (লেন্ডার)", amount: lenderTotal },
+    {
+      description: "মোট স্টক প্রোডাক্ট",
+      amount: Number(inv.stockProductPurchaseCost || 0),
+    },
+    {
+      description: "মোট ড্যামেজ স্টক",
+      amount: Number(inv.damageStockPurchaseCost || 0),
+    },
+    {
+      description: "মোট রিপেয়ারিং স্টক",
+      amount: Number(inv.repairingStockPurchaseCost || 0),
+    },
+    {
+      description: "মোট আইটেম স্টক",
+      amount: Number(itemFactory.itemStockPurchaseCost || 0),
+    },
+    {
+      description: "মোট ফ্যাক্টরি স্টক",
+      amount: Number(itemFactory.factoryStockPurchaseCost || 0),
+    },
+    {
+      description: "মোট প্যাকেজিং আইটেম স্টক",
+      amount: Number(packaging.packagingItemStockPurchaseCost || 0),
+    },
+    {
+      description: "মোট প্যাকেজিং ফ্যাক্টরি স্টক",
+      amount: Number(packaging.packagingFactoryStockPurchaseCost || 0),
+    },
+    {
+      description: "কুরিয়ার প্রোডাক্ট স্টক",
+      amount: Number(courierProductStock?.meta?.totalEndingAmount || 0),
+    },
   ];
 
   await placeLedgerSection(doc, html2canvas, cursor, {
-    title: "গ্র্যান্ড টোটাল (ক্যাশ ও প্রাপ্য)",
+    title: "গ্র্যান্ড টোটাল (ক্যাশ, প্রাপ্য ও স্টক)",
     rows,
     totalLabel: "সর্বমোট",
     total: grandTotal,
@@ -2443,6 +2521,10 @@ export const generateBookStatementPdf = async ({
     manufacturerReceivable,
     packagingManufacturerReceivable,
     lenderReceivable,
+    inventoryStockReport,
+    itemFactoryStock,
+    packagingStock,
+    courierProductStock,
     regularFontDataUrl,
     boldFontDataUrl,
   });
@@ -2514,6 +2596,10 @@ export const generateBookStatementPdf = async ({
     supplierDue,
     lenderPayable,
     directorInvestment,
+    inventoryStockReport,
+    itemFactoryStock,
+    packagingStock,
+    courierProductStock,
     regularFontDataUrl,
     boldFontDataUrl,
   });
