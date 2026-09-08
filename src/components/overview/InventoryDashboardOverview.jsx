@@ -45,6 +45,9 @@ import { useGetAllAssetsSaleQuery } from "../../features/assetsSale/assetsSale";
 import { useGetAllAssetsStockQuery } from "../../features/assetsStock/assetsStock";
 import { useGetAllEmployeeWithoutQueryQuery } from "../../features/employee/employee";
 import { useGetOverviewDashboardQuery } from "../../features/overview/overview";
+import { useGetAllSupplierWithoutQueryQuery } from "../../features/supplier/supplier";
+import { useGetAllManufacturerWithoutQueryQuery } from "../../features/manufacturer/manufacturer";
+import { useGetAllPackagingManufacturerWithoutQueryQuery } from "../../features/packagingManufacturer/packagingManufacturer";
 import {
   useGetStellarAttendanceEmployeesQuery,
   useGetStellarAttendanceHolidaysQuery,
@@ -67,6 +70,22 @@ const formatCurrency = (value, digits = 0) =>
   })}`;
 
 const formatNumber = (value) => safeNumber(value).toLocaleString();
+
+// Fixed order/colors for the Supplier/Manufacturer/Packaging Manufacturer
+// balance chart — never reassigned by filter or sort, so a bar's color
+// always means the same thing. Validated colorblind-safe as a trio
+// (CVD ΔE >= 8, normal-vision floor >= 15; see dataviz skill).
+const PARTY_BALANCE_SERIES = [
+  { key: "due", label: "Due", color: "#ef4444" },
+  { key: "advance", label: "Advance", color: "#3b82f6" },
+  { key: "paid", label: "Paid", color: "#22c55e" },
+];
+
+const PARTY_BALANCE_ICONS = {
+  Supplier: ShoppingBag,
+  Manufacturer: Package,
+  "Packaging Manufacturer": ClipboardList,
+};
 
 const formatShortDate = (value) => {
   if (!value) return "";
@@ -516,6 +535,14 @@ const InventoryDashboardOverview = () => {
 
   const { data, isLoading, isError, refetch } =
     useGetOverviewDashboardQuery(query);
+  const { data: supplierListRes, isLoading: isSupplierLoading } =
+    useGetAllSupplierWithoutQueryQuery();
+  const { data: manufacturerListRes, isLoading: isManufacturerLoading } =
+    useGetAllManufacturerWithoutQueryQuery();
+  const {
+    data: packagingManufacturerListRes,
+    isLoading: isPackagingManufacturerLoading,
+  } = useGetAllPackagingManufacturerWithoutQueryQuery();
   const {
     preview: bookPreview,
     closePreview: closeBookPreview,
@@ -587,6 +614,7 @@ const InventoryDashboardOverview = () => {
   const summary = dashboard.summary || {};
   const managementSummary = dashboard.managementSummary || {};
   const inventorySummary = dashboard.inventorySummary || {};
+  const paymentModeBalances = dashboard.paymentModeBalances || [];
   const salesOverview = dashboard.salesOverview || [];
   const lowStockProducts = dashboard.lowStockProducts || [];
   const topSellingProducts = dashboard.topSellingProducts || [];
@@ -1084,6 +1112,42 @@ const InventoryDashboardOverview = () => {
     },
   ];
 
+  const isPartyBalanceLoading =
+    isSupplierLoading || isManufacturerLoading || isPackagingManufacturerLoading;
+
+  const partyBalanceChartData = useMemo(() => {
+    const sumField = (rows, field) =>
+      (rows || []).reduce((sum, row) => sum + safeNumber(row[field]), 0);
+
+    const suppliers = supplierListRes?.data || [];
+    const manufacturers = manufacturerListRes?.data || [];
+    const packagingManufacturers = packagingManufacturerListRes?.data || [];
+
+    return [
+      {
+        name: "Supplier",
+        href: "/supplier",
+        due: sumField(suppliers, "totalDue"),
+        advance: sumField(suppliers, "totalAdvance"),
+        paid: sumField(suppliers, "totalPaid"),
+      },
+      {
+        name: "Manufacturer",
+        href: "/manufacturer",
+        due: sumField(manufacturers, "totalDue"),
+        advance: sumField(manufacturers, "totalAdvance"),
+        paid: sumField(manufacturers, "paidAmount"),
+      },
+      {
+        name: "Packaging Manufacturer",
+        href: "/packaging-manufacturer",
+        due: sumField(packagingManufacturers, "totalDue"),
+        advance: sumField(packagingManufacturers, "totalAdvance"),
+        paid: sumField(packagingManufacturers, "paidAmount"),
+      },
+    ];
+  }, [supplierListRes, manufacturerListRes, packagingManufacturerListRes]);
+
   const alertItems = [
     {
       title: "Low Stock Alert",
@@ -1302,6 +1366,93 @@ const InventoryDashboardOverview = () => {
                   isLoading={isLoading}
                 />
               ))}
+            </div>
+
+            <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {partyBalanceChartData.map((row) => {
+                const Icon = PARTY_BALANCE_ICONS[row.name] || ShoppingBag;
+                return (
+                  <button
+                    type="button"
+                    key={row.name}
+                    onClick={() => navigate(row.href)}
+                    className="w-full rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-slate-300 hover:shadow-md sm:p-5"
+                  >
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white">
+                          <Icon size={18} />
+                        </div>
+                        <h3 className="truncate text-sm font-black text-slate-900">
+                          {row.name}
+                        </h3>
+                      </div>
+                      <ArrowRight size={16} className="shrink-0 text-slate-400" />
+                    </div>
+                    <div className="space-y-2">
+                      {PARTY_BALANCE_SERIES.map((series) => (
+                        <div
+                          key={series.key}
+                          className="flex items-center justify-between gap-3 text-xs"
+                        >
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span
+                              className="h-2.5 w-2.5 shrink-0 rounded-full"
+                              style={{ background: series.color }}
+                            />
+                            <span className="truncate font-semibold text-slate-600">
+                              {series.label}
+                            </span>
+                          </div>
+                          <span className="shrink-0 font-black text-slate-900">
+                            {isPartyBalanceLoading
+                              ? "..."
+                              : formatCurrency(row[series.key], 2)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </button>
+                );
+              })}
+
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                <div className="mb-3 flex items-center gap-2">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white">
+                    <Coins size={18} />
+                  </div>
+                  <h3 className="truncate text-sm font-black text-slate-900">
+                    Payment Mode Balance
+                  </h3>
+                </div>
+                <div className="space-y-2">
+                  {paymentModeBalances.length ? (
+                    paymentModeBalances.map((row) => (
+                      <div
+                        key={row.mode}
+                        className="flex items-center justify-between gap-3 text-xs"
+                      >
+                        <span className="truncate font-semibold text-slate-600">
+                          {row.mode}
+                        </span>
+                        <span
+                          className={`shrink-0 font-black ${
+                            safeNumber(row.balance) < 0
+                              ? "text-rose-600"
+                              : "text-emerald-600"
+                          }`}
+                        >
+                          {isLoading ? "..." : formatCurrency(row.balance, 2)}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs font-semibold text-slate-400">
+                      No payment mode balance found.
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* <section className="mt-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">

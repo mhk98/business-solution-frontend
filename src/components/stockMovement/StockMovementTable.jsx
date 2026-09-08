@@ -12,7 +12,11 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import Select from "react-select";
 
-import { useGetAllStockMovementsQuery } from "../../features/stockMovement/stockMovement";
+import {
+  useGetAllStockMovementsQuery,
+  useGetStockMovementNamesQuery,
+} from "../../features/stockMovement/stockMovement";
+import DateRangeFilter from "../common/DateRangeFilter";
 
 const sourceOptions = [
   { value: "ItemPurchase", label: "Item Purchase" },
@@ -97,8 +101,19 @@ const StockMovementTable = () => {
   const [sourceType, setSourceType] = useState("");
   const [stockType, setStockType] = useState("");
   const [operation, setOperation] = useState("");
+  const [productName, setProductName] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+
+  const { data: movementNamesRes } = useGetStockMovementNamesQuery();
+  const productOptions = useMemo(
+    () =>
+      (movementNamesRes?.data || []).map((name) => ({
+        value: name,
+        label: name,
+      })),
+    [movementNamesRes],
+  );
 
   useEffect(() => {
     const updatePagesPerSet = () => {
@@ -114,7 +129,16 @@ const StockMovementTable = () => {
   useEffect(() => {
     setCurrentPage(1);
     setStartPage(1);
-  }, [itemsPerPage, searchTerm, sourceType, stockType, operation, startDate, endDate]);
+  }, [
+    itemsPerPage,
+    searchTerm,
+    sourceType,
+    stockType,
+    operation,
+    productName,
+    startDate,
+    endDate,
+  ]);
 
   const queryArgs = useMemo(() => {
     const args = {
@@ -124,6 +148,7 @@ const StockMovementTable = () => {
       sourceType: sourceType || undefined,
       stockType: stockType || undefined,
       operation: operation || undefined,
+      name: productName || undefined,
       startDate: startDate || undefined,
       endDate: endDate || undefined,
     };
@@ -138,6 +163,7 @@ const StockMovementTable = () => {
     sourceType,
     stockType,
     operation,
+    productName,
     startDate,
     endDate,
   ]);
@@ -167,6 +193,7 @@ const StockMovementTable = () => {
     setSourceType("");
     setStockType("");
     setOperation("");
+    setProductName("");
     setStartDate("");
     setEndDate("");
   };
@@ -288,27 +315,32 @@ const StockMovementTable = () => {
 
         <div>
           <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1 block">
-            Start Date
+            Product
           </label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(event) => setStartDate(event.target.value)}
-            className="h-11 w-full px-4 rounded-xl bg-white border border-slate-200 text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition font-semibold text-sm"
+          <Select
+            options={productOptions}
+            value={
+              productOptions.find((option) => option.value === productName) ||
+              null
+            }
+            onChange={(selected) => setProductName(selected?.value || "")}
+            placeholder="All products"
+            isClearable
+            styles={selectStyles}
+            className="text-black"
           />
         </div>
 
-        <div>
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1 block">
-            End Date
-          </label>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(event) => setEndDate(event.target.value)}
-            className="h-11 w-full px-4 rounded-xl bg-white border border-slate-200 text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition font-semibold text-sm"
-          />
-        </div>
+        <DateRangeFilter
+          startDate={startDate}
+          endDate={endDate}
+          onStartDateChange={setStartDate}
+          onEndDateChange={setEndDate}
+          defaultFilter=""
+          label="Date"
+          compact
+          className="w-full"
+        />
 
         <button
           type="button"

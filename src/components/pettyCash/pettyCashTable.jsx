@@ -456,7 +456,14 @@ const PettyCashTable = ({ mode = "default" }) => {
     setStartPage(1);
   }, [startDate, endDate, itemsPerPage]);
 
-  const endPage = Math.min(startPage + pagesPerSet - 1, totalPages);
+  // Results can shrink before the pagination reset effect runs.
+  const visibleStartPage = Math.max(1, Math.min(startPage, totalPages));
+  const endPage = Math.min(visibleStartPage + pagesPerSet - 1, totalPages);
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.max(1, Math.min(page, totalPages)));
+    setStartPage((page) => Math.max(1, Math.min(page, totalPages)));
+  }, [totalPages]);
 
   const handlePageChange = (pageNumber) => {
     setCurrentPage(pageNumber);
@@ -465,11 +472,14 @@ const PettyCashTable = ({ mode = "default" }) => {
   };
 
   const handlePreviousSet = () =>
-    setStartPage((prev) => Math.max(prev - pagesPerSet, 1));
+    setStartPage(Math.max(visibleStartPage - pagesPerSet, 1));
 
   const handleNextSet = () =>
-    setStartPage((prev) =>
-      Math.min(prev + pagesPerSet, totalPages - pagesPerSet + 1),
+    setStartPage(
+      Math.max(
+        1,
+        Math.min(visibleStartPage + pagesPerSet, totalPages - pagesPerSet + 1),
+      ),
     );
 
   //Pagination calculation end
@@ -478,7 +488,16 @@ const PettyCashTable = ({ mode = "default" }) => {
   useEffect(() => {
     setCurrentPage(1);
     setStartPage(1);
-  }, [startDate, endDate, filterPaymentMode, filterPaymentStatus]);
+  }, [
+    startDate,
+    endDate,
+    filterPaymentMode,
+    filterPaymentStatus,
+    filterCategory,
+    filterBook,
+    debouncedSearchTerm,
+    isRequisitionMode,
+  ]);
 
   // endDate safety
   useEffect(() => {
@@ -1750,14 +1769,14 @@ const PettyCashTable = ({ mode = "default" }) => {
       <div className="flex items-center justify-center flex-wrap gap-2 mt-6">
         <button
           onClick={handlePreviousSet}
-          disabled={startPage === 1}
+          disabled={visibleStartPage === 1}
           className="px-4 py-2 text-slate-700 bg-white border border-slate-200 rounded-xl disabled:opacity-60 hover:bg-slate-50 transition"
         >
           Prev
         </button>
 
-        {[...Array(endPage - startPage + 1)].map((_, index) => {
-          const pageNum = startPage + index;
+        {Array.from({ length: endPage - visibleStartPage + 1 }, (_, index) => {
+          const pageNum = visibleStartPage + index;
           const active = pageNum === currentPage;
           return (
             <button

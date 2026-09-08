@@ -13,6 +13,7 @@ export const stockMovementApi = baseApi.injectEndpoints({
         itemId,
         productId,
         manufacturerId,
+        name,
         startDate,
         endDate,
       }) => ({
@@ -27,6 +28,7 @@ export const stockMovementApi = baseApi.injectEndpoints({
           itemId,
           productId,
           manufacturerId,
+          name,
           startDate,
           endDate,
         },
@@ -43,8 +45,16 @@ export const stockMovementApi = baseApi.injectEndpoints({
           : [{ type: "StockMovement", id: "LIST" }],
       refetchOnMountOrArgChange: true,
     }),
+
+    getStockMovementNames: build.query({
+      query: () => ({
+        url: "stock-movements/names",
+      }),
+      providesTags: [{ type: "StockMovement", id: "NAMES" }],
+    }),
   }),
   overrideExisting: false,
 });
 
-export const { useGetAllStockMovementsQuery } = stockMovementApi;
+export const { useGetAllStockMovementsQuery, useGetStockMovementNamesQuery } =
+  stockMovementApi;

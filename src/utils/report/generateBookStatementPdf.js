@@ -192,14 +192,18 @@ const getFlatTransactionRows = (transactions = [], openingByCategory = {}) => {
 // Column layout for the category-summary tables (matches the original
 // letterhead design — no separate category column, since the category
 // name *is* what fills that column for an aggregated row).
+// The period movement (formerly labelled ব্যালেন্স পার্থক্য) is shown as
+// সমাপনী ব্যালেন্স right after শুরু ব্যালেন্স; the actual opening+movement
+// ending balance is no longer displayed as a separate column. ব্যালেন্স
+// পার্থক্য (amount − opening, i.e. সমাপনী − শুরু of the two shown columns)
+// follows as its own column.
 const AGGREGATE_COLUMNS = [
   { key: "sl", label: "ক্র. নং", widthPct: 7 },
   { key: "date", label: "তারিখ", widthPct: 15 },
   { key: "description", label: "ক্যাটেগরি", widthPct: 28 },
   { key: "opening", label: "শুরু ব্যালেন্স", widthPct: 17, isAmount: true },
-  { key: "ending", label: "সমাপনী ব্যালেন্স", widthPct: 17, isAmount: true },
-  // ব্যালেন্স পার্থক্য = সমাপনী ব্যালেন্স − শুরু ব্যালেন্স (এই period-এর movement).
-  { key: "amount", label: "ব্যালেন্স পার্থক্য", widthPct: 16, isAmount: true },
+  { key: "amount", label: "সমাপনী ব্যালেন্স", widthPct: 17, isAmount: true },
+  { key: "balanceDiff", label: "ব্যালেন্স পার্থক্য", widthPct: 16, isAmount: true },
 ];
 
 // Same layout as AGGREGATE_COLUMNS, but for the Total Credit & Debit
@@ -209,16 +213,8 @@ const TOTAL_SUMMARY_COLUMNS = [
   { key: "date", label: "তারিখ", widthPct: 15 },
   { key: "description", label: "বিবরণ", widthPct: 28 },
   { key: "opening", label: "শুরু ব্যালেন্স", widthPct: 17, isAmount: true },
-  { key: "ending", label: "সমাপনী ব্যালেন্স", widthPct: 17, isAmount: true },
-  // ব্যালেন্স পার্থক্য = সমাপনী ব্যালেন্স − শুরু ব্যালেন্স (এই period-এর movement).
-  { key: "amount", label: "ব্যালেন্স পার্থক্য", widthPct: 16, isAmount: true },
-];
-
-// Book-level opening / ending / difference summary (net cash position).
-const BALANCE_SUMMARY_COLUMNS = [
-  { key: "sl", label: "ক্র. নং", widthPct: 8 },
-  { key: "description", label: "বিবরণ", widthPct: 60 },
-  { key: "amount", label: "পরিমান", widthPct: 32, isAmount: true },
+  { key: "amount", label: "সমাপনী ব্যালেন্স", widthPct: 17, isAmount: true },
+  { key: "balanceDiff", label: "ব্যালেন্স পার্থক্য", widthPct: 16, isAmount: true },
 ];
 
 // Column layout for the per-transaction detail tables — one row per real
@@ -229,8 +225,8 @@ const DETAIL_COLUMNS = [
   { key: "category", label: "ক্যাটেগরি", widthPct: 13 },
   { key: "description", label: "বিবরণ", widthPct: 22 },
   { key: "opening", label: "শুরু ব্যালেন্স", widthPct: 16, isAmount: true },
-  { key: "ending", label: "সমাপনী ব্যালেন্স", widthPct: 16, isAmount: true },
-  { key: "amount", label: "ব্যালেন্স পার্থক্য", widthPct: 16, isAmount: true },
+  { key: "amount", label: "সমাপনী ব্যালেন্স", widthPct: 16, isAmount: true },
+  { key: "balanceDiff", label: "ব্যালেন্স পার্থক্য", widthPct: 16, isAmount: true },
 ];
 
 // Each inventory stock pool (Stock Product / Damage Stock / Repairing Stock)
@@ -1716,40 +1712,6 @@ const appendBookStatement = async (doc, html2canvas, cursor, book) => {
       balanceDiff: netBalance - openingNetBalance,
     },
     columns: TOTAL_SUMMARY_COLUMNS,
-  });
-
-  // Book-level net cash position: opening (before the filter start),
-  // ending (up to the filter end) and their difference (the period movement).
-  const endingNetBalance = openingNetBalance + netBalance;
-  const balanceDifference = endingNetBalance - openingNetBalance;
-  const startLabel = book.statementStartDate
-    ? formatRowDate(book.statementStartDate)
-    : null;
-  const endLabel = book.statementEndDate
-    ? formatRowDate(book.statementEndDate)
-    : book.periodLabel;
-  const balanceTone = (value) => (value < 0 ? "debit" : "credit");
-
-  await placeSection({
-    title: "শুরু ব্যালেন্স, সমাপনী ব্যালেন্স ও পার্থক্য",
-    rows: [
-      {
-        description: startLabel
-          ? `শুরু ব্যালেন্স (${startLabel} এর আগে পর্যন্ত)`
-          : "শুরু ব্যালেন্স",
-        amount: openingNetBalance,
-        tone: balanceTone(openingNetBalance),
-      },
-      {
-        description: `সমাপনী ব্যালেন্স (${endLabel} পর্যন্ত)`,
-        amount: endingNetBalance,
-        tone: balanceTone(endingNetBalance),
-      },
-    ],
-    totalLabel: "পার্থক্য (সমাপনী − শুরু)",
-    total: balanceDifference,
-    totalTone: balanceDifference < 0 ? "loss" : undefined,
-    columns: BALANCE_SUMMARY_COLUMNS,
   });
 };
 
