@@ -191,42 +191,33 @@ const getFlatTransactionRows = (transactions = [], openingByCategory = {}) => {
 
 // Column layout for the category-summary tables (matches the original
 // letterhead design — no separate category column, since the category
-// name *is* what fills that column for an aggregated row).
-// The period movement (formerly labelled ব্যালেন্স পার্থক্য) is shown as
-// সমাপনী ব্যালেন্স right after শুরু ব্যালেন্স; the actual opening+movement
-// ending balance is no longer displayed as a separate column. ব্যালেন্স
-// পার্থক্য (amount − opening, i.e. সমাপনী − শুরু of the two shown columns)
-// follows as its own column.
+// name *is* what fills that column for an aggregated row). Only the period
+// total is shown (as পরিমান (টাকা)) — শুরু ব্যালেন্স and ব্যালেন্স পার্থক্য
+// are intentionally omitted.
 const AGGREGATE_COLUMNS = [
-  { key: "sl", label: "ক্র. নং", widthPct: 7 },
-  { key: "date", label: "তারিখ", widthPct: 15 },
-  { key: "description", label: "ক্যাটেগরি", widthPct: 28 },
-  { key: "opening", label: "শুরু ব্যালেন্স", widthPct: 17, isAmount: true },
-  { key: "amount", label: "সমাপনী ব্যালেন্স", widthPct: 17, isAmount: true },
-  { key: "balanceDiff", label: "ব্যালেন্স পার্থক্য", widthPct: 16, isAmount: true },
+  { key: "sl", label: "ক্র. নং", widthPct: 8 },
+  { key: "date", label: "তারিখ", widthPct: 20 },
+  { key: "description", label: "ক্যাটেগরি", widthPct: 42 },
+  { key: "amount", label: "পরিমান (টাকা)", widthPct: 30, isAmount: true },
 ];
 
 // Same layout as AGGREGATE_COLUMNS, but for the Total Credit & Debit
 // roll-up, whose rows are descriptive summary lines rather than categories.
 const TOTAL_SUMMARY_COLUMNS = [
-  { key: "sl", label: "ক্র. নং", widthPct: 7 },
-  { key: "date", label: "তারিখ", widthPct: 15 },
-  { key: "description", label: "বিবরণ", widthPct: 28 },
-  { key: "opening", label: "শুরু ব্যালেন্স", widthPct: 17, isAmount: true },
-  { key: "amount", label: "সমাপনী ব্যালেন্স", widthPct: 17, isAmount: true },
-  { key: "balanceDiff", label: "ব্যালেন্স পার্থক্য", widthPct: 16, isAmount: true },
+  { key: "sl", label: "ক্র. নং", widthPct: 8 },
+  { key: "date", label: "তারিখ", widthPct: 20 },
+  { key: "description", label: "বিবরণ", widthPct: 42 },
+  { key: "amount", label: "পরিমান (টাকা)", widthPct: 30, isAmount: true },
 ];
 
 // Column layout for the per-transaction detail tables — one row per real
 // transaction, with its own Category column and note-based description.
 const DETAIL_COLUMNS = [
   { key: "sl", label: "ক্র. নং", widthPct: 6 },
-  { key: "date", label: "তারিখ", widthPct: 11 },
-  { key: "category", label: "ক্যাটেগরি", widthPct: 13 },
-  { key: "description", label: "বিবরণ", widthPct: 22 },
-  { key: "opening", label: "শুরু ব্যালেন্স", widthPct: 16, isAmount: true },
-  { key: "amount", label: "সমাপনী ব্যালেন্স", widthPct: 16, isAmount: true },
-  { key: "balanceDiff", label: "ব্যালেন্স পার্থক্য", widthPct: 16, isAmount: true },
+  { key: "date", label: "তারিখ", widthPct: 13 },
+  { key: "category", label: "ক্যাটেগরি", widthPct: 17 },
+  { key: "description", label: "বিবরণ", widthPct: 34 },
+  { key: "amount", label: "পরিমান (টাকা)", widthPct: 30, isAmount: true },
 ];
 
 // Each inventory stock pool (Stock Product / Damage Stock / Repairing Stock)
@@ -294,47 +285,29 @@ const PACKAGING_STOCK_POOLS = [
 ];
 
 // Courier Product Stock is summarised one row per status over the filter's
-// date range: তারিখ shows the range, শুরু স্টক = that status's total before the
-// range, সমাপনী স্টক = opening + range total, স্টক পার্থক্য = the range total,
-// and পরিমান (far right) = the same range total.
+// date range: তারিখ shows the range and পরিমান = that status's range total.
+// শুরু স্টক / সমাপনী স্টক / স্টক পার্থক্য are intentionally omitted.
 const COURIER_PRODUCT_STOCK_COLUMNS = [
   { key: "sl", label: "#", widthPct: 5 },
-  { key: "date", label: "তারিখ", widthPct: 21 },
-  { key: "status", label: "স্ট্যাটাস", widthPct: 18 },
-  { key: "openingStock", label: "শুরু স্টক", widthPct: 14, isAmount: true },
-  { key: "closingStock", label: "সমাপনী স্টক", widthPct: 14, isAmount: true },
-  { key: "stockDiff", label: "স্টক পার্থক্য", widthPct: 14, isAmount: true },
-  { key: "amount", label: "পরিমান", widthPct: 14, isAmount: true },
+  { key: "date", label: "তারিখ", widthPct: 33 },
+  { key: "status", label: "স্ট্যাটাস", widthPct: 32 },
+  { key: "amount", label: "পরিমান (টাকা)", widthPct: 30, isAmount: true },
 ];
 
 // The snapshot receivable / due sections (Sales Due, Salary Advance, the four
-// "কোম্পানি পাবে" receivables, and the three "company owes" dues). শুরু
-// ব্যালেন্স / সমাপনী ব্যালেন্স are the party's balance scoped to the date
-// filter's start / end; ব্যালেন্স পার্থক্য is their difference. The far-right
-// amount column holds the party's current (unfiltered) total — labelled
-// "এডভান্স" for the advance-natured sections, "বাকি" for the due ones.
+// "কোম্পানি পাবে" receivables, and the three "company owes" dues). Each shows
+// only the party name + the party's current (unfiltered) total — labelled
+// "এডভান্স(টাকা)" for the advance-natured sections, "বাকি(টাকা)" for the due
+// ones. শুরু/সমাপনী ব্যালেন্স and ব্যালেন্স পার্থক্য are intentionally omitted.
 const buildReceivableLedgerColumns = (nameLabel, amountLabel) => [
   { key: "sl", label: "#", widthPct: 5 },
-  { key: "name", label: nameLabel, widthPct: 25 },
+  { key: "name", label: nameLabel, widthPct: 65 },
   {
-    key: "openingBalance",
-    label: "শুরু ব্যালেন্স",
-    widthPct: 18,
+    key: "amount",
+    label: `${amountLabel}(টাকা)`,
+    widthPct: 30,
     isAmount: true,
   },
-  {
-    key: "endingBalance",
-    label: "সমাপনী ব্যালেন্স",
-    widthPct: 18,
-    isAmount: true,
-  },
-  {
-    key: "balanceDiff",
-    label: "ব্যালেন্স পার্থক্য",
-    widthPct: 18,
-    isAmount: true,
-  },
-  { key: "amount", label: amountLabel, widthPct: 16, isAmount: true },
 ];
 
 const SALES_DUE_COLUMNS = buildReceivableLedgerColumns("নাম", "বাকি");
@@ -352,17 +325,25 @@ const MANUFACTURER_DUE_COLUMNS =
 
 const SUPPLIER_DUE_COLUMNS = buildReceivableLedgerColumns("সাপ্লাইয়ার", "বাকি");
 
-const SUPPLIER_RECEIVABLE_COLUMNS =
-  buildReceivableLedgerColumns("সাপ্লাইয়ার", "এডভান্স");
+const SUPPLIER_RECEIVABLE_COLUMNS = buildReceivableLedgerColumns(
+  "সাপ্লাইয়ার",
+  "এডভান্স",
+);
 
-const MANUFACTURER_RECEIVABLE_COLUMNS =
-  buildReceivableLedgerColumns("ম্যানুফ্যাকচার", "এডভান্স");
+const MANUFACTURER_RECEIVABLE_COLUMNS = buildReceivableLedgerColumns(
+  "ম্যানুফ্যাকচার",
+  "এডভান্স",
+);
 
-const PACKAGING_MANUFACTURER_RECEIVABLE_COLUMNS =
-  buildReceivableLedgerColumns("প্যাকেজিং ম্যানুফ্যাকচার", "এডভান্স");
+const PACKAGING_MANUFACTURER_RECEIVABLE_COLUMNS = buildReceivableLedgerColumns(
+  "প্যাকেজিং ম্যানুফ্যাকচার",
+  "এডভান্স",
+);
 
-const LENDER_RECEIVABLE_COLUMNS =
-  buildReceivableLedgerColumns("লেন্ডার", "এডভান্স");
+const LENDER_RECEIVABLE_COLUMNS = buildReceivableLedgerColumns(
+  "লেন্ডার",
+  "এডভান্স",
+);
 
 const LENDER_PAYABLE_COLUMNS = buildReceivableLedgerColumns("লেন্ডার", "বাকি");
 
@@ -375,21 +356,18 @@ const DIRECTOR_INVESTMENT_COLUMNS = [
 const GRAND_TOTAL_COLUMNS = [
   { key: "sl", label: "#", widthPct: 10 },
   { key: "description", label: "বিবরণ", widthPct: 60 },
-  { key: "amount", label: "পরিমান", widthPct: 30, isAmount: true },
+  { key: "amount", label: "পরিমান (টাকা)", widthPct: 30, isAmount: true },
 ];
 
 const PAYABLE_TOTAL_COLUMNS = GRAND_TOTAL_COLUMNS;
 
-// Net cash per payment mode (Cash / Bank / …) over the date filter — sits
-// between Profit/Loss and the Assets sections. বর্তমান ব্যালেন্স (far right)
-// is the live figure, ignoring the date filter.
+// Net cash per payment mode (Cash / Bank / …). Only the live, filter-
+// independent balance (`current`) is shown as পরিমান (টাকা) — the date-scoped
+// শুরু / সমাপনী / বর্তমান ব্যালেন্স columns are intentionally omitted.
 const PAYMENT_MODE_COLUMNS = [
   { key: "sl", label: "#", widthPct: 5 },
-  { key: "mode", label: "পেমেন্ট মোড", widthPct: 25 },
-  { key: "opening", label: "শুরু ব্যালেন্স", widthPct: 17, isAmount: true },
-  { key: "ending", label: "সমাপনী ব্যালেন্স", widthPct: 17, isAmount: true },
-  { key: "diff", label: "ব্যালেন্স পার্থক্য", widthPct: 17, isAmount: true },
-  { key: "current", label: "বর্তমান ব্যালেন্স", widthPct: 19, isAmount: true },
+  { key: "mode", label: "পেমেন্ট মোড", widthPct: 65 },
+  { key: "current", label: "পরিমান (টাকা)", widthPct: 30, isAmount: true },
 ];
 
 // Assets sections at the bottom of the statement. Purchase / Sale / Damage
@@ -635,6 +613,13 @@ const FRAGMENT_STYLES = `
   .ledger-table .quantity { text-align: right; }
   .ledger-table .amount-credit { color: #15803d; }
   .ledger-table .amount-debit { color: #dc2626; }
+  /* Any negative amount / quantity (balance, stock, পার্থক্য …) shows red,
+     and a positive পার্থক্য shows green — both overriding the
+     credit/summary/tfoot colours above. */
+  .ledger-table td.amount.negative,
+  .ledger-table td.quantity.negative { color: #dc2626; }
+  .ledger-table td.amount.positive,
+  .ledger-table td.quantity.positive { color: #15803d; }
   .ledger-table .empty { text-align: center; color: #94a3b8; }
   .ledger-table .summary-row td {
     font-weight: 700;
@@ -654,7 +639,14 @@ const FRAGMENT_STYLES = `
   }
 `;
 
-const buildCell = (tag, column, content, tone) => {
+const isNegativeValue = (value) => Number(value) < 0;
+const isPositiveValue = (value) => Number(value) > 0;
+
+// The "পার্থক্য" (difference / period movement) columns — coloured by sign:
+// positive is green, negative is red.
+const DIFF_COLUMN_KEYS = new Set(["balanceDiff", "stockDiff", "diff"]);
+
+const buildCell = (tag, column, content, tone, negative = false, positive = false) => {
   const classes = [];
   if (column.isAmount) {
     classes.push("amount");
@@ -662,6 +654,10 @@ const buildCell = (tag, column, content, tone) => {
     if (tone === "debit") classes.push("amount-debit");
   }
   if (column.isQuantity) classes.push("quantity");
+  if (column.isAmount || column.isQuantity) {
+    if (negative) classes.push("negative");
+    else if (positive) classes.push("positive");
+  }
   const cellClass = classes.length ? ` class="${classes.join(" ")}"` : "";
   return `<${tag} style="width:${column.widthPct}%;"${cellClass}>${content}</${tag}>`;
 };
@@ -683,9 +679,20 @@ const buildTableRows = (rows, startIndex, columns) =>
               column,
               formatAmount(row[column.key]),
               row.tone,
+              isNegativeValue(row[column.key]),
+              DIFF_COLUMN_KEYS.has(column.key) &&
+                isPositiveValue(row[column.key]),
             );
           if (column.isQuantity)
-            return buildCell("td", column, formatQuantity(row[column.key]));
+            return buildCell(
+              "td",
+              column,
+              formatQuantity(row[column.key]),
+              undefined,
+              isNegativeValue(row[column.key]),
+              DIFF_COLUMN_KEYS.has(column.key) &&
+                isPositiveValue(row[column.key]),
+            );
           return buildCell("td", column, escapeHtml(row[column.key] ?? "-"));
         })
         .join("");
@@ -719,7 +726,7 @@ const buildLedgerFooter = (columns, totalLabel, total, footerTotals, totalTone) 
     return `<tfoot>
       <tr${lossClass}>
         <td colspan="${columns.length - 1}">${escapeHtml(totalLabel)}</td>
-        <td class="amount">${formatAmount(total)}</td>
+        <td class="amount${isNegativeValue(total) ? " negative" : ""}">${formatAmount(total)}</td>
       </tr>
     </tfoot>`;
   }
@@ -729,8 +736,17 @@ const buildLedgerFooter = (columns, totalLabel, total, footerTotals, totalTone) 
   const amountCells = amountColumns
     .map((column) => {
       const value = footerTotals[column.key];
-      return `<td class="amount">${
-        value === undefined || value === null ? "" : formatAmount(value)
+      const isEmpty = value === undefined || value === null;
+      let signClass = "";
+      if (!isEmpty && isNegativeValue(value)) signClass = " negative";
+      else if (
+        !isEmpty &&
+        DIFF_COLUMN_KEYS.has(column.key) &&
+        isPositiveValue(value)
+      )
+        signClass = " positive";
+      return `<td class="amount${signClass}">${
+        isEmpty ? "" : formatAmount(value)
       }</td>`;
     })
     .join("");
@@ -1909,7 +1925,7 @@ const appendManufacturerDueSection = async (
   if (!rows.length) return;
 
   await placeLedgerSection(doc, html2canvas, cursor, {
-    title: "ম্যানুফ্যাকচার বাকি",
+    title: "কোম্পানির কাছে পাবে (ম্যানুফ্যাকচার)",
     rows,
     totalLabel: null,
     total: 0,
@@ -1929,7 +1945,7 @@ const appendSupplierDueSection = async (
   if (!rows.length) return;
 
   await placeLedgerSection(doc, html2canvas, cursor, {
-    title: "সাপ্লাইয়ার বাকি",
+    title: "কোম্পানির কাছে পাবে (সাপ্লাইয়ার)",
     rows,
     totalLabel: null,
     total: 0,
@@ -1991,8 +2007,14 @@ const appendPayableTotalSection = async (
     title: "সর্বমোট বাকি",
     rows: [
       { description: "পেন্ডিং বেতন", amount: pendingSalaryTotal },
-      { description: "ম্যানুফ্যাকচার বাকি", amount: manufacturerDueTotal },
-      { description: "সাপ্লাইয়ার বাকি", amount: supplierDueTotal },
+      {
+        description: "কোম্পানির কাছে পাবে (ম্যানুফ্যাকচার)",
+        amount: manufacturerDueTotal,
+      },
+      {
+        description: "কোম্পানির কাছে পাবে (সাপ্লাইয়ার)",
+        amount: supplierDueTotal,
+      },
       {
         description: "কোম্পানির কাছে পাবে (লেন্ডার)",
         amount: lenderPayableTotal,

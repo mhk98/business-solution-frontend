@@ -94,6 +94,9 @@ const formatShortDate = (value) => {
   return date.toLocaleDateString("en-US", { month: "short", day: "2-digit" });
 };
 
+const formatShortDateRange = (start, end) =>
+  start && end ? `${formatShortDate(start)} – ${formatShortDate(end)}` : "";
+
 const dateFromParts = (year, month, day) =>
   `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 
@@ -619,11 +622,35 @@ const InventoryDashboardOverview = () => {
   const lowStockProducts = dashboard.lowStockProducts || [];
   const topSellingProducts = dashboard.topSellingProducts || [];
 
+  // Loan + pending-salary figures, straight from the same report the
+  // Print/Download Book statement uses.
+  const inventoryStockReport = dashboard.inventoryStockReport || {};
+  const loanPayable = safeNumber(
+    inventoryStockReport.lenderPayable?.meta?.totalDue,
+  );
+  const loanReceivable = safeNumber(
+    inventoryStockReport.lenderReceivable?.meta?.totalAdvance,
+  );
+  const pendingSalaryTotal = safeNumber(
+    inventoryStockReport.pendingPayrollSalary?.meta?.totalSalary,
+  );
+
   const chartData = salesOverview.map((item) => ({
     date: formatShortDate(item.date),
     current: safeNumber(item.currentRevenue),
     previous: safeNumber(item.previousRevenue),
   }));
+
+  const firstSalesPoint = salesOverview[0];
+  const lastSalesPoint = salesOverview[salesOverview.length - 1];
+  const salesCurrentRangeLabel =
+    formatShortDateRange(firstSalesPoint?.date, lastSalesPoint?.date) ||
+    "This Period";
+  const salesPreviousRangeLabel =
+    formatShortDateRange(
+      firstSalesPoint?.previousDate,
+      lastSalesPoint?.previousDate,
+    ) || "Last Period";
 
   const inventoryChart = [
     {
@@ -1148,6 +1175,20 @@ const InventoryDashboardOverview = () => {
     ];
   }, [supplierListRes, manufacturerListRes, packagingManufacturerListRes]);
 
+  // Supplier + Manufacturer + Packaging Manufacturer rolled into one card.
+  const partyBalanceTotals = useMemo(
+    () =>
+      partyBalanceChartData.reduce(
+        (acc, row) => ({
+          due: acc.due + safeNumber(row.due),
+          advance: acc.advance + safeNumber(row.advance),
+          paid: acc.paid + safeNumber(row.paid),
+        }),
+        { due: 0, advance: 0, paid: 0 },
+      ),
+    [partyBalanceChartData],
+  );
+
   const alertItems = [
     {
       title: "Low Stock Alert",
@@ -1419,6 +1460,110 @@ const InventoryDashboardOverview = () => {
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
                 <div className="mb-3 flex items-center gap-2">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white">
+                    <WalletCards size={18} />
+                  </div>
+                  <h3 className="truncate text-sm font-black text-slate-900">
+                    Total
+                  </h3>
+                </div>
+                <div className="space-y-2">
+                  {PARTY_BALANCE_SERIES.map((series) => (
+                    <div
+                      key={series.key}
+                      className="flex items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span
+                          className="h-2.5 w-2.5 shrink-0 rounded-full"
+                          style={{ background: series.color }}
+                        />
+                        <span className="truncate font-semibold text-slate-600">
+                          Total {series.label}
+                        </span>
+                      </div>
+                      <span className="shrink-0 font-black text-slate-900">
+                        {isPartyBalanceLoading
+                          ? "..."
+                          : formatCurrency(partyBalanceTotals[series.key], 2)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                <div className="mb-3 flex items-center gap-2">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white">
+                    <Banknote size={18} />
+                  </div>
+                  <h3 className="truncate text-sm font-black text-slate-900">
+                    Loan
+                  </h3>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-3 text-xs">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ background: "#ef4444" }}
+                      />
+                      <span className="truncate font-semibold text-slate-600">
+                        লোন দেনা
+                      </span>
+                    </div>
+                    <span className="shrink-0 font-black text-slate-900">
+                      {isLoading ? "..." : formatCurrency(loanPayable, 2)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 text-xs">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ background: "#22c55e" }}
+                      />
+                      <span className="truncate font-semibold text-slate-600">
+                        লোন পাওনা
+                      </span>
+                    </div>
+                    <span className="shrink-0 font-black text-slate-900">
+                      {isLoading ? "..." : formatCurrency(loanReceivable, 2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                <div className="mb-3 flex items-center gap-2">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white">
+                    <WalletCards size={18} />
+                  </div>
+                  <h3 className="truncate text-sm font-black text-slate-900">
+                    Salary
+                  </h3>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-3 text-xs">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ background: "#f59e0b" }}
+                      />
+                      <span className="truncate font-semibold text-slate-600">
+                        Total Pending Salary
+                      </span>
+                    </div>
+                    <span className="shrink-0 font-black text-slate-900">
+                      {isLoading ? "..." : formatCurrency(pendingSalaryTotal, 2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                <div className="mb-3 flex items-center gap-2">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white">
                     <Coins size={18} />
                   </div>
                   <h3 className="truncate text-sm font-black text-slate-900">
@@ -1504,9 +1649,16 @@ const InventoryDashboardOverview = () => {
                 title="Sales Overview"
                 className="xl:col-span-6"
                 action={
-                  <span className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-black text-slate-600">
-                    This Period
-                  </span>
+                  <div className="flex flex-col items-end gap-1.5 text-[11px] font-bold min-[420px]:flex-row min-[420px]:items-center min-[420px]:gap-3">
+                    <span className="flex items-center gap-1.5 text-slate-700">
+                      <span className="h-[3px] w-4 rounded bg-indigo-600" />
+                      {salesCurrentRangeLabel}
+                    </span>
+                    <span className="flex items-center gap-1.5 text-slate-400">
+                      <span className="w-4 border-t-2 border-dashed border-violet-300" />
+                      {salesPreviousRangeLabel}
+                    </span>
+                  </div>
                 }
               >
                 <div className="h-[240px] px-1 py-4 sm:h-[320px] sm:px-3 sm:py-5">
@@ -1565,7 +1717,7 @@ const InventoryDashboardOverview = () => {
                           strokeDasharray="5 5"
                           strokeWidth={2}
                           fill="transparent"
-                          name="Last Period"
+                          name={salesPreviousRangeLabel}
                         />
                         <Area
                           type="monotone"
@@ -1573,7 +1725,7 @@ const InventoryDashboardOverview = () => {
                           stroke="#4f46e5"
                           strokeWidth={3}
                           fill="url(#salesCurrent)"
-                          name="This Period"
+                          name={salesCurrentRangeLabel}
                         />
                       </AreaChart>
                     </ResponsiveContainer>
