@@ -50,6 +50,8 @@ const PettyCashPage = lazy(() => import("./pages/PettyCashPage"));
 const PettyCashRequisitionPage = lazy(() => import("./pages/PettyCashRequisitionPage"));
 const AssetsDamagePage = lazy(() => import("./pages/AssetsDamagePage"));
 const SupplierPage = lazy(() => import("./pages/SupplierPage"));
+const DollarSupplierPage = lazy(() => import("./pages/DollarSupplierPage"));
+const DollarSupplierHistoryPage = lazy(() => import("./pages/DollarSupplierHistoryPage"));
 const DamageProductPage = lazy(() => import("./pages/DamageProductPage"));
 const EmployeePage = lazy(() => import("./pages/EmployeePage"));
 const POSPage = lazy(() => import("./pages/POSPage"));
@@ -298,6 +300,8 @@ function App() {
                 <Route path="/profit-loss-user" element={<AuthedRoute><DailyProfitLossUserPage /></AuthedRoute>} />
                 <Route path="/warehouse" element={<AuthedRoute><WarehousePage /></AuthedRoute>} />
                 <Route path="/supplier" element={<AuthedRoute><SupplierPage /></AuthedRoute>} />
+                <Route path="/dollar-supplier" element={<AuthedRoute><DollarSupplierPage /></AuthedRoute>} />
+                <Route path="/dollar-supplier-history/:id" element={<AuthedRoute><DollarSupplierHistoryPage /></AuthedRoute>} />
                 <Route path="/supplier-history/:id" element={<AuthedRoute><SupplierHistoryPage /></AuthedRoute>} />
                 <Route path="/assets-requisition" element={<AuthedRoute><AssetsRequisitionPage /></AuthedRoute>} />
                 <Route path="/assets-stock" element={<AuthedRoute><AssetsStockPage /></AuthedRoute>} />
@@ -316,6 +320,7 @@ function App() {
                 <Route path="/settings/cod-charge" element={<AuthedRoute><ChargeSettingsPage chargeType="cod" /></AuthedRoute>} />
                 <Route path="/settings/delivery-advance" element={<AuthedRoute><ChargeSettingsPage chargeType="deliveryAdvance" /></AuthedRoute>} />
                 <Route path="/settings/delivery-charge" element={<AuthedRoute><ChargeSettingsPage chargeType="delivery" /></AuthedRoute>} />
+                <Route path="/settings/shipping-charge" element={<AuthedRoute><ChargeSettingsPage chargeType="shippingCharge" /></AuthedRoute>} />
                 <Route path="/settings/api-gateway/:gatewayType" element={<AuthedRoute><ApiGatewaySettingsPage /></AuthedRoute>} />
                 <Route path="/settings/role-permissions" element={<AuthedRoute><RolePermissionsPage /></AuthedRoute>} />
                 <Route path="/settings/email-notification-permissions" element={<AuthedRoute><EmailNotificationPermissionsPage /></AuthedRoute>} />

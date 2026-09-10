@@ -71,6 +71,9 @@ const REPORT_FIELDS = [
   { key: "totalAssign", label: "Total Assign" },
   { key: "totalOrder", label: "Total Order" },
   { key: "totalAmount", label: "Total Amount", step: "0.01" },
+  { key: "codChangeDiscount", label: "Discount (COD Change)", step: "0.01" },
+  { key: "shippingCharge", label: "Shipping Charge", step: "0.01" },
+  { key: "advancePayment", label: "Advance Payment", step: "0.01" },
 ];
 
 const TOTAL_ASSIGN_SOURCE_FIELDS = [
@@ -114,6 +117,9 @@ const REPORT_EXPORT_COLUMNS = [
   { key: "totalAssign", label: "Total Assign" },
   { key: "totalOrder", label: "Total Order" },
   { key: "totalAmount", label: "Total Amount" },
+  { key: "codChangeDiscount", label: "Discount (COD Change)" },
+  { key: "shippingCharge", label: "Shipping Charge" },
+  { key: "advancePayment", label: "Advance Payment" },
   { key: "totalSalePrice", label: "Total Sale Price" },
   { key: "totalPurchasePrice", label: "Total Purchase Price" },
 ];
@@ -158,6 +164,10 @@ const getReportCellValue = (row, key) => {
   if (key === "totalAssign") return toReportNumber(row.totalAssign);
   if (key === "totalOrder") return toReportNumber(row.totalOrder);
   if (key === "totalAmount") return toReportNumber(row.totalAmount);
+  if (key === "codChangeDiscount")
+    return toReportNumber(row.codChangeDiscount);
+  if (key === "shippingCharge") return toReportNumber(row.shippingCharge);
+  if (key === "advancePayment") return toReportNumber(row.advancePayment);
   if (key === "totalSalePrice") return sumProductsField(row, "salePrice");
   if (key === "totalPurchasePrice")
     return sumProductsField(row, "purchasePrice");
@@ -847,6 +857,9 @@ const EmployeeWorkReportManager = () => {
                                 "totalAssign",
                                 "totalOrder",
                                 "totalAmount",
+                                "codChangeDiscount",
+                                "shippingCharge",
+                                "advancePayment",
                                 "totalSalePrice",
                                 "totalPurchasePrice",
                               ].includes(column.key)
@@ -865,6 +878,9 @@ const EmployeeWorkReportManager = () => {
                               </div>
                             ) : [
                                 "totalAmount",
+                                "codChangeDiscount",
+                                "shippingCharge",
+                                "advancePayment",
                                 "totalSalePrice",
                                 "totalPurchasePrice",
                               ].includes(column.key) ? (

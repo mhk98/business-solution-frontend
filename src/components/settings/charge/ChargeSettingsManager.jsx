@@ -48,7 +48,16 @@ const CHARGE_COPY = {
     icon: CreditCard,
     accent: "indigo",
   },
+  shippingCharge: {
+    title: "Shipping Charge",
+    subtitle: "Add and manage shipping charges that add to net revenue.",
+    icon: Truck,
+    accent: "sky",
+  },
 };
+
+// Charge types that carry an employee (rows synced from CS Work Reports).
+const EMPLOYEE_LINKED_TYPES = ["codChange", "deliveryAdvance", "shippingCharge"];
 
 const accentClasses = {
   emerald: "bg-emerald-50 border-emerald-100 text-emerald-600",
@@ -92,6 +101,17 @@ const ChargeSettingsManager = ({ chargeType }) => {
   const copy = CHARGE_COPY[chargeType] || CHARGE_COPY.cod;
   const Icon = copy.icon;
   const isDeliveryAdvance = chargeType === "deliveryAdvance";
+  const showEmployee = EMPLOYEE_LINKED_TYPES.includes(chargeType);
+  const headerGridClass = isDeliveryAdvance
+    ? "grid-cols-[110px_120px_150px_130px_150px_1fr_92px]"
+    : showEmployee
+      ? "grid-cols-[150px_140px_170px_1fr_92px]"
+      : "grid-cols-[160px_160px_1fr_104px]";
+  const rowGridClass = isDeliveryAdvance
+    ? "sm:grid-cols-[110px_120px_150px_130px_150px_1fr_92px]"
+    : showEmployee
+      ? "sm:grid-cols-[150px_140px_170px_1fr_92px]"
+      : "sm:grid-cols-[160px_160px_1fr_104px]";
   const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -502,14 +522,11 @@ const ChargeSettingsManager = ({ chargeType }) => {
 
         <div className="mt-3 overflow-hidden rounded-xl border border-slate-100">
           <div
-            className={`grid bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 ${
-              isDeliveryAdvance
-                ? "grid-cols-[130px_130px_150px_170px_1fr_104px]"
-                : "grid-cols-[160px_160px_1fr_104px]"
-            }`}
+            className={`grid bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 ${headerGridClass}`}
           >
             <span>Date</span>
             <span>Amount</span>
+            {showEmployee && <span>Employee</span>}
             {isDeliveryAdvance && <span>Book</span>}
             {isDeliveryAdvance && <span>Payment</span>}
             <span>Note</span>
@@ -528,11 +545,7 @@ const ChargeSettingsManager = ({ chargeType }) => {
           {rows.map((row) => (
             <div
               key={row.Id}
-              className={`grid grid-cols-1 gap-3 border-t border-slate-100 bg-white p-4 text-sm ${
-                isDeliveryAdvance
-                  ? "sm:grid-cols-[130px_130px_150px_170px_1fr_104px]"
-                  : "sm:grid-cols-[160px_160px_1fr_104px]"
-              } sm:items-center`}
+              className={`grid grid-cols-1 gap-3 border-t border-slate-100 bg-white p-4 text-sm ${rowGridClass} sm:items-center`}
             >
               <span className="font-medium text-slate-900">
                 {formatDate(row.date)}
@@ -540,6 +553,11 @@ const ChargeSettingsManager = ({ chargeType }) => {
               <span className="font-bold text-slate-900">
                 {formatAmount(row.amount)}
               </span>
+              {showEmployee && (
+                <span className="text-slate-600">
+                  {row.employeeName || "-"}
+                </span>
+              )}
               {isDeliveryAdvance && (
                 <span className="text-slate-600">{getBookName(row.bookId)}</span>
               )}
@@ -551,25 +569,40 @@ const ChargeSettingsManager = ({ chargeType }) => {
                     : ""}
                 </span>
               )}
-              <span className="text-slate-600">{row.note || "-"}</span>
+              <span className="text-slate-600">
+                {row.note || "-"}
+                {row.isFromWorkReport && (
+                  <span className="ml-2 inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
+                    CS Work Report
+                  </span>
+                )}
+              </span>
               <div className="flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleEdit(row)}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-indigo-600 hover:bg-indigo-50"
-                  title="Edit charge"
-                >
-                  <Pencil size={16} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDelete(row)}
-                  disabled={isDeleting}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-rose-600 hover:bg-rose-50 disabled:opacity-60"
-                  title="Delete charge"
-                >
-                  <Trash2 size={16} />
-                </button>
+                {row.isFromWorkReport ? (
+                  <span className="text-[11px] font-medium text-slate-400">
+                    Read only
+                  </span>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleEdit(row)}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-indigo-600 hover:bg-indigo-50"
+                      title="Edit charge"
+                    >
+                      <Pencil size={16} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(row)}
+                      disabled={isDeleting}
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-rose-600 hover:bg-rose-50 disabled:opacity-60"
+                      title="Delete charge"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           ))}

@@ -115,6 +115,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "stock_alert",
     "warehouse",
     "supplier",
+    "dollar_supplier",
     "product",
     "purchase_requisition",
     "received_product",
@@ -158,6 +159,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "cod_charge",
     "delivery_advance",
     "delivery_charge",
+    "shipping_charge",
     "api_gateway",
     "sms_gateway",
     "email_notification_gateway",
@@ -227,6 +229,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "stock_alert",
     "warehouse",
     "supplier",
+    "dollar_supplier",
     "product",
     "purchase_requisition",
     "received_product",
@@ -266,6 +269,7 @@ const DEFAULT_ROLE_PERMISSION_MAP = {
     "cod_charge",
     "delivery_advance",
     "delivery_charge",
+    "shipping_charge",
     "api_gateway",
     "sms_gateway",
     "email_notification_gateway",
@@ -537,6 +541,15 @@ export const SIDEBAR_ITEMS = [
         href: "/marketing-book",
         matchPaths: ["/marketing-book"],
         roles: ["superAdmin", "admin", "marketer"],
+      },
+      {
+        name: "Dollar Supplier",
+        key: "dollar_supplier",
+        icon: Truck,
+        color: "#f97316",
+        href: "/dollar-supplier",
+        matchPaths: ["/dollar-supplier-history"],
+        roles: ["superAdmin", "admin"],
       },
       {
         name: "Automated Performance Tracker",
@@ -1157,6 +1170,13 @@ export const SIDEBAR_ITEMS = [
         key: "delivery_charge",
         icon: Truck,
         href: "/settings/delivery-charge",
+        roles: ["superAdmin", "admin"],
+      },
+      {
+        name: "Shipping Charge",
+        key: "shipping_charge",
+        icon: Truck,
+        href: "/settings/shipping-charge",
         roles: ["superAdmin", "admin"],
       },
       {
@@ -1819,6 +1839,9 @@ const normalizeRolePermissionMap = (value) => {
       if (defaultKeys.includes("delivery_charge")) {
         normalizedKeys.add("delivery_charge");
       }
+      if (defaultKeys.includes("shipping_charge")) {
+        normalizedKeys.add("shipping_charge");
+      }
       if (defaultKeys.includes("master_permission")) {
         normalizedKeys.add("master_permission");
       }
@@ -1827,6 +1850,10 @@ const normalizeRolePermissionMap = (value) => {
     const defaultKeys = DEFAULT_ROLE_PERMISSION_MAP[role] || [];
     if (defaultKeys.includes("tasks")) {
       normalizedKeys.add("tasks");
+    }
+
+    if (defaultKeys.includes("dollar_supplier")) {
+      normalizedKeys.add("dollar_supplier");
     }
 
     if (defaultKeys.includes("ads_campaign_kpi")) {

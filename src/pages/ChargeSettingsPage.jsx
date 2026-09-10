@@ -6,6 +6,7 @@ const PAGE_COPY = {
   cod: "COD Charge",
   delivery: "Delivery Charge",
   deliveryAdvance: "Delivery Advance",
+  shippingCharge: "Shipping Charge",
 };
 
 const ChargeSettingsPage = ({ chargeType = "cod" }) => {

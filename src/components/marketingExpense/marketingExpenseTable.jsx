@@ -23,6 +23,7 @@ import { translations } from "../../utils/translations";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 import useDebounce from "../../hooks/useDebounce";
 import { useGetAllBankAccountWithoutQueryQuery } from "../../features/bankAccount/bankAccount";
+import { useGetAllDollarSupplierWithoutQueryQuery } from "../../features/dollarSupplier/dollarSupplier";
 
 const PAYMENT_MODES = ["Cash", "Bkash", "Nagad", "Rocket", "Bank", "Card"];
 
@@ -73,7 +74,17 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
     amount: "",
     file: null,
     date: new Date().toISOString().slice(0, 10),
+    dollarSupplierId: "",
+    usdAmount: "",
+    usdRate: "",
   });
+
+  // Dollar Supplier — record a USD purchase as a due (Cash In modal only).
+  const { data: allDollarSupplierRes } =
+    useGetAllDollarSupplierWithoutQueryQuery();
+  const dollarSuppliers = allDollarSupplierRes?.data || [];
+  const dollarUsdLocalAmount =
+    (Number(createProduct.usdAmount) || 0) * (Number(createProduct.usdRate) || 0);
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 400);
 
@@ -228,10 +239,24 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
   }, [data, isLoading, isError, error, itemsPerPage]);
 
   // modals
-  const handleAddCashIn = () => setIsModalOpen1(true);
-  const handleAddCashOut = () => setIsModalOpen3(true);
+  const clearDollarSupplierFields = () =>
+    setCreateProduct((p) => ({
+      ...p,
+      dollarSupplierId: "",
+      usdAmount: "",
+      usdRate: "",
+    }));
+  const handleAddCashIn = () => {
+    clearDollarSupplierFields();
+    setIsModalOpen1(true);
+  };
+  const handleAddCashOut = () => {
+    clearDollarSupplierFields();
+    setIsModalOpen3(true);
+  };
   const handleModalClose1 = () => {
     setIsModalOpen1(false);
+    clearDollarSupplierFields();
   };
   const handleModalClose3 = () => {
     setIsModalOpen3(false);
@@ -375,48 +400,60 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
   const handleCreateProduct = async (e) => {
     e.preventDefault();
 
-    // Ensure required fields are filled
-    if (!createProduct.amount) return toast.error("Amount is required!");
-    if (!createProduct.paymentMode)
-      return toast.error("Payment Mode is required!");
+    const usd = Number(createProduct.usdAmount);
+    const rate = Number(createProduct.usdRate);
+    const localAmount = dollarUsdLocalAmount;
 
-    if (createProduct.paymentMode === "Bank") {
-      if (!createProduct.bankName) return toast.error("Bank Name is required!");
-      if (!createProduct.bankAccount)
-        return toast.error("Bank Account is required!");
-    }
+    // Amount = USD x USD Rate (the computed Local Amount)
+    if (!Number.isFinite(usd) || usd <= 0)
+      return toast.error("USD amount is required!");
+    if (!Number.isFinite(rate) || rate <= 0)
+      return toast.error("USD rate is required!");
+    if (!localAmount || localAmount <= 0)
+      return toast.error("Amount must be greater than 0!");
+
+    const dollarSupplierName =
+      dollarSuppliers.find(
+        (s) => String(s.Id) === String(createProduct.dollarSupplierId),
+      )?.name || "";
+    const usdNote = `Dollar Supplier: ${dollarSupplierName} — $${usd} × ${rate}`;
+    const remarks =
+      createProduct.remarks?.trim() ||
+      (createProduct.dollarSupplierId ? usdNote : "");
 
     try {
-      // Form data preparation for submission
+      // One call — the backend also mirrors this into DollarSupplierHistory as
+      // a due when a dollar supplier is attached.
       const formData = new FormData();
-      formData.append("paymentMode", createProduct.paymentMode);
+      formData.append("paymentMode", createProduct.paymentMode || "");
       formData.append("paymentStatus", "CashIn");
       formData.append("date", createProduct.date);
-      formData.append("note", createProduct.note);
-      formData.append("category", createProduct.category);
-
-      formData.append(
-        "bankName",
-        createProduct.paymentMode === "Bank" ? createProduct.bankName : "",
-      );
-      formData.append(
-        "bankAccount",
-        createProduct.paymentMode === "Bank"
-          ? String(createProduct.bankAccount)
-          : "",
-      );
-
-      // Use categoryName (not category)
-      // formData.append("category", finalCategoryName); // Using category name here
-      formData.append("remarks", createProduct.remarks?.trim() || "");
-      formData.append("amount", String(Number(createProduct.amount)));
+      formData.append("note", createProduct.note || "");
+      formData.append("category", createProduct.category || "");
+      formData.append("bankName", "");
+      formData.append("bankAccount", "");
+      formData.append("remarks", remarks);
+      formData.append("amount", String(localAmount));
       formData.append("bookId", id);
+      if (userId) formData.append("userId", userId);
+      if (createProduct.dollarSupplierId) {
+        formData.append(
+          "dollarSupplierId",
+          String(createProduct.dollarSupplierId),
+        );
+        formData.append("usdAmount", String(usd));
+        formData.append("usdRate", String(rate));
+      }
       if (createProduct.file) formData.append("file", createProduct.file);
 
       const res = await insertMarketingExpense(formData).unwrap();
 
       if (res?.success) {
-        toast.success("Successfully created!");
+        toast.success(
+          createProduct.dollarSupplierId
+            ? "Cash In saved & added to dollar supplier due"
+            : "Successfully created!",
+        );
         setIsModalOpen1(false);
         setCreateProduct({
           paymentMode: "",
@@ -429,6 +466,9 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
           amount: "",
           date: "",
           file: null,
+          dollarSupplierId: "",
+          usdAmount: "",
+          usdRate: "",
         });
         refetch?.();
       } else toast.error(res?.message || "Create failed!");
@@ -442,14 +482,6 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
 
     // Ensure required fields are filled
     if (!createProduct.amount) return toast.error("Amount is required!");
-    if (!createProduct.paymentMode)
-      return toast.error("Payment Mode is required!");
-
-    if (createProduct.paymentMode === "Bank") {
-      if (!createProduct.bankName) return toast.error("Bank Name is required!");
-      if (!createProduct.bankAccount)
-        return toast.error("Bank Account is required!");
-    }
 
     try {
       // Form data preparation for submission
@@ -908,7 +940,7 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
         </div>
 
         <div className="flex flex-col">
-          <label className="text-sm text-slate-600 mb-1">Category</label>
+          <label className="text-sm text-slate-600 mb-1">Platform</label>
           <select
             value={filterCategory}
             onChange={(e) => setFilterCategory(e.target.value)}
@@ -964,13 +996,7 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
                 Document
               </th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Category
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Payment Mode
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                Bank
+                Platform
               </th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Payment Status
@@ -1051,13 +1077,6 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                     {rp.category || "---"}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                    {rp.paymentMode || "---"}
-                  </td>
-
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                    {rp.paymentMode === "Bank" ? rp.bankName || "---" : "---"}
                   </td>
 
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
@@ -1314,7 +1333,7 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
 
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
-              Category
+              Platform
             </label>
             <select
               value={currentProduct?.category || ""}
@@ -1324,7 +1343,7 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
               className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
               required
             >
-              <option value="">Select Category</option>
+              <option value="">Select Platform</option>
               <option value="Facebook">Facebook</option>
               <option value="Google">Google</option>
               <option value="Tiktok">Tiktok</option>
@@ -1525,11 +1544,94 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
             />
           </div>
 
-          {renderPaymentModeFields(createProduct, setCreateProduct)}
+          {/* Dollar Supplier — record a USD purchase as a due (no cash entry) */}
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
+              Dollar Supplier
+            </label>
+            <select
+              value={createProduct.dollarSupplierId || ""}
+              onChange={(e) =>
+                setCreateProduct((p) => ({
+                  ...p,
+                  dollarSupplierId: e.target.value,
+                  usdAmount: "",
+                  usdRate: "",
+                }))
+              }
+              className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+            >
+              <option value="">Select Dollar Supplier</option>
+              {dollarSuppliers.map((s) => (
+                <option key={s.Id} value={s.Id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 ml-1 text-xs text-slate-400">
+              Select to record a USD purchase — Local Amount is added as a due
+              for this dollar supplier.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                USD
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={createProduct.usdAmount}
+                onChange={(e) =>
+                  setCreateProduct((p) => ({
+                    ...p,
+                    usdAmount: e.target.value,
+                  }))
+                }
+                placeholder="Dollar amount"
+                className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                USD Rate
+              </label>
+              <input
+                type="number"
+                step="0.0001"
+                min="0"
+                value={createProduct.usdRate}
+                onChange={(e) =>
+                  setCreateProduct((p) => ({
+                    ...p,
+                    usdRate: e.target.value,
+                  }))
+                }
+                placeholder="Current rate"
+                className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                Amount
+              </label>
+              <input
+                type="text"
+                readOnly
+                value={dollarUsdLocalAmount.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+                className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-bold text-slate-900 bg-slate-50"
+              />
+            </div>
+          </div>
 
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
-              Category
+              Platform
             </label>
             <select
               value={createProduct.category || ""}
@@ -1542,7 +1644,7 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
               className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
               required
             >
-              <option value="">Select Category</option>
+              <option value="">Select Platform</option>
               <option value="Facebook">Facebook</option>
               <option value="Google">Google</option>
               <option value="Tiktok">Tiktok</option>
@@ -1565,25 +1667,6 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
               }
               className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
               placeholder="Internal notes..."
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
-              Amount
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              value={createProduct.amount}
-              onChange={(e) =>
-                setCreateProduct({
-                  ...createProduct,
-                  amount: e.target.value,
-                })
-              }
-              className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-              required
             />
           </div>
 
@@ -1648,11 +1731,10 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
             />
           </div>
 
-          {renderPaymentModeFields(createProduct, setCreateProduct)}
 
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
-              Category
+              Platform
             </label>
             <select
               value={createProduct.category || ""}
@@ -1665,7 +1747,7 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
               className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
               required
             >
-              <option value="">Select Category</option>
+              <option value="">Select Platform</option>
               <option value="Facebook">Facebook</option>
               <option value="Google">Google</option>
               <option value="Tiktok">Tiktok</option>

@@ -168,13 +168,15 @@ export const LegacyOverviewPage = () => {
   const totalCodChange = safeNumber(summary?.totalCodChange);
   const totalDeliveryCharge = safeNumber(summary?.totalDeliveryCharge);
   const totalDeliveryAdvance = safeNumber(summary?.totalDeliveryAdvance);
+  const totalShippingCharge = safeNumber(summary?.totalShippingCharge);
   const netRevenue =
     inTransitSalesAmount -
     salesReturnSalesAmount -
     totalCodCharge -
     totalCodChange -
     totalDeliveryCharge +
-    totalDeliveryAdvance;
+    totalDeliveryAdvance +
+    totalShippingCharge;
   const netPurchase = inTransitPurchaseAmount - salesReturnPurchaseAmount;
 
   const profitLossSummary = {
