@@ -53,8 +53,11 @@ const getUnitPrice = (amount, quantity) => {
   return Number(amount || 0) / qty;
 };
 
-const getStockUnitPrice = (record, field) =>
-  getUnitPrice(record?.[field], record?.quantity);
+const getStockUnitPrice = (record, field) => {
+  const price = getUnitPrice(record?.[field], record?.quantity);
+  if (price || field !== "purchase_price") return price;
+  return Number(record?.lastUnitCost || 0);
+};
 
 const getVariantUnitPrice = (record, variant, field) => {
   const directValue = Number(variant?.[field] || 0);

@@ -551,7 +551,8 @@ const InventoryOverviewTable = () => {
               {rows.map((rp) => {
                 const variantDisplayRows = getVariantDisplayRows(rp);
                 const hasVariants = variantDisplayRows.length > 0;
-                const unitPurchasePrice = getUnitPrice(rp.purchase_price);
+                const unitPurchasePrice =
+                  getUnitPrice(rp.purchase_price) || Number(rp.lastUnitCost || 0);
                 const unitSalePrice = getUnitPrice(rp.sale_price);
 
                 return (

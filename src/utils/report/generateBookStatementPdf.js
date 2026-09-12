@@ -222,8 +222,9 @@ const DETAIL_COLUMNS = [
 
 // Each inventory stock pool (Stock Product / Damage Stock / Repairing Stock)
 // is rendered as its own table with an opening/closing/difference stock ledger:
-// # | product name | শুরু স্টক | সমাপনী স্টক | স্টক পার্থক্য | purchase price |
-// closing purchase cost.
+// # | product name | শুরু স্টক | সমাপনী স্টক | স্টক পার্থক্য | average purchase
+// price (weighted across whatever lots make up closing stock) | closing
+// purchase cost.
 const INVENTORY_STOCK_COLUMNS = [
   { key: "sl", label: "#", widthPct: 5 },
   { key: "productsName", label: "প্রোডাক্টস নাম", widthPct: 27 },
@@ -232,7 +233,7 @@ const INVENTORY_STOCK_COLUMNS = [
   { key: "stockDiff", label: "স্টক পার্থক্য", widthPct: 12, isQuantity: true },
   {
     key: "purchasePrice",
-    label: "পারচেস প্রাইস",
+    label: "এভারেজ পারচেস প্রাইস",
     widthPct: 14,
     isAmount: true,
   },
@@ -253,7 +254,7 @@ const INVENTORY_STOCK_POOLS = [
 // Item / Factory / Packaging-Item / Packaging-Factory stock pools each render
 // as their own table with the same opening/closing/difference stock ledger as
 // the inventory-stock pools: # | নাম | শুরু স্টক | সমাপনী স্টক | স্টক পার্থক্য |
-// পারচেস প্রাইস | ক্লোজিং পারচেস কস্ট.
+// এভারেজ পারচেস প্রাইস | ক্লোজিং পারচেস কস্ট.
 const SPLIT_STOCK_COLUMNS = [
   { key: "sl", label: "#", widthPct: 5 },
   { key: "name", label: "নাম", widthPct: 27 },
@@ -262,7 +263,7 @@ const SPLIT_STOCK_COLUMNS = [
   { key: "stockDiff", label: "স্টক পার্থক্য", widthPct: 12, isQuantity: true },
   {
     key: "purchasePrice",
-    label: "পারচেস প্রাইস",
+    label: "এভারেজ পারচেস প্রাইস",
     widthPct: 14,
     isAmount: true,
   },
@@ -325,8 +326,18 @@ const MANUFACTURER_DUE_COLUMNS =
 
 const SUPPLIER_DUE_COLUMNS = buildReceivableLedgerColumns("সাপ্লাইয়ার", "বাকি");
 
+const DOLLAR_SUPPLIER_DUE_COLUMNS = buildReceivableLedgerColumns(
+  "ডলার সাপ্লাইয়ার",
+  "বাকি",
+);
+
 const SUPPLIER_RECEIVABLE_COLUMNS = buildReceivableLedgerColumns(
   "সাপ্লাইয়ার",
+  "এডভান্স",
+);
+
+const DOLLAR_SUPPLIER_RECEIVABLE_COLUMNS = buildReceivableLedgerColumns(
+  "ডলার সাপ্লাইয়ার",
   "এডভান্স",
 );
 
@@ -416,11 +427,13 @@ const getPayableTotalAmount = ({
   pendingPayrollSalary,
   manufacturerDue,
   supplierDue,
+  dollarSupplierDue,
   lenderPayable,
 }) =>
   Number(pendingPayrollSalary?.meta?.totalSalary || 0) +
   Number(manufacturerDue?.meta?.totalDue || 0) +
   Number(supplierDue?.meta?.totalDue || 0) +
+  Number(dollarSupplierDue?.meta?.totalDue || 0) +
   Number(lenderPayable?.meta?.totalDue || 0);
 
 const getDirectorInvestmentTotalAmount = (directorInvestment) =>
@@ -430,6 +443,7 @@ const getPayableAndDirectorInvestmentTotalAmount = ({
   pendingPayrollSalary,
   manufacturerDue,
   supplierDue,
+  dollarSupplierDue,
   lenderPayable,
   directorInvestment,
 }) =>
@@ -437,6 +451,7 @@ const getPayableAndDirectorInvestmentTotalAmount = ({
     pendingPayrollSalary,
     manufacturerDue,
     supplierDue,
+    dollarSupplierDue,
     lenderPayable,
   }) + getDirectorInvestmentTotalAmount(directorInvestment);
 
@@ -454,11 +469,40 @@ const getStockValueTotal = ({
   Number(packagingStock?.meta?.totalPurchaseCost || 0) +
   Number(courierProductStock?.meta?.totalEndingAmount || 0);
 
+// Opening (pre-period) stock value across the same sections, minus Courier
+// Product Stock — that report has no opening/closing concept (see its
+// column comment), it's a period-range summary only.
+const getStockOpeningValueTotal = ({
+  inventoryStockReport,
+  itemFactoryStock,
+  packagingStock,
+}) =>
+  Number(inventoryStockReport?.meta?.totalOpeningPurchaseCost || 0) +
+  Number(itemFactoryStock?.meta?.totalOpeningPurchaseCost || 0) +
+  Number(packagingStock?.meta?.totalOpeningPurchaseCost || 0);
+
+// নেট ব্যালেন্স (ক্যারি ফরওয়ার্ড): pre-period Books net balance + Petty Cash
+// net balance + pre-period stock net balance — same total shown in the
+// Carry Forward section, reused here for the Profit/Loss formula.
+const getCarryForwardBalanceTotal = ({
+  inventoryStockReport,
+  itemFactoryStock,
+  packagingStock,
+}) =>
+  Number(inventoryStockReport?.meta?.cashOpeningBalance || 0) +
+  Number(inventoryStockReport?.meta?.pettyCashOpeningBalance || 0) +
+  getStockOpeningValueTotal({
+    inventoryStockReport,
+    itemFactoryStock,
+    packagingStock,
+  });
+
 const getGrandTotalAmount = ({
   totalCashBalance,
   salesDue,
   salaryAdvance,
   supplierReceivable,
+  dollarSupplierReceivable,
   manufacturerReceivable,
   packagingManufacturerReceivable,
   lenderReceivable,
@@ -471,6 +515,7 @@ const getGrandTotalAmount = ({
   Number(salesDue?.meta?.totalDue || 0) +
   Number(salaryAdvance?.meta?.totalDue || 0) +
   Number(supplierReceivable?.meta?.totalAdvance || 0) +
+  Number(dollarSupplierReceivable?.meta?.totalAdvance || 0) +
   Number(manufacturerReceivable?.meta?.totalAdvance || 0) +
   Number(packagingManufacturerReceivable?.meta?.totalAdvance || 0) +
   Number(lenderReceivable?.meta?.totalAdvance || 0) +
@@ -872,12 +917,13 @@ const normalizeSplitStockPoolRows = (report, { prefix }) => {
 
   const openingKey = `${prefix}Opening`;
   const closingKey = `${prefix}Closing`;
+  const priceKey = `${prefix}PurchasePrice`;
 
   const normalizedRows = rows
     .map((row) => {
       const openingStock = Number(row[openingKey] || 0);
       const closingStock = Number(row[closingKey] || 0);
-      const purchasePrice = Number(row.purchasePrice || 0);
+      const purchasePrice = Number(row[priceKey] || 0);
 
       return {
         name: row.name || "-",
@@ -1148,6 +1194,25 @@ const normalizeSupplierReceivableRows = (supplierReceivable) => {
   if (!supplierReceivable) return [];
 
   const rows = supplierReceivable.data || [];
+  if (!rows.length) return [];
+
+  return toReceivableLedgerRows(
+    rows.map((row) => ({
+      name: row.name,
+      amount: row.advance,
+      openingBalance: row.openingBalance,
+      endingBalance: row.endingBalance,
+    })),
+  );
+};
+
+// Dollar suppliers the company has overpaid (as of the report's `to` date) —
+// same shape as normalizeSupplierReceivableRows, separate list since Dollar
+// Supplier is a distinct party type from regular Supplier.
+const normalizeDollarSupplierReceivableRows = (dollarSupplierReceivable) => {
+  if (!dollarSupplierReceivable) return [];
+
+  const rows = dollarSupplierReceivable.data || [];
   if (!rows.length) return [];
 
   return toReceivableLedgerRows(
@@ -1615,6 +1680,11 @@ const appendBookStatement = async (doc, html2canvas, cursor, book) => {
   const totalDebit = book.totalDebit ?? 0;
   const netBalance =
     book.netBalance !== undefined ? book.netBalance : totalCredit - totalDebit;
+  const pettyCashNetBalance = book.pettyCashNetBalance ?? 0;
+  const combinedNetBalance =
+    book.netBalanceWithPettyCash !== undefined
+      ? book.netBalanceWithPettyCash
+      : netBalance + pettyCashNetBalance;
   const openingCredit = book.openingTotalCredit ?? 0;
   const openingDebit = book.openingTotalDebit ?? 0;
   const openingNetBalance =
@@ -1718,14 +1788,23 @@ const appendBookStatement = async (doc, html2canvas, cursor, book) => {
         balanceDiff: totalDebit - openingDebit,
         tone: "debit",
       },
+      {
+        date: book.periodLabel,
+        description: `${book.periodLabel} পর্যন্ত পেটি ক্যাশ নেট ব্যালেন্স`,
+        opening: 0,
+        amount: pettyCashNetBalance,
+        ending: pettyCashNetBalance,
+        balanceDiff: pettyCashNetBalance,
+        tone: pettyCashNetBalance < 0 ? "debit" : "credit",
+      },
     ],
     totalLabel: `একাউন্টে মোট ক্যাশ থাকবে (${book.periodLabel} পর্যন্ত)`,
-    total: netBalance,
+    total: combinedNetBalance,
     footerTotals: {
       opening: openingNetBalance,
-      amount: netBalance,
-      ending: openingNetBalance + netBalance,
-      balanceDiff: netBalance - openingNetBalance,
+      amount: combinedNetBalance,
+      ending: openingNetBalance + combinedNetBalance,
+      balanceDiff: combinedNetBalance - openingNetBalance,
     },
     columns: TOTAL_SUMMARY_COLUMNS,
   });
@@ -1828,6 +1907,26 @@ const appendSupplierReceivableSection = async (
     totalLabel: null,
     total: 0,
     columns: SUPPLIER_RECEIVABLE_COLUMNS,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+};
+
+const appendDollarSupplierReceivableSection = async (
+  doc,
+  html2canvas,
+  cursor,
+  { dollarSupplierReceivable, regularFontDataUrl, boldFontDataUrl },
+) => {
+  const rows = normalizeDollarSupplierReceivableRows(dollarSupplierReceivable);
+  if (!rows.length) return;
+
+  await placeLedgerSection(doc, html2canvas, cursor, {
+    title: "কোম্পানি পাবে (ডলার সাপ্লাইয়ার)",
+    rows,
+    totalLabel: null,
+    total: 0,
+    columns: DOLLAR_SUPPLIER_RECEIVABLE_COLUMNS,
     regularFontDataUrl,
     boldFontDataUrl,
   });
@@ -1955,6 +2054,26 @@ const appendSupplierDueSection = async (
   });
 };
 
+const appendDollarSupplierDueSection = async (
+  doc,
+  html2canvas,
+  cursor,
+  { dollarSupplierDue, regularFontDataUrl, boldFontDataUrl },
+) => {
+  const rows = normalizeDueRows(dollarSupplierDue);
+  if (!rows.length) return;
+
+  await placeLedgerSection(doc, html2canvas, cursor, {
+    title: "কোম্পানির কাছে পাবে (ডলার সাপ্লাইয়ার)",
+    rows,
+    totalLabel: null,
+    total: 0,
+    columns: DOLLAR_SUPPLIER_DUE_COLUMNS,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+};
+
 const appendLenderPayableSection = async (
   doc,
   html2canvas,
@@ -1983,6 +2102,7 @@ const appendPayableTotalSection = async (
     pendingPayrollSalary,
     manufacturerDue,
     supplierDue,
+    dollarSupplierDue,
     lenderPayable,
     regularFontDataUrl,
     boldFontDataUrl,
@@ -1993,11 +2113,15 @@ const appendPayableTotalSection = async (
   );
   const manufacturerDueTotal = Number(manufacturerDue?.meta?.totalDue || 0);
   const supplierDueTotal = Number(supplierDue?.meta?.totalDue || 0);
+  const dollarSupplierDueTotal = Number(
+    dollarSupplierDue?.meta?.totalDue || 0,
+  );
   const lenderPayableTotal = Number(lenderPayable?.meta?.totalDue || 0);
   const total = getPayableTotalAmount({
     pendingPayrollSalary,
     manufacturerDue,
     supplierDue,
+    dollarSupplierDue,
     lenderPayable,
   });
 
@@ -2016,9 +2140,66 @@ const appendPayableTotalSection = async (
         amount: supplierDueTotal,
       },
       {
+        description: "কোম্পানির কাছে পাবে (ডলার সাপ্লাইয়ার)",
+        amount: dollarSupplierDueTotal,
+      },
+      {
         description: "কোম্পানির কাছে পাবে (লেন্ডার)",
         amount: lenderPayableTotal,
       },
+    ],
+    totalLabel: "সর্বমোট",
+    total,
+    columns: PAYABLE_TOTAL_COLUMNS,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+};
+
+// What carries into this period from before it: company-wide cash (every
+// CashIn minus every CashOut, no book/category restriction — the same thing
+// the Book page's own Total CashIn/Total CashOut/Net Balance widget counts)
+// as of just before `from`, plus Petty Cash's own net balance the same way,
+// plus every stock section's opening (pre-period) value, added together
+// into one "brought forward" figure.
+const appendCarryForwardBalanceSection = async (
+  doc,
+  html2canvas,
+  cursor,
+  {
+    inventoryStockReport,
+    itemFactoryStock,
+    packagingStock,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  },
+) => {
+  const bookOpeningTotal = Number(
+    inventoryStockReport?.meta?.cashOpeningBalance || 0,
+  );
+  const pettyCashOpeningTotal = Number(
+    inventoryStockReport?.meta?.pettyCashOpeningBalance || 0,
+  );
+  const stockOpeningTotal = getStockOpeningValueTotal({
+    inventoryStockReport,
+    itemFactoryStock,
+    packagingStock,
+  });
+  const total = getCarryForwardBalanceTotal({
+    inventoryStockReport,
+    itemFactoryStock,
+    packagingStock,
+  });
+
+  await placeLedgerSection(doc, html2canvas, cursor, {
+    title: "নেট ব্যালেন্স (ক্যারি ফরওয়ার্ড)",
+    rows: [
+      { description: "মোট বুকস নেট ব্যালেন্স", amount: bookOpeningTotal },
+      {
+        description: "মোট পেটি ক্যাশ নেট ব্যালেন্স",
+        amount: pettyCashOpeningTotal,
+      },
+      { description: "মোট স্টক নেট ব্যালেন্স", amount: stockOpeningTotal },
     ],
     totalLabel: "সর্বমোট",
     total,
@@ -2036,6 +2217,7 @@ const appendPayableAndDirectorInvestmentTotalSection = async (
     pendingPayrollSalary,
     manufacturerDue,
     supplierDue,
+    dollarSupplierDue,
     lenderPayable,
     directorInvestment,
     regularFontDataUrl,
@@ -2046,6 +2228,7 @@ const appendPayableAndDirectorInvestmentTotalSection = async (
     pendingPayrollSalary,
     manufacturerDue,
     supplierDue,
+    dollarSupplierDue,
     lenderPayable,
   });
   const directorInvestTotal =
@@ -2054,6 +2237,7 @@ const appendPayableAndDirectorInvestmentTotalSection = async (
     pendingPayrollSalary,
     manufacturerDue,
     supplierDue,
+    dollarSupplierDue,
     lenderPayable,
     directorInvestment,
   });
@@ -2083,12 +2267,14 @@ const appendProfitLossSection = async (
     salesDue,
     salaryAdvance,
     supplierReceivable,
+    dollarSupplierReceivable,
     manufacturerReceivable,
     packagingManufacturerReceivable,
     lenderReceivable,
     pendingPayrollSalary,
     manufacturerDue,
     supplierDue,
+    dollarSupplierDue,
     lenderPayable,
     directorInvestment,
     inventoryStockReport,
@@ -2104,6 +2290,7 @@ const appendProfitLossSection = async (
     salesDue,
     salaryAdvance,
     supplierReceivable,
+    dollarSupplierReceivable,
     manufacturerReceivable,
     packagingManufacturerReceivable,
     lenderReceivable,
@@ -2116,10 +2303,16 @@ const appendProfitLossSection = async (
     pendingPayrollSalary,
     manufacturerDue,
     supplierDue,
+    dollarSupplierDue,
     lenderPayable,
     directorInvestment,
   });
-  const result = grandTotal - payableAndInvestmentTotal;
+  const carryForwardTotal = getCarryForwardBalanceTotal({
+    inventoryStockReport,
+    itemFactoryStock,
+    packagingStock,
+  });
+  const result = carryForwardTotal + grandTotal - payableAndInvestmentTotal;
   const isLoss = result < 0;
   const resultLabel = isLoss ? "Loss" : "Profit";
 
@@ -2127,12 +2320,19 @@ const appendProfitLossSection = async (
     title: "Profit / Loss",
     rows: [
       {
-        description: "গ্র্যান্ড টোটাল (ক্যাশ, প্রাপ্য ও স্টক)",
-        amount: grandTotal,
+        description: "নেট ব্যালেন্স (ক্যারি ফরওয়ার্ড) (+)",
+        amount: carryForwardTotal,
+        tone: "credit",
       },
       {
-        description: "সর্বমোট বাকি ও ডিরেক্টর ইনভেস্ট",
-        amount: payableAndInvestmentTotal,
+        description: "গ্র্যান্ড টোটাল (ক্যাশ, প্রাপ্য ও স্টক) (+)",
+        amount: grandTotal,
+        tone: "credit",
+      },
+      {
+        description: "সর্বমোট বাকি ও ডিরেক্টর ইনভেস্ট (−)",
+        amount: -payableAndInvestmentTotal,
+        tone: "debit",
       },
     ],
     totalLabel: resultLabel,
@@ -2255,6 +2455,7 @@ const appendGrandTotalSection = async (
     salesDue,
     salaryAdvance,
     supplierReceivable,
+    dollarSupplierReceivable,
     manufacturerReceivable,
     packagingManufacturerReceivable,
     lenderReceivable,
@@ -2270,6 +2471,9 @@ const appendGrandTotalSection = async (
   const salesDueTotal = Number(salesDue?.meta?.totalDue || 0);
   const salaryAdvanceTotal = Number(salaryAdvance?.meta?.totalDue || 0);
   const supplierTotal = Number(supplierReceivable?.meta?.totalAdvance || 0);
+  const dollarSupplierTotal = Number(
+    dollarSupplierReceivable?.meta?.totalAdvance || 0,
+  );
   const manufacturerTotal = Number(
     manufacturerReceivable?.meta?.totalAdvance || 0,
   );
@@ -2285,6 +2489,7 @@ const appendGrandTotalSection = async (
     salesDue,
     salaryAdvance,
     supplierReceivable,
+    dollarSupplierReceivable,
     manufacturerReceivable,
     packagingManufacturerReceivable,
     lenderReceivable,
@@ -2299,6 +2504,10 @@ const appendGrandTotalSection = async (
     { description: "সেলস বাকি", amount: salesDueTotal },
     { description: "বেতন অগ্রিম", amount: salaryAdvanceTotal },
     { description: "কোম্পানি পাবে (সাপ্লাইয়ার)", amount: supplierTotal },
+    {
+      description: "কোম্পানি পাবে (ডলার সাপ্লাইয়ার)",
+      amount: dollarSupplierTotal,
+    },
     {
       description: "কোম্পানি পাবে (ম্যানুফ্যাকচার)",
       amount: manufacturerTotal,
@@ -2389,6 +2598,7 @@ export const generateBookStatementPdf = async ({
   packagingStock = null,
   courierProductStock = null,
   supplierReceivable = null,
+  dollarSupplierReceivable = null,
   manufacturerReceivable = null,
   packagingManufacturerReceivable = null,
   lenderReceivable = null,
@@ -2396,6 +2606,7 @@ export const generateBookStatementPdf = async ({
   salaryAdvance = null,
   pendingPayrollSalary = null,
   supplierDue = null,
+  dollarSupplierDue = null,
   manufacturerDue = null,
   lenderPayable = null,
   directorInvestment = null,
@@ -2479,6 +2690,12 @@ export const generateBookStatementPdf = async ({
     boldFontDataUrl,
   });
 
+  await appendDollarSupplierReceivableSection(doc, html2canvas, cursor, {
+    dollarSupplierReceivable,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
   await appendManufacturerReceivableSection(doc, html2canvas, cursor, {
     manufacturerReceivable,
     regularFontDataUrl,
@@ -2502,6 +2719,7 @@ export const generateBookStatementPdf = async ({
     salesDue,
     salaryAdvance,
     supplierReceivable,
+    dollarSupplierReceivable,
     manufacturerReceivable,
     packagingManufacturerReceivable,
     lenderReceivable,
@@ -2531,6 +2749,12 @@ export const generateBookStatementPdf = async ({
     boldFontDataUrl,
   });
 
+  await appendDollarSupplierDueSection(doc, html2canvas, cursor, {
+    dollarSupplierDue,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
   await appendLenderPayableSection(doc, html2canvas, cursor, {
     lenderPayable,
     regularFontDataUrl,
@@ -2541,7 +2765,16 @@ export const generateBookStatementPdf = async ({
     pendingPayrollSalary,
     manufacturerDue,
     supplierDue,
+    dollarSupplierDue,
     lenderPayable,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
+  await appendCarryForwardBalanceSection(doc, html2canvas, cursor, {
+    inventoryStockReport,
+    itemFactoryStock,
+    packagingStock,
     regularFontDataUrl,
     boldFontDataUrl,
   });
@@ -2560,6 +2793,7 @@ export const generateBookStatementPdf = async ({
       pendingPayrollSalary,
       manufacturerDue,
       supplierDue,
+      dollarSupplierDue,
       lenderPayable,
       directorInvestment,
       regularFontDataUrl,
@@ -2572,12 +2806,14 @@ export const generateBookStatementPdf = async ({
     salesDue,
     salaryAdvance,
     supplierReceivable,
+    dollarSupplierReceivable,
     manufacturerReceivable,
     packagingManufacturerReceivable,
     lenderReceivable,
     pendingPayrollSalary,
     manufacturerDue,
     supplierDue,
+    dollarSupplierDue,
     lenderPayable,
     directorInvestment,
     inventoryStockReport,

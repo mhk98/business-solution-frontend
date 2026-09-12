@@ -20,10 +20,12 @@ const money = (v) =>
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
-const unitCost = (row) =>
-  Number(row?.unitValue || 0) > 0
-    ? Number(row?.cost || 0) / Number(row.unitValue)
-    : 0;
+const unitCost = (row) => {
+  const cost = Number(row?.cost || 0);
+  const unitValue = Number(row?.unitValue || 0);
+  if (cost && unitValue) return cost / unitValue;
+  return Number(row?.lastUnitCost || 0);
+};
 
 const PackagingFactoryStockTable = () => {
   const [startDate, setStartDate] = useState("");

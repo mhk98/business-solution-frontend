@@ -116,6 +116,10 @@ export const useBookStatementExport = () => {
         totalCredit: result?.meta?.totalCredit || 0,
         totalDebit: result?.meta?.totalDebit || 0,
         netBalance: result?.meta?.netBalance,
+        pettyCashTotalCredit: result?.meta?.pettyCashTotalCredit || 0,
+        pettyCashTotalDebit: result?.meta?.pettyCashTotalDebit || 0,
+        pettyCashNetBalance: result?.meta?.pettyCashNetBalance || 0,
+        netBalanceWithPettyCash: result?.meta?.netBalanceWithPettyCash,
         openingByCategory: result?.meta?.openingByCategory || {},
         openingTotalCredit: result?.meta?.openingTotalCredit || 0,
         openingTotalDebit: result?.meta?.openingTotalDebit || 0,
@@ -160,6 +164,8 @@ export const useBookStatementExport = () => {
           statementInventoryStockReport?.courierProductStock || null,
         supplierReceivable:
           statementInventoryStockReport?.supplierReceivable || null,
+        dollarSupplierReceivable:
+          statementInventoryStockReport?.dollarSupplierReceivable || null,
         manufacturerReceivable:
           statementInventoryStockReport?.manufacturerReceivable || null,
         packagingManufacturerReceivable:
@@ -172,6 +178,8 @@ export const useBookStatementExport = () => {
         pendingPayrollSalary:
           statementInventoryStockReport?.pendingPayrollSalary || null,
         supplierDue: statementInventoryStockReport?.supplierDue || null,
+        dollarSupplierDue:
+          statementInventoryStockReport?.dollarSupplierDue || null,
         manufacturerDue: statementInventoryStockReport?.manufacturerDue || null,
         lenderPayable: statementInventoryStockReport?.lenderPayable || null,
         directorInvestment:
