@@ -259,8 +259,25 @@ const normalizeManufactureItems = (response, itemMasterRows = []) => {
         item?.product?.unitValue ??
         "",
       unit: item?.unit ?? item?.item?.unit ?? item?.product?.unit ?? "Pcs",
+      // Factory Stock's own cost basis for this raw material — same fields
+      // the Factory Stock page's own "Unit Cost" column reads (cost ÷
+      // unitValue, both already in the backend's converted display unit).
+      cost: item?.cost ?? item?.item?.cost ?? item?.product?.cost ?? 0,
+      lastUnitCost: item?.lastUnitCost ?? 0,
     };
   });
+};
+
+// The unit cost an item actually costs per its own stock unit — Factory
+// Stock's cost ÷ unitValue for Manufacture items, Item Stock's cost ÷
+// unitValue for Packaging items. Both come from the same shape (cost +
+// unitValue, already in the backend's converted display unit), falling
+// back to the last known unit cost when current stock is exhausted.
+const getStockUnitCost = (item) => {
+  const cost = Number(item?.cost || 0);
+  const unitValue = Number(item?.unitValue || 0);
+  if (cost && unitValue) return cost / unitValue;
+  return Number(item?.lastUnitCost || 0);
 };
 
 const formatManufactureItemUnit = (item) => {
@@ -275,11 +292,72 @@ const formatManufactureItemUnit = (item) => {
 
 const getManufactureItemUnitLabel = (item) => item?.unit || "Pcs";
 
-const getMaterialTotal = (selection) =>
-  Number(selection?.value || 0) * Number(selection?.quantity || 0);
+// Quantity is only meaningful (and shown/editable) for items measured by
+// length — Yard or Inch, where a row can genuinely consume a fractional
+// amount per combo (e.g. 412.8 Yard in stock). Every other unit (Pcs, etc.)
+// has no quantity concept — the row is keyed off Value alone, as if exactly
+// 1 unit is consumed.
+const isQuantityUnit = (unit) => {
+  const normalized = String(unit || "")
+    .trim()
+    .toLowerCase();
+  return normalized === "yard" || normalized === "inch";
+};
 
-const getPackagingTotal = (selection) =>
-  Number(selection?.value || 0) * Number(selection?.quantity || 0);
+const getEffectiveQuantity = (selection, unit) =>
+  isQuantityUnit(unit) ? Number(selection?.quantity || 0) : 1;
+
+const getMaterialTotal = (selection, unit) =>
+  Number(selection?.value || 0) * getEffectiveQuantity(selection, unit);
+
+const getPackagingTotal = (selection, unit) =>
+  Number(selection?.value || 0) *
+  getEffectiveQuantity(selection, unit ?? selection?.unit);
+
+// Per-combo-unit Purchase Price: every Manufacture/Packaging row's TOTAL
+// (value x quantity, the raw quantity taken for the whole batch) is then
+// priced at that item's own stock unit cost — Factory Stock for
+// Manufacture items, Item Stock for Packaging items (see getStockUnitCost)
+// — and those costs, plus Others Cost, are batch-level totals: dividing
+// their sum by Combo Quantity spreads each cost evenly across every unit
+// the batch produces. Unit Wage is already a per-unit rate, so it's added
+// straight on top (not divided).
+const getAutoPurchasePrice = (
+  productState,
+  manufactureItems = [],
+  packagingItems = [],
+) => {
+  const combo = Number(productState?.combo) || 0;
+  if (!combo) return 0;
+
+  const manufactureMap = new Map(
+    (manufactureItems || []).map((item) => [String(item.id), item]),
+  );
+  const packagingMap = new Map(
+    (packagingItems || []).map((item) => [String(item.value), item]),
+  );
+
+  const materialsTotal = (productState?.materialSelections || []).reduce(
+    (sum, selection) => {
+      const stockItem = manufactureMap.get(String(selection?.manufactureId));
+      const takenTotal = getMaterialTotal(selection, stockItem?.unit);
+      return sum + takenTotal * getStockUnitCost(stockItem);
+    },
+    0,
+  );
+  const packagingTotal = (productState?.packagingSelections || []).reduce(
+    (sum, selection) => {
+      const stockItem = packagingMap.get(String(selection?.itemMasterId));
+      const takenTotal = getPackagingTotal(selection);
+      return sum + takenTotal * getStockUnitCost(stockItem);
+    },
+    0,
+  );
+  const othersCost = Number(productState?.othersCost) || 0;
+  const unitWage = Number(productState?.unitWage) || 0;
+
+  return (materialsTotal + packagingTotal + othersCost) / combo + unitWage;
+};
 
 const normalizeMaterialSelections = (existingSelections = []) => {
   if (Array.isArray(existingSelections) && existingSelections.length > 0) {
@@ -300,7 +378,8 @@ const normalizeMaterialSelections = (existingSelections = []) => {
         selection?.quantity !== null &&
         selection?.value !== undefined
           ? String(selection.quantity)
-          : selection?.multiplier !== undefined && selection?.multiplier !== null
+          : selection?.multiplier !== undefined &&
+              selection?.multiplier !== null
             ? String(selection.multiplier)
             : selection?.count !== undefined && selection?.count !== null
               ? String(selection.count)
@@ -320,7 +399,10 @@ const getSelectedMaterialItems = (selections) =>
       selection.manufactureId || selection.value || selection.quantity,
   );
 
-const validateMaterialSelections = (selections) => {
+const validateMaterialSelections = (selections, manufactureItems = []) => {
+  const unitMap = new Map(
+    (manufactureItems || []).map((item) => [String(item.id), item.unit]),
+  );
   const selectedItems = getSelectedMaterialItems(selections);
   const selectedIds = selectedItems
     .map((selection) => selection.manufactureId)
@@ -330,12 +412,13 @@ const validateMaterialSelections = (selections) => {
     return "Please remove duplicate manufacture items";
   }
 
-  const invalidIndex = selectedItems.findIndex(
-    (selection) =>
-      !selection.manufactureId ||
-      Number(selection.value || 0) <= 0 ||
-      Number(selection.quantity || 0) <= 0,
-  );
+  const invalidIndex = selectedItems.findIndex((selection) => {
+    if (!selection.manufactureId || Number(selection.value || 0) <= 0) {
+      return true;
+    }
+    const unit = unitMap.get(String(selection.manufactureId));
+    return isQuantityUnit(unit) && Number(selection.quantity || 0) <= 0;
+  });
 
   if (invalidIndex !== -1) {
     return `Please select manufacture item, value and quantity for row ${invalidIndex + 1}`;
@@ -346,23 +429,31 @@ const validateMaterialSelections = (selections) => {
 
 const buildMaterialPayload = (selections, manufactureItems = []) => {
   const unitMap = new Map(
-    (manufactureItems || []).map((item) => [String(item.id), item.unit || "Pcs"]),
+    (manufactureItems || []).map((item) => [
+      String(item.id),
+      item.unit || "Pcs",
+    ]),
   );
 
-  return getSelectedMaterialItems(selections).map((selection) => ({
-    manufactureId: Number(selection.manufactureId) || "",
-    unitValue: getMaterialTotal(selection),
-    value: Number(selection.value) || 0,
-    quantity: Number(selection.quantity) || 0,
-    unit: unitMap.get(String(selection.manufactureId)) || selection.unit || "Pcs",
-  }));
+  return getSelectedMaterialItems(selections).map((selection) => {
+    const unit =
+      unitMap.get(String(selection.manufactureId)) || selection.unit || "Pcs";
+    return {
+      manufactureId: Number(selection.manufactureId) || "",
+      unitValue: getMaterialTotal(selection, unit),
+      value: Number(selection.value) || 0,
+      quantity: getEffectiveQuantity(selection, unit),
+      unit,
+    };
+  });
 };
 
 const normalizePackagingSelections = (existingSelections = []) => {
   if (Array.isArray(existingSelections) && existingSelections.length > 0) {
     return existingSelections.map((selection) => ({
       itemMasterId:
-        selection?.itemMasterId !== undefined && selection?.itemMasterId !== null
+        selection?.itemMasterId !== undefined &&
+        selection?.itemMasterId !== null
           ? String(selection.itemMasterId)
           : "",
       value:
@@ -378,7 +469,8 @@ const normalizePackagingSelections = (existingSelections = []) => {
         selection?.quantity !== null &&
         selection?.value !== undefined
           ? String(selection.quantity)
-          : selection?.multiplier !== undefined && selection?.multiplier !== null
+          : selection?.multiplier !== undefined &&
+              selection?.multiplier !== null
             ? String(selection.multiplier)
             : selection?.count !== undefined && selection?.count !== null
               ? String(selection.count)
@@ -400,15 +492,20 @@ const buildMixerMaterialNote = (
   const optionMap = new Map(
     manufactureItems.map((item) => [item.id, item.label]),
   );
+  const unitMap = new Map(
+    manufactureItems.map((item) => [String(item.id), item.unit]),
+  );
   const detailLines = selections
     .map((selection, index) => {
-      if (!selection?.manufactureId || getMaterialTotal(selection) <= 0) {
+      const unit = unitMap.get(String(selection?.manufactureId));
+      const total = getMaterialTotal(selection, unit);
+      if (!selection?.manufactureId || total <= 0) {
         return "";
       }
       const label =
         optionMap.get(String(selection.manufactureId)) ||
         `Manufacture Item ${index + 1}`;
-      return `${label}: ${selection.value} x ${selection.quantity} = ${getMaterialTotal(selection)}`;
+      return `${label}: ${selection.value} x ${getEffectiveQuantity(selection, unit)} = ${total}`;
     })
     .filter(Boolean);
 
@@ -417,7 +514,8 @@ const buildMixerMaterialNote = (
 
 const getSelectedPackagingItems = (selections) =>
   normalizePackagingSelections(selections).filter(
-    (selection) => selection.itemMasterId || selection.value || selection.quantity,
+    (selection) =>
+      selection.itemMasterId || selection.value || selection.quantity,
   );
 
 const validatePackagingSelections = (selections) => {
@@ -430,12 +528,14 @@ const validatePackagingSelections = (selections) => {
     return "Please remove duplicate packaging items";
   }
 
-  const invalidIndex = selectedItems.findIndex(
-    (selection) =>
-      !selection.itemMasterId ||
-      Number(selection.value || 0) <= 0 ||
-      Number(selection.quantity) <= 0,
-  );
+  const invalidIndex = selectedItems.findIndex((selection) => {
+    if (!selection.itemMasterId || Number(selection.value || 0) <= 0) {
+      return true;
+    }
+    return (
+      isQuantityUnit(selection.unit) && Number(selection.quantity || 0) <= 0
+    );
+  });
 
   if (invalidIndex !== -1) {
     return `Please select packaging item, value and quantity for row ${invalidIndex + 1}`;
@@ -449,7 +549,7 @@ const buildPackagingPayload = (selections) =>
     itemMasterId: Number(selection.itemMasterId) || "",
     unitValue: getPackagingTotal(selection),
     value: Number(selection.value) || 0,
-    quantity: Number(selection.quantity) || 0,
+    quantity: getEffectiveQuantity(selection, selection.unit),
     unit: selection.unit || "Pcs",
   }));
 
@@ -611,13 +711,15 @@ const MixerTable = () => {
   const packagingItemOptions = useMemo(() => {
     return (itemMasterData || []).map((item) => ({
       value: String(item.Id ?? item.id ?? item._id),
-      label: [
-        item.name,
-        `${Number(item.unitValue || 0)} ${item.unit || "Pcs"}`,
-      ]
+      label: [item.name, `${Number(item.unitValue || 0)} ${item.unit || "Pcs"}`]
         .filter(Boolean)
         .join(" - "),
       unit: item.unit || "Pcs",
+      // Item Stock's own cost basis — same shape as the Manufacture item
+      // catalog, used by getStockUnitCost().
+      unitValue: item.unitValue || 0,
+      cost: item.cost || 0,
+      lastUnitCost: item.lastUnitCost || 0,
     }));
   }, [itemMasterData]);
 
@@ -684,7 +786,9 @@ const MixerTable = () => {
     if (!shouldShowCreateVariantOptions) return;
     setCreateProduct((prev) => ({
       ...prev,
-      combo: createVariantQuantityTotal ? String(createVariantQuantityTotal) : "",
+      combo: createVariantQuantityTotal
+        ? String(createVariantQuantityTotal)
+        : "",
     }));
   }, [createVariantQuantityTotal, shouldShowCreateVariantOptions]);
 
@@ -769,7 +873,9 @@ const MixerTable = () => {
 
   const summarizeSelections = (items = [], idKey, nameMap, fallbackLabel) => {
     if (!Array.isArray(items) || items.length === 0) return "-";
-    const selectedItems = items.filter((item) => Number(item?.unitValue || 0) > 0);
+    const selectedItems = items.filter(
+      (item) => Number(item?.unitValue || 0) > 0,
+    );
     if (!selectedItems.length) return "-";
 
     const [first, ...rest] = selectedItems;
@@ -789,6 +895,67 @@ const MixerTable = () => {
     () => normalizeManufactureItems(currentManufactureStockRes, itemMasterData),
     [currentManufactureStockRes, itemMasterData],
   );
+
+  // Purchase Price is fully derived from the Manufacture/Packaging item
+  // costs + Others Cost, spread across Combo Quantity — see
+  // getAutoPurchasePrice. It's read-only in the form; these effects keep it
+  // in sync whenever any of its inputs change.
+  const createAutoPurchasePrice = useMemo(
+    () =>
+      getAutoPurchasePrice(
+        createProduct,
+        createManufactureItems,
+        packagingItemOptions,
+      ),
+    [
+      createProduct?.materialSelections,
+      createProduct?.packagingSelections,
+      createProduct?.othersCost,
+      createProduct?.combo,
+      createProduct?.unitWage,
+      createManufactureItems,
+      packagingItemOptions,
+    ],
+  );
+  const editAutoPurchasePrice = useMemo(
+    () =>
+      getAutoPurchasePrice(
+        currentProduct,
+        currentManufactureItems,
+        packagingItemOptions,
+      ),
+    [
+      currentProduct?.materialSelections,
+      currentProduct?.packagingSelections,
+      currentProduct?.othersCost,
+      currentProduct?.combo,
+      currentProduct?.unitWage,
+      packagingItemOptions,
+      currentManufactureItems,
+    ],
+  );
+
+  useEffect(() => {
+    setCreateProduct((prev) => ({
+      ...prev,
+      purchase_price: createAutoPurchasePrice
+        ? createAutoPurchasePrice.toFixed(2)
+        : "",
+    }));
+  }, [createAutoPurchasePrice]);
+
+  useEffect(() => {
+    setCurrentProduct((prev) =>
+      prev
+        ? {
+            ...prev,
+            purchase_price: editAutoPurchasePrice
+              ? editAutoPurchasePrice.toFixed(2)
+              : "",
+          }
+        : prev,
+    );
+  }, [editAutoPurchasePrice]);
 
   const createManufactureOptions = useMemo(
     () =>
@@ -1010,6 +1177,7 @@ const MixerTable = () => {
     if (createManufactureItems.length) {
       const materialError = validateMaterialSelections(
         createProduct.materialSelections,
+        createManufactureItems,
       );
       if (materialError) return toast.error(materialError);
     }
@@ -1045,7 +1213,9 @@ const MixerTable = () => {
           createProduct.materialSelections,
           createManufactureItems,
         ),
-        packagingItems: buildPackagingPayload(createProduct.packagingSelections),
+        packagingItems: buildPackagingPayload(
+          createProduct.packagingSelections,
+        ),
         // unit: createProduct.unit || "Pcs",
         // unitValue: createProduct.hasUnit
         //   ? Number(createProduct.unitValue) || 0
@@ -1088,6 +1258,7 @@ const MixerTable = () => {
       if (currentManufactureItems.length) {
         const materialError = validateMaterialSelections(
           currentProduct?.materialSelections,
+          currentManufactureItems,
         );
         if (materialError) return toast.error(materialError);
       }
@@ -1122,7 +1293,9 @@ const MixerTable = () => {
           currentProduct?.materialSelections,
           currentManufactureItems,
         ),
-        packagingItems: buildPackagingPayload(currentProduct?.packagingSelections),
+        packagingItems: buildPackagingPayload(
+          currentProduct?.packagingSelections,
+        ),
         // unit: currentProduct.unit || "Pcs",
         // unitValue: currentProduct.hasUnit
         //   ? Number(currentProduct.unitValue) || 0
@@ -1399,7 +1572,7 @@ const MixerTable = () => {
             return (
               <div
                 key={`${mode}-packaging-${index}`}
-                className="grid grid-cols-1 lg:grid-cols-[minmax(260px,1fr)_150px_100px_130px_150px_44px] gap-3 rounded-2xl border border-indigo-100 bg-white/70 p-3"
+                className="grid grid-cols-1 lg:grid-cols-[minmax(260px,1fr)_150px_100px_150px_44px] gap-3 rounded-2xl border border-indigo-100 bg-white/70 p-3"
               >
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
@@ -1421,7 +1594,7 @@ const MixerTable = () => {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-                    Value
+                    Quantity
                   </label>
                   <input
                     type="number"
@@ -1438,6 +1611,28 @@ const MixerTable = () => {
                     }
                     className="w-full h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
                   />
+                  {isQuantityUnit(selection.unit || selectedOption?.unit) && (
+                    <div className="mt-2">
+                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 ml-1">
+                        Volume
+                      </label>
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={selection.quantity || ""}
+                        onChange={(e) =>
+                          handlePackagingSelectionChange(
+                            mode,
+                            index,
+                            "quantity",
+                            e.target.value,
+                          )
+                        }
+                        className="w-full h-9 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -1447,27 +1642,6 @@ const MixerTable = () => {
                   <div className="flex h-11 w-full items-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-slate-700">
                     {selection.unit || selectedOption?.unit || "Pcs"}
                   </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-                    Quantity
-                  </label>
-                  <input
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    value={selection.quantity || ""}
-                    onChange={(e) =>
-                      handlePackagingSelectionChange(
-                        mode,
-                        index,
-                        "quantity",
-                        e.target.value,
-                      )
-                    }
-                    className="w-full h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-                  />
                 </div>
 
                 <div>
@@ -1502,7 +1676,9 @@ const MixerTable = () => {
       createProduct?.materialSelections?.[index]?.manufactureId || "",
     );
 
-    return createManufactureItems.find((item) => item.id === selectedId) || null;
+    return (
+      createManufactureItems.find((item) => item.id === selectedId) || null
+    );
   };
 
   const getCurrentManufactureItemByIndex = (index) => {
@@ -1510,7 +1686,9 @@ const MixerTable = () => {
       currentProduct?.materialSelections?.[index]?.manufactureId || "",
     );
 
-    return currentManufactureItems.find((item) => item.id === selectedId) || null;
+    return (
+      currentManufactureItems.find((item) => item.id === selectedId) || null
+    );
   };
 
   const renderVariantOptions = ({
@@ -1619,7 +1797,12 @@ const MixerTable = () => {
                 min="0"
                 value={row.purchase_price}
                 onChange={(e) =>
-                  updateVariantRow(mode, index, "purchase_price", e.target.value)
+                  updateVariantRow(
+                    mode,
+                    index,
+                    "purchase_price",
+                    e.target.value,
+                  )
                 }
                 className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
               />
@@ -1669,10 +1852,9 @@ const MixerTable = () => {
             step="0.01"
             min="0"
             value={productState?.purchase_price || ""}
-            onChange={(e) =>
-              setter((prev) => ({ ...prev, purchase_price: e.target.value }))
-            }
-            className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+            readOnly
+            title="Auto calculated: ((Manufacture items + Packaging items + Others Cost) ÷ Combo Quantity) + Unit Wage"
+            className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-slate-100 outline-none cursor-not-allowed"
           />
         </div>
 
@@ -1793,7 +1975,7 @@ const MixerTable = () => {
 
       <div className="relative overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="min-w-[1320px] divide-y divide-slate-100">
+          <table className="min-w-[1600px] divide-y divide-slate-100">
             <thead className="bg-slate-50/50">
               <tr>
                 <th className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
@@ -1807,6 +1989,12 @@ const MixerTable = () => {
                 </th>
                 <th className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
                   Combo Qty
+                </th>
+                <th className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
+                  Purchase Price
+                </th>
+                <th className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
+                  Sale Price
                 </th>
                 <th className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
                   Unit Wage
@@ -1859,6 +2047,18 @@ const MixerTable = () => {
 
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                     {Number(rp.combo || 0).toLocaleString()}
+                  </td>
+
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                    {Number(rp.purchase_price || 0).toLocaleString(undefined, {
+                      maximumFractionDigits: 2,
+                    })}
+                  </td>
+
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                    {Number(rp.sale_price || 0).toLocaleString(undefined, {
+                      maximumFractionDigits: 2,
+                    })}
                   </td>
 
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
@@ -1968,7 +2168,7 @@ const MixerTable = () => {
               {!isLoading && rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={10}
+                    colSpan={13}
                     className="px-6 py-20 text-center text-sm text-slate-400 italic"
                   >
                     {t.no_data_found || "No data found"}
@@ -2248,7 +2448,7 @@ const MixerTable = () => {
                   ).map((_, index) => (
                     <div
                       key={`current-material-${index}`}
-                      className="grid grid-cols-1 lg:grid-cols-[minmax(260px,1fr)_180px_130px_150px_44px] gap-3 rounded-2xl border border-indigo-100 bg-white/70 p-3"
+                      className="grid grid-cols-1 lg:grid-cols-[minmax(260px,1fr)_150px_100px_150px_44px] gap-3 rounded-2xl border border-indigo-100 bg-white/70 p-3"
                     >
                       <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
@@ -2290,53 +2490,62 @@ const MixerTable = () => {
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
                           Value
                         </label>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            min="0.01"
-                            step="0.01"
-                            value={
-                              currentProduct?.materialSelections?.[index]
-                                ?.value || ""
-                            }
-                            onChange={(e) =>
-                              handleCurrentMaterialSelectionChange(
-                                index,
-                                "value",
-                                e.target.value,
-                              )
-                            }
-                            className="w-full h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-                          />
-                          <span className="shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-600">
-                            {getManufactureItemUnitLabel(
-                              getCurrentManufactureItemByIndex(index),
-                            )}
-                          </span>
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-                          Quantity
-                        </label>
                         <input
                           type="number"
                           min="0.01"
                           step="0.01"
                           value={
                             currentProduct?.materialSelections?.[index]
-                              ?.quantity || ""
+                              ?.value || ""
                           }
                           onChange={(e) =>
                             handleCurrentMaterialSelectionChange(
                               index,
-                              "quantity",
+                              "value",
                               e.target.value,
                             )
                           }
                           className="w-full h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
                         />
+                        {isQuantityUnit(
+                          getCurrentManufactureItemByIndex(index)?.unit,
+                        ) && (
+                          <div className="mt-2">
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 ml-1">
+                              Quantity
+                            </label>
+                            <input
+                              type="number"
+                              min="0.01"
+                              step="0.01"
+                              value={
+                                currentProduct?.materialSelections?.[index]
+                                  ?.quantity || ""
+                              }
+                              onChange={(e) =>
+                                handleCurrentMaterialSelectionChange(
+                                  index,
+                                  "quantity",
+                                  e.target.value,
+                                )
+                              }
+                              className="w-full h-9 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+                            />
+                          </div>
+                        )}
                       </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+                          Unit
+                        </label>
+                        <div className="flex h-11 w-full items-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-slate-700">
+                          {getManufactureItemUnitLabel(
+                            getCurrentManufactureItemByIndex(index),
+                          )}
+                        </div>
+                      </div>
+
                       <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
                           Total
@@ -2344,6 +2553,7 @@ const MixerTable = () => {
                         <div className="flex h-11 w-full items-center rounded-xl border border-indigo-100 bg-indigo-50 px-4 text-sm font-black text-indigo-700">
                           {getMaterialTotal(
                             currentProduct?.materialSelections?.[index],
+                            getCurrentManufactureItemByIndex(index)?.unit,
                           ).toLocaleString()}
                         </div>
                       </div>
@@ -2352,7 +2562,9 @@ const MixerTable = () => {
                       ).length > 1 && (
                         <button
                           type="button"
-                          onClick={() => removeMaterialSelectionRow("edit", index)}
+                          onClick={() =>
+                            removeMaterialSelectionRow("edit", index)
+                          }
                           className="lg:mt-6 inline-flex h-11 w-full lg:w-11 items-center justify-center rounded-xl border border-red-100 bg-red-50 text-red-500 hover:bg-red-100 transition active:scale-95"
                           title="Remove item"
                         >
@@ -2664,7 +2876,7 @@ const MixerTable = () => {
                   ).map((_, index) => (
                     <div
                       key={`create-material-${index}`}
-                      className="grid grid-cols-1 lg:grid-cols-[minmax(260px,1fr)_180px_130px_150px_44px] gap-3 rounded-2xl border border-indigo-100 bg-white/70 p-3"
+                      className="grid grid-cols-1 lg:grid-cols-[minmax(260px,1fr)_150px_100px_150px_44px] gap-3 rounded-2xl border border-indigo-100 bg-white/70 p-3"
                     >
                       <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
@@ -2704,35 +2916,6 @@ const MixerTable = () => {
 
                       <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-                          Value
-                        </label>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            min="0.01"
-                            step="0.01"
-                            value={
-                              createProduct?.materialSelections?.[index]
-                                ?.value || ""
-                            }
-                            onChange={(e) =>
-                              handleCreateMaterialSelectionChange(
-                                index,
-                                "value",
-                                e.target.value,
-                              )
-                            }
-                            className="w-full h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-                          />
-                          <span className="shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-600">
-                            {getManufactureItemUnitLabel(
-                              getCreateManufactureItemByIndex(index),
-                            )}
-                          </span>
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
                           Quantity
                         </label>
                         <input
@@ -2740,19 +2923,57 @@ const MixerTable = () => {
                           min="0.01"
                           step="0.01"
                           value={
-                            createProduct?.materialSelections?.[index]
-                              ?.quantity || ""
+                            createProduct?.materialSelections?.[index]?.value ||
+                            ""
                           }
                           onChange={(e) =>
                             handleCreateMaterialSelectionChange(
                               index,
-                              "quantity",
+                              "value",
                               e.target.value,
                             )
                           }
                           className="w-full h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
                         />
+                        {isQuantityUnit(
+                          getCreateManufactureItemByIndex(index)?.unit,
+                        ) && (
+                          <div className="mt-2">
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 ml-1">
+                              Volume
+                            </label>
+                            <input
+                              type="number"
+                              min="0.01"
+                              step="0.01"
+                              value={
+                                createProduct?.materialSelections?.[index]
+                                  ?.quantity || ""
+                              }
+                              onChange={(e) =>
+                                handleCreateMaterialSelectionChange(
+                                  index,
+                                  "quantity",
+                                  e.target.value,
+                                )
+                              }
+                              className="w-full h-9 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+                            />
+                          </div>
+                        )}
                       </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+                          Unit
+                        </label>
+                        <div className="flex h-11 w-full items-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-slate-700">
+                          {getManufactureItemUnitLabel(
+                            getCreateManufactureItemByIndex(index),
+                          )}
+                        </div>
+                      </div>
+
                       <div>
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
                           Total
@@ -2760,6 +2981,7 @@ const MixerTable = () => {
                         <div className="flex h-11 w-full items-center rounded-xl border border-indigo-100 bg-indigo-50 px-4 text-sm font-black text-indigo-700">
                           {getMaterialTotal(
                             createProduct?.materialSelections?.[index],
+                            getCreateManufactureItemByIndex(index)?.unit,
                           ).toLocaleString()}
                         </div>
                       </div>

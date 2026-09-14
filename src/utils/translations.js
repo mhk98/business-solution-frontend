@@ -355,7 +355,7 @@ export const translations = {
     employee_id_label: "Employee ID",
     basic_salary: "Basic Salary",
     festival_bonus: "Festival Bonus",
-    holiday_days: "Holiday Days",
+    holiday_days: "Encashment (Holiday)",
     total_salary: "Total Salary",
     net_salary: "Net Salary",
     edit_salary_calculation: "Edit Salary Calculation",

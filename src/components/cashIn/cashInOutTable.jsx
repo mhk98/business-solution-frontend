@@ -441,6 +441,7 @@ const CashInOutTable = () => {
     remarks: "",
     refNo: "",
     fromParty: "",
+    receiverName: "",
     amount: "",
     file: null,
     date: new Date().toISOString().slice(0, 10),
@@ -944,6 +945,7 @@ const CashInOutTable = () => {
       remarks: "",
       refNo: "",
       fromParty: "",
+      receiverName: "",
       amount: "",
       file: null,
       date: new Date().toISOString().slice(0, 10),
@@ -1169,6 +1171,10 @@ const CashInOutTable = () => {
       formData.append("remarks", currentProduct.remarks?.trim() || "");
       formData.append("refNo", currentProduct.refNo?.trim() || "");
       formData.append("fromParty", currentProduct.fromParty?.trim() || "");
+      formData.append(
+        "receiverName",
+        currentProduct.receiverName?.trim() || "",
+      );
       formData.append("amount", String(Number(currentProduct.amount)));
       if (currentProduct.file) formData.append("file", currentProduct.file);
 
@@ -1387,6 +1393,10 @@ const CashInOutTable = () => {
       formData.append("voucherPrefix", "KM-");
       formData.append("paymentMode", createProduct.paymentMode);
       formData.append("paymentStatus", "CashOut");
+      formData.append(
+        "receiverName",
+        createProduct.receiverName?.trim() || "",
+      );
       formData.append("date", createProduct.date);
       formData.append(
         "note",
@@ -1696,6 +1706,7 @@ const CashInOutTable = () => {
       (item) => String(item.Id) === String(row?.dollarSupplierId),
     );
     const receiverName =
+      row?.receiverName ||
       row?.supplier?.name ||
       row?.supplierName ||
       rowSupplier?.name ||
@@ -1962,6 +1973,40 @@ const CashInOutTable = () => {
       rowSupplier?.supplierName ||
       "---"
     );
+  };
+
+  const getPartyDisplayName = (row) => {
+    if (row?.supplierId) return getSupplierName(row);
+
+    if (row?.dollarSupplierId) {
+      const rowDollarSupplier = dollarSuppliers.find(
+        (item) => String(item.Id) === String(row.dollarSupplierId),
+      );
+      return row?.dollarSupplier?.name || rowDollarSupplier?.name || "---";
+    }
+
+    if (row?.manufacturerId) {
+      const rowManufacturer = manufacturers.find(
+        (item) => String(item.Id) === String(row.manufacturerId),
+      );
+      return row?.manufacturer?.name || rowManufacturer?.name || "---";
+    }
+
+    if (row?.packagingManufacturerId) {
+      const rowPackagingManufacturer = packagingManufacturers.find(
+        (item) => String(item.Id) === String(row.packagingManufacturerId),
+      );
+      return (
+        row?.packagingManufacturer?.name ||
+        rowPackagingManufacturer?.name ||
+        "---"
+      );
+    }
+
+    if (row?.ownerId) return row?.owner?.name || "---";
+    if (row?.directorId) return row?.director?.name || "---";
+
+    return "---";
   };
 
   const loanSelectOptions = useMemo(
@@ -2771,6 +2816,9 @@ const CashInOutTable = () => {
                 {t.category || "Category"}
               </th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                Supplier
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 {t.payment_mode}
               </th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
@@ -2824,6 +2872,9 @@ const CashInOutTable = () => {
                         </div>
                       )}
                     </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                    {getPartyDisplayName(rp)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                     {rp.paymentMode || "---"}
@@ -2981,7 +3032,7 @@ const CashInOutTable = () => {
             {!isLoading && products.length === 0 && (
               <tr>
                 <td
-                  colSpan={8}
+                  colSpan={9}
                   className="px-6 py-8 text-center text-sm text-slate-600"
                 >
                   {t.no_data_found}
@@ -3270,25 +3321,62 @@ const CashInOutTable = () => {
 
           {renderPartyFields(currentProduct, setCurrentProduct)}
 
-          {currentProduct?.paymentStatus !== "CashOut" && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {currentProduct?.paymentStatus !== "CashOut" ? (
+              <div>
+                <label className="block text-sm text-slate-600 mb-1">
+                  From (Received From)
+                </label>
+                <input
+                  type="text"
+                  value={currentProduct?.fromParty || ""}
+                  onChange={(e) =>
+                    setCurrentProduct({
+                      ...currentProduct,
+                      fromParty: e.target.value,
+                    })
+                  }
+                  placeholder="Who the cash was received from"
+                  className="h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 bg-white"
+                />
+              </div>
+            ) : (
+              <div>
+                <label className="block text-sm text-slate-600 mb-1">
+                  Receiver
+                </label>
+                <input
+                  type="text"
+                  value={currentProduct?.receiverName || ""}
+                  onChange={(e) =>
+                    setCurrentProduct({
+                      ...currentProduct,
+                      receiverName: e.target.value,
+                    })
+                  }
+                  placeholder="Who received the cash"
+                  className="h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 bg-white"
+                />
+              </div>
+            )}
             <div>
               <label className="block text-sm text-slate-600 mb-1">
-                From (Received From)
+                Ref No
               </label>
               <input
                 type="text"
-                value={currentProduct?.fromParty || ""}
+                value={currentProduct?.refNo || ""}
                 onChange={(e) =>
                   setCurrentProduct({
                     ...currentProduct,
-                    fromParty: e.target.value,
+                    refNo: e.target.value,
                   })
                 }
-                placeholder="Who the cash was received from"
                 className="h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 bg-white"
+                placeholder="Reference number"
               />
             </div>
-          )}
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -3324,68 +3412,55 @@ const CashInOutTable = () => {
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm text-slate-600 mb-1">Ref No</label>
-            <input
-              type="text"
-              value={currentProduct?.refNo || ""}
-              onChange={(e) =>
-                setCurrentProduct({
-                  ...currentProduct,
-                  refNo: e.target.value,
-                })
-              }
-              className="h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 bg-white"
-              placeholder="Reference number"
-            />
-          </div>
-
-          {isPrivilegedUser && (
-            <div>
-              <label className="block text-sm text-slate-600 mb-1">
-                {t.status || "Status"}
-              </label>
-              <select
-                value={currentProduct?.status || ""}
-                onChange={(e) =>
-                  setCurrentProduct((p) => ({
-                    ...p,
-                    status: e.target.value,
-                  }))
-                }
-                className="h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 bg-white outline-none
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {isPrivilegedUser && (
+              <div>
+                <label className="block text-sm text-slate-600 mb-1">
+                  {t.status || "Status"}
+                </label>
+                <select
+                  value={currentProduct?.status || ""}
+                  onChange={(e) =>
+                    setCurrentProduct((p) => ({
+                      ...p,
+                      status: e.target.value,
+                    }))
+                  }
+                  className="h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 bg-white outline-none
                            focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
-              >
-                <option value="">{t.select_status || "Select Status"}</option>
-                <option value="Active">{t.active_status || "Active"}</option>
-                <option value="Approved">
-                  {t.approved_status || "Approved"}
-                </option>
-                <option value="Pending">{t.pending_status || "Pending"}</option>
-              </select>
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm text-slate-600 mb-1">
-              Upload Document
-            </label>
-            <input
-              type="file"
-              accept=".jpg,.jpeg,.png,.pdf"
-              onChange={(e) =>
-                setCurrentProduct({
-                  ...currentProduct,
-                  file: e.target.files?.[0] || null,
-                })
-              }
-              className="h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 bg-white"
-            />
-            {currentProduct?.file && (
-              <p className="mt-2 text-xs text-slate-600">
-                {t.selected || "Selected"}: {currentProduct.file.name}
-              </p>
+                >
+                  <option value="">{t.select_status || "Select Status"}</option>
+                  <option value="Active">{t.active_status || "Active"}</option>
+                  <option value="Approved">
+                    {t.approved_status || "Approved"}
+                  </option>
+                  <option value="Pending">
+                    {t.pending_status || "Pending"}
+                  </option>
+                </select>
+              </div>
             )}
+            <div className={isPrivilegedUser ? "" : "md:col-span-2"}>
+              <label className="block text-sm text-slate-600 mb-1">
+                Upload Document
+              </label>
+              <input
+                type="file"
+                accept=".jpg,.jpeg,.png,.pdf"
+                onChange={(e) =>
+                  setCurrentProduct({
+                    ...currentProduct,
+                    file: e.target.files?.[0] || null,
+                  })
+                }
+                className="h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 bg-white"
+              />
+              {currentProduct?.file && (
+                <p className="mt-2 text-xs text-slate-600">
+                  {t.selected || "Selected"}: {currentProduct.file.name}
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
@@ -3948,6 +4023,44 @@ const CashInOutTable = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm text-slate-600 mb-1">
+                Receiver
+              </label>
+              <input
+                type="text"
+                value={createProduct.receiverName || ""}
+                onChange={(e) =>
+                  setCreateProduct({
+                    ...createProduct,
+                    receiverName: e.target.value,
+                  })
+                }
+                placeholder="Who received the cash"
+                className="h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 bg-white"
+              />
+              <p className="mt-1 text-xs text-slate-400">
+                Shown as “Receiver” on the cash memo. From is always the
+                company.
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm text-slate-600 mb-1">
+                Ref No
+              </label>
+              <input
+                type="text"
+                value={createProduct.refNo || ""}
+                onChange={(e) =>
+                  setCreateProduct({ ...createProduct, refNo: e.target.value })
+                }
+                className="h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 bg-white"
+                placeholder="Reference number"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-slate-600 mb-1">
                 Category
               </label>
               <Select
@@ -4036,82 +4149,73 @@ const CashInOutTable = () => {
               />
             </div>
           </div>
-          <div>
-            <label className="block text-sm text-slate-600 mb-1">Note</label>
-            <input
-              type="text"
-              value={createProduct.remarks}
-              onChange={(e) =>
-                setCreateProduct({
-                  ...createProduct,
-                  remarks: e.target.value,
-                })
-              }
-              onFocus={() => setIsCreateCashOutNoteFocused(true)}
-              onBlur={() =>
-                window.setTimeout(
-                  () => setIsCreateCashOutNoteFocused(false),
-                  120,
-                )
-              }
-              className="h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 bg-white"
-            />
-            {isCreateCashOutNoteFocused &&
-              previousVoucherSuggestions.length > 0 && (
-                <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-52 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl">
-                  {previousVoucherSuggestions.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => {
-                        setCreateProduct((p) => ({
-                          ...p,
-                          remarks: item.note,
-                          category: p.category || item.category,
-                        }));
-                        setIsCreateCashOutNoteFocused(false);
-                      }}
-                      className="w-full border-b border-slate-100 px-3 py-2 text-left text-sm text-slate-700 last:border-b-0 hover:bg-slate-50"
-                    >
-                      <div className="font-semibold text-slate-900">
-                        {item.date}, {item.category}, {item.note}
-                      </div>
-                      <div className="mt-0.5 text-xs text-slate-500">
-                        Voucher No: {item.voucherNo}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-          </div>
-          <div>
-            <label className="block text-sm text-slate-600 mb-1">Ref No</label>
-            <input
-              type="text"
-              value={createProduct.refNo || ""}
-              onChange={(e) =>
-                setCreateProduct({ ...createProduct, refNo: e.target.value })
-              }
-              className="h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 bg-white"
-              placeholder="Reference number"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-slate-600 mb-1">
-              Upload Document
-            </label>
-            <input
-              type="file"
-              accept=".jpg,.jpeg,.png,.pdf"
-              onChange={(e) =>
-                setCreateProduct({
-                  ...createProduct,
-                  file: e.target.files?.[0] || null,
-                })
-              }
-              className="h-11 border border-slate-200 rounded-xl px-3 w-full"
-            />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="relative">
+              <label className="block text-sm text-slate-600 mb-1">Note</label>
+              <input
+                type="text"
+                value={createProduct.remarks}
+                onChange={(e) =>
+                  setCreateProduct({
+                    ...createProduct,
+                    remarks: e.target.value,
+                  })
+                }
+                onFocus={() => setIsCreateCashOutNoteFocused(true)}
+                onBlur={() =>
+                  window.setTimeout(
+                    () => setIsCreateCashOutNoteFocused(false),
+                    120,
+                  )
+                }
+                className="h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 bg-white"
+              />
+              {isCreateCashOutNoteFocused &&
+                previousVoucherSuggestions.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-52 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl">
+                    {previousVoucherSuggestions.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setCreateProduct((p) => ({
+                            ...p,
+                            remarks: item.note,
+                            category: p.category || item.category,
+                          }));
+                          setIsCreateCashOutNoteFocused(false);
+                        }}
+                        className="w-full border-b border-slate-100 px-3 py-2 text-left text-sm text-slate-700 last:border-b-0 hover:bg-slate-50"
+                      >
+                        <div className="font-semibold text-slate-900">
+                          {item.date}, {item.category}, {item.note}
+                        </div>
+                        <div className="mt-0.5 text-xs text-slate-500">
+                          Voucher No: {item.voucherNo}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+            </div>
+            <div>
+              <label className="block text-sm text-slate-600 mb-1">
+                Upload Document
+              </label>
+              <input
+                type="file"
+                accept=".jpg,.jpeg,.png,.pdf"
+                onChange={(e) =>
+                  setCreateProduct({
+                    ...createProduct,
+                    file: e.target.files?.[0] || null,
+                  })
+                }
+                className="h-11 border border-slate-200 rounded-xl px-3 w-full"
+              />
+            </div>
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">

@@ -55,19 +55,19 @@ const initialForm = {
 const FILE_SERVER_BASE_URL = import.meta.env.VITE_API_URL || "";
 const ITEM_REQUISITION_VOUCHER_PREFIX = "IR";
 
-const statusOptionsByRole = {
-  superAdmin: ["Pending", "Approved"],
-  admin: ["Pending", "Approved"],
-  accountant: ["Pay For Purchase", "Completed"],
-  inventor: ["Item Received"],
-};
-
 const statusClasses = {
   Pending: "bg-amber-50 text-amber-700 border-amber-200",
   Approved: "bg-emerald-50 text-emerald-700 border-emerald-200",
   "Pay For Purchase": "bg-sky-50 text-sky-700 border-sky-200",
   "Item Received": "bg-indigo-50 text-indigo-700 border-indigo-200",
   Completed: "bg-violet-50 text-violet-700 border-violet-200",
+};
+
+const statusOptionsByRole = {
+  superAdmin: Object.keys(statusClasses),
+  admin: ["Pending", "Approved"],
+  accountant: ["Pay For Purchase", "Completed"],
+  inventor: ["Item Received"],
 };
 
 const unitOptions = [

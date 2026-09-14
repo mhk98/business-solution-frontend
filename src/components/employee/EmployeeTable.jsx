@@ -63,10 +63,13 @@ const normalizeSheetHeader = (value) =>
     .replace(/^_+|_+$/g, "");
 
 const getSheetValue = (row, aliases) => {
-  const normalizedRow = Object.entries(row || {}).reduce((acc, [key, value]) => {
-    acc[normalizeSheetHeader(key)] = value;
-    return acc;
-  }, {});
+  const normalizedRow = Object.entries(row || {}).reduce(
+    (acc, [key, value]) => {
+      acc[normalizeSheetHeader(key)] = value;
+      return acc;
+    },
+    {},
+  );
 
   for (const alias of aliases) {
     const key = normalizeSheetHeader(alias);
@@ -92,7 +95,9 @@ const EmployeeTable = () => {
   const t = translations[language] || translations.EN;
   const role = localStorage.getItem("role");
   const userId = localStorage.getItem("userId");
-  const normalizedRole = String(role || "").trim().toLowerCase();
+  const normalizedRole = String(role || "")
+    .trim()
+    .toLowerCase();
   const isAccountant = normalizedRole === "accountant";
   const canManagePayroll = !isAccountant;
 
@@ -136,6 +141,7 @@ const EmployeeTable = () => {
     basic_salary: "",
     incentive: "",
     festival_bonus: "",
+    bonus: "",
     holiday_payment: "",
     total_salary: "",
     advance: "",
@@ -145,6 +151,7 @@ const EmployeeTable = () => {
     half_day_absent: "",
     friday_absent: "",
     unapproval_absent: "",
+    approval_absent: "",
     net_salary: "",
     note: "",
     remarks: "",
@@ -158,7 +165,10 @@ const EmployeeTable = () => {
   const [employees, setEmployees] = useState([]);
   const [employeesAll, setEmployeesAll] = useState([]);
 
-  const defaultPayrollRange = useMemo(() => getDatePresetRange("thisMonth"), []);
+  const defaultPayrollRange = useMemo(
+    () => getDatePresetRange("thisMonth"),
+    [],
+  );
   const [startDate, setStartDate] = useState(defaultPayrollRange.from);
   const [endDate, setEndDate] = useState(defaultPayrollRange.to);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
@@ -224,6 +234,7 @@ const EmployeeTable = () => {
     const basic_salary = Number(p.basic_salary) || 0;
     const incentive = Number(p.incentive) || 0;
     const festival_bonus = Number(p.festival_bonus) || 0;
+    const bonus = Number(p.bonus) || 0;
     const holiday_days = Number(p.holiday_payment) || 0;
     const advance = Number(p.advance) || 0;
     const payable_days =
@@ -239,10 +250,16 @@ const EmployeeTable = () => {
     const half_day_absent = Number(p.half_day_absent) || 0;
     const friday_absent = Number(p.friday_absent) || 0;
     const unapproval_absent = Number(p.unapproval_absent) || 0;
+    const approval_absent = Number(p.approval_absent) || 0;
 
     const perDayBasicSalary = basic_salary / 30;
 
-    const basic_payable_salary = perDayBasicSalary * payable_days;
+    // Approval Absent deducts only from the Basic Salary component (not
+    // Incentive, not via the configurable per-day fine rates like the other
+    // absence fields) — it reduces the days Basic Salary is paid for.
+    const approvalAbsentCut = perDayBasicSalary * approval_absent;
+    const basic_payable_salary =
+      perDayBasicSalary * payable_days - approvalAbsentCut;
     const holiday_salary = perDayBasicSalary * holiday_days;
     const total_salary = basic_payable_salary + incentive;
 
@@ -270,8 +287,15 @@ const EmployeeTable = () => {
       fridayAbsentCut +
       unapprovalAbsentCut;
 
+    // Bonus adds straight into Net Salary (the main/take-home salary),
+    // same as Festival Bonus.
     const net_salary =
-      total_salary - totalCutAmount - advance + holiday_salary + festival_bonus;
+      total_salary -
+      totalCutAmount -
+      advance +
+      holiday_salary +
+      festival_bonus +
+      bonus;
 
     const safe = (n) => (Number.isFinite(n) ? n : 0);
 
@@ -296,7 +320,8 @@ const EmployeeTable = () => {
   const getGrossSalaryAmount = (employee) =>
     Number(employee?.total_salary || 0) +
     getHolidaySalaryAmount(employee) +
-    Number(employee?.festival_bonus || 0);
+    Number(employee?.festival_bonus || 0) +
+    Number(employee?.bonus || 0);
 
   const getSalaryDeductionAmount = (employee) => {
     const grossSalary = getGrossSalaryAmount(employee);
@@ -627,7 +652,9 @@ const EmployeeTable = () => {
       basic_salary: salary,
       incentive: 0,
       festival_bonus: 0,
+      bonus: 0,
       holiday_payment: 0,
+      approval_absent: 0,
       advance: employee.advance || 0,
       total_salary: salary,
       net_salary: salary,
@@ -952,6 +979,7 @@ const EmployeeTable = () => {
       basic_salary: employee.basic_salary ?? "",
       incentive: employee.incentive ?? "",
       festival_bonus: employee.festival_bonus ?? "",
+      bonus: employee.bonus ?? "",
       holiday_payment: employee.holiday_payment ?? "",
       total_salary: employee.total_salary ?? "",
       advance: employee.advance ?? "",
@@ -961,6 +989,7 @@ const EmployeeTable = () => {
       half_day_absent: employee.half_day_absent ?? "",
       friday_absent: employee.friday_absent ?? "",
       unapproval_absent: employee.unapproval_absent ?? "",
+      approval_absent: employee.approval_absent ?? "",
       net_salary: employee.net_salary ?? "",
       note: employee.note ?? "",
       remarks: employee.remarks ?? "",
@@ -1035,7 +1064,8 @@ const EmployeeTable = () => {
       employeeListId: normalizeOptionalId(source.employeeListId),
       joining_date: source.joining_date || null,
       pre_joining_days: Number(source.pre_joining_days) || 0,
-      payable_days: source.payable_days === "" ? 30 : Number(source.payable_days) || 0,
+      payable_days:
+        source.payable_days === "" ? 30 : Number(source.payable_days) || 0,
       bookId: normalizeOptionalId(source.bookId),
       note: source.note || "",
       remarks: source.remarks || "",
@@ -1043,6 +1073,7 @@ const EmployeeTable = () => {
       basic_salary: Number(source.basic_salary) || 0,
       incentive: Number(source.incentive) || 0,
       festival_bonus: Number(source.festival_bonus) || 0,
+      bonus: Number(source.bonus) || 0,
       holiday_payment: Number(source.holiday_payment) || 0,
 
       advance: Number(source.advance) || 0,
@@ -1052,6 +1083,7 @@ const EmployeeTable = () => {
       half_day_absent: Number(source.half_day_absent) || 0,
       friday_absent: Number(source.friday_absent) || 0,
       unapproval_absent: Number(source.unapproval_absent) || 0,
+      approval_absent: Number(source.approval_absent) || 0,
 
       total_salary: s.total_salary,
       net_salary: s.net_salary,
@@ -1061,7 +1093,8 @@ const EmployeeTable = () => {
 
   const handleCreateEmployee = async (e) => {
     e.preventDefault();
-    if (!canManagePayroll) return toast.error("You are not allowed to create payroll.");
+    if (!canManagePayroll)
+      return toast.error("You are not allowed to create payroll.");
 
     if (!createEmployee.name?.trim()) return toast.error("Name is required!");
     if (!createEmployee.employee_id?.toString().trim())
@@ -1088,7 +1121,8 @@ const EmployeeTable = () => {
   };
 
   const handleUpdateEmployee = async () => {
-    if (!canManagePayroll) return toast.error("You are not allowed to update payroll.");
+    if (!canManagePayroll)
+      return toast.error("You are not allowed to update payroll.");
 
     if (!currentEmployee) return;
     if (!currentEmployee.name?.trim()) return toast.error("Name is required!");
@@ -1123,6 +1157,7 @@ const EmployeeTable = () => {
         basic_salary: Number(currentEmployee.basic_salary) || 0,
         incentive: Number(currentEmployee.incentive) || 0,
         festival_bonus: Number(currentEmployee.festival_bonus) || 0,
+        bonus: Number(currentEmployee.bonus) || 0,
         holiday_payment: Number(currentEmployee.holiday_payment) || 0,
 
         advance: Number(currentEmployee.advance) || 0,
@@ -1132,6 +1167,7 @@ const EmployeeTable = () => {
         half_day_absent: Number(currentEmployee.half_day_absent) || 0,
         friday_absent: Number(currentEmployee.friday_absent) || 0,
         unapproval_absent: Number(currentEmployee.unapproval_absent) || 0,
+        approval_absent: Number(currentEmployee.approval_absent) || 0,
 
         total_salary: s.total_salary,
         net_salary: s.net_salary,
@@ -1181,7 +1217,12 @@ const EmployeeTable = () => {
 
       const drafts = rows.map((row, index) => {
         const regId = String(
-          getSheetValue(row, ["Reg ID", "RegId", "Registration ID", "employee_id"]),
+          getSheetValue(row, [
+            "Reg ID",
+            "RegId",
+            "Registration ID",
+            "employee_id",
+          ]),
         ).trim();
         const matchedEmployee = employeeSalaryOptions.find(
           (employee) => String(employee.employee_id || "").trim() === regId,
@@ -1270,7 +1311,8 @@ const EmployeeTable = () => {
   };
 
   const handleSaveSheetDrafts = async () => {
-    if (!canManagePayroll) return toast.error("You are not allowed to create payroll.");
+    if (!canManagePayroll)
+      return toast.error("You are not allowed to create payroll.");
 
     const rowsToSave = sheetDraftRows.filter((row) => row.matched);
     if (!rowsToSave.length) {
@@ -1279,10 +1321,13 @@ const EmployeeTable = () => {
     }
 
     const invalidRow = rowsToSave.find(
-      (row) => !row.data.name?.trim() || !row.data.employee_id?.toString().trim(),
+      (row) =>
+        !row.data.name?.trim() || !row.data.employee_id?.toString().trim(),
     );
     if (invalidRow) {
-      toast.error(`Row ${invalidRow.sourceRowNumber}: Name and Employee Id are required.`);
+      toast.error(
+        `Row ${invalidRow.sourceRowNumber}: Name and Employee Id are required.`,
+      );
       return;
     }
 
@@ -1308,7 +1353,8 @@ const EmployeeTable = () => {
   };
 
   const handleUpdateEmployee1 = async () => {
-    if (!canManagePayroll) return toast.error("You are not allowed to update payroll.");
+    if (!canManagePayroll)
+      return toast.error("You are not allowed to update payroll.");
 
     if (!currentEmployee) return;
     try {
@@ -1339,7 +1385,8 @@ const EmployeeTable = () => {
   };
 
   const handleInlineStatusUpdate = async (employee, nextStatus) => {
-    if (!canManagePayroll) return toast.error("You are not allowed to update payroll status.");
+    if (!canManagePayroll)
+      return toast.error("You are not allowed to update payroll status.");
 
     if (!employee || employee.status === nextStatus) return;
 
@@ -1399,7 +1446,8 @@ const EmployeeTable = () => {
   };
 
   const handleDeleteEmployee = async (id) => {
-    if (!canManagePayroll) return toast.error("You are not allowed to delete payroll.");
+    if (!canManagePayroll)
+      return toast.error("You are not allowed to delete payroll.");
 
     const confirmDelete = await requestDeleteConfirmation({
       message: "Do you want to delete this employee?",
@@ -2850,7 +2898,7 @@ const EmployeeTable = () => {
                 },
                 {
                   key: "Holiday Days",
-                  label: t.holiday_days || "Holiday Days",
+                  label: t.holiday_days || "Incashment (Holiday)",
                 },
                 { key: "Advance", label: t.advance || "Advance" },
                 { key: "Total Salary", label: t.total_salary },
@@ -3009,13 +3057,13 @@ const EmployeeTable = () => {
                     )}
                     {emp.__isPayrollPlaceholder ? (
                       canManagePayroll ? (
-                      <button
-                        onClick={() => openAddModalForEmployee(emp)}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg hover:bg-indigo-50 transition"
-                        title="Create Payroll"
-                      >
-                        <Plus size={18} className="text-indigo-600" />
-                      </button>
+                        <button
+                          onClick={() => openAddModalForEmployee(emp)}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg hover:bg-indigo-50 transition"
+                          title="Create Payroll"
+                        >
+                          <Plus size={18} className="text-indigo-600" />
+                        </button>
                       ) : (
                         <span className="text-xs font-semibold text-slate-400">
                           View only
@@ -3259,7 +3307,15 @@ const EmployeeTable = () => {
             />
 
             <Field
-              label={t.holiday_days + ":" || "Holiday Days:"}
+              label="Bonus:"
+              type="number"
+              step="0.01"
+              value={currentEmployee?.bonus}
+              onChange={(v) => updateCurrentField("bonus", v)}
+            />
+
+            <Field
+              label={t.holiday_days + ":" || "Incashment (Holiday):"}
               type="number"
               value={currentEmployee?.holiday_payment}
               onChange={(v) => updateCurrentField("holiday_payment", v)}
@@ -3344,6 +3400,13 @@ const EmployeeTable = () => {
               type="number"
               value={currentEmployee?.unapproval_absent}
               onChange={(v) => updateCurrentField("unapproval_absent", v)}
+            />
+
+            <Field
+              label="Approval Absent (days):"
+              type="number"
+              value={currentEmployee?.approval_absent}
+              onChange={(v) => updateCurrentField("approval_absent", v)}
             />
 
             <Field
@@ -3522,25 +3585,32 @@ const EmployeeTable = () => {
       >
         <div className="space-y-5">
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-            Matched rows will be inserted by matching sheet Reg ID with employee_id.
-            You can edit salary information before saving. Unmatched rows are skipped.
+            Matched rows will be inserted by matching sheet Reg ID with
+            employee_id. You can edit salary information before saving.
+            Unmatched rows are skipped.
           </div>
 
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-              <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">Matched</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">
+                Matched
+              </p>
               <p className="mt-1 text-2xl font-black text-emerald-900">
                 {sheetDraftRows.filter((row) => row.matched).length}
               </p>
             </div>
             <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4">
-              <p className="text-xs font-bold uppercase tracking-wider text-rose-700">Unmatched</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-rose-700">
+                Unmatched
+              </p>
               <p className="mt-1 text-2xl font-black text-rose-900">
                 {sheetDraftRows.filter((row) => !row.matched).length}
               </p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Total Rows</p>
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                Total Rows
+              </p>
               <p className="mt-1 text-2xl font-black text-slate-900">
                 {sheetDraftRows.length}
               </p>
@@ -3584,7 +3654,10 @@ const EmployeeTable = () => {
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white">
                 {sheetDraftRows.map((row) => (
-                  <tr key={row.rowKey} className={!row.matched ? "bg-rose-50/50" : ""}>
+                  <tr
+                    key={row.rowKey}
+                    className={!row.matched ? "bg-rose-50/50" : ""}
+                  >
                     <td className="px-3 py-3 font-semibold text-slate-700">
                       {row.sourceRowNumber}
                     </td>
@@ -3606,7 +3679,11 @@ const EmployeeTable = () => {
                       <input
                         value={row.data.name || ""}
                         onChange={(e) =>
-                          updateSheetDraftField(row.rowKey, "name", e.target.value)
+                          updateSheetDraftField(
+                            row.rowKey,
+                            "name",
+                            e.target.value,
+                          )
                         }
                         disabled={!row.matched}
                         className="h-10 w-44 rounded-xl border border-slate-200 px-3 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:bg-slate-100"
@@ -3617,7 +3694,11 @@ const EmployeeTable = () => {
                         type="date"
                         value={row.data.date || ""}
                         onChange={(e) =>
-                          updateSheetDraftField(row.rowKey, "date", e.target.value)
+                          updateSheetDraftField(
+                            row.rowKey,
+                            "date",
+                            e.target.value,
+                          )
                         }
                         disabled={!row.matched}
                         className="h-10 w-40 rounded-xl border border-slate-200 px-3 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:bg-slate-100"
@@ -3643,7 +3724,11 @@ const EmployeeTable = () => {
                           step="0.01"
                           value={row.data[field] ?? ""}
                           onChange={(e) =>
-                            updateSheetDraftField(row.rowKey, field, e.target.value)
+                            updateSheetDraftField(
+                              row.rowKey,
+                              field,
+                              e.target.value,
+                            )
                           }
                           disabled={!row.matched}
                           className="h-10 w-28 rounded-xl border border-slate-200 px-3 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:bg-slate-100"
@@ -3660,7 +3745,11 @@ const EmployeeTable = () => {
                       <input
                         value={row.data.remarks || ""}
                         onChange={(e) =>
-                          updateSheetDraftField(row.rowKey, "remarks", e.target.value)
+                          updateSheetDraftField(
+                            row.rowKey,
+                            "remarks",
+                            e.target.value,
+                          )
                         }
                         disabled={!row.matched}
                         className="h-10 w-64 rounded-xl border border-slate-200 px-3 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:bg-slate-100"
@@ -3684,7 +3773,9 @@ const EmployeeTable = () => {
             <button
               type="button"
               onClick={handleSaveSheetDrafts}
-              disabled={isSheetSaving || !sheetDraftRows.some((row) => row.matched)}
+              disabled={
+                isSheetSaving || !sheetDraftRows.some((row) => row.matched)
+              }
               className="rounded-2xl bg-indigo-600 px-8 py-3 text-sm font-bold text-white shadow-xl shadow-indigo-100 transition hover:bg-indigo-700 disabled:opacity-60"
             >
               {isSheetSaving ? "Saving..." : "Save Matched Rows"}
@@ -3848,7 +3939,15 @@ const EmployeeTable = () => {
             />
 
             <Field
-              label={t.holiday_days + ":" || "Holiday Days:"}
+              label="Bonus:"
+              type="number"
+              step="0.01"
+              value={createEmployee.bonus}
+              onChange={(v) => updateCreateField("bonus", v)}
+            />
+
+            <Field
+              label={t.holiday_days + ":" || "Incashment (Holiday):"}
               type="number"
               value={createEmployee.holiday_payment}
               onChange={(v) => updateCreateField("holiday_payment", v)}
@@ -3935,6 +4034,13 @@ const EmployeeTable = () => {
               type="number"
               value={createEmployee.unapproval_absent}
               onChange={(v) => updateCreateField("unapproval_absent", v)}
+            />
+
+            <Field
+              label="Approval Absent (days):"
+              type="number"
+              value={createEmployee.approval_absent}
+              onChange={(v) => updateCreateField("approval_absent", v)}
             />
 
             <Field
@@ -4147,7 +4253,7 @@ const EmployeeTable = () => {
                 </tr>
                 <tr>
                   <td className="py-3 font-medium text-slate-900 border-b-[1.5px] border-slate-700">
-                    {t.holiday_days || "Holiday Days"} (
+                    {t.holiday_days || "Incashment (Holiday)"} (
                     {getHolidayDays(invoiceEmployee)})
                   </td>
                   <td className="py-3 text-right font-black text-slate-900 border-b-[1.5px] border-slate-700">
@@ -4445,7 +4551,7 @@ const EmployeeTable = () => {
 
                       <tr>
                         <td className="py-3 font-medium text-slate-900 border-b-[1.5px] border-slate-700">
-                          {t.holiday_days || "Holiday Days"} (
+                          {t.holiday_days || "Incashment (Holiday)"} (
                           {getHolidayDays(emp)})
                         </td>
                         <td className="py-3 text-right font-black text-slate-900 border-b-[1.5px] border-slate-700">
