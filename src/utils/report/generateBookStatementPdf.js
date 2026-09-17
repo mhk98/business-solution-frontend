@@ -1704,8 +1704,10 @@ const appendBookStatement = async (doc, html2canvas, cursor, book) => {
     balanceDiff: totalDebit - openingDebit,
   };
 
-  // A new book always starts on its own fresh page.
-  cursor.pageHasContent = false;
+  // A new book always starts on its own fresh page — except when its
+  // header was already rendered up front as the report cover (skipHeader),
+  // in which case its ledger just continues wherever the cursor is.
+  if (!book.skipHeader) cursor.pageHasContent = false;
 
   const placeAtomic = async (fragmentHtml) => {
     const fragment = await renderFragment(
@@ -1724,8 +1726,10 @@ const appendBookStatement = async (doc, html2canvas, cursor, book) => {
       boldFontDataUrl: book.boldFontDataUrl,
     });
 
-  await placeAtomic(buildHeaderFragment(book));
-  await placeAtomic(buildTitleBarFragment(book.periodLabel));
+  if (!book.skipHeader) {
+    await placeAtomic(buildHeaderFragment(book));
+    await placeAtomic(buildTitleBarFragment(book.periodLabel));
+  }
 
   // Category summary first (one row per category, date range, summed
   // amount) — followed by the Total Credit & Debit roll-up.
@@ -2632,7 +2636,114 @@ export const generateBookStatementPdf = async ({
     return sum + netBalance;
   }, 0);
 
-  for (const book of books) {
+  // Report cover — company header + period bar, once for the whole
+  // statement, leading the document ahead of the summary sections below.
+  // Uses the first book's name (the common case is a single book) so the
+  // first book's own header doesn't have to repeat right after it — see
+  // `skipHeader` below. Any additional books still get their own header.
+  const reportHeaderFragment = await renderFragment(
+    html2canvas,
+    buildHeaderFragment({
+      companyName,
+      companyInfo,
+      logoDataUrl,
+      bookName: books[0]?.bookName || "All Books",
+    }),
+    regularFontDataUrl,
+    boldFontDataUrl,
+  );
+  placeFragment(doc, cursor, reportHeaderFragment);
+
+  const reportTitleBarFragment = await renderFragment(
+    html2canvas,
+    buildTitleBarFragment(periodLabel),
+    regularFontDataUrl,
+    boldFontDataUrl,
+  );
+  placeFragment(doc, cursor, reportTitleBarFragment);
+
+  // Front summary — Grand Total / Total Due / Carry Forward / Total Due &
+  // Director Investment / Profit & Loss, pulled to the very front of the
+  // report so the headline numbers are visible before the per-book detail.
+  // Each of these renders purely from the report props above, not from
+  // anything the book loop or later sections compute, so moving them earlier
+  // doesn't change any figure — see the sibling summary sections' own totals
+  // helpers for the actual math.
+  await appendGrandTotalSection(doc, html2canvas, cursor, {
+    totalCashBalance,
+    salesDue,
+    salaryAdvance,
+    supplierReceivable,
+    dollarSupplierReceivable,
+    manufacturerReceivable,
+    packagingManufacturerReceivable,
+    lenderReceivable,
+    inventoryStockReport,
+    itemFactoryStock,
+    packagingStock,
+    courierProductStock,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
+  await appendPayableTotalSection(doc, html2canvas, cursor, {
+    pendingPayrollSalary,
+    manufacturerDue,
+    supplierDue,
+    dollarSupplierDue,
+    lenderPayable,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
+  await appendCarryForwardBalanceSection(doc, html2canvas, cursor, {
+    inventoryStockReport,
+    itemFactoryStock,
+    packagingStock,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
+  await appendPayableAndDirectorInvestmentTotalSection(
+    doc,
+    html2canvas,
+    cursor,
+    {
+      pendingPayrollSalary,
+      manufacturerDue,
+      supplierDue,
+      dollarSupplierDue,
+      lenderPayable,
+      directorInvestment,
+      regularFontDataUrl,
+      boldFontDataUrl,
+    },
+  );
+
+  await appendProfitLossSection(doc, html2canvas, cursor, {
+    totalCashBalance,
+    salesDue,
+    salaryAdvance,
+    supplierReceivable,
+    dollarSupplierReceivable,
+    manufacturerReceivable,
+    packagingManufacturerReceivable,
+    lenderReceivable,
+    pendingPayrollSalary,
+    manufacturerDue,
+    supplierDue,
+    dollarSupplierDue,
+    lenderPayable,
+    directorInvestment,
+    inventoryStockReport,
+    itemFactoryStock,
+    packagingStock,
+    courierProductStock,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
+  for (const [index, book] of books.entries()) {
     await appendBookStatement(doc, html2canvas, cursor, {
       ...book,
       companyName,
@@ -2642,6 +2753,8 @@ export const generateBookStatementPdf = async ({
       periodLabel,
       regularFontDataUrl,
       boldFontDataUrl,
+      // The first book's header was already shown as the report cover above.
+      skipHeader: index === 0,
     });
   }
 
@@ -2714,23 +2827,6 @@ export const generateBookStatementPdf = async ({
     boldFontDataUrl,
   });
 
-  await appendGrandTotalSection(doc, html2canvas, cursor, {
-    totalCashBalance,
-    salesDue,
-    salaryAdvance,
-    supplierReceivable,
-    dollarSupplierReceivable,
-    manufacturerReceivable,
-    packagingManufacturerReceivable,
-    lenderReceivable,
-    inventoryStockReport,
-    itemFactoryStock,
-    packagingStock,
-    courierProductStock,
-    regularFontDataUrl,
-    boldFontDataUrl,
-  });
-
   await appendPendingPayrollSalarySection(doc, html2canvas, cursor, {
     pendingPayrollSalary,
     regularFontDataUrl,
@@ -2761,65 +2857,8 @@ export const generateBookStatementPdf = async ({
     boldFontDataUrl,
   });
 
-  await appendPayableTotalSection(doc, html2canvas, cursor, {
-    pendingPayrollSalary,
-    manufacturerDue,
-    supplierDue,
-    dollarSupplierDue,
-    lenderPayable,
-    regularFontDataUrl,
-    boldFontDataUrl,
-  });
-
-  await appendCarryForwardBalanceSection(doc, html2canvas, cursor, {
-    inventoryStockReport,
-    itemFactoryStock,
-    packagingStock,
-    regularFontDataUrl,
-    boldFontDataUrl,
-  });
-
   await appendDirectorInvestmentSection(doc, html2canvas, cursor, {
     directorInvestment,
-    regularFontDataUrl,
-    boldFontDataUrl,
-  });
-
-  await appendPayableAndDirectorInvestmentTotalSection(
-    doc,
-    html2canvas,
-    cursor,
-    {
-      pendingPayrollSalary,
-      manufacturerDue,
-      supplierDue,
-      dollarSupplierDue,
-      lenderPayable,
-      directorInvestment,
-      regularFontDataUrl,
-      boldFontDataUrl,
-    },
-  );
-
-  await appendProfitLossSection(doc, html2canvas, cursor, {
-    totalCashBalance,
-    salesDue,
-    salaryAdvance,
-    supplierReceivable,
-    dollarSupplierReceivable,
-    manufacturerReceivable,
-    packagingManufacturerReceivable,
-    lenderReceivable,
-    pendingPayrollSalary,
-    manufacturerDue,
-    supplierDue,
-    dollarSupplierDue,
-    lenderPayable,
-    directorInvestment,
-    inventoryStockReport,
-    itemFactoryStock,
-    packagingStock,
-    courierProductStock,
     regularFontDataUrl,
     boldFontDataUrl,
   });

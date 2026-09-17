@@ -105,6 +105,15 @@ export const marketingExpenseApi = createApi({
       pollingInterval: 1000,
     }),
 
+    getMarketingExpenseTotalsByBook: build.query({
+      query: (bookIds) => ({
+        url: "/marketing-expense/totals-by-book",
+        params: { bookIds: (bookIds || []).join(",") },
+      }),
+      providesTags: ["marketingExpense"],
+      refetchOnMountOrArgChange: true,
+    }),
+
     getOverviewSummary: build.query({
       query: (arg = {}) => {
         const { from, to } = arg;
@@ -132,4 +141,5 @@ export const {
   useDeleteMarketingExpenseMutation,
   useGetAllMarketingExpenseWithoutQueryQuery,
   useGetOverviewSummaryQuery,
+  useGetMarketingExpenseTotalsByBookQuery,
 } = marketingExpenseApi;

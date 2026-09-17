@@ -30,6 +30,10 @@ const stockTypeOptions = [
   { value: "FactoryStock", label: "Factory Stock" },
   { value: "ProductStock", label: "Stock Product" },
   { value: "PackagingStock", label: "Packaging Stock" },
+  { value: "PackagingItemStock", label: "Packaging Item Stock" },
+  { value: "PackagingFactoryStock", label: "Packaging Factory Stock" },
+  { value: "DamageStock", label: "Damage Stock" },
+  { value: "RepairingStock", label: "Damage Repairing Stock" },
 ];
 
 const operationOptions = [
@@ -90,7 +94,23 @@ const getStockTypeLabel = (value) =>
   value ||
   "--";
 
-const StockMovementTable = () => {
+const StockMovementTable = ({
+  title = "Stock Movement",
+  subtitle = "Immutable stock audit trail across purchase, factory, adjustment and mixer",
+  scopedStockTypes = null,
+  scopedAllLabel = "All",
+}) => {
+  // When scoped (e.g. embedded on the Damage Management or Packaging page),
+  // restrict the Stock Type dropdown to just the relevant types and default
+  // the query to "any of these" (comma-separated -> Op.in on the backend)
+  // instead of showing/allowing every stock type in the system.
+  const scopedDefaultStockType = scopedStockTypes
+    ? scopedStockTypes.map((option) => option.value).join(",")
+    : "";
+  const activeStockTypeOptions = scopedStockTypes
+    ? [{ value: scopedDefaultStockType, label: scopedAllLabel }, ...scopedStockTypes]
+    : stockTypeOptions;
+
   const [rows, setRows] = useState([]);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
@@ -99,7 +119,7 @@ const StockMovementTable = () => {
   const [pagesPerSet, setPagesPerSet] = useState(10);
   const [searchTerm, setSearchTerm] = useState("");
   const [sourceType, setSourceType] = useState("");
-  const [stockType, setStockType] = useState("");
+  const [stockType, setStockType] = useState(scopedDefaultStockType);
   const [operation, setOperation] = useState("");
   const [productName, setProductName] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -191,7 +211,7 @@ const StockMovementTable = () => {
   const clearFilters = () => {
     setSearchTerm("");
     setSourceType("");
-    setStockType("");
+    setStockType(scopedDefaultStockType);
     setOperation("");
     setProductName("");
     setStartDate("");
@@ -210,10 +230,10 @@ const StockMovementTable = () => {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
         <div>
           <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-            Stock Movement
+            {title}
           </h2>
           <p className="text-slate-500 text-sm mt-1 font-medium">
-            Immutable stock audit trail across purchase, factory, adjustment and mixer
+            {subtitle}
           </p>
         </div>
 
@@ -288,11 +308,16 @@ const StockMovementTable = () => {
             Stock Type
           </label>
           <Select
-            options={stockTypeOptions}
-            value={stockTypeOptions.find((option) => option.value === stockType) || null}
-            onChange={(selected) => setStockType(selected?.value || "")}
+            options={activeStockTypeOptions}
+            value={
+              activeStockTypeOptions.find((option) => option.value === stockType) ||
+              null
+            }
+            onChange={(selected) =>
+              setStockType(selected?.value ?? scopedDefaultStockType)
+            }
             placeholder="All stock"
-            isClearable
+            isClearable={!scopedStockTypes}
             styles={selectStyles}
             className="text-black"
           />

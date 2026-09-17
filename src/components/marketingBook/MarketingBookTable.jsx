@@ -17,7 +17,10 @@ import {
 import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
 import Modal from "../common/Modal";
-import { useGetOverviewSummaryQuery } from "../../features/marketingExpense/marketingExpense.jsx";
+import {
+  useGetOverviewSummaryQuery,
+  useGetMarketingExpenseTotalsByBookQuery,
+} from "../../features/marketingExpense/marketingExpense.jsx";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 import useDebounce from "../../hooks/useDebounce";
 import DateRangeFilter from "../common/DateRangeFilter";
@@ -72,7 +75,14 @@ const MarketingBookTable = () => {
       searchTerm: debouncedName || undefined,
     });
 
-  const books = data?.data ?? [];
+  const books = useMemo(() => data?.data ?? [], [data]);
+  const bookIds = useMemo(() => books.map((item) => item.Id), [books]);
+
+  const { data: bookTotalsRes } = useGetMarketingExpenseTotalsByBookQuery(
+    bookIds,
+    { skip: bookIds.length === 0 },
+  );
+  const bookTotals = bookTotalsRes?.data || {};
 
 
   useEffect(() => {
@@ -375,6 +385,34 @@ const MarketingBookTable = () => {
                 </div>
               </div>
             </Link>
+
+            {/* Per-channel totals */}
+            <div className="hidden sm:flex items-center gap-12 px-6 mr-10 text-sm">
+              <div className="text-right">
+                <div className="text-[11px] text-slate-500">CashIn</div>
+                <div className="font-semibold text-emerald-600 tabular-nums">
+                  {Number(
+                    bookTotals[item.Id]?.cashIn || 0,
+                  ).toLocaleString()}
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-[11px] text-slate-500">CashOut</div>
+                <div className="font-semibold text-rose-600 tabular-nums">
+                  {Number(
+                    bookTotals[item.Id]?.cashOut || 0,
+                  ).toLocaleString()}
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-[11px] text-slate-500">Net Balance</div>
+                <div className="font-semibold text-indigo-600 tabular-nums">
+                  {Number(
+                    bookTotals[item.Id]?.netBalance || 0,
+                  ).toLocaleString()}
+                </div>
+              </div>
+            </div>
 
             {/* Right */}
             {(role === "superAdmin" || role === "admin") && (

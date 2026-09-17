@@ -260,6 +260,7 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
   };
   const handleModalClose3 = () => {
     setIsModalOpen3(false);
+    clearDollarSupplierFields();
   };
 
   const handleEditClick = (rp) => {
@@ -480,8 +481,17 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
   const handleCreateProduct1 = async (e) => {
     e.preventDefault();
 
-    // Ensure required fields are filled
-    if (!createProduct.amount) return toast.error("Amount is required!");
+    const usd = Number(createProduct.usdAmount);
+    const rate = Number(createProduct.usdRate);
+    const localAmount = dollarUsdLocalAmount;
+
+    // Amount = USD x USD Rate (the computed Local Amount)
+    if (!Number.isFinite(usd) || usd <= 0)
+      return toast.error("USD amount is required!");
+    if (!Number.isFinite(rate) || rate <= 0)
+      return toast.error("USD rate is required!");
+    if (!localAmount || localAmount <= 0)
+      return toast.error("Amount must be greater than 0!");
 
     try {
       // Form data preparation for submission
@@ -506,7 +516,9 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
       // Use category (not category)
       // formData.append("category", finalCategoryName); // Using category name here
       formData.append("remarks", createProduct.remarks?.trim() || "");
-      formData.append("amount", String(Number(createProduct.amount)));
+      formData.append("amount", String(localAmount));
+      formData.append("usdAmount", String(usd));
+      formData.append("usdRate", String(rate));
       formData.append("bookId", id);
       if (createProduct.file) formData.append("file", createProduct.file);
 
@@ -525,6 +537,9 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
           amount: "",
           date: "",
           file: null,
+          dollarSupplierId: "",
+          usdAmount: "",
+          usdRate: "",
         });
         refetch?.();
       } else toast.error(res?.message || "Create failed!");
@@ -1731,6 +1746,60 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
             />
           </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                USD
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={createProduct.usdAmount}
+                onChange={(e) =>
+                  setCreateProduct((p) => ({
+                    ...p,
+                    usdAmount: e.target.value,
+                  }))
+                }
+                placeholder="Dollar amount"
+                className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                USD Rate
+              </label>
+              <input
+                type="number"
+                step="0.0001"
+                min="0"
+                value={createProduct.usdRate}
+                onChange={(e) =>
+                  setCreateProduct((p) => ({
+                    ...p,
+                    usdRate: e.target.value,
+                  }))
+                }
+                placeholder="Current rate"
+                className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                Amount
+              </label>
+              <input
+                type="text"
+                readOnly
+                value={dollarUsdLocalAmount.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+                className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-bold text-slate-900 bg-slate-50"
+              />
+            </div>
+          </div>
 
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
@@ -1770,25 +1839,6 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
               }
               className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
               placeholder="Internal notes..."
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
-              Amount
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              value={createProduct.amount}
-              onChange={(e) =>
-                setCreateProduct({
-                  ...createProduct,
-                  amount: e.target.value,
-                })
-              }
-              className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-              required
             />
           </div>
 
