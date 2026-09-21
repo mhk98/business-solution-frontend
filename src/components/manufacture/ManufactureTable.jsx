@@ -28,7 +28,6 @@ import {
   useInsertManufactureMutation,
   useUpdateManufactureMutation,
 } from "../../features/manufacture/manufacture";
-import { useInsertSupplierHistoryMutation } from "../../features/supplierHistory/supplierHistory";
 import { useGetAllItemWithoutQueryQuery } from "../../features/item/item";
 import { useGetAllSupplierWithoutQueryQuery } from "../../features/supplier/supplier";
 import { useGetAllLogoQuery } from "../../features/logo/logo";
@@ -374,7 +373,6 @@ const ManufactureTable = () => {
   const [insertManufacture] = useInsertManufactureMutation();
   const [updateManufacture] = useUpdateManufactureMutation();
   const [deleteManufacture] = useDeleteManufactureMutation();
-  const [insertSupplierHistory] = useInsertSupplierHistoryMutation();
 
   const handleAddProduct = () => setIsModalOpen1(true);
 
@@ -622,15 +620,10 @@ const ManufactureTable = () => {
       );
 
       if (responses.every((res) => res?.success !== false)) {
-        if (Number(allItemTotalCost || 0) > 0) {
-          await insertSupplierHistory({
-            supplierId: Number(createProduct.supplierId),
-            amount: allItemTotalCost,
-            status: "Unpaid",
-            date: createProduct.date || new Date().toISOString().slice(0, 10),
-          }).unwrap();
-        }
-
+        // The backend links a SupplierHistory row to each created Manufacture
+        // record itself now (manufacture.service.js's insertIntoDB), one per
+        // item rather than one combined row for the whole batch — so an edit
+        // to a single item later can find and adjust its own due amount.
         toast.success("Successfully created!");
         setIsModalOpen1(false);
         setCreateProduct(initialCreateProduct);

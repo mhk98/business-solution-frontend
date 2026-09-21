@@ -64,9 +64,9 @@ export const monthlyReportingBookApi = createApi({
     }),
 
     getBookStatement: build.query({
-      query: ({ month, startDate, endDate, bookId } = {}) => ({
+      query: ({ month, startDate, endDate, bookId, includeInventoryStockReport } = {}) => ({
         url: "/monthly-reporting-book/book-statement",
-        params: { month, startDate, endDate, bookId },
+        params: { month, startDate, endDate, bookId, includeInventoryStockReport },
       }),
       providesTags: ["monthlyReportingBook"],
     }),

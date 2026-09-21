@@ -525,6 +525,10 @@ const UserManagementTable = () => {
               const img = item?.image ? `${API_BASE}/${item.image}` : null;
               const isInactive = item?.status === "Inactive";
               const isCurrentUser = item?.Id === actorUserId;
+              // Only the superAdmin account itself may edit/delete another
+              // superAdmin's row — mirrors the backend guard.
+              const isOtherSuperAdmin =
+                item?.role === "superAdmin" && !isCurrentUser;
 
               return (
                 <div
@@ -611,29 +615,33 @@ const UserManagementTable = () => {
                       </>
                     )}
 
-                    <button
-                      onClick={() => handleEdit(item)}
-                      type="button"
-                      className="inline-flex h-9 items-center justify-center rounded-lg border border-transparent hover:bg-indigo-50 sm:w-9 sm:border-0 transition"
-                      title="Edit"
-                    >
-                      <span className="mr-2 text-xs font-semibold text-indigo-600 sm:hidden">
-                        Edit
-                      </span>
-                      <Pencil className="text-indigo-600" size={18} />
-                    </button>
+                    {!isOtherSuperAdmin && (
+                      <button
+                        onClick={() => handleEdit(item)}
+                        type="button"
+                        className="inline-flex h-9 items-center justify-center rounded-lg border border-transparent hover:bg-indigo-50 sm:w-9 sm:border-0 transition"
+                        title="Edit"
+                      >
+                        <span className="mr-2 text-xs font-semibold text-indigo-600 sm:hidden">
+                          Edit
+                        </span>
+                        <Pencil className="text-indigo-600" size={18} />
+                      </button>
+                    )}
 
-                    <button
-                      onClick={() => handleDelete(item.Id)}
-                      type="button"
-                      className="inline-flex h-9 items-center justify-center rounded-lg border border-transparent hover:bg-rose-50 sm:w-9 sm:border-0 transition"
-                      title="Delete"
-                    >
-                      <span className="mr-2 text-xs font-semibold text-rose-600 sm:hidden">
-                        Delete
-                      </span>
-                      <Trash2 className="text-rose-600" size={18} />
-                    </button>
+                    {!isOtherSuperAdmin && (
+                      <button
+                        onClick={() => handleDelete(item.Id)}
+                        type="button"
+                        className="inline-flex h-9 items-center justify-center rounded-lg border border-transparent hover:bg-rose-50 sm:w-9 sm:border-0 transition"
+                        title="Delete"
+                      >
+                        <span className="mr-2 text-xs font-semibold text-rose-600 sm:hidden">
+                          Delete
+                        </span>
+                        <Trash2 className="text-rose-600" size={18} />
+                      </button>
+                    )}
                   </div>
                 </div>
               );

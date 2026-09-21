@@ -7,6 +7,8 @@ import {
 } from "../../features/auth/auth";
 import {
   ROLE_OPTIONS,
+  SUPER_ADMIN_PERMISSION_KEYS,
+  includeParentMenuPermissions,
   SIDEBAR_ITEMS,
   expandPermissionKeys,
   getStoredRolePermissions,
@@ -53,7 +55,9 @@ const RolePermissionsManager = () => {
 
   const selectedRoleKeys = useMemo(
     () =>
-      expandPermissionKeys(rolePermissions[selectedPermissionRole] || []),
+      selectedPermissionRole === "superAdmin"
+        ? SUPER_ADMIN_PERMISSION_KEYS
+        : includeParentMenuPermissions(rolePermissions[selectedPermissionRole] || []),
     [rolePermissions, selectedPermissionRole],
   );
   const selectedMenuKeys = useMemo(
@@ -78,7 +82,9 @@ const RolePermissionsManager = () => {
 
     setRolePermissions((prev) => ({
       ...prev,
-      [selectedPermissionRole]: normalizePermissionKeys(Array.from(currentKeys)),
+      [selectedPermissionRole]: normalizePermissionKeys(checked
+        ? includeParentMenuPermissions(Array.from(currentKeys))
+        : Array.from(currentKeys)),
     }));
   };
 
@@ -165,6 +171,9 @@ const RolePermissionsManager = () => {
         </div>
       </div>
 
+      {selectedPermissionRole === "superAdmin" && (
+        <p className="mt-4 text-sm text-slate-500">Super Admin সব menu ও submenu permission default পাবে।</p>
+      )}
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         {SIDEBAR_ITEMS.map((item) => {
           const parentChecked = selectedMenuKeys.includes(item.key);
@@ -177,6 +186,7 @@ const RolePermissionsManager = () => {
               <label className="flex items-center gap-3">
                 <input
                   type="checkbox"
+                  disabled={selectedPermissionRole === "superAdmin"}
                   checked={parentChecked}
                   onChange={(e) => togglePermission(item, e.target.checked)}
                   className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
@@ -195,6 +205,7 @@ const RolePermissionsManager = () => {
                     >
                       <input
                         type="checkbox"
+                        disabled={selectedPermissionRole === "superAdmin"}
                         checked={selectedMenuKeys.includes(child.key)}
                         onChange={(e) =>
                           togglePermission(child, e.target.checked)
@@ -220,7 +231,7 @@ const RolePermissionsManager = () => {
           <button
             type="button"
             onClick={handleClearRolePermissions}
-            disabled={savingPermissions || isLoading}
+            disabled={savingPermissions || isLoading || selectedPermissionRole === "superAdmin"}
             className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition disabled:opacity-60"
           >
             Clear All
@@ -228,7 +239,7 @@ const RolePermissionsManager = () => {
           <button
             type="button"
             onClick={handleSaveRolePermissions}
-            disabled={savingPermissions || isLoading}
+            disabled={savingPermissions || isLoading || selectedPermissionRole === "superAdmin"}
             className="px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 transition disabled:opacity-60"
           >
             {savingPermissions ? "Saving..." : "Save Permissions"}

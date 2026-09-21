@@ -44,7 +44,12 @@ export const useBookStatementExport = () => {
     setPreview(EMPTY_PREVIEW);
   };
 
-  const resolveTargetBooks = async ({ range, bookId, bookName, searchTerm }) => {
+  const resolveTargetBooks = async ({
+    range,
+    bookId,
+    bookName,
+    searchTerm,
+  }) => {
     if (bookId) {
       return [{ Id: bookId, name: bookName || "Book" }];
     }
@@ -75,7 +80,11 @@ export const useBookStatementExport = () => {
     autoPrint,
     title,
   }) => {
-    const reportTitle = title || (bookName ? `${bookName} — ${range.label}` : `All Books — ${range.label}`);
+    const reportTitle =
+      title ||
+      (bookName
+        ? `${bookName} — ${range.label}`
+        : `${DEFAULT_COMPANY_NAME} Book — ${range.label}`);
 
     setPreview({
       ...EMPTY_PREVIEW,
@@ -100,12 +109,18 @@ export const useBookStatementExport = () => {
         return;
       }
 
+      // inventoryStockReport is a heavy, book-independent global report (FIFO
+      // stock costing, every receivable/due section, assets, …) — only ask
+      // for it on one request instead of once per book, or an "All Books"
+      // export with N books recomputes the same expensive report N times in
+      // parallel.
       const statementResults = await Promise.all(
-        targetBooks.map((book) =>
+        targetBooks.map((book, index) =>
           fetchBookStatement({
             bookId: book.Id,
             startDate: range.from,
             endDate: range.to,
+            includeInventoryStockReport: index === 0,
           }).unwrap(),
         ),
       );
@@ -158,7 +173,8 @@ export const useBookStatementExport = () => {
         assetsSummary: statementAssetsSummary || null,
         paymentModeSummary: statementPaymentModeSummary || null,
         inventoryStockReport,
-        itemFactoryStock: statementInventoryStockReport?.itemFactoryStock || null,
+        itemFactoryStock:
+          statementInventoryStockReport?.itemFactoryStock || null,
         packagingStock: statementInventoryStockReport?.packagingStock || null,
         courierProductStock:
           statementInventoryStockReport?.courierProductStock || null,
@@ -181,6 +197,8 @@ export const useBookStatementExport = () => {
         dollarSupplierDue:
           statementInventoryStockReport?.dollarSupplierDue || null,
         manufacturerDue: statementInventoryStockReport?.manufacturerDue || null,
+        packagingManufacturerDue:
+          statementInventoryStockReport?.packagingManufacturerDue || null,
         lenderPayable: statementInventoryStockReport?.lenderPayable || null,
         directorInvestment:
           statementInventoryStockReport?.directorInvestment || null,

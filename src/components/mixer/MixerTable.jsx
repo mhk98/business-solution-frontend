@@ -252,13 +252,26 @@ const normalizeManufactureItems = (response, itemMasterRows = []) => {
           index,
       ),
       label: baseLabel,
+      // Factory Stock's API rolls large ml/gram quantities up into Liter/Kg
+      // for display (unitConversionHelper.js's formatStockForDisplay) and
+      // puts the item's actual configured unit in baseUnit/baseUnitValue
+      // instead. This form needs the real unit (what the backend's own
+      // stock-deduction math expects) so the QUANTITY input and UNIT box
+      // aren't showing "Liter" for an item actually tracked in ml —
+      // baseUnit/baseUnitValue take priority whenever the API provided them.
       unitValue:
+        item?.baseUnitValue ??
         item?.unitValue ??
         item?.quantity ??
         item?.item?.unitValue ??
         item?.product?.unitValue ??
         "",
-      unit: item?.unit ?? item?.item?.unit ?? item?.product?.unit ?? "Pcs",
+      unit:
+        item?.baseUnit ??
+        item?.unit ??
+        item?.item?.unit ??
+        item?.product?.unit ??
+        "Pcs",
       // Factory Stock's own cost basis for this raw material — same fields
       // the Factory Stock page's own "Unit Cost" column reads (cost ÷
       // unitValue, both already in the backend's converted display unit).

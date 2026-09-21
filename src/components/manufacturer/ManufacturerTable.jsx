@@ -15,10 +15,12 @@ import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 
 import Modal from "../common/Modal";
+import DateRangeFilter from "../common/DateRangeFilter";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 import {
   useDeleteManufacturerMutation,
   useGetAllManufacturerQuery,
+  useGetAllManufacturerWithoutQueryQuery,
   useInsertManufacturerMutation,
   useUpdateManufacturerMutation,
 } from "../../features/manufacturer/manufacturer";
@@ -48,6 +50,24 @@ const ManufacturerTable = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [dateRange, setDateRange] = useState({ from: "", to: "" });
+
+  const dateParams = useMemo(
+    () => ({
+      startDate: dateRange.from || undefined,
+      endDate: dateRange.to || undefined,
+    }),
+    [dateRange],
+  );
+
+  const handleDateFilter = (_type, range) => {
+    if (range.from && range.to && range.from > range.to) {
+      toast.error("Start date must be on or before end date");
+      return;
+    }
+    setDateRange(range);
+    setCurrentPage(1);
+  };
 
   useEffect(() => {
     setCurrentPage(1);
@@ -58,16 +78,36 @@ const ManufacturerTable = () => {
       page: currentPage,
       limit: itemsPerPage,
       searchTerm: searchTerm?.trim() || undefined,
+      ...dateParams,
     };
     Object.keys(args).forEach((key) => {
       if (!args[key]) delete args[key];
     });
     return args;
-  }, [currentPage, itemsPerPage, searchTerm]);
+  }, [currentPage, itemsPerPage, searchTerm, dateParams]);
 
   const { data, isLoading, refetch } = useGetAllManufacturerQuery(queryArgs);
   const rows = data?.data || [];
   const totalEntries = data?.meta?.count || 0;
+
+  // All manufacturers (no pagination) scoped to the same date filter, so the
+  // Paid/Advance/Due summary cards reflect every manufacturer, not just the
+  // current page's rows.
+  const { data: summaryData, isFetching: summaryFetching } =
+    useGetAllManufacturerWithoutQueryQuery(dateParams);
+  const summaryLoading = summaryFetching && !summaryData;
+  const summaryTotals = useMemo(() => {
+    const summaryRows = Array.isArray(summaryData?.data) ? summaryData.data : [];
+    return summaryRows.reduce(
+      (acc, item) => {
+        acc.totalPaid += Number(item.paidAmount || 0);
+        acc.totalAdvance += Number(item.totalAdvance || 0);
+        acc.totalDue += Number(item.totalDue || 0);
+        return acc;
+      },
+      { totalPaid: 0, totalAdvance: 0, totalDue: 0 },
+    );
+  }, [summaryData]);
 
   useEffect(() => {
     setTotalPages(Math.max(1, Math.ceil(totalEntries / itemsPerPage)));
@@ -253,6 +293,108 @@ const ManufacturerTable = () => {
               <Plus size={18} /> Add New
             </button>
           )}
+        </div>
+      </div>
+
+      <DateRangeFilter
+        startDate={dateRange.from}
+        endDate={dateRange.to}
+        onFilterTypeChange={handleDateFilter}
+        label="Transaction Date"
+        className="mb-6"
+      />
+      {dateRange.from || dateRange.to ? (
+        <p className="mb-4 text-sm text-slate-500">
+          Paid, advance and due reflect transactions in the selected date range.
+        </p>
+      ) : null}
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
+        <div className="group relative overflow-hidden rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition bg-gradient-to-br from-emerald-50/70 to-transparent" />
+          <div className="relative flex items-start justify-between">
+            <div>
+              <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wide">
+                Total Paid
+              </p>
+              <p className="mt-1 text-[11px] text-slate-400">
+                Manufacturer payment completed
+              </p>
+              <p className="mt-2 text-2xl font-bold text-emerald-700 tabular-nums">
+                {summaryLoading ? "—" : formatMoney(summaryTotals.totalPaid)}
+              </p>
+            </div>
+            <div className="h-10 w-10 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center">
+              <svg
+                viewBox="0 0 24 24"
+                className="h-5 w-5 text-emerald-600"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M12 19V5" />
+                <path d="M5 12l7-7 7 7" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div className="group relative overflow-hidden rounded-2xl border border-sky-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition bg-gradient-to-br from-sky-50/70 to-transparent" />
+          <div className="relative flex items-start justify-between">
+            <div>
+              <p className="text-xs font-semibold text-sky-600 uppercase tracking-wide">
+                Total Advance
+              </p>
+              <p className="mt-1 text-[11px] text-slate-400">
+                Extra paid to manufacturers
+              </p>
+              <p className="mt-2 text-2xl font-bold text-sky-700 tabular-nums">
+                {summaryLoading ? "—" : formatMoney(summaryTotals.totalAdvance)}
+              </p>
+            </div>
+            <div className="h-10 w-10 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center">
+              <svg
+                viewBox="0 0 24 24"
+                className="h-5 w-5 text-sky-600"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M4 12h16" />
+                <path d="M12 4v16" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div className="group relative overflow-hidden rounded-2xl border border-rose-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition bg-gradient-to-br from-rose-50/70 to-transparent" />
+          <div className="relative flex items-start justify-between">
+            <div>
+              <p className="text-xs font-semibold text-rose-600 uppercase tracking-wide">
+                Total Due
+              </p>
+              <p className="mt-1 text-[11px] text-slate-400">
+                Manufacturer amount still due
+              </p>
+              <p className="mt-2 text-2xl font-bold text-rose-600 tabular-nums">
+                {summaryLoading ? "—" : formatMoney(summaryTotals.totalDue)}
+              </p>
+            </div>
+            <div className="h-10 w-10 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center">
+              <svg
+                viewBox="0 0 24 24"
+                className="h-5 w-5 text-rose-600"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <path d="M12 5v14" />
+                <path d="M19 12l-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
         </div>
       </div>
 

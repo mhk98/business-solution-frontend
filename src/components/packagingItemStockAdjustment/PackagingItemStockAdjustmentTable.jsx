@@ -1,0 +1,1350 @@
+import { motion } from "framer-motion";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Edit,
+  Notebook,
+  Plus,
+  ShoppingBasket,
+  Trash2,
+  X,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import toast from "react-hot-toast";
+import Select from "react-select";
+
+import Modal from "../common/Modal";
+import DateRangeFilter from "../common/DateRangeFilter";
+import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
+import { useGetAllPackagingItemStockWithoutQueryQuery } from "../../features/packagingItemStock/packagingItemStock";
+import {
+  useDeletePackagingItemStockAdjustmentMutation,
+  useGetAllPackagingItemStockAdjustmentQuery,
+  useInsertPackagingItemStockAdjustmentMutation,
+  useUpdatePackagingItemStockAdjustmentMutation,
+} from "../../features/packagingItemStockAdjustment/packagingItemStockAdjustment";
+
+const createStockItemLine = () => ({
+  packagingItemId: "",
+  unitValue: "",
+  unit: "Pcs",
+});
+
+const initialCreateProduct = {
+  items: [createStockItemLine()],
+  note: "",
+  date: new Date().toISOString().slice(0, 10),
+  hasUnit: false,
+  unit: "Pcs",
+};
+
+const PackagingItemStockAdjustmentTable = () => {
+  const role = localStorage.getItem("role");
+  const userId = localStorage.getItem("userId");
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalOpen1, setIsModalOpen1] = useState(false);
+  const [isModalOpen2, setIsModalOpen2] = useState(false);
+  const [isModalOpen3, setIsModalOpen3] = useState(false);
+
+  const [currentProduct, setCurrentProduct] = useState(null);
+  const [createProduct, setCreateProduct] = useState(initialCreateProduct);
+
+  const [rows, setRows] = useState([]);
+
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [itemName, setItemName] = useState("");
+
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [startPage, setStartPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [pagesPerSet, setPagesPerSet] = useState(10);
+
+  const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
+  const [noteContent, setNoteContent] = useState("");
+
+  useEffect(() => {
+    const updatePagesPerSet = () => {
+      if (window.innerWidth < 640) setPagesPerSet(5);
+      else if (window.innerWidth < 1024) setPagesPerSet(7);
+      else setPagesPerSet(10);
+    };
+
+    updatePagesPerSet();
+    window.addEventListener("resize", updatePagesPerSet);
+    return () => window.removeEventListener("resize", updatePagesPerSet);
+  }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+    setStartPage(1);
+  }, [startDate, endDate, itemName, itemsPerPage]);
+
+  useEffect(() => {
+    if (startDate && endDate && startDate > endDate) {
+      setEndDate(startDate);
+    }
+  }, [startDate, endDate]);
+
+  const endPage = Math.min(startPage + pagesPerSet - 1, totalPages);
+
+  const handlePageChange = (pageNumber) => {
+    setCurrentPage(pageNumber);
+
+    if (pageNumber < startPage) {
+      setStartPage(pageNumber);
+    } else if (pageNumber > endPage) {
+      setStartPage(pageNumber - pagesPerSet + 1);
+    }
+  };
+
+  const handlePreviousSet = () => {
+    setStartPage((prev) => Math.max(prev - pagesPerSet, 1));
+  };
+
+  const handleNextSet = () => {
+    setStartPage((prev) =>
+      Math.min(prev + pagesPerSet, totalPages - pagesPerSet + 1),
+    );
+  };
+
+  const {
+    data: allStockRes,
+    isLoading: isLoadingAllStock,
+    isError: isErrorAllStock,
+    error: errorAllStock,
+    refetch: refetchAllStock,
+  } = useGetAllPackagingItemStockWithoutQueryQuery();
+
+  const stockData = useMemo(() => allStockRes?.data || [], [allStockRes?.data]);
+
+  useEffect(() => {
+    if (isErrorAllStock) {
+      console.error("Error fetching packaging item stock", errorAllStock);
+    }
+  }, [isErrorAllStock, errorAllStock]);
+
+  const stockDropdownOptions = useMemo(() => {
+    return (stockData || []).map((row) => ({
+      value: String(row.packagingItemId),
+      label: [row.name, `${Number(row.unitValue || 0)} ${row.unit || "Pcs"}`]
+        .filter(Boolean)
+        .join(" - "),
+      row,
+    }));
+  }, [stockData]);
+
+  const resolveItemName = (rp) => rp?.name || "N/A";
+
+  const queryArgs = useMemo(() => {
+    const args = {
+      page: currentPage,
+      limit: itemsPerPage,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+      name: itemName || undefined,
+    };
+
+    Object.keys(args).forEach((k) => {
+      if (args[k] === undefined || args[k] === null || args[k] === "") {
+        delete args[k];
+      }
+    });
+
+    return args;
+  }, [currentPage, itemsPerPage, startDate, endDate, itemName]);
+
+  const { data, isLoading, isError, error, refetch } =
+    useGetAllPackagingItemStockAdjustmentQuery(queryArgs);
+
+  useEffect(() => {
+    if (isError) {
+      console.error("Error fetching packaging item stock adjustment data", error);
+      return;
+    }
+
+    if (!isLoading && data) {
+      setRows(data.data || []);
+      setTotalPages(
+        Math.max(1, Math.ceil((data?.meta?.count || 0) / itemsPerPage)),
+      );
+    }
+  }, [data, isLoading, isError, error, itemsPerPage]);
+
+  const [insertPackagingItemStockAdjustment] =
+    useInsertPackagingItemStockAdjustmentMutation();
+  const [updatePackagingItemStockAdjustment] =
+    useUpdatePackagingItemStockAdjustmentMutation();
+  const [deletePackagingItemStockAdjustment] =
+    useDeletePackagingItemStockAdjustmentMutation();
+
+  const refetchAll = () => {
+    refetch?.();
+    refetchAllStock?.();
+  };
+
+  const handleAddProduct = () => setIsModalOpen1(true);
+  const handleAddProduct3 = () => setIsModalOpen3(true);
+
+  const handleModalClose = () => {
+    setIsModalOpen(false);
+    setCurrentProduct(null);
+  };
+
+  const handleModalClose1 = () => {
+    setIsModalOpen1(false);
+    setCreateProduct(initialCreateProduct);
+  };
+
+  const handleModalClose2 = () => {
+    setIsModalOpen2(false);
+    setCurrentProduct(null);
+  };
+  const handleModalClose3 = () => {
+    setIsModalOpen3(false);
+    setCurrentProduct(null);
+    setCreateProduct(initialCreateProduct);
+  };
+
+  const handleEditClick = (rp) => {
+    setCurrentProduct({
+      ...rp,
+      date: rp.date ?? "",
+      note: rp.note ?? "",
+      unitValue: rp.unitValue ?? "",
+      unit: rp.unit ?? "Pcs",
+      hasUnit: !!rp.unitValue,
+      userId,
+    });
+
+    setIsModalOpen(true);
+  };
+
+  const handleEditClick1 = (rp) => {
+    setCurrentProduct({
+      ...rp,
+      date: rp.date ?? "",
+      note: rp.note ?? "",
+      unitValue: rp.unitValue ?? "",
+      unit: rp.unit ?? "Pcs",
+      hasUnit: !!rp.unitValue,
+      userId,
+    });
+
+    setIsModalOpen2(true);
+  };
+
+  const handleCreateProduct = async (e) => {
+    e.preventDefault();
+
+    const selectedItems = (createProduct.items || []).filter(
+      (item) => item?.packagingItemId,
+    );
+
+    if (!selectedItems.length) {
+      return toast.error("Please select a packaging item");
+    }
+
+    if (
+      new Set(selectedItems.map((item) => item.packagingItemId)).size !==
+      selectedItems.length
+    ) {
+      return toast.error("Please remove duplicate items");
+    }
+
+    const invalidItem = selectedItems.find(
+      (item) => Number(item.unitValue || 0) <= 0,
+    );
+    if (invalidItem) {
+      return toast.error("Please enter quantity for every item");
+    }
+
+    try {
+      const basePayload = {
+        stock: "In",
+        date: createProduct.date || "",
+        note: createProduct.note || "",
+        userId: Number(userId) || 0,
+        actorRole: role,
+      };
+
+      const responses = await Promise.all(
+        selectedItems.map((item) =>
+          insertPackagingItemStockAdjustment({
+            ...basePayload,
+            packagingItemId: Number(item.packagingItemId),
+            unitValue: Number(item.unitValue || 0),
+            unit: item.unit || "Pcs",
+          }).unwrap(),
+        ),
+      );
+
+      if (responses.every((res) => res?.success !== false)) {
+        toast.success("Successfully created!");
+        setIsModalOpen1(false);
+        setCreateProduct(initialCreateProduct);
+        refetchAll();
+      } else {
+        toast.error("Create failed!");
+      }
+    } catch (err) {
+      toast.error(err?.data?.message || "Create failed!");
+    }
+  };
+
+  const handleCreateProduct1 = async (e) => {
+    e.preventDefault();
+
+    const selectedItems = (createProduct.items || []).filter(
+      (item) => item?.packagingItemId,
+    );
+
+    if (!selectedItems.length) {
+      return toast.error("Please select a packaging item");
+    }
+
+    if (
+      new Set(selectedItems.map((item) => item.packagingItemId)).size !==
+      selectedItems.length
+    ) {
+      return toast.error("Please remove duplicate items");
+    }
+
+    const invalidItem = selectedItems.find(
+      (item) => Number(item.unitValue || 0) <= 0,
+    );
+    if (invalidItem) {
+      return toast.error("Please enter quantity for every item");
+    }
+
+    try {
+      const basePayload = {
+        stock: "Out",
+        date: createProduct.date || "",
+        note: createProduct.note || "",
+        userId: Number(userId) || 0,
+        actorRole: role,
+      };
+
+      const responses = await Promise.all(
+        selectedItems.map((item) =>
+          insertPackagingItemStockAdjustment({
+            ...basePayload,
+            packagingItemId: Number(item.packagingItemId),
+            unitValue: Number(item.unitValue || 0),
+            unit: item.unit || "Pcs",
+          }).unwrap(),
+        ),
+      );
+
+      if (responses.every((res) => res?.success !== false)) {
+        toast.success("Successfully created!");
+        setIsModalOpen3(false);
+        setCreateProduct(initialCreateProduct);
+        refetchAll();
+      } else {
+        toast.error("Create failed!");
+      }
+    } catch (err) {
+      toast.error(err?.data?.message || "Create failed!");
+    }
+  };
+
+  const handleUpdateProduct = async () => {
+    try {
+      const payload = {
+        unit: currentProduct.unit || "Pcs",
+        unitValue: currentProduct.hasUnit
+          ? Number(currentProduct.unitValue) || 0
+          : 0,
+        date: currentProduct.date || "",
+        note: currentProduct.note || "",
+        userId: Number(currentProduct.userId) || 0,
+        actorRole: role,
+      };
+
+      const res = await updatePackagingItemStockAdjustment({
+        id: currentProduct.Id,
+        data: payload,
+      }).unwrap();
+
+      if (res?.success) {
+        toast.success("Successfully updated!");
+        setIsModalOpen(false);
+        setCurrentProduct(null);
+        refetchAll();
+      } else {
+        toast.error(res?.message || "Update failed!");
+      }
+    } catch (err) {
+      toast.error(err?.data?.message || "Update failed!");
+    }
+  };
+
+  const handleUpdateProduct1 = async () => {
+    if (!currentProduct?.Id) return toast.error("Invalid item!");
+    if (!currentProduct?.note?.trim()) {
+      return toast.error("Note is required!");
+    }
+
+    try {
+      const payload = {
+        unit: currentProduct.unit || "Pcs",
+        unitValue: currentProduct.hasUnit
+          ? Number(currentProduct.unitValue) || 0
+          : 0,
+        date: currentProduct.date || "",
+        note: currentProduct.note || "",
+        userId: Number(currentProduct.userId) || 0,
+        actorRole: role,
+      };
+
+      const res = await updatePackagingItemStockAdjustment({
+        id: currentProduct.Id,
+        data: payload,
+      }).unwrap();
+
+      if (res?.success) {
+        toast.success("Successfully updated product!");
+        setIsModalOpen2(false);
+        setCurrentProduct(null);
+        refetchAll();
+      } else {
+        toast.error(res?.message || "Update failed!");
+      }
+    } catch (err) {
+      toast.error(err?.data?.message || "Update failed!");
+    }
+  };
+
+  const handleDeleteProduct = async (id) => {
+    const confirmDelete = await requestDeleteConfirmation({
+      message: "Do you want to delete this adjustment?",
+    });
+    if (!confirmDelete) return toast.info("Delete action was cancelled.");
+
+    try {
+      const res = await deletePackagingItemStockAdjustment(id).unwrap();
+
+      if (res?.success !== false) {
+        toast.success("Deleted successfully!");
+        refetchAll();
+      } else {
+        toast.error(res?.message || "Delete failed!");
+      }
+    } catch (err) {
+      toast.error(err?.data?.message || "Delete failed!");
+    }
+  };
+
+  const clearFilters = () => {
+    setStartDate("");
+    setEndDate("");
+    setItemName("");
+  };
+
+  const handleNoteClick = (note) => {
+    setNoteContent(note);
+    setIsNoteModalOpen(true);
+  };
+
+  const handleNoteModalClose = () => {
+    setIsNoteModalOpen(false);
+    setNoteContent("");
+  };
+
+  const selectStyles = {
+    control: (base, state) => ({
+      ...base,
+      minHeight: 44,
+      borderRadius: 14,
+      borderColor: state.isFocused ? "#c7d2fe" : "#e2e8f0",
+      boxShadow: state.isFocused ? "0 0 0 4px rgba(99,102,241,0.15)" : "none",
+      "&:hover": { borderColor: "#cbd5e1" },
+    }),
+    valueContainer: (base) => ({ ...base, padding: "0 12px" }),
+    placeholder: (base) => ({ ...base, color: "#64748b" }),
+    menu: (base) => ({ ...base, borderRadius: 14, overflow: "hidden" }),
+  };
+
+  const applySelectedStockRow = (target, selected) => {
+    const safeTarget = target || {};
+    const row = selected?.row || null;
+    return {
+      ...safeTarget,
+      packagingItemId: selected?.value || "",
+      unit: row?.unit || safeTarget?.unit || "Pcs",
+    };
+  };
+
+  const findStockOption = (record = {}) => {
+    const safeRecord = record || {};
+    return (
+      stockDropdownOptions.find(
+        (option) => String(option.value) === String(safeRecord.packagingItemId),
+      ) || null
+    );
+  };
+
+  const updateCreateItem = (index, changes) => {
+    setCreateProduct((prev) => ({
+      ...prev,
+      items: (prev.items || [createStockItemLine()]).map((item, itemIndex) =>
+        itemIndex === index ? { ...item, ...changes } : item,
+      ),
+    }));
+  };
+
+  const updateCreateItemSelection = (index, selected) => {
+    setCreateProduct((prev) => ({
+      ...prev,
+      items: (prev.items || [createStockItemLine()]).map((item, itemIndex) =>
+        itemIndex === index ? applySelectedStockRow(item, selected) : item,
+      ),
+    }));
+  };
+
+  const addCreateItem = () => {
+    setCreateProduct((prev) => ({
+      ...prev,
+      items: [...(prev.items || []), createStockItemLine()],
+    }));
+  };
+
+  const removeCreateItem = (index) => {
+    setCreateProduct((prev) => {
+      const nextItems = (prev.items || []).filter(
+        (_, itemIndex) => itemIndex !== index,
+      );
+
+      return {
+        ...prev,
+        items: nextItems.length ? nextItems : [createStockItemLine()],
+      };
+    });
+  };
+
+  const renderCreateItemRows = () => (
+    <div>
+      <div className="sticky top-0 z-20 -mx-1 mb-3 flex items-center justify-between gap-3 border-b border-slate-100 bg-white/95 px-1 py-2 backdrop-blur">
+        <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
+          Select Packaging Item
+        </label>
+        <button
+          type="button"
+          onClick={addCreateItem}
+          className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-indigo-100 bg-indigo-50 px-3 text-xs font-bold text-indigo-600 hover:bg-indigo-100 transition active:scale-95"
+        >
+          <Plus size={14} /> Add Item
+        </button>
+      </div>
+
+      <div className="space-y-3">
+        {(createProduct.items || [createStockItemLine()]).map((item, index) => (
+          <div
+            key={index}
+            className="rounded-2xl border border-slate-200 bg-slate-50/50 p-3"
+          >
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(260px,1.35fr)_minmax(260px,1fr)_44px] lg:items-end">
+              <div className="min-w-0">
+                <label className="mb-1.5 ml-1 block text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  Select Packaging Item
+                </label>
+                <Select
+                  options={stockDropdownOptions}
+                  value={findStockOption(item)}
+                  onChange={(selected) =>
+                    updateCreateItemSelection(index, selected)
+                  }
+                  placeholder="Search packaging item..."
+                  isClearable
+                  styles={selectStyles}
+                  className="text-sm text-black font-medium"
+                  isDisabled={isLoadingAllStock}
+                />
+              </div>
+
+              <div className="min-w-0">
+                <label className="mb-1.5 ml-1 block text-[10px] font-black uppercase tracking-wider text-slate-500">
+                  Unit Details
+                </label>
+                <div className="grid grid-cols-[minmax(0,1fr)_128px] gap-2">
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={item.unitValue || ""}
+                    onChange={(e) =>
+                      updateCreateItem(index, { unitValue: e.target.value })
+                    }
+                    placeholder="Quantity"
+                    className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+                  />
+
+                  <Select
+                    options={[
+                      "Pcs",
+                      "Kg",
+                      "Liter",
+                      "Ml",
+                      "Gram",
+                      "Box",
+                      "Dozen",
+                      "Yard",
+                    ].map((unit) => ({
+                      value: unit,
+                      label: unit,
+                    }))}
+                    value={{
+                      value: item.unit || "Pcs",
+                      label: item.unit || "Pcs",
+                    }}
+                    onChange={(selected) =>
+                      updateCreateItem(index, {
+                        unit: selected?.value || "Pcs",
+                      })
+                    }
+                    styles={selectStyles}
+                    className="text-black"
+                  />
+                </div>
+              </div>
+
+              <div className="flex lg:justify-end">
+                {(createProduct.items || []).length > 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => removeCreateItem(index)}
+                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-red-100 bg-red-50 text-red-500 hover:bg-red-100 transition active:scale-95"
+                    title="Remove item"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                ) : (
+                  <div className="hidden h-11 w-11 lg:block" />
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <motion.div
+      className="bg-white/90 backdrop-blur-md shadow-[0_4px_20px_rgba(15,23,42,0.04)] rounded-2xl p-4 sm:p-6 border border-slate-200 mb-8"
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25 }}
+    >
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-10">
+        <div>
+          <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+            Packaging Item Stock Adjustment History
+          </h2>
+          <p className="text-slate-500 text-sm mt-1 font-medium">
+            Track and manage packaging item stock adjustments
+          </p>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-center gap-4">
+          <div className="inline-flex items-center gap-3 bg-indigo-50 border border-indigo-100 px-5 py-2.5 rounded-2xl shadow-sm shadow-indigo-50">
+            <div className="h-8 w-8 bg-white rounded-xl flex items-center justify-center text-indigo-600 shadow-sm">
+              <ShoppingBasket size={18} />
+            </div>
+            <div>
+              <div className="text-[9px] font-black text-indigo-400 uppercase tracking-[0.2em]">
+                Total Entries
+              </div>
+              <div className="text-base font-black text-indigo-900 tabular-nums leading-none">
+                {isLoading ? "..." : (data?.meta?.count ?? 0).toLocaleString()}
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleAddProduct}
+            className="group relative inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white transition-all px-6 py-3 rounded-2xl text-sm font-bold shadow-xl shadow-indigo-100 active:scale-95 overflow-hidden w-full sm:w-auto"
+          >
+            <Plus size={18} /> Stock In
+          </button>
+          <button
+            type="button"
+            onClick={handleAddProduct3}
+            className="group relative inline-flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white transition-all px-6 py-3 rounded-2xl text-sm font-bold shadow-xl shadow-indigo-100 active:scale-95 overflow-hidden w-full sm:w-auto"
+          >
+            <Plus size={18} /> Stock Out
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-10 bg-slate-50/50 p-6 rounded-3xl border border-slate-100 items-end">
+        <DateRangeFilter
+          startDate={startDate}
+          endDate={endDate}
+          onStartDateChange={setStartDate}
+          onEndDateChange={setEndDate}
+          compact
+          className="sm:col-span-2"
+        />
+
+        <div className="flex flex-col">
+          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
+            Per Page
+          </label>
+          <Select
+            options={[10, 20, 50, 100].map((v) => ({
+              value: v,
+              label: String(v),
+            }))}
+            value={{ value: itemsPerPage, label: String(itemsPerPage) }}
+            onChange={(selected) => setItemsPerPage(selected?.value || 10)}
+            styles={selectStyles}
+            className="text-black"
+          />
+        </div>
+
+        <div className="flex flex-col">
+          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
+            Product
+          </label>
+          <Select
+            options={stockDropdownOptions}
+            value={
+              stockDropdownOptions.find((o) => o.row?.name === itemName) ||
+              null
+            }
+            onChange={(selected) => setItemName(selected?.row?.name || "")}
+            placeholder="Search"
+            isClearable
+            isDisabled={isLoadingAllStock}
+            styles={selectStyles}
+            className="text-black"
+          />
+        </div>
+
+        <button
+          type="button"
+          className="h-11 bg-slate-100 hover:bg-slate-200 text-slate-600 transition rounded-xl px-4 text-sm font-bold flex items-center justify-center gap-2 active:scale-95 border border-slate-200"
+          onClick={clearFilters}
+        >
+          <X size={16} /> Clear Filters
+        </button>
+      </div>
+
+      <div className="relative overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-slate-100">
+            <thead className="bg-slate-50/50">
+              <tr>
+                <th className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
+                  Date
+                </th>
+                <th className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
+                  Product
+                </th>
+                <th className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
+                  Unit Value
+                </th>
+                <th className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
+                  Status
+                </th>
+                <th className="px-6 py-5 text-center text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {rows.map((rp) => (
+                <motion.tr
+                  key={rp.Id}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.2 }}
+                  className="hover:bg-slate-50 group"
+                >
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-medium text-slate-900">
+                      {rp.date || "-"}
+                    </div>
+                  </td>
+
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-bold text-slate-900">
+                      {resolveItemName(rp)}
+                    </div>
+                  </td>
+
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                    {rp.stock === "Out" ? "-" : "+"}
+                    {Number(rp.unitValue || 0)} {rp.unit || "Pcs"}
+                  </td>
+
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span
+                      className={`inline-flex items-center rounded-lg px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider border ${
+                        rp.status === "Approved"
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200 shadow-sm shadow-emerald-100"
+                          : rp.status === "Active"
+                            ? "bg-blue-50 text-blue-700 border-blue-200 shadow-sm shadow-blue-100"
+                            : "bg-amber-50 text-amber-700 border-amber-200 shadow-sm shadow-amber-100"
+                      }`}
+                    >
+                      {rp.status}
+                    </span>
+                  </td>
+
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center gap-2">
+                      {rp.note ? (
+                        <div className="relative">
+                          <button
+                            className="relative h-10 w-10 rounded-md flex items-center justify-center"
+                            title={rp.note}
+                            type="button"
+                            onClick={() => handleNoteClick(rp.note)}
+                          >
+                            <Notebook size={18} className="text-slate-700" />
+                          </button>
+
+                          <span className="absolute top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[11px] font-semibold flex items-center justify-center">
+                            1
+                          </span>
+                        </div>
+                      ) : (
+                        <button
+                          className="h-10 w-10 rounded-md flex items-center justify-center cursor-default"
+                          title="No note available"
+                          type="button"
+                        >
+                          <Notebook size={18} className="text-slate-300" />
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => handleEditClick(rp)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 transition shadow-sm"
+                        title="Edit"
+                      >
+                        <Edit size={16} />
+                      </button>
+
+                      {role === "superAdmin" || role === "admin" ? (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteProduct(rp.Id)}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition shadow-sm"
+                          title="Delete"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleEditClick1(rp)}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-amber-600 hover:border-amber-200 hover:bg-amber-50 transition shadow-sm"
+                          title="Request Delete"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </motion.tr>
+              ))}
+
+              {!isLoading && rows.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={5}
+                    className="px-6 py-20 text-center text-sm text-slate-400 italic"
+                  >
+                    No data found
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="flex flex-col sm:flex-row items-center justify-between mt-10 gap-6 px-2">
+        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+          Showing Page <span className="text-indigo-600">{currentPage}</span>{" "}
+          of <span className="text-slate-900">{totalPages}</span>
+        </p>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handlePreviousSet}
+            disabled={startPage === 1}
+            className="h-11 px-5 border border-slate-200 rounded-2xl bg-white text-slate-700 font-bold text-sm hover:bg-slate-50 disabled:opacity-50 transition active:scale-95 flex items-center gap-2 shadow-sm"
+          >
+            <ChevronLeft size={16} /> Prev
+          </button>
+
+          <div className="flex items-center gap-1.5">
+            {[...Array(endPage - startPage + 1)].map((_, index) => {
+              const pageNum = startPage + index;
+              const active = pageNum === currentPage;
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => handlePageChange(pageNum)}
+                  className={`h-11 w-11 rounded-2xl font-black text-sm transition-all active:scale-90 ${
+                    active
+                      ? "bg-indigo-600 text-white shadow-xl shadow-indigo-100"
+                      : "bg-white text-slate-600 border border-slate-100 hover:bg-indigo-50 hover:text-indigo-600"
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            onClick={handleNextSet}
+            disabled={endPage === totalPages}
+            className="h-11 px-5 border border-slate-200 rounded-2xl bg-white text-slate-700 font-bold text-sm hover:bg-slate-50 disabled:opacity-50 transition active:scale-95 flex items-center gap-2 shadow-sm"
+          >
+            Next <ChevronRight size={16} />
+          </button>
+        </div>
+      </div>
+
+      <Modal
+        isOpen={isNoteModalOpen}
+        onClose={handleNoteModalClose}
+        title="Note Preview"
+      >
+        <div className="space-y-4">
+          <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 min-h-[120px]">
+            <p className="text-slate-700 leading-relaxed whitespace-pre-wrap">
+              {noteContent || "No note available."}
+            </p>
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <button
+              onClick={handleNoteModalClose}
+              className="px-6 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-bold hover:bg-slate-800 transition shadow-sm active:scale-95"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={isModalOpen && !!currentProduct}
+        onClose={handleModalClose}
+        title="Edit Record"
+      >
+        <div className="space-y-4 max-h-[70vh] overflow-y-auto px-1 custom-scrollbar">
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+              Packaging Item Stock
+            </label>
+            <Select
+              options={stockDropdownOptions}
+              value={findStockOption(currentProduct)}
+              isDisabled
+              styles={selectStyles}
+              className="text-sm font-medium"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+              Date
+            </label>
+            <input
+              type="date"
+              value={currentProduct?.date || ""}
+              onChange={(e) =>
+                setCurrentProduct((p) => ({ ...p, date: e.target.value }))
+              }
+              className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+            />
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-1">
+            <div className="flex items-center justify-between px-4 py-3">
+              <div>
+                <span className="text-sm font-black text-slate-700 uppercase tracking-tight">
+                  Unit Settings
+                </span>
+                <p className="text-[10px] font-bold text-slate-400">
+                  Enable if needed
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setCurrentProduct((prev) => ({
+                    ...prev,
+                    hasUnit: !prev?.hasUnit,
+                    unitValue: prev?.hasUnit ? "" : prev?.unitValue || "",
+                    unit: prev?.hasUnit ? "Pcs" : prev?.unit || "Pcs",
+                  }))
+                }
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
+                  currentProduct?.hasUnit ? "bg-indigo-600" : "bg-slate-300"
+                }`}
+              >
+                <span className="sr-only">Toggle Unit</span>
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition duration-200 ease-in-out ${
+                    currentProduct?.hasUnit ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+
+            {currentProduct?.hasUnit && (
+              <div className="bg-white rounded-xl border border-slate-100 m-1 p-4 space-y-3 shadow-sm">
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Unit Details
+                </label>
+
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={currentProduct?.unitValue || ""}
+                    onChange={(e) =>
+                      setCurrentProduct((prev) => ({
+                        ...prev,
+                        unitValue: e.target.value,
+                      }))
+                    }
+                    placeholder="30"
+                    className="h-11 flex-1 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+                  />
+
+                  <Select
+                    options={[
+                      "Pcs",
+                      "Kg",
+                      "Liter",
+                      "Ml",
+                      "Gram",
+                      "Box",
+                      "Dozen",
+                      "Yard",
+                    ].map((unit) => ({
+                      value: unit,
+                      label: unit,
+                    }))}
+                    value={{
+                      value: currentProduct?.unit || "Pcs",
+                      label: currentProduct?.unit || "Pcs",
+                    }}
+                    onChange={(selected) =>
+                      setCurrentProduct((prev) => ({
+                        ...prev,
+                        unit: selected?.value || "Pcs",
+                      }))
+                    }
+                    styles={selectStyles}
+                    className="w-32 text-black"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {role === "superAdmin" || role === "admin" ? (
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+                Status
+              </label>
+              <Select
+                options={[
+                  { value: "Pending", label: "Pending" },
+                  { value: "Active", label: "Active" },
+                  { value: "Approved", label: "Approved" },
+                ]}
+                value={
+                  currentProduct?.status
+                    ? {
+                        value: currentProduct.status,
+                        label: currentProduct.status,
+                      }
+                    : null
+                }
+                onChange={(selected) =>
+                  setCurrentProduct({
+                    ...currentProduct,
+                    status: selected?.value || "",
+                  })
+                }
+                styles={selectStyles}
+                className="text-black"
+              />
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+                Note
+              </label>
+              <textarea
+                value={currentProduct?.note || ""}
+                onChange={(e) =>
+                  setCurrentProduct({ ...currentProduct, note: e.target.value })
+                }
+                className="w-full min-h-[90px] border border-slate-200 rounded-xl p-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition resize-none"
+                placeholder="Extra details..."
+              />
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+              Stock Status
+            </label>
+            <Select
+              options={[
+                { value: "In", label: "Stock In" },
+                { value: "Out", label: "Stock Out" },
+              ]}
+              value={
+                currentProduct?.stock
+                  ? {
+                      value: currentProduct.stock,
+                      label:
+                        currentProduct.stock === "Out"
+                          ? "Stock Out"
+                          : "Stock In",
+                    }
+                  : null
+              }
+              onChange={(selected) =>
+                setCurrentProduct({
+                  ...currentProduct,
+                  stock: selected?.value || "",
+                })
+              }
+              styles={selectStyles}
+              className="text-black"
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3 pt-6 border-t border-slate-100 mt-6">
+          <button
+            onClick={handleModalClose}
+            className="px-5 py-2.5 rounded-xl border border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-50 transition active:scale-95"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleUpdateProduct}
+            className="px-8 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition shadow-md shadow-indigo-100 active:scale-95"
+          >
+            Update Changes
+          </button>
+        </div>
+      </Modal>
+
+      {/* Add Stock In */}
+      <Modal
+        isOpen={isModalOpen1}
+        onClose={handleModalClose1}
+        title="Add New"
+        maxWidth="max-w-4xl"
+      >
+        <form
+          onSubmit={handleCreateProduct}
+          className="space-y-4 overflow-x-hidden px-1"
+        >
+          {renderCreateItemRows()}
+
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+              Date
+            </label>
+            <input
+              type="date"
+              value={createProduct?.date || ""}
+              onChange={(e) =>
+                setCreateProduct((p) => ({ ...p, date: e.target.value }))
+              }
+              className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+              Note
+            </label>
+            <textarea
+              value={createProduct?.note || ""}
+              onChange={(e) =>
+                setCreateProduct({ ...createProduct, note: e.target.value })
+              }
+              className="w-full min-h-[80px] border border-slate-200 rounded-xl p-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition resize-none"
+              placeholder="Add any extra info..."
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={handleModalClose1}
+              className="px-5 py-2.5 rounded-xl border border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-50 transition active:scale-95"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              className="px-8 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition shadow-md shadow-indigo-100 active:scale-95"
+            >
+              Save
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Add Stock Out */}
+      <Modal
+        isOpen={isModalOpen3}
+        onClose={handleModalClose3}
+        title="Stock Out"
+        maxWidth="max-w-4xl"
+      >
+        <form
+          onSubmit={handleCreateProduct1}
+          className="space-y-4 overflow-x-hidden px-1"
+        >
+          {renderCreateItemRows()}
+
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+              Date
+            </label>
+            <input
+              type="date"
+              value={createProduct?.date || ""}
+              onChange={(e) =>
+                setCreateProduct((p) => ({ ...p, date: e.target.value }))
+              }
+              className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+              Note
+            </label>
+            <textarea
+              value={createProduct?.note || ""}
+              onChange={(e) =>
+                setCreateProduct({ ...createProduct, note: e.target.value })
+              }
+              className="w-full min-h-[80px] border border-slate-200 rounded-xl p-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition resize-none"
+              placeholder="Add any extra info..."
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={handleModalClose3}
+              className="px-5 py-2.5 rounded-xl border border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-50 transition active:scale-95"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              className="px-8 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition shadow-md shadow-indigo-100 active:scale-95"
+            >
+              Save
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        isOpen={isModalOpen2 && !!currentProduct}
+        onClose={handleModalClose2}
+        title="Action Confirmation"
+      >
+        <div className="space-y-4">
+          {role === "superAdmin" ? (
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+                Update Status
+              </label>
+              <Select
+                options={[
+                  { value: "Pending", label: "Pending" },
+                  { value: "Active", label: "Active" },
+                  { value: "Approved", label: "Approved" },
+                ]}
+                value={
+                  currentProduct?.status
+                    ? {
+                        value: currentProduct.status,
+                        label: currentProduct.status,
+                      }
+                    : null
+                }
+                onChange={(selected) =>
+                  setCurrentProduct({
+                    ...currentProduct,
+                    status: selected?.value || "",
+                  })
+                }
+                styles={selectStyles}
+                className="text-black"
+              />
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
+                Reason for Removal
+              </label>
+              <textarea
+                value={currentProduct?.note || ""}
+                onChange={(e) =>
+                  setCurrentProduct({ ...currentProduct, note: e.target.value })
+                }
+                className="w-full min-h-[120px] border border-slate-200 rounded-xl p-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition resize-none"
+                placeholder="Please explain why you want to remove this record..."
+              />
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
+            <button
+              onClick={handleModalClose2}
+              className="px-5 py-2.5 rounded-xl border border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-50 transition active:scale-95"
+            >
+              Cancel
+            </button>
+
+            <button
+              onClick={handleUpdateProduct1}
+              className="px-8 py-2.5 rounded-xl bg-amber-600 text-white text-sm font-bold hover:bg-amber-700 transition shadow-md shadow-amber-100 active:scale-95"
+            >
+              Submit Request
+            </button>
+          </div>
+        </div>
+      </Modal>
+    </motion.div>
+  );
+};
+
+export default PackagingItemStockAdjustmentTable;

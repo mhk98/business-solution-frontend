@@ -3,7 +3,7 @@ import MonthlyReportingBookTransactionsTable from "../components/monthlyReportin
 import { isDefaultMasterPermissionEmail } from "../utils/masterPermissions";
 
 const MonthlyReportingBookTransactionsPage = () => {
-  const canOpenMonthlyReportingBook = isDefaultMasterPermissionEmail();
+  const canOpenMonthlyReportingBook = localStorage.getItem("role") === "superAdmin" || isDefaultMasterPermissionEmail();
 
   return (
     <div className="flex-1 relative z-10">

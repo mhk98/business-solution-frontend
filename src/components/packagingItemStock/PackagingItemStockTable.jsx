@@ -35,6 +35,9 @@ const getUnitCost = (row) => {
   return Number(row?.lastUnitCost || 0);
 };
 
+const formatDate = (value) =>
+  value ? new Date(value).toLocaleDateString("en-GB") : "-";
+
 const PackagingItemStockTable = () => {
   const [rows, setRows] = useState([]);
   const [startDate, setStartDate] = useState("");
@@ -121,7 +124,7 @@ const PackagingItemStockTable = () => {
           <table className="min-w-full divide-y divide-slate-100">
             <thead className="bg-slate-50/50">
               <tr>
-                {["Packaging Item", "Quantity", "Unit", "Unit Cost", "Total Cost"].map((head) => (
+                {["Date", "Packaging Item", "Quantity", "Unit", "Unit Cost", "Total Cost"].map((head) => (
                   <th key={head} className="px-6 py-5 text-left text-[11px] font-black text-slate-500 uppercase tracking-[0.15em]">{head}</th>
                 ))}
               </tr>
@@ -129,6 +132,7 @@ const PackagingItemStockTable = () => {
             <tbody className="divide-y divide-slate-100">
               {rows.map((row) => (
                 <tr key={row.Id} className="hover:bg-indigo-50/30">
+                  <td className="px-6 py-5 text-sm text-slate-600">{formatDate(row.lastReceivedDate)}</td>
                   <td className="px-6 py-5 text-sm font-bold text-slate-900">{row.name}</td>
                   <td className="px-6 py-5 text-sm font-semibold text-slate-700">{Number(row.unitValue || 0).toLocaleString()}</td>
                   <td className="px-6 py-5 text-sm text-slate-600">{row.unit || "Pcs"}</td>

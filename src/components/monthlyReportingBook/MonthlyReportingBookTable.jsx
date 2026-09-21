@@ -35,14 +35,15 @@ const MonthlyReportingBookTable = () => {
     setCurrentPage(1);
   }, [range.from, range.to, debouncedSearchTerm, selectedBookId]);
 
-  const { data, isLoading, isError, error } = useGetMonthlyReportingSummaryQuery({
-    startDate: range.from,
-    endDate: range.to,
-    bookId: selectedBookId || undefined,
-    searchTerm: debouncedSearchTerm || undefined,
-    page: currentPage,
-    limit: itemsPerPage,
-  });
+  const { data, isLoading, isError, error } =
+    useGetMonthlyReportingSummaryQuery({
+      startDate: range.from,
+      endDate: range.to,
+      bookId: selectedBookId || undefined,
+      searchTerm: debouncedSearchTerm || undefined,
+      page: currentPage,
+      limit: itemsPerPage,
+    });
 
   if (isError) console.error("Monthly Reporting Book summary error:", error);
 
@@ -59,7 +60,7 @@ const MonthlyReportingBookTable = () => {
     : "";
   const reportTitle = selectedBookName
     ? `${selectedBookName} — ${range.label}`
-    : `All Books — ${range.label}`;
+    : `Kafela Mart Book — ${range.label}`;
 
   const handleRowClick = (row) => {
     const params = new URLSearchParams({
@@ -104,7 +105,7 @@ const MonthlyReportingBookTable = () => {
             onChange={(e) => setSelectedBookId(e.target.value)}
             className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-800 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
           >
-            <option value="">All Books</option>
+            <option value="">Kafela Mart Books</option>
             {books.map((book) => (
               <option key={book.Id} value={book.Id}>
                 {book.name}

@@ -32,9 +32,9 @@ export const manufacturerApi = baseApi.injectEndpoints({
     }),
 
     getAllManufacturer: build.query({
-      query: ({ page, limit, searchTerm }) => ({
+      query: ({ page, limit, searchTerm, startDate, endDate }) => ({
         url: "manufacturer",
-        params: { page, limit, searchTerm },
+        params: { page, limit, searchTerm, startDate, endDate },
       }),
       providesTags: (result) =>
         result?.data?.length
@@ -47,8 +47,9 @@ export const manufacturerApi = baseApi.injectEndpoints({
     }),
 
     getAllManufacturerWithoutQuery: build.query({
-      query: () => ({
+      query: ({ startDate, endDate } = {}) => ({
         url: "manufacturer/all",
+        params: { startDate, endDate },
       }),
       providesTags: [{ type: "Manufacturer", id: "LIST" }],
       refetchOnMountOrArgChange: true,

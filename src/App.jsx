@@ -107,13 +107,16 @@ const ItemsPage = lazy(() => import("./pages/ItemsPage"));
 const PackagingItemPage = lazy(() => import("./pages/PackagingItemPage"));
 const PackagingItemPurchasePage = lazy(() => import("./pages/PackagingItemPurchasePage"));
 const PackagingItemStockPage = lazy(() => import("./pages/PackagingItemStockPage"));
+const PackagingItemStockAdjustmentPage = lazy(() => import("./pages/PackagingItemStockAdjustmentPage"));
 const PackagingManufacturerPage = lazy(() => import("./pages/PackagingManufacturerPage"));
 const PackagingFactoryPage = lazy(() => import("./pages/PackagingFactoryPage"));
 const PackagingFactoryStockPage = lazy(() => import("./pages/PackagingFactoryStockPage"));
+const PackagingFactoryStockAdjustmentPage = lazy(() => import("./pages/PackagingFactoryStockAdjustmentPage"));
 const PackagingMixerPage = lazy(() => import("./pages/PackagingMixerPage"));
 const ManufactureStockPage = lazy(() => import("./pages/ManufactureStockPage"));
 const MixerPage = lazy(() => import("./pages/MixerPage"));
 const StockAdjustmentPage = lazy(() => import("./pages/StockAdjustmentPage"));
+const FactoryStockAdjustmentPage = lazy(() => import("./pages/FactoryStockAdjustmentPage"));
 const StockMovementPage = lazy(() => import("./pages/StockMovementPage"));
 const DamageStockMovementPage = lazy(() => import("./pages/DamageStockMovementPage"));
 const PackagingStockMovementPage = lazy(() => import("./pages/PackagingStockMovementPage"));
@@ -227,9 +230,11 @@ function App() {
                 <Route path="/packaging-item" element={<AuthedRoute><PackagingItemPage /></AuthedRoute>} />
                 <Route path="/packaging-item-purchase" element={<AuthedRoute><PackagingItemPurchasePage /></AuthedRoute>} />
                 <Route path="/packaging-item-stock" element={<AuthedRoute><PackagingItemStockPage /></AuthedRoute>} />
+                <Route path="/packaging-item-stock-adjustment" element={<AuthedRoute><PackagingItemStockAdjustmentPage /></AuthedRoute>} />
                 <Route path="/packaging-manufacturer" element={<AuthedRoute><PackagingManufacturerPage /></AuthedRoute>} />
                 <Route path="/packaging-factory" element={<AuthedRoute><PackagingFactoryPage /></AuthedRoute>} />
                 <Route path="/packaging-factory-stock" element={<AuthedRoute><PackagingFactoryStockPage /></AuthedRoute>} />
+                <Route path="/packaging-factory-stock-adjustment" element={<AuthedRoute><PackagingFactoryStockAdjustmentPage /></AuthedRoute>} />
                 <Route path="/packaging-mixer" element={<AuthedRoute><PackagingMixerPage /></AuthedRoute>} />
                 <Route path="/item" element={<AuthedRoute><ItemsPage /></AuthedRoute>} />
                 <Route path="/item-stock" element={<AuthedRoute><ItemStockPage /></AuthedRoute>} />
@@ -240,6 +245,7 @@ function App() {
                 <Route path="/manufacturer" element={<AuthedRoute><ManufacturerPage /></AuthedRoute>} />
                 <Route path="/manufacturer/:id" element={<AuthedRoute><ManufacturerHistoryPage /></AuthedRoute>} />
                 <Route path="/stock-adjustment" element={<AuthedRoute><StockAdjustmentPage /></AuthedRoute>} />
+                <Route path="/factory-stock-adjustment" element={<AuthedRoute><FactoryStockAdjustmentPage /></AuthedRoute>} />
                 <Route path="/stock-movement" element={<AuthedRoute><StockMovementPage /></AuthedRoute>} />
                 <Route path="/damage-stock-movement" element={<AuthedRoute><DamageStockMovementPage /></AuthedRoute>} />
                 <Route path="/packaging-stock-movement" element={<AuthedRoute><PackagingStockMovementPage /></AuthedRoute>} />

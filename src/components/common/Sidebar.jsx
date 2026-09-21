@@ -54,13 +54,16 @@ const Sidebar = () => {
   );
 
   const userRole = localStorage.getItem("role") || "user";
-  const canViewMasterPermissionSubmenu = isDefaultMasterPermissionEmail(
+  const canViewMasterPermissionSubmenu = userRole === "superAdmin" || isDefaultMasterPermissionEmail(
     getCurrentUserEmail(),
   );
   const { pathname, search } = useLocation();
 
   const { data: myPermissionsData } = useGetMyRolePermissionsQuery(undefined, {
     skip: !localStorage.getItem("token"),
+    pollingInterval: 30000,
+    refetchOnFocus: true,
+    refetchOnMountOrArgChange: true,
   });
 
   useEffect(() => {

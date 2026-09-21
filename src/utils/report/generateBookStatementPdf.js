@@ -46,6 +46,68 @@ const formatDateRangeLabel = (minDate, maxDate) => {
   return minLabel === maxLabel ? minLabel : `${minLabel}-${maxLabel}`;
 };
 
+const formatReadableDate = (value) => {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+};
+
+// The carry-forward section totals everything up to just before the report's
+// `from` date — label it with that cutoff date (`from` minus a day) so it
+// reads as "as of 31 Jul 2026" instead of an unqualified "নেট ব্যালেন্স".
+const formatOpeningBalanceDateLabel = (fromValue) => {
+  const fromDate = fromValue ? new Date(fromValue) : null;
+  if (!fromDate || Number.isNaN(fromDate.getTime())) return "";
+
+  const cutoffDate = new Date(fromDate);
+  cutoffDate.setDate(cutoffDate.getDate() - 1);
+
+  return formatReadableDate(cutoffDate);
+};
+
+// The ending summary totals everything through the report's `to` date
+// (inclusive) — label it with that date directly, e.g. "31 Aug 2026".
+const formatEndingBalanceDateLabel = (toValue) => formatReadableDate(toValue);
+
+const BENGALI_MONTH_NAMES = [
+  "জানুয়ারি",
+  "ফেব্রুয়ারি",
+  "মার্চ",
+  "এপ্রিল",
+  "মে",
+  "জুন",
+  "জুলাই",
+  "আগস্ট",
+  "সেপ্টেম্বর",
+  "অক্টোবর",
+  "নভেম্বর",
+  "ডিসেম্বর",
+];
+
+// Names the calendar month a `from`..`to` range covers, so the opening/
+// ending balance rows can read "আগস্ট মাসের শুরু/সমাপনী ব্যালেন্স" instead
+// of a bare "শুরু/সমাপনী ব্যালেন্স" — but only when the range actually IS
+// one calendar month; a custom/multi-month range would make a month name
+// misleading, so it falls back to no month name there.
+const formatReportMonthLabel = (fromValue, toValue) => {
+  const fromDate = fromValue ? new Date(fromValue) : null;
+  const toDate = toValue ? new Date(toValue) : null;
+  if (
+    !fromDate ||
+    !toDate ||
+    Number.isNaN(fromDate.getTime()) ||
+    Number.isNaN(toDate.getTime()) ||
+    fromDate.getFullYear() !== toDate.getFullYear() ||
+    fromDate.getMonth() !== toDate.getMonth()
+  )
+    return "";
+  return BENGALI_MONTH_NAMES[toDate.getMonth()];
+};
+
 const getCategoryName = (row) =>
   row.categoryInfo?.name || row.category || "Uncategorized";
 
@@ -59,7 +121,7 @@ const getTransactionDescription = (row) => row.remarks || row.note || "-";
 const getCategoryKey = (row) =>
   row.categoryId !== undefined && row.categoryId !== null
     ? String(row.categoryId)
-    : row.categoryInfo?.name ?? row.category ?? "uncategorized";
+    : (row.categoryInfo?.name ?? row.category ?? "uncategorized");
 
 const getOpeningAmount = (openingByCategory, key, tone) =>
   Number(openingByCategory?.[key]?.[tone] || 0);
@@ -321,10 +383,20 @@ const PENDING_PAYROLL_SALARY_COLUMNS = [
   { key: "amount", label: "বেতন", widthPct: 30, isAmount: true },
 ];
 
-const MANUFACTURER_DUE_COLUMNS =
-  buildReceivableLedgerColumns("ম্যানুফ্যাকচার", "বাকি");
+const MANUFACTURER_DUE_COLUMNS = buildReceivableLedgerColumns(
+  "ম্যানুফ্যাকচার",
+  "বাকি",
+);
 
-const SUPPLIER_DUE_COLUMNS = buildReceivableLedgerColumns("সাপ্লাইয়ার", "বাকি");
+const PACKAGING_MANUFACTURER_DUE_COLUMNS = buildReceivableLedgerColumns(
+  "প্যাকেজিং ম্যানুফ্যাকচার",
+  "বাকি",
+);
+
+const SUPPLIER_DUE_COLUMNS = buildReceivableLedgerColumns(
+  "সাপ্লাইয়ার",
+  "বাকি",
+);
 
 const DOLLAR_SUPPLIER_DUE_COLUMNS = buildReceivableLedgerColumns(
   "ডলার সাপ্লাইয়ার",
@@ -426,34 +498,20 @@ const normalizeAssetGroupRows = (group, { withDate }) => {
 const getPayableTotalAmount = ({
   pendingPayrollSalary,
   manufacturerDue,
+  packagingManufacturerDue,
   supplierDue,
   dollarSupplierDue,
   lenderPayable,
 }) =>
   Number(pendingPayrollSalary?.meta?.totalSalary || 0) +
   Number(manufacturerDue?.meta?.totalDue || 0) +
+  Number(packagingManufacturerDue?.meta?.totalDue || 0) +
   Number(supplierDue?.meta?.totalDue || 0) +
   Number(dollarSupplierDue?.meta?.totalDue || 0) +
   Number(lenderPayable?.meta?.totalDue || 0);
 
 const getDirectorInvestmentTotalAmount = (directorInvestment) =>
   Number(directorInvestment?.meta?.totalInvestAmount || 0);
-
-const getPayableAndDirectorInvestmentTotalAmount = ({
-  pendingPayrollSalary,
-  manufacturerDue,
-  supplierDue,
-  dollarSupplierDue,
-  lenderPayable,
-  directorInvestment,
-}) =>
-  getPayableTotalAmount({
-    pendingPayrollSalary,
-    manufacturerDue,
-    supplierDue,
-    dollarSupplierDue,
-    lenderPayable,
-  }) + getDirectorInvestmentTotalAmount(directorInvestment);
 
 // Total closing stock value (ক্লোজিং পারচেস কস্ট) across every stock section
 // plus the courier product stock — folded into the grand total alongside cash
@@ -469,62 +527,55 @@ const getStockValueTotal = ({
   Number(packagingStock?.meta?.totalPurchaseCost || 0) +
   Number(courierProductStock?.meta?.totalEndingAmount || 0);
 
-// Opening (pre-period) stock value across the same sections, minus Courier
-// Product Stock — that report has no opening/closing concept (see its
-// column comment), it's a period-range summary only.
+// Opening stock includes courier entries dated strictly before `from`.
 const getStockOpeningValueTotal = ({
-  inventoryStockReport,
-  itemFactoryStock,
-  packagingStock,
-}) =>
-  Number(inventoryStockReport?.meta?.totalOpeningPurchaseCost || 0) +
-  Number(itemFactoryStock?.meta?.totalOpeningPurchaseCost || 0) +
-  Number(packagingStock?.meta?.totalOpeningPurchaseCost || 0);
-
-// নেট ব্যালেন্স (ক্যারি ফরওয়ার্ড): pre-period Books net balance + Petty Cash
-// net balance + pre-period stock net balance — same total shown in the
-// Carry Forward section, reused here for the Profit/Loss formula.
-const getCarryForwardBalanceTotal = ({
-  inventoryStockReport,
-  itemFactoryStock,
-  packagingStock,
-}) =>
-  Number(inventoryStockReport?.meta?.cashOpeningBalance || 0) +
-  Number(inventoryStockReport?.meta?.pettyCashOpeningBalance || 0) +
-  getStockOpeningValueTotal({
-    inventoryStockReport,
-    itemFactoryStock,
-    packagingStock,
-  });
-
-const getGrandTotalAmount = ({
-  totalCashBalance,
-  salesDue,
-  salaryAdvance,
-  supplierReceivable,
-  dollarSupplierReceivable,
-  manufacturerReceivable,
-  packagingManufacturerReceivable,
-  lenderReceivable,
   inventoryStockReport,
   itemFactoryStock,
   packagingStock,
   courierProductStock,
 }) =>
-  Number(totalCashBalance || 0) +
-  Number(salesDue?.meta?.totalDue || 0) +
-  Number(salaryAdvance?.meta?.totalDue || 0) +
-  Number(supplierReceivable?.meta?.totalAdvance || 0) +
-  Number(dollarSupplierReceivable?.meta?.totalAdvance || 0) +
-  Number(manufacturerReceivable?.meta?.totalAdvance || 0) +
-  Number(packagingManufacturerReceivable?.meta?.totalAdvance || 0) +
-  Number(lenderReceivable?.meta?.totalAdvance || 0) +
-  getStockValueTotal({
+  Number(inventoryStockReport?.meta?.totalOpeningPurchaseCost || 0) +
+  Number(itemFactoryStock?.meta?.totalOpeningPurchaseCost || 0) +
+  Number(packagingStock?.meta?.totalOpeningPurchaseCost || 0) +
+  Number(courierProductStock?.meta?.totalOpeningAmount || 0);
+
+// Every closing summary uses the same stock balance through `to`.
+const getStockClosingValueTotal = getStockValueTotal;
+
+// Same "সমাপনী ব্যালেন্স" the ending cash/stock summary section shows
+// (মোট ক্যাশ by payment mode + পেটি ক্যাশ + মোট স্টক + মোট প্রাপ্য − মোট
+// দেনা, all as of the report's `to` date) — shared with the Profit/Loss
+// calculation, which uses this single figure instead of separately adding
+// the opening carry-forward and the period's grand total.
+const getEndingBalanceTotal = ({
+  inventoryStockReport,
+  itemFactoryStock,
+  packagingStock,
+  courierProductStock,
+}) => {
+  const modeRows = Array.isArray(
+    inventoryStockReport?.meta?.cashEndingBalanceByPaymentMode,
+  )
+    ? inventoryStockReport.meta.cashEndingBalanceByPaymentMode
+    : [];
+  const cashTotal = modeRows.reduce(
+    (sum, modeRow) => sum + Number(modeRow.amount || 0),
+    0,
+  );
+  const pettyCash = Number(inventoryStockReport?.meta?.pettyCashEndingBalance || 0);
+  const stock = getStockClosingValueTotal({
     inventoryStockReport,
     itemFactoryStock,
     packagingStock,
     courierProductStock,
   });
+  const receivable = Number(
+    inventoryStockReport?.meta?.receivableEndingBalance || 0,
+  );
+  const due = Number(inventoryStockReport?.meta?.payableEndingBalance || 0);
+
+  return Math.round((cashTotal + pettyCash + stock + receivable - due) * 100) / 100;
+};
 
 const FRAGMENT_STYLES = `
   * { box-sizing: border-box; }
@@ -682,6 +733,14 @@ const FRAGMENT_STYLES = `
     background: #fdecec;
     color: #b91c1c;
   }
+
+  /* মোট ক্যাশ's payment-mode sub-cells (see cash-stock-summary-table) — a
+     light tint groups Bank/Cash's mode/amount cells together, while the
+     merged মোট ক্যাশ label and total cells stay white so the rolled-up
+     figure still stands out against the rows it was built from. */
+  .cash-stock-summary-table td.cash-mode-cell {
+    background: #f5f8ff;
+  }
 `;
 
 const isNegativeValue = (value) => Number(value) < 0;
@@ -691,7 +750,14 @@ const isPositiveValue = (value) => Number(value) > 0;
 // positive is green, negative is red.
 const DIFF_COLUMN_KEYS = new Set(["balanceDiff", "stockDiff", "diff"]);
 
-const buildCell = (tag, column, content, tone, negative = false, positive = false) => {
+const buildCell = (
+  tag,
+  column,
+  content,
+  tone,
+  negative = false,
+  positive = false,
+) => {
   const classes = [];
   if (column.isAmount) {
     classes.push("amount");
@@ -764,7 +830,13 @@ const buildLedgerHeadingFragment = (title) => `
 // The table's total row. Default: one label cell spanning all-but-last column
 // plus the single `total`. When `footerTotals` (a map of column key -> value)
 // is given, every amount column gets its own total cell instead.
-const buildLedgerFooter = (columns, totalLabel, total, footerTotals, totalTone) => {
+const buildLedgerFooter = (
+  columns,
+  totalLabel,
+  total,
+  footerTotals,
+  totalTone,
+) => {
   const lossClass = totalTone === "loss" ? ' class="loss"' : "";
 
   if (!footerTotals) {
@@ -831,7 +903,13 @@ const buildLedgerTableChunkFragment = ({
       </tbody>
       ${
         includeFooter && totalLabel
-          ? buildLedgerFooter(columns, totalLabel, total, footerTotals, totalTone)
+          ? buildLedgerFooter(
+              columns,
+              totalLabel,
+              total,
+              footerTotals,
+              totalTone,
+            )
           : ""
       }
     </table>
@@ -843,7 +921,10 @@ const buildLedgerTableChunkFragment = ({
 // (period movement) + purchase price + closing purchase cost, plus a trailing
 // "মোট" summary row. Products with no opening/closing stock and no cost in this
 // pool are dropped.
-const normalizeInventoryStockPoolRows = (inventoryStockReport, { stockType }) => {
+const normalizeInventoryStockPoolRows = (
+  inventoryStockReport,
+  { stockType },
+) => {
   if (!inventoryStockReport) return [];
 
   const rows = inventoryStockReport.data || [];
@@ -1032,7 +1113,8 @@ const toReceivableLedgerRows = (ledgerInputRows) => {
     amount: Number(row.amount || 0),
     openingBalance: Number(row.openingBalance || 0),
     endingBalance: Number(row.endingBalance || 0),
-    balanceDiff: Number(row.endingBalance || 0) - Number(row.openingBalance || 0),
+    balanceDiff:
+      Number(row.endingBalance || 0) - Number(row.openingBalance || 0),
   }));
 
   const sum = (key) => ledgerRows.reduce((acc, row) => acc + row[key], 0);
@@ -1157,7 +1239,8 @@ const normalizeDirectorInvestmentRows = (directorInvestment) => {
 // current }` (diff = the period movement; current = live, filter-independent).
 // A "মোট" row summing each column is appended.
 const normalizePaymentModeRows = (paymentModeSummary) => {
-  if (!Array.isArray(paymentModeSummary) || !paymentModeSummary.length) return [];
+  if (!Array.isArray(paymentModeSummary) || !paymentModeSummary.length)
+    return [];
 
   const rows = paymentModeSummary.map((row) => {
     const opening = Number(row.opening || 0);
@@ -1519,8 +1602,20 @@ const placeLedgerSection = async (
   }
 
   // Estimate an average row height by comparing an empty table (header only)
-  // against the full table (header + all rows), then use that to decide how
-  // many whole rows fit in the space actually left on the page.
+  // against a *sample* of the rows (not all of them — for a section with
+  // hundreds of transaction rows, rasterizing the entire body just to read
+  // off its pixel height is pure waste; a spread sample from both ends
+  // gives the same average without paying for it). ROW_HEIGHT_SAMPLE_SIZE
+  // rows is plenty since every row in a ledger table shares the same
+  // fixed-layout column widths and font size.
+  const ROW_HEIGHT_SAMPLE_SIZE = 20;
+  const sampleRows =
+    rows.length <= ROW_HEIGHT_SAMPLE_SIZE
+      ? rows
+      : [
+          ...rows.slice(0, ROW_HEIGHT_SAMPLE_SIZE / 2),
+          ...rows.slice(-ROW_HEIGHT_SAMPLE_SIZE / 2),
+        ];
   const headerOnly = await render(
     buildLedgerTableChunkFragment({
       rows: [],
@@ -1531,9 +1626,9 @@ const placeLedgerSection = async (
       columns,
     }),
   );
-  const fullBody = await render(
+  const sampleBody = await render(
     buildLedgerTableChunkFragment({
-      rows,
+      rows: sampleRows,
       startIndex: 1,
       includeFooter: false,
       totalLabel,
@@ -1543,7 +1638,7 @@ const placeLedgerSection = async (
   );
   const perRowHeightMm = Math.max(
     3,
-    (fullBody.heightMm - headerOnly.heightMm) / rows.length,
+    (sampleBody.heightMm - headerOnly.heightMm) / sampleRows.length,
   );
 
   // Orphan avoidance: a heading shouldn't sit alone at the bottom of a page
@@ -1842,7 +1937,10 @@ const appendCourierProductStockSection = async (
   cursor,
   { courierProductStock, periodLabel, regularFontDataUrl, boldFontDataUrl },
 ) => {
-  const rows = normalizeCourierProductStockRows(courierProductStock, periodLabel);
+  const rows = normalizeCourierProductStockRows(
+    courierProductStock,
+    periodLabel,
+  );
   if (!rows.length) return;
 
   await placeLedgerSection(doc, html2canvas, cursor, {
@@ -1851,6 +1949,68 @@ const appendCourierProductStockSection = async (
     totalLabel: null,
     total: 0,
     columns: COURIER_PRODUCT_STOCK_COLUMNS,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+};
+
+const appendStockTotalSection = async (
+  doc,
+  html2canvas,
+  cursor,
+  {
+    inventoryStockReport,
+    itemFactoryStock,
+    packagingStock,
+    courierProductStock,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  },
+) => {
+  const inv = inventoryStockReport?.meta || {};
+  const itemFactory = itemFactoryStock?.meta || {};
+  const packaging = packagingStock?.meta || {};
+  const rows = [
+    {
+      description: "মোট স্টক প্রোডাক্ট",
+      amount: Number(inv.stockProductPurchaseCost || 0),
+    },
+    {
+      description: "মোট ড্যামেজ স্টক",
+      amount: Number(inv.damageStockPurchaseCost || 0),
+    },
+    {
+      description: "মোট রিপেয়ারিং স্টক",
+      amount: Number(inv.repairingStockPurchaseCost || 0),
+    },
+    {
+      description: "মোট আইটেম স্টক",
+      amount: Number(itemFactory.itemStockPurchaseCost || 0),
+    },
+    {
+      description: "মোট ফ্যাক্টরি স্টক",
+      amount: Number(itemFactory.factoryStockPurchaseCost || 0),
+    },
+    {
+      description: "মোট প্যাকেজিং আইটেম স্টক",
+      amount: Number(packaging.packagingItemStockPurchaseCost || 0),
+    },
+    {
+      description: "মোট প্যাকেজিং ফ্যাক্টরি স্টক",
+      amount: Number(packaging.packagingFactoryStockPurchaseCost || 0),
+    },
+    {
+      description: "কুরিয়ার প্রোডাক্ট স্টক",
+      amount: Number(courierProductStock?.meta?.totalEndingAmount || 0),
+    },
+  ];
+
+  await placeLedgerSection(doc, html2canvas, cursor, {
+    title: "মোট স্টক",
+    rows,
+    totalLabel: "সর্বমোট",
+    total: rows.reduce((sum, row) => sum + row.amount, 0),
+    columns: GRAND_TOTAL_COLUMNS,
     regularFontDataUrl,
     boldFontDataUrl,
   });
@@ -2018,6 +2178,65 @@ const appendPendingPayrollSalarySection = async (
   });
 };
 
+const appendReceivableTotalSection = async (
+  doc,
+  html2canvas,
+  cursor,
+  {
+    salesDue,
+    salaryAdvance,
+    supplierReceivable,
+    dollarSupplierReceivable,
+    manufacturerReceivable,
+    packagingManufacturerReceivable,
+    lenderReceivable,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  },
+) => {
+  const salesDueTotal = Number(salesDue?.meta?.totalDue || 0);
+  const salaryAdvanceTotal = Number(salaryAdvance?.meta?.totalDue || 0);
+  const supplierTotal = Number(supplierReceivable?.meta?.totalAdvance || 0);
+  const dollarSupplierTotal = Number(
+    dollarSupplierReceivable?.meta?.totalAdvance || 0,
+  );
+  const manufacturerTotal = Number(
+    manufacturerReceivable?.meta?.totalAdvance || 0,
+  );
+  const packagingManufacturerTotal = Number(
+    packagingManufacturerReceivable?.meta?.totalAdvance || 0,
+  );
+  const lenderTotal = Number(lenderReceivable?.meta?.totalAdvance || 0);
+  const rows = [
+    { description: "সেলস বাকি", amount: salesDueTotal },
+    { description: "বেতন অগ্রিম", amount: salaryAdvanceTotal },
+    { description: "কোম্পানি পাবে (সাপ্লাইয়ার)", amount: supplierTotal },
+    {
+      description: "কোম্পানি পাবে (ডলার সাপ্লাইয়ার)",
+      amount: dollarSupplierTotal,
+    },
+    {
+      description: "কোম্পানি পাবে (ম্যানুফ্যাকচার)",
+      amount: manufacturerTotal,
+    },
+    {
+      description: "কোম্পানি পাবে (প্যাকেজিং ম্যানুফ্যাকচার)",
+      amount: packagingManufacturerTotal,
+    },
+    { description: "কোম্পানি পাবে (লেন্ডার)", amount: lenderTotal },
+  ];
+
+  await placeLedgerSection(doc, html2canvas, cursor, {
+    title: "মোট প্রাপ্য",
+    rows,
+    totalLabel: "সর্বমোট",
+    total: rows.reduce((sum, row) => sum + row.amount, 0),
+    columns: GRAND_TOTAL_COLUMNS,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+};
+
 const appendManufacturerDueSection = async (
   doc,
   html2canvas,
@@ -2033,6 +2252,26 @@ const appendManufacturerDueSection = async (
     totalLabel: null,
     total: 0,
     columns: MANUFACTURER_DUE_COLUMNS,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+};
+
+const appendPackagingManufacturerDueSection = async (
+  doc,
+  html2canvas,
+  cursor,
+  { packagingManufacturerDue, regularFontDataUrl, boldFontDataUrl },
+) => {
+  const rows = normalizeDueRows(packagingManufacturerDue);
+  if (!rows.length) return;
+
+  await placeLedgerSection(doc, html2canvas, cursor, {
+    title: "কোম্পানির কাছে পাবে (প্যাকেজিং ম্যানুফ্যাকচার)",
+    rows,
+    totalLabel: null,
+    total: 0,
+    columns: PACKAGING_MANUFACTURER_DUE_COLUMNS,
     regularFontDataUrl,
     boldFontDataUrl,
   });
@@ -2103,8 +2342,11 @@ const appendPayableTotalSection = async (
   html2canvas,
   cursor,
   {
+    title = "সর্বমোট বাকি",
+    showEmpty = false,
     pendingPayrollSalary,
     manufacturerDue,
+    packagingManufacturerDue,
     supplierDue,
     dollarSupplierDue,
     lenderPayable,
@@ -2116,28 +2358,34 @@ const appendPayableTotalSection = async (
     pendingPayrollSalary?.meta?.totalSalary || 0,
   );
   const manufacturerDueTotal = Number(manufacturerDue?.meta?.totalDue || 0);
-  const supplierDueTotal = Number(supplierDue?.meta?.totalDue || 0);
-  const dollarSupplierDueTotal = Number(
-    dollarSupplierDue?.meta?.totalDue || 0,
+  const packagingManufacturerDueTotal = Number(
+    packagingManufacturerDue?.meta?.totalDue || 0,
   );
+  const supplierDueTotal = Number(supplierDue?.meta?.totalDue || 0);
+  const dollarSupplierDueTotal = Number(dollarSupplierDue?.meta?.totalDue || 0);
   const lenderPayableTotal = Number(lenderPayable?.meta?.totalDue || 0);
   const total = getPayableTotalAmount({
     pendingPayrollSalary,
     manufacturerDue,
+    packagingManufacturerDue,
     supplierDue,
     dollarSupplierDue,
     lenderPayable,
   });
 
-  if (total <= 0) return;
+  if (!showEmpty && total <= 0) return;
 
   await placeLedgerSection(doc, html2canvas, cursor, {
-    title: "সর্বমোট বাকি",
+    title,
     rows: [
       { description: "পেন্ডিং বেতন", amount: pendingSalaryTotal },
       {
         description: "কোম্পানির কাছে পাবে (ম্যানুফ্যাকচার)",
         amount: manufacturerDueTotal,
+      },
+      {
+        description: "কোম্পানির কাছে পাবে (প্যাকেজিং ম্যানুফ্যাকচার)",
+        amount: packagingManufacturerDueTotal,
       },
       {
         description: "কোম্পানির কাছে পাবে (সাপ্লাইয়ার)",
@@ -2160,102 +2408,24 @@ const appendPayableTotalSection = async (
   });
 };
 
-// What carries into this period from before it: company-wide cash (every
-// CashIn minus every CashOut, no book/category restriction — the same thing
-// the Book page's own Total CashIn/Total CashOut/Net Balance widget counts)
-// as of just before `from`, plus Petty Cash's own net balance the same way,
-// plus every stock section's opening (pre-period) value, added together
-// into one "brought forward" figure.
-const appendCarryForwardBalanceSection = async (
-  doc,
-  html2canvas,
-  cursor,
-  {
-    inventoryStockReport,
-    itemFactoryStock,
-    packagingStock,
-    regularFontDataUrl,
-    boldFontDataUrl,
-  },
-) => {
-  const bookOpeningTotal = Number(
-    inventoryStockReport?.meta?.cashOpeningBalance || 0,
-  );
-  const pettyCashOpeningTotal = Number(
-    inventoryStockReport?.meta?.pettyCashOpeningBalance || 0,
-  );
-  const stockOpeningTotal = getStockOpeningValueTotal({
-    inventoryStockReport,
-    itemFactoryStock,
-    packagingStock,
-  });
-  const total = getCarryForwardBalanceTotal({
-    inventoryStockReport,
-    itemFactoryStock,
-    packagingStock,
-  });
-
-  await placeLedgerSection(doc, html2canvas, cursor, {
-    title: "নেট ব্যালেন্স (ক্যারি ফরওয়ার্ড)",
-    rows: [
-      { description: "মোট বুকস নেট ব্যালেন্স", amount: bookOpeningTotal },
-      {
-        description: "মোট পেটি ক্যাশ নেট ব্যালেন্স",
-        amount: pettyCashOpeningTotal,
-      },
-      { description: "মোট স্টক নেট ব্যালেন্স", amount: stockOpeningTotal },
-    ],
-    totalLabel: "সর্বমোট",
-    total,
-    columns: PAYABLE_TOTAL_COLUMNS,
-    regularFontDataUrl,
-    boldFontDataUrl,
-  });
-};
-
 const appendPayableAndDirectorInvestmentTotalSection = async (
   doc,
   html2canvas,
   cursor,
-  {
-    pendingPayrollSalary,
-    manufacturerDue,
-    supplierDue,
-    dollarSupplierDue,
-    lenderPayable,
-    directorInvestment,
-    regularFontDataUrl,
-    boldFontDataUrl,
-  },
+  { directorInvestment, regularFontDataUrl, boldFontDataUrl },
 ) => {
-  const payableTotal = getPayableTotalAmount({
-    pendingPayrollSalary,
-    manufacturerDue,
-    supplierDue,
-    dollarSupplierDue,
-    lenderPayable,
-  });
   const directorInvestTotal =
     getDirectorInvestmentTotalAmount(directorInvestment);
-  const total = getPayableAndDirectorInvestmentTotalAmount({
-    pendingPayrollSalary,
-    manufacturerDue,
-    supplierDue,
-    dollarSupplierDue,
-    lenderPayable,
-    directorInvestment,
-  });
 
-  if (total <= 0) return;
+  if (directorInvestTotal <= 0) return;
 
   await placeLedgerSection(doc, html2canvas, cursor, {
-    title: "সর্বমোট বাকি ও ডিরেক্টর ইনভেস্ট",
+    title: "ডিরেক্টর ইনভেস্ট",
     rows: [
-      { description: "সর্বমোট বাকি", amount: payableTotal },
       { description: "ডিরেক্টর ইনভেস্ট", amount: directorInvestTotal },
     ],
     totalLabel: "সর্বমোট",
-    total,
+    total: directorInvestTotal,
     columns: PAYABLE_TOTAL_COLUMNS,
     regularFontDataUrl,
     boldFontDataUrl,
@@ -2267,19 +2437,6 @@ const appendProfitLossSection = async (
   html2canvas,
   cursor,
   {
-    totalCashBalance,
-    salesDue,
-    salaryAdvance,
-    supplierReceivable,
-    dollarSupplierReceivable,
-    manufacturerReceivable,
-    packagingManufacturerReceivable,
-    lenderReceivable,
-    pendingPayrollSalary,
-    manufacturerDue,
-    supplierDue,
-    dollarSupplierDue,
-    lenderPayable,
     directorInvestment,
     inventoryStockReport,
     itemFactoryStock,
@@ -2289,53 +2446,35 @@ const appendProfitLossSection = async (
     boldFontDataUrl,
   },
 ) => {
-  const grandTotal = getGrandTotalAmount({
-    totalCashBalance,
-    salesDue,
-    salaryAdvance,
-    supplierReceivable,
-    dollarSupplierReceivable,
-    manufacturerReceivable,
-    packagingManufacturerReceivable,
-    lenderReceivable,
+  const endingBalanceTotal = getEndingBalanceTotal({
     inventoryStockReport,
     itemFactoryStock,
     packagingStock,
     courierProductStock,
   });
-  const payableAndInvestmentTotal = getPayableAndDirectorInvestmentTotalAmount({
-    pendingPayrollSalary,
-    manufacturerDue,
-    supplierDue,
-    dollarSupplierDue,
-    lenderPayable,
-    directorInvestment,
-  });
-  const carryForwardTotal = getCarryForwardBalanceTotal({
-    inventoryStockReport,
-    itemFactoryStock,
-    packagingStock,
-  });
-  const result = carryForwardTotal + grandTotal - payableAndInvestmentTotal;
+  const directorInvestmentTotal = getDirectorInvestmentTotalAmount(directorInvestment);
+  const result = endingBalanceTotal - directorInvestmentTotal;
   const isLoss = result < 0;
   const resultLabel = isLoss ? "Loss" : "Profit";
+  const monthLabel = formatReportMonthLabel(
+    inventoryStockReport?.meta?.from,
+    inventoryStockReport?.meta?.to,
+  );
+  const endingBalanceRowDescription = monthLabel
+    ? `${monthLabel} মাসের সমাপনী ব্যালেন্স (+)`
+    : "সমাপনী ব্যালেন্স (+)";
 
   await placeLedgerSection(doc, html2canvas, cursor, {
     title: "Profit / Loss",
     rows: [
       {
-        description: "নেট ব্যালেন্স (ক্যারি ফরওয়ার্ড) (+)",
-        amount: carryForwardTotal,
+        description: endingBalanceRowDescription,
+        amount: endingBalanceTotal,
         tone: "credit",
       },
       {
-        description: "গ্র্যান্ড টোটাল (ক্যাশ, প্রাপ্য ও স্টক) (+)",
-        amount: grandTotal,
-        tone: "credit",
-      },
-      {
-        description: "সর্বমোট বাকি ও ডিরেক্টর ইনভেস্ট (−)",
-        amount: -payableAndInvestmentTotal,
+        description: "ডিরেক্টর ইনভেস্ট (−)",
+        amount: -directorInvestmentTotal,
         tone: "debit",
       },
     ],
@@ -2450,19 +2589,129 @@ const appendAssetsSections = async (
 // company" figure already computed above (Sales Due, Salary Advance, and
 // the four receivable sections) into one grand total — the bottom-line
 // summary the rest of this report builds up to.
-const appendGrandTotalSection = async (
+// The বিবরণ/পরিমান breakdown shared by the opening and ending cash/stock/
+// due/receivable summaries, as one hand-built table (rather than routed
+// through the generic column-based ledger table, which can't rowspan a
+// cell across rows): মোট ক্যাশ's own label and total sit in a cell spanning
+// one row per payment mode — Bank / Cash / … each get their own sub-row
+// showing the mode name and its amount right next to it, so the reader
+// can see মোট ক্যাশ is literally those rows added together — a CashInOut
+// row with no payment mode tagged is dropped from the breakdown, so this
+// can legitimately fall a little short of the account's true cash position
+// rather than silently mixing an untagged figure into a mode the reader
+// can't see. Below that, one plain row each for পেটি ক্যাশ (+), মোট স্টক (+)
+// and মোট প্রাপ্য (+) added in, মোট দেনা (−) subtracted, and a tfoot total
+// row labeled শুরু/সমাপনী ব্যালেন্স (or ব্যালেন্স পার্থক্য for the
+// comparison table).
+const buildCashStockSummaryTableHtml = (
+  modeRows,
+  { pettyCashTotal, stockTotal, payableTotal, receivableTotal, totalLabel },
+) => {
+  const cashTotal = modeRows.reduce(
+    (sum, modeRow) => sum + Number(modeRow.amount || 0),
+    0,
+  );
+  const pettyCash = Number(pettyCashTotal || 0);
+  const stock = Number(stockTotal || 0);
+  const due = Number(payableTotal || 0);
+  const receivable = Number(receivableTotal || 0);
+  const total =
+    Math.round((cashTotal + pettyCash + stock + receivable - due) * 100) / 100;
+
+  const amountCell = (value, extraClass = "") =>
+    `<td class="amount${isNegativeValue(value) ? " negative" : ""}${extraClass ? ` ${extraClass}` : ""}">${formatAmount(value)}</td>`;
+
+  const modeCount = modeRows.length;
+  const cashRowsHtml = modeCount
+    ? modeRows
+        .map(
+          (modeRow, index) => `
+            <tr>
+              ${index === 0 ? `<td rowspan="${modeCount}" style="vertical-align:middle;">মোট ক্যাশ</td>` : ""}
+              <td class="cash-mode-cell">${escapeHtml(modeRow.mode)}</td>
+              ${amountCell(Number(modeRow.amount || 0), "cash-mode-cell")}
+              ${index === 0 ? `<td rowspan="${modeCount}" style="vertical-align:middle;" class="amount${isNegativeValue(cashTotal) ? " negative" : ""}">${formatAmount(cashTotal)}</td>` : ""}
+            </tr>`,
+        )
+        .join("")
+    : `<tr><td colspan="3">মোট ক্যাশ</td>${amountCell(cashTotal)}</tr>`;
+
+  const plainRow = (label, value) =>
+    `<tr><td colspan="3">${escapeHtml(label)}</td>${amountCell(value)}</tr>`;
+
+  const tableHtml = `
+    <table class="ledger-table cash-stock-summary-table">
+      <colgroup>
+        <col style="width:26%" />
+        <col style="width:20%" />
+        <col style="width:20%" />
+        <col style="width:34%" />
+      </colgroup>
+      <thead>
+        <tr>
+          <th>বিবরণ</th>
+          <th>মোড</th>
+          <th>পরিমান</th>
+          <th>পরিমান (টাকা)</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${cashRowsHtml}
+        ${plainRow("পেটি ক্যাশ (+)", pettyCash)}
+        ${plainRow("মোট স্টক (+)", stock)}
+        ${plainRow("মোট প্রাপ্য (+)", receivable)}
+        ${plainRow("মোট দেনা (−)", -due)}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="3">${escapeHtml(totalLabel)}</td>
+          ${amountCell(total)}
+        </tr>
+      </tfoot>
+    </table>
+  `;
+
+  return { tableHtml, total };
+};
+
+// Renders and places a title + the hand-built table above as one
+// unsplittable block (see `placeFragment`) — these sections are always a
+// handful of rows, so unlike `placeLedgerSection` there's no need to chunk
+// them across pages.
+const placeCashStockSummarySection = async (
+  doc,
+  html2canvas,
+  cursor,
+  { title, modeRows, totals, totalLabel, regularFontDataUrl, boldFontDataUrl },
+) => {
+  const { tableHtml } = buildCashStockSummaryTableHtml(modeRows, {
+    ...totals,
+    totalLabel,
+  });
+  const fragment = await renderFragment(
+    html2canvas,
+    `<div class="frag">
+      <div class="ledger-heading">${escapeHtml(title)}</div>
+      ${tableHtml}
+    </div>`,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  );
+  placeFragment(doc, cursor, fragment);
+};
+
+// Company-wide cash as of just before the report's `from` (same cutoff as
+// the Carry Forward section below it), split by payment mode so it's clear
+// how much of that cash sits in bKash/Bank/Cash — followed by the matching
+// opening Stock / Due / Receivable figures, all at that same cutoff date,
+// and a trailing শুরু ব্যালেন্স column folding all of it into next month's
+// opening balance. "মোট স্টক" is the same combined figure across product,
+// item factory, packaging and courier stock.
+const appendOpeningCashSummarySection = async (
   doc,
   html2canvas,
   cursor,
   {
-    totalCashBalance,
-    salesDue,
-    salaryAdvance,
-    supplierReceivable,
-    dollarSupplierReceivable,
-    manufacturerReceivable,
-    packagingManufacturerReceivable,
-    lenderReceivable,
     inventoryStockReport,
     itemFactoryStock,
     packagingStock,
@@ -2471,96 +2720,180 @@ const appendGrandTotalSection = async (
     boldFontDataUrl,
   },
 ) => {
-  const cashTotal = Number(totalCashBalance || 0);
-  const salesDueTotal = Number(salesDue?.meta?.totalDue || 0);
-  const salaryAdvanceTotal = Number(salaryAdvance?.meta?.totalDue || 0);
-  const supplierTotal = Number(supplierReceivable?.meta?.totalAdvance || 0);
-  const dollarSupplierTotal = Number(
-    dollarSupplierReceivable?.meta?.totalAdvance || 0,
+  const modeRows = Array.isArray(
+    inventoryStockReport?.meta?.cashOpeningBalanceByPaymentMode,
+  )
+    ? inventoryStockReport.meta.cashOpeningBalanceByPaymentMode
+    : [];
+  if (!modeRows.length) return;
+
+  const openingBalanceDateLabel = formatOpeningBalanceDateLabel(
+    inventoryStockReport?.meta?.from,
   );
-  const manufacturerTotal = Number(
-    manufacturerReceivable?.meta?.totalAdvance || 0,
+  const monthLabel = formatReportMonthLabel(
+    inventoryStockReport?.meta?.from,
+    inventoryStockReport?.meta?.to,
   );
-  const packagingManufacturerTotal = Number(
-    packagingManufacturerReceivable?.meta?.totalAdvance || 0,
-  );
-  const lenderTotal = Number(lenderReceivable?.meta?.totalAdvance || 0);
-  const inv = inventoryStockReport?.meta || {};
-  const itemFactory = itemFactoryStock?.meta || {};
-  const packaging = packagingStock?.meta || {};
-  const grandTotal = getGrandTotalAmount({
-    totalCashBalance,
-    salesDue,
-    salaryAdvance,
-    supplierReceivable,
-    dollarSupplierReceivable,
-    manufacturerReceivable,
-    packagingManufacturerReceivable,
-    lenderReceivable,
+
+  await placeCashStockSummarySection(doc, html2canvas, cursor, {
+    title:
+      monthLabel && openingBalanceDateLabel
+        ? `${monthLabel} মাসের শুরু ব্যালেন্স (${openingBalanceDateLabel} পর্যন্ত ক্যাশ, পেটি ক্যাশ, স্টক, দেনা ও প্রাপ্য)`
+        : openingBalanceDateLabel
+          ? `${openingBalanceDateLabel} পর্যন্ত ক্যাশ, পেটি ক্যাশ, স্টক, দেনা ও প্রাপ্য`
+          : "ক্যাশ, পেটি ক্যাশ, স্টক, দেনা ও প্রাপ্য",
+    modeRows,
+    totals: {
+      pettyCashTotal: Number(
+        inventoryStockReport?.meta?.pettyCashOpeningBalance || 0,
+      ),
+      stockTotal: getStockOpeningValueTotal({
+        inventoryStockReport,
+        itemFactoryStock,
+        packagingStock,
+        courierProductStock,
+      }),
+      payableTotal: Number(
+        inventoryStockReport?.meta?.payableOpeningBalance || 0,
+      ),
+      receivableTotal: Number(
+        inventoryStockReport?.meta?.receivableOpeningBalance || 0,
+      ),
+    },
+    totalLabel: "শুরু ব্যালেন্স",
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+};
+
+// Ending cash and stock position through the selected report end date.
+const appendEndingCashSummarySection = async (
+  doc,
+  html2canvas,
+  cursor,
+  {
     inventoryStockReport,
     itemFactoryStock,
     packagingStock,
     courierProductStock,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  },
+) => {
+  const modeRows = Array.isArray(
+    inventoryStockReport?.meta?.cashEndingBalanceByPaymentMode,
+  )
+    ? inventoryStockReport.meta.cashEndingBalanceByPaymentMode
+    : [];
+  if (!modeRows.length) return;
+
+  const endingDateLabel = formatEndingBalanceDateLabel(
+    inventoryStockReport?.meta?.to,
+  );
+  const monthLabel = formatReportMonthLabel(
+    inventoryStockReport?.meta?.from,
+    inventoryStockReport?.meta?.to,
+  );
+
+  await placeCashStockSummarySection(doc, html2canvas, cursor, {
+    title:
+      monthLabel && endingDateLabel
+        ? `${monthLabel} মাসের সমাপনী ব্যালেন্স (${endingDateLabel} পর্যন্ত ক্যাশ, পেটি ক্যাশ, স্টক, দেনা ও প্রাপ্য)`
+        : endingDateLabel
+          ? `${endingDateLabel} পর্যন্ত ক্যাশ, পেটি ক্যাশ, স্টক, দেনা ও প্রাপ্য`
+          : "ক্যাশ, পেটি ক্যাশ, স্টক, দেনা ও প্রাপ্য",
+    modeRows,
+    totals: {
+      pettyCashTotal: Number(
+        inventoryStockReport?.meta?.pettyCashEndingBalance || 0,
+      ),
+      stockTotal: getStockClosingValueTotal({
+        inventoryStockReport,
+        itemFactoryStock,
+        packagingStock,
+        courierProductStock,
+      }),
+      payableTotal: Number(
+        inventoryStockReport?.meta?.payableEndingBalance || 0,
+      ),
+      receivableTotal: Number(
+        inventoryStockReport?.meta?.receivableEndingBalance || 0,
+      ),
+    },
+    totalLabel: "সমাপনী ব্যালেন্স",
+    regularFontDataUrl,
+    boldFontDataUrl,
   });
+};
 
-  const rows = [
-    { description: "একাউন্টে মোট ক্যাশ", amount: cashTotal },
-    { description: "সেলস বাকি", amount: salesDueTotal },
-    { description: "বেতন অগ্রিম", amount: salaryAdvanceTotal },
-    { description: "কোম্পানি পাবে (সাপ্লাইয়ার)", amount: supplierTotal },
-    {
-      description: "কোম্পানি পাবে (ডলার সাপ্লাইয়ার)",
-      amount: dollarSupplierTotal,
-    },
-    {
-      description: "কোম্পানি পাবে (ম্যানুফ্যাকচার)",
-      amount: manufacturerTotal,
-    },
-    {
-      description: "কোম্পানি পাবে (প্যাকেজিং ম্যানুফ্যাকচার)",
-      amount: packagingManufacturerTotal,
-    },
-    { description: "কোম্পানি পাবে (লেন্ডার)", amount: lenderTotal },
-    {
-      description: "মোট স্টক প্রোডাক্ট",
-      amount: Number(inv.stockProductPurchaseCost || 0),
-    },
-    {
-      description: "মোট ড্যামেজ স্টক",
-      amount: Number(inv.damageStockPurchaseCost || 0),
-    },
-    {
-      description: "মোট রিপেয়ারিং স্টক",
-      amount: Number(inv.repairingStockPurchaseCost || 0),
-    },
-    {
-      description: "মোট আইটেম স্টক",
-      amount: Number(itemFactory.itemStockPurchaseCost || 0),
-    },
-    {
-      description: "মোট ফ্যাক্টরি স্টক",
-      amount: Number(itemFactory.factoryStockPurchaseCost || 0),
-    },
-    {
-      description: "মোট প্যাকেজিং আইটেম স্টক",
-      amount: Number(packaging.packagingItemStockPurchaseCost || 0),
-    },
-    {
-      description: "মোট প্যাকেজিং ফ্যাক্টরি স্টক",
-      amount: Number(packaging.packagingFactoryStockPurchaseCost || 0),
-    },
-    {
-      description: "কুরিয়ার প্রোডাক্ট স্টক",
-      amount: Number(courierProductStock?.meta?.totalEndingAmount || 0),
-    },
-  ];
+// Compare the same dated balances shown in the opening and ending summaries.
+const appendCashStockComparisonSection = async (
+  doc,
+  html2canvas,
+  cursor,
+  {
+    inventoryStockReport,
+    itemFactoryStock,
+    packagingStock,
+    courierProductStock,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  },
+) => {
+  const meta = inventoryStockReport?.meta || {};
+  if (!meta.from || !meta.to) return;
 
-  await placeLedgerSection(doc, html2canvas, cursor, {
-    title: "গ্র্যান্ড টোটাল (ক্যাশ, প্রাপ্য ও স্টক)",
-    rows,
-    totalLabel: "সর্বমোট",
-    total: grandTotal,
-    columns: GRAND_TOTAL_COLUMNS,
+  const openingModes = new Map(
+    (meta.cashOpeningBalanceByPaymentMode || []).map(({ mode, amount }) => [
+      mode,
+      Number(amount || 0),
+    ]),
+  );
+  const endingModes = new Map(
+    (meta.cashEndingBalanceByPaymentMode || []).map(({ mode, amount }) => [
+      mode,
+      Number(amount || 0),
+    ]),
+  );
+  const difference = (ending, opening) =>
+    Math.round((Number(ending || 0) - Number(opening || 0)) * 100) / 100;
+  const modeRows = [
+    ...new Set([...openingModes.keys(), ...endingModes.keys()]),
+  ].map((mode) => ({
+    mode,
+    amount: difference(endingModes.get(mode), openingModes.get(mode)),
+  }));
+  const stockReports = {
+    inventoryStockReport,
+    itemFactoryStock,
+    packagingStock,
+    courierProductStock,
+  };
+  const openingLabel = formatOpeningBalanceDateLabel(meta.from);
+  const endingLabel = formatEndingBalanceDateLabel(meta.to);
+
+  await placeCashStockSummarySection(doc, html2canvas, cursor, {
+    title: `তুলনামূলক পার্থক্য (${endingLabel} − ${openingLabel})`,
+    modeRows,
+    totals: {
+      pettyCashTotal: difference(
+        meta.pettyCashEndingBalance,
+        meta.pettyCashOpeningBalance,
+      ),
+      stockTotal: difference(
+        getStockClosingValueTotal(stockReports),
+        getStockOpeningValueTotal(stockReports),
+      ),
+      payableTotal: difference(
+        meta.payableEndingBalance,
+        meta.payableOpeningBalance,
+      ),
+      receivableTotal: difference(
+        meta.receivableEndingBalance,
+        meta.receivableOpeningBalance,
+      ),
+    },
+    totalLabel: "ব্যালেন্স পার্থক্য",
     regularFontDataUrl,
     boldFontDataUrl,
   });
@@ -2612,6 +2945,7 @@ export const generateBookStatementPdf = async ({
   supplierDue = null,
   dollarSupplierDue = null,
   manufacturerDue = null,
+  packagingManufacturerDue = null,
   lenderPayable = null,
   directorInvestment = null,
   assetsSummary = null,
@@ -2647,7 +2981,7 @@ export const generateBookStatementPdf = async ({
       companyName,
       companyInfo,
       logoDataUrl,
-      bookName: books[0]?.bookName || "All Books",
+      bookName: books[0]?.bookName || "Kafela Mart Books",
     }),
     regularFontDataUrl,
     boldFontDataUrl,
@@ -2662,22 +2996,14 @@ export const generateBookStatementPdf = async ({
   );
   placeFragment(doc, cursor, reportTitleBarFragment);
 
-  // Front summary — Grand Total / Total Due / Carry Forward / Total Due &
+  // Front summary — Grand Total / Carry Forward / Total Due &
   // Director Investment / Profit & Loss, pulled to the very front of the
   // report so the headline numbers are visible before the per-book detail.
   // Each of these renders purely from the report props above, not from
   // anything the book loop or later sections compute, so moving them earlier
   // doesn't change any figure — see the sibling summary sections' own totals
   // helpers for the actual math.
-  await appendGrandTotalSection(doc, html2canvas, cursor, {
-    totalCashBalance,
-    salesDue,
-    salaryAdvance,
-    supplierReceivable,
-    dollarSupplierReceivable,
-    manufacturerReceivable,
-    packagingManufacturerReceivable,
-    lenderReceivable,
+  await appendOpeningCashSummarySection(doc, html2canvas, cursor, {
     inventoryStockReport,
     itemFactoryStock,
     packagingStock,
@@ -2686,20 +3012,20 @@ export const generateBookStatementPdf = async ({
     boldFontDataUrl,
   });
 
-  await appendPayableTotalSection(doc, html2canvas, cursor, {
-    pendingPayrollSalary,
-    manufacturerDue,
-    supplierDue,
-    dollarSupplierDue,
-    lenderPayable,
+  await appendEndingCashSummarySection(doc, html2canvas, cursor, {
+    inventoryStockReport,
+    itemFactoryStock,
+    packagingStock,
+    courierProductStock,
     regularFontDataUrl,
     boldFontDataUrl,
   });
 
-  await appendCarryForwardBalanceSection(doc, html2canvas, cursor, {
+  await appendCashStockComparisonSection(doc, html2canvas, cursor, {
     inventoryStockReport,
     itemFactoryStock,
     packagingStock,
+    courierProductStock,
     regularFontDataUrl,
     boldFontDataUrl,
   });
@@ -2711,6 +3037,7 @@ export const generateBookStatementPdf = async ({
     {
       pendingPayrollSalary,
       manufacturerDue,
+      packagingManufacturerDue,
       supplierDue,
       dollarSupplierDue,
       lenderPayable,
@@ -2785,6 +3112,15 @@ export const generateBookStatementPdf = async ({
     boldFontDataUrl,
   });
 
+  await appendStockTotalSection(doc, html2canvas, cursor, {
+    inventoryStockReport,
+    itemFactoryStock,
+    packagingStock,
+    courierProductStock,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
   await appendSalesDueSection(doc, html2canvas, cursor, {
     salesDue,
     regularFontDataUrl,
@@ -2833,8 +3169,26 @@ export const generateBookStatementPdf = async ({
     boldFontDataUrl,
   });
 
+  await appendReceivableTotalSection(doc, html2canvas, cursor, {
+    salesDue,
+    salaryAdvance,
+    supplierReceivable,
+    dollarSupplierReceivable,
+    manufacturerReceivable,
+    packagingManufacturerReceivable,
+    lenderReceivable,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
   await appendManufacturerDueSection(doc, html2canvas, cursor, {
     manufacturerDue,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
+  await appendPackagingManufacturerDueSection(doc, html2canvas, cursor, {
+    packagingManufacturerDue,
     regularFontDataUrl,
     boldFontDataUrl,
   });
@@ -2859,6 +3213,19 @@ export const generateBookStatementPdf = async ({
 
   await appendDirectorInvestmentSection(doc, html2canvas, cursor, {
     directorInvestment,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
+  await appendPayableTotalSection(doc, html2canvas, cursor, {
+    title: "মোট দেনা",
+    showEmpty: true,
+    pendingPayrollSalary,
+    manufacturerDue,
+    packagingManufacturerDue,
+    supplierDue,
+    dollarSupplierDue,
+    lenderPayable,
     regularFontDataUrl,
     boldFontDataUrl,
   });

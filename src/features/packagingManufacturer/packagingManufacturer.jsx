@@ -35,15 +35,18 @@ export const packagingManufacturerApi = createApi({
       invalidatesTags: ["packagingManufacturer"],
     }),
     getAllPackagingManufacturer: build.query({
-      query: ({ page, limit, searchTerm }) => ({
+      query: ({ page, limit, searchTerm, startDate, endDate }) => ({
         url: "/packaging-manufacturer",
-        params: { page, limit, searchTerm },
+        params: { page, limit, searchTerm, startDate, endDate },
       }),
       providesTags: ["packagingManufacturer"],
       refetchOnMountOrArgChange: true,
     }),
     getAllPackagingManufacturerWithoutQuery: build.query({
-      query: () => ({ url: "/packaging-manufacturer/all" }),
+      query: ({ startDate, endDate } = {}) => ({
+        url: "/packaging-manufacturer/all",
+        params: { startDate, endDate },
+      }),
       providesTags: ["packagingManufacturer"],
       refetchOnMountOrArgChange: true,
     }),

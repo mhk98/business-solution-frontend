@@ -23,7 +23,17 @@ export const packagingFactoryStockApi = createApi({
       refetchOnMountOrArgChange: true,
       pollingInterval: 1000,
     }),
+    getAllPackagingFactoryStockWithoutQuery: build.query({
+      query: () => ({
+        url: "/packaging-factory-stock/all",
+      }),
+      providesTags: ["packagingFactoryStock"],
+      refetchOnMountOrArgChange: true,
+    }),
   }),
 });
 
-export const { useGetAllPackagingFactoryStockQuery } = packagingFactoryStockApi;
+export const {
+  useGetAllPackagingFactoryStockQuery,
+  useGetAllPackagingFactoryStockWithoutQueryQuery,
+} = packagingFactoryStockApi;

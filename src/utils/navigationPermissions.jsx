@@ -623,6 +623,13 @@ export const SIDEBAR_ITEMS = [
         roles: ["superAdmin", "admin", "inventor"],
       },
       {
+        name: "Packaging Item Stock Adjustment",
+        key: "packaging_item_stock_adjustment",
+        icon: SlidersHorizontal,
+        href: "/packaging-item-stock-adjustment",
+        roles: ["superAdmin", "admin"],
+      },
+      {
         name: "Packaging Item Purchase",
         key: "packaging_item_purchase",
         icon: Cog,
@@ -642,6 +649,13 @@ export const SIDEBAR_ITEMS = [
         icon: Boxes,
         href: "/packaging-factory-stock",
         roles: ["superAdmin", "admin", "inventor"],
+      },
+      {
+        name: "Packaging Factory Stock Adjustment",
+        key: "packaging_factory_stock_adjustment",
+        icon: SlidersHorizontal,
+        href: "/packaging-factory-stock-adjustment",
+        roles: ["superAdmin", "admin"],
       },
       {
         name: "Packaging Factory",
@@ -728,6 +742,13 @@ export const SIDEBAR_ITEMS = [
         key: "stock_adjustment",
         icon: SlidersHorizontal,
         href: "/stock-adjustment",
+        roles: ["superAdmin", "admin"],
+      },
+      {
+        name: "Factory Stock Adjustment",
+        key: "factory_stock_adjustment",
+        icon: SlidersHorizontal,
+        href: "/factory-stock-adjustment",
         roles: ["superAdmin", "admin"],
       },
       {
@@ -1549,35 +1570,10 @@ export const SIDEBAR_ITEMS = [
 ];
 
 const STORAGE_KEY = "roleMenuPermissions";
-const OVERVIEW_DEFAULT_REMOVED_STORAGE_KEY =
-  "overview-default-permission-removed";
-const DAILY_WORK_REPORTS_DEFAULT_REMOVED_STORAGE_KEY =
-  "daily-work-reports-default-permission-removed";
-const NON_ADMIN_DEFAULT_PERMISSIONS_REMOVED_STORAGE_KEY =
-  "non-admin-default-permissions-removed";
-const SHIFA_DEFAULT_REMOVED_STORAGE_KEY = "shifa-default-permission-removed";
 const PERMISSION_EVENT = "role-permissions-updated";
 const PERMISSION_KEY_ALIASES = {
   employee_profile: "employee_list",
 };
-
-const SHIFA_PERMISSION_KEYS = new Set([
-  "shifa",
-  "shifa_overview",
-  "shifa_call_history",
-  "shifa_starting_situation",
-  "shifa_problem_history",
-  "shifa_patient_update",
-  "shifa_appointment_serial",
-  "shifa_incentive",
-]);
-
-const ROLES_WITH_LEGACY_DAILY_WORK_REPORTS_DEFAULT = new Set([
-  "superAdmin",
-  "admin",
-  "accountant",
-  "up",
-]);
 
 const LEGACY_PERMISSION_EXPANSIONS = {
   department_designation: ["department_management", "designation_management"],
@@ -1827,305 +1823,29 @@ export const DEFAULT_ROLE_PERMISSIONS = ROLE_OPTIONS.reduce((acc, role) => {
 
 const normalizeRolePermissionMap = (value) => {
   if (!value || typeof value !== "object") return {};
-
-  return Object.entries(value).reduce((acc, [role, keys]) => {
-    if (!Array.isArray(keys)) return acc;
-    const normalizedKeys = new Set(normalizePermissionKeys(keys));
-
-    // Migrate older stored permission sets after the submenu key rename.
-    if (normalizedKeys.has("settings")) {
-      const defaultKeys = DEFAULT_ROLE_PERMISSION_MAP[role] || [];
-      if (defaultKeys.includes("role_permissions")) {
-        normalizedKeys.add("role_permissions");
-      }
-      if (defaultKeys.includes("email_notification_permissions")) {
-        normalizedKeys.add("email_notification_permissions");
-      }
-      if (defaultKeys.includes("sms_notification_permissions")) {
-        normalizedKeys.add("sms_notification_permissions");
-      }
-      if (defaultKeys.includes("notice")) {
-        normalizedKeys.add("notice");
-      }
-      if (defaultKeys.includes("cod_change")) {
-        normalizedKeys.add("cod_change");
-      }
-      if (defaultKeys.includes("cod_charge")) {
-        normalizedKeys.add("cod_charge");
-      }
-      if (defaultKeys.includes("delivery_advance")) {
-        normalizedKeys.add("delivery_advance");
-      }
-      if (defaultKeys.includes("delivery_charge")) {
-        normalizedKeys.add("delivery_charge");
-      }
-      if (defaultKeys.includes("shipping_charge")) {
-        normalizedKeys.add("shipping_charge");
-      }
-      if (defaultKeys.includes("master_permission")) {
-        normalizedKeys.add("master_permission");
-      }
-    }
-
-    const defaultKeys = DEFAULT_ROLE_PERMISSION_MAP[role] || [];
-    if (defaultKeys.includes("tasks")) {
-      normalizedKeys.add("tasks");
-    }
-
-    if (defaultKeys.includes("dollar_supplier")) {
-      normalizedKeys.add("dollar_supplier");
-    }
-
-    if (defaultKeys.includes("ads_campaign_kpi")) {
-      normalizedKeys.add("ads_campaign_kpi");
-    }
-
-    if (defaultKeys.includes("auto_profit_loss")) {
-      normalizedKeys.add("auto_profit_loss");
-    }
-
-    if (defaultKeys.includes("reports")) {
-      normalizedKeys.add("reports");
-      REPORT_PERMISSION_KEYS.forEach((permissionKey) => {
-        normalizedKeys.add(permissionKey);
-      });
-    }
-
-    if (defaultKeys.includes("packaging")) {
-      normalizedKeys.add("packaging");
-    }
-
-    if (defaultKeys.includes("packaging_item")) {
-      normalizedKeys.add("packaging_item");
-    }
-
-    if (defaultKeys.includes("packaging_item_stock")) {
-      normalizedKeys.add("packaging_item_stock");
-    }
-
-    if (defaultKeys.includes("packaging_item_purchase")) {
-      normalizedKeys.add("packaging_item_purchase");
-    }
-
-    if (defaultKeys.includes("packaging_manufacturer")) {
-      normalizedKeys.add("packaging_manufacturer");
-    }
-
-    if (defaultKeys.includes("packaging_factory")) {
-      normalizedKeys.add("packaging_factory");
-    }
-
-    if (defaultKeys.includes("packaging_factory_stock")) {
-      normalizedKeys.add("packaging_factory_stock");
-    }
-
-    if (defaultKeys.includes("packaging_mixer")) {
-      normalizedKeys.add("packaging_mixer");
-    }
-
-    if (defaultKeys.includes("stock_alert")) {
-      normalizedKeys.add("stock_alert");
-    }
-
-    if (defaultKeys.includes("stock_movement")) {
-      normalizedKeys.add("stock_movement");
-    }
-
-    if (defaultKeys.includes("courier_no_entry")) {
-      normalizedKeys.add("courier_no_entry");
-    }
-
-    if (defaultKeys.includes("loan")) {
-      normalizedKeys.add("loan");
-    }
-
-    if (defaultKeys.includes("owner_transaction")) {
-      normalizedKeys.add("owner_transaction");
-    }
-
-    if (defaultKeys.includes("owner")) {
-      normalizedKeys.add("owner");
-    }
-
-    if (defaultKeys.includes("director_profit_share")) {
-      normalizedKeys.add("director_profit_share");
-    }
-
-    if (defaultKeys.includes("director_profit_share_transaction")) {
-      normalizedKeys.add("director_profit_share_transaction");
-    }
-
-    if (defaultKeys.includes("cs_work_reports")) {
-      normalizedKeys.add("cs_work_reports");
-    }
-
-    if (defaultKeys.includes("logistic_work_reports")) {
-      normalizedKeys.add("logistic_work_reports");
-    }
-
-    if (normalizedKeys.has("logistic_work_reports")) {
-      normalizedKeys.add("logistic_update");
-    }
-
-    if (normalizedKeys.has("department_designation")) {
-      normalizedKeys.add("department_management");
-      normalizedKeys.add("designation_management");
-    }
-
-    if (defaultKeys.includes("team_management")) {
-      normalizedKeys.add("team_management");
-    }
-
-    const payrollChildKeys = [
-      "payroll_management",
-      "payslip",
-      "payroll",
-      "payroll_fine",
-    ];
-
-    if (payrollChildKeys.some((key) => normalizedKeys.has(key))) {
-      normalizedKeys.add("hr_payroll");
-    }
-
-    acc[role] = Array.from(normalizedKeys);
-    return acc;
-  }, {});
+  return Object.fromEntries(Object.entries(value)
+    .filter(([, keys]) => Array.isArray(keys))
+    .map(([role, keys]) => [role, normalizePermissionKeys(keys)]));
 };
 
-const removeOverviewPermissionFromMap = (permissionMap = {}) =>
-  Object.entries(permissionMap).reduce((acc, [role, keys]) => {
-    acc[role] = Array.isArray(keys)
-      ? keys.filter((key) => getCanonicalPermissionKey(key) !== "overview")
-      : keys;
-    return acc;
-  }, {});
-
-const removeDailyWorkReportsPermissionFromMap = (permissionMap = {}) =>
-  Object.entries(permissionMap).reduce((acc, [role, keys]) => {
-    acc[role] =
-      ROLES_WITH_LEGACY_DAILY_WORK_REPORTS_DEFAULT.has(role) &&
-      Array.isArray(keys)
-        ? keys.filter(
-            (key) => getCanonicalPermissionKey(key) !== "daily_work_reports",
-          )
-        : keys;
-    return acc;
-  }, {});
-
-const removeNonAdminPermissionsFromMap = (permissionMap = {}) =>
-  Object.entries(permissionMap).reduce((acc, [role, keys]) => {
-    acc[role] =
-      DEFAULT_PERMISSION_ROLES.has(role) && Array.isArray(keys) ? keys : [];
-    return acc;
-  }, {});
-
-const removeShifaDefaultPermissionsFromMap = (permissionMap = {}) =>
-  Object.entries(permissionMap).reduce((acc, [role, keys]) => {
-    acc[role] = Array.isArray(keys)
-      ? keys.filter(
-          (key) => !SHIFA_PERMISSION_KEYS.has(getCanonicalPermissionKey(key)),
-        )
-      : keys;
-    return acc;
-  }, {});
-
-const migrateStoredOverviewDefaultPermission = () => {
-  if (typeof window === "undefined") return;
-  if (localStorage.getItem(OVERVIEW_DEFAULT_REMOVED_STORAGE_KEY)) return;
-
-  try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-    if (parsed && typeof parsed === "object") {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify(removeOverviewPermissionFromMap(parsed)),
-      );
-    }
-  } catch (error) {
-    console.error("Failed to migrate overview menu permission", error);
-  } finally {
-    localStorage.setItem(OVERVIEW_DEFAULT_REMOVED_STORAGE_KEY, "true");
-  }
+// A selected submenu must have a visible parent, without granting its siblings.
+export const includeParentMenuPermissions = (keys = []) => {
+  const allowed = new Set(expandPermissionKeys(keys));
+  const visit = (item) => {
+    const childrenAllowed = item.children?.map(visit).some(Boolean);
+    if (childrenAllowed) allowed.add(item.key);
+    return allowed.has(item.key);
+  };
+  SIDEBAR_ITEMS.forEach(visit);
+  return Array.from(allowed);
 };
 
-const migrateStoredDailyWorkReportsDefaultPermission = () => {
-  if (typeof window === "undefined") return;
-  if (localStorage.getItem(DAILY_WORK_REPORTS_DEFAULT_REMOVED_STORAGE_KEY)) {
-    return;
-  }
-
-  try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-    if (parsed && typeof parsed === "object") {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify(removeDailyWorkReportsPermissionFromMap(parsed)),
-      );
-    }
-  } catch (error) {
-    console.error(
-      "Failed to migrate daily work reports menu permission",
-      error,
-    );
-  } finally {
-    localStorage.setItem(
-      DAILY_WORK_REPORTS_DEFAULT_REMOVED_STORAGE_KEY,
-      "true",
-    );
-  }
-};
-
-const migrateStoredNonAdminDefaultPermissions = () => {
-  if (typeof window === "undefined") return;
-  if (localStorage.getItem(NON_ADMIN_DEFAULT_PERMISSIONS_REMOVED_STORAGE_KEY)) {
-    return;
-  }
-
-  try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-    if (parsed && typeof parsed === "object") {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify(removeNonAdminPermissionsFromMap(parsed)),
-      );
-    }
-  } catch (error) {
-    console.error("Failed to migrate non-admin menu permissions", error);
-  } finally {
-    localStorage.setItem(
-      NON_ADMIN_DEFAULT_PERMISSIONS_REMOVED_STORAGE_KEY,
-      "true",
-    );
-  }
-};
-
-const migrateStoredShifaDefaultPermissions = () => {
-  if (typeof window === "undefined") return;
-  if (localStorage.getItem(SHIFA_DEFAULT_REMOVED_STORAGE_KEY)) return;
-
-  try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-    if (parsed && typeof parsed === "object") {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify(removeShifaDefaultPermissionsFromMap(parsed)),
-      );
-    }
-  } catch (error) {
-    console.error("Failed to migrate shifa menu permissions", error);
-  } finally {
-    localStorage.setItem(SHIFA_DEFAULT_REMOVED_STORAGE_KEY, "true");
-  }
-};
+export const SUPER_ADMIN_PERMISSION_KEYS = Array.from(KNOWN_MENU_PERMISSION_KEYS);
 
 export const getStoredRolePermissions = () => {
   if (typeof window === "undefined") return {};
 
   try {
-    migrateStoredOverviewDefaultPermission();
-    migrateStoredDailyWorkReportsDefaultPermission();
-    migrateStoredNonAdminDefaultPermissions();
-    migrateStoredShifaDefaultPermissions();
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
     return normalizeRolePermissionMap(parsed);
   } catch (error) {
@@ -2151,9 +1871,9 @@ export const saveRolePermissionsForRole = (role, menuPermissions = []) => {
 };
 
 export const getAllowedKeysForRole = (role) => {
+  if (role === "superAdmin") return new Set(SUPER_ADMIN_PERMISSION_KEYS);
   const stored = getStoredRolePermissions();
-  const keys = new Set(expandPermissionKeys(stored[role] || []));
-  if (role === "superAdmin" && keys.has("daily_inactive_users")) keys.add("work_history");
+  const keys = new Set(includeParentMenuPermissions(stored[role] || []));
   return keys;
 };
 

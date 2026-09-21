@@ -7,7 +7,7 @@ import { isDefaultMasterPermissionEmail } from "../utils/masterPermissions";
 
 const MonthlyReportingBookPage = () => {
   const [showCompanyInfo, setShowCompanyInfo] = useState(false);
-  const canOpenMonthlyReportingBook = isDefaultMasterPermissionEmail();
+  const canOpenMonthlyReportingBook = localStorage.getItem("role") === "superAdmin" || isDefaultMasterPermissionEmail();
 
   return (
     <div className="flex-1 relative z-10">

@@ -3,7 +3,7 @@ import MasterPermissionManager from "../components/settings/MasterPermissionMana
 import { isDefaultMasterPermissionEmail } from "../utils/masterPermissions";
 
 const MasterPermissionPage = () => {
-  const canOpenMasterPermission = isDefaultMasterPermissionEmail();
+  const canOpenMasterPermission = localStorage.getItem("role") === "superAdmin" || isDefaultMasterPermissionEmail();
 
   return (
     <div className="min-h-screen flex-1 overflow-auto bg-slate-50/50">
