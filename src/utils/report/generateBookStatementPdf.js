@@ -563,6 +563,7 @@ const getEndingBalanceTotal = ({
     0,
   );
   const pettyCash = Number(inventoryStockReport?.meta?.pettyCashEndingBalance || 0);
+  const dmBalance = Number(inventoryStockReport?.meta?.dmEndingBalance || 0);
   const stock = getStockClosingValueTotal({
     inventoryStockReport,
     itemFactoryStock,
@@ -574,7 +575,7 @@ const getEndingBalanceTotal = ({
   );
   const due = Number(inventoryStockReport?.meta?.payableEndingBalance || 0);
 
-  return Math.round((cashTotal + pettyCash + stock + receivable - due) * 100) / 100;
+  return Math.round((cashTotal + pettyCash + stock + dmBalance + receivable - due) * 100) / 100;
 };
 
 const FRAGMENT_STYLES = `
@@ -2605,7 +2606,7 @@ const appendAssetsSections = async (
 // comparison table).
 const buildCashStockSummaryTableHtml = (
   modeRows,
-  { pettyCashTotal, stockTotal, payableTotal, receivableTotal, totalLabel },
+  { pettyCashTotal, stockTotal, dmBalanceTotal, payableTotal, receivableTotal, totalLabel },
 ) => {
   const cashTotal = modeRows.reduce(
     (sum, modeRow) => sum + Number(modeRow.amount || 0),
@@ -2613,10 +2614,11 @@ const buildCashStockSummaryTableHtml = (
   );
   const pettyCash = Number(pettyCashTotal || 0);
   const stock = Number(stockTotal || 0);
+  const dmBalance = Number(dmBalanceTotal || 0);
   const due = Number(payableTotal || 0);
   const receivable = Number(receivableTotal || 0);
   const total =
-    Math.round((cashTotal + pettyCash + stock + receivable - due) * 100) / 100;
+    Math.round((cashTotal + pettyCash + stock + dmBalance + receivable - due) * 100) / 100;
 
   const amountCell = (value, extraClass = "") =>
     `<td class="amount${isNegativeValue(value) ? " negative" : ""}${extraClass ? ` ${extraClass}` : ""}">${formatAmount(value)}</td>`;
@@ -2659,6 +2661,7 @@ const buildCashStockSummaryTableHtml = (
         ${cashRowsHtml}
         ${plainRow("পেটি ক্যাশ (+)", pettyCash)}
         ${plainRow("মোট স্টক (+)", stock)}
+        ${plainRow("DM Balance (+)", dmBalance)}
         ${plainRow("মোট প্রাপ্য (+)", receivable)}
         ${plainRow("মোট দেনা (−)", -due)}
       </tbody>
@@ -2725,7 +2728,6 @@ const appendOpeningCashSummarySection = async (
   )
     ? inventoryStockReport.meta.cashOpeningBalanceByPaymentMode
     : [];
-  if (!modeRows.length) return;
 
   const openingBalanceDateLabel = formatOpeningBalanceDateLabel(
     inventoryStockReport?.meta?.from,
@@ -2747,6 +2749,7 @@ const appendOpeningCashSummarySection = async (
       pettyCashTotal: Number(
         inventoryStockReport?.meta?.pettyCashOpeningBalance || 0,
       ),
+      dmBalanceTotal: Number(inventoryStockReport?.meta?.dmOpeningBalance || 0),
       stockTotal: getStockOpeningValueTotal({
         inventoryStockReport,
         itemFactoryStock,
@@ -2785,7 +2788,6 @@ const appendEndingCashSummarySection = async (
   )
     ? inventoryStockReport.meta.cashEndingBalanceByPaymentMode
     : [];
-  if (!modeRows.length) return;
 
   const endingDateLabel = formatEndingBalanceDateLabel(
     inventoryStockReport?.meta?.to,
@@ -2807,6 +2809,7 @@ const appendEndingCashSummarySection = async (
       pettyCashTotal: Number(
         inventoryStockReport?.meta?.pettyCashEndingBalance || 0,
       ),
+      dmBalanceTotal: Number(inventoryStockReport?.meta?.dmEndingBalance || 0),
       stockTotal: getStockClosingValueTotal({
         inventoryStockReport,
         itemFactoryStock,
@@ -2876,6 +2879,7 @@ const appendCashStockComparisonSection = async (
     title: `তুলনামূলক পার্থক্য (${endingLabel} − ${openingLabel})`,
     modeRows,
     totals: {
+      dmBalanceTotal: difference(meta.dmEndingBalance, meta.dmOpeningBalance),
       pettyCashTotal: difference(
         meta.pettyCashEndingBalance,
         meta.pettyCashOpeningBalance,

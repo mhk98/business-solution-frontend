@@ -188,6 +188,7 @@ const ManufactureStockTable = ({ stockType = "item" }) => {
   };
 
   const getUnitCost = (row) => {
+    if (row?.unitCost != null) return Number(row.unitCost);
     const cost = Number(row?.cost || 0);
     const unitValue = Number(row?.unitValue || 0);
     if (cost && unitValue) return cost / unitValue;

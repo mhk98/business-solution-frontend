@@ -480,6 +480,16 @@ const DamageRepairingStockTable = () => {
           <span className="text-slate-900 font-semibold tabular-nums">
             {isLoading ? "Loading..." : (data?.meta?.totalQuantity ?? 0)}
           </span>
+          <span className="h-5 w-px bg-slate-200" />
+          <span className="text-sm text-slate-700">Total Balance</span>
+          <span className="text-slate-900 font-semibold tabular-nums">
+            {isLoading
+              ? "Loading..."
+              : `৳${Number(data?.meta?.totalPurchaseValue || 0).toLocaleString(
+                  "en-US",
+                  { minimumFractionDigits: 2, maximumFractionDigits: 2 },
+                )}`}
+          </span>
         </div>
       </div>
 

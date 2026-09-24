@@ -150,6 +150,8 @@ const ItemRequisitionTable = () => {
     startDate: "",
     endDate: "",
     itemId: "",
+    supplierId: "",
+    status: "",
     searchTerm: "",
   });
   const [form, setForm] = useState(initialForm);
@@ -178,6 +180,8 @@ const ItemRequisitionTable = () => {
       startDate: filters.startDate,
       endDate: filters.endDate,
       itemId: filters.itemId,
+      supplierId: filters.supplierId,
+      status: filters.status,
       searchTerm: filters.searchTerm,
     }),
     [page, limit, filters],
@@ -591,6 +595,8 @@ const ItemRequisitionTable = () => {
       startDate: "",
       endDate: "",
       itemId: "",
+      supplierId: "",
+      status: "",
       searchTerm: "",
     });
     setPage(1);
@@ -638,7 +644,7 @@ const ItemRequisitionTable = () => {
           </div>
         </div>
 
-        <div className="mt-8 grid gap-4 rounded-2xl border border-slate-100 bg-slate-50/60 p-5 lg:grid-cols-[1fr_1fr_1fr_1.2fr_1fr]">
+        <div className="mt-8 grid gap-4 rounded-2xl border border-slate-100 bg-slate-50/60 p-5 md:grid-cols-2 lg:grid-cols-4">
           <DateRangeFilter
             startDate={filters.startDate}
             endDate={filters.endDate}
@@ -687,6 +693,46 @@ const ItemRequisitionTable = () => {
               classNamePrefix="react-select"
               className="bg-white text-black"
             />
+          </label>
+          <label className="space-y-2">
+            <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
+              Supplier
+            </span>
+            <Select
+              options={supplierOptions}
+              value={makeSelectValue(supplierOptions, filters.supplierId)}
+              onChange={(option) => {
+                setFilters((prev) => ({
+                  ...prev,
+                  supplierId: option?.value || "",
+                }));
+                setPage(1);
+              }}
+              isClearable
+              placeholder="Search supplier..."
+              classNamePrefix="react-select"
+              className="bg-white text-black"
+            />
+          </label>
+          <label className="space-y-2">
+            <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
+              Status
+            </span>
+            <select
+              value={filters.status}
+              onChange={(event) => {
+                setFilters((prev) => ({ ...prev, status: event.target.value }));
+                setPage(1);
+              }}
+              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-800 outline-none focus:border-indigo-400"
+            >
+              <option value="">All Status</option>
+              {Object.keys(statusClasses).map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
           </label>
           <button
             type="button"

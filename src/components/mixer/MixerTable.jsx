@@ -56,6 +56,7 @@ const initialCreateProduct = {
   unitWage: "",
   othersCost: "",
   purchase_price: "",
+  purchase_price_custom: false,
   sale_price: "",
   note: "",
   date: new Date().toISOString().slice(0, 10),
@@ -276,6 +277,7 @@ const normalizeManufactureItems = (response, itemMasterRows = []) => {
       // the Factory Stock page's own "Unit Cost" column reads (cost ÷
       // unitValue, both already in the backend's converted display unit).
       cost: item?.cost ?? item?.item?.cost ?? item?.product?.cost ?? 0,
+      unitCost: item?.unitCost,
       lastUnitCost: item?.lastUnitCost ?? 0,
     };
   });
@@ -287,6 +289,7 @@ const normalizeManufactureItems = (response, itemMasterRows = []) => {
 // unitValue, already in the backend's converted display unit), falling
 // back to the last known unit cost when current stock is exhausted.
 const getStockUnitCost = (item) => {
+  if (item?.unitCost != null) return Number(item.unitCost);
   const cost = Number(item?.cost || 0);
   const unitValue = Number(item?.unitValue || 0);
   if (cost && unitValue) return cost / unitValue;
@@ -732,6 +735,7 @@ const MixerTable = () => {
       // catalog, used by getStockUnitCost().
       unitValue: item.unitValue || 0,
       cost: item.cost || 0,
+      unitCost: item.unitCost,
       lastUnitCost: item.lastUnitCost || 0,
     }));
   }, [itemMasterData]);
@@ -909,10 +913,10 @@ const MixerTable = () => {
     [currentManufactureStockRes, itemMasterData],
   );
 
-  // Purchase Price is fully derived from the Manufacture/Packaging item
-  // costs + Others Cost, spread across Combo Quantity — see
-  // getAutoPurchasePrice. It's read-only in the form; these effects keep it
-  // in sync whenever any of its inputs change.
+  // Purchase Price is derived from the Manufacture/Packaging item costs +
+  // Others Cost, spread across Combo Quantity — see getAutoPurchasePrice.
+  // These effects keep it in sync whenever any of its inputs change, unless
+  // the user typed a custom price (purchase_price_custom).
   const createAutoPurchasePrice = useMemo(
     () =>
       getAutoPurchasePrice(
@@ -949,15 +953,17 @@ const MixerTable = () => {
   );
 
   useEffect(() => {
+    if (createProduct?.purchase_price_custom) return;
     setCreateProduct((prev) => ({
       ...prev,
       purchase_price: createAutoPurchasePrice
         ? createAutoPurchasePrice.toFixed(2)
         : "",
     }));
-  }, [createAutoPurchasePrice]);
+  }, [createAutoPurchasePrice, createProduct?.purchase_price_custom]);
 
   useEffect(() => {
+    if (currentProduct?.purchase_price_custom) return;
     setCurrentProduct((prev) =>
       prev
         ? {
@@ -968,7 +974,7 @@ const MixerTable = () => {
           }
         : prev,
     );
-  }, [editAutoPurchasePrice]);
+  }, [editAutoPurchasePrice, currentProduct?.purchase_price_custom]);
 
   const createManufactureOptions = useMemo(
     () =>
@@ -1123,6 +1129,7 @@ const MixerTable = () => {
       unitWage: rp.unitWage ?? "",
       othersCost: rp.othersCost ?? "",
       purchase_price: rp.purchase_price ?? "",
+      purchase_price_custom: Boolean(rp.purchase_price_custom),
       sale_price: rp.sale_price ?? "",
       date: rp.date ?? "",
       note: rp.note ?? "",
@@ -1156,6 +1163,7 @@ const MixerTable = () => {
       unitWage: rp.unitWage ?? "",
       othersCost: rp.othersCost ?? "",
       purchase_price: rp.purchase_price ?? "",
+      purchase_price_custom: Boolean(rp.purchase_price_custom),
       sale_price: rp.sale_price ?? "",
       // unitValue: rp.unitValue ?? "",
       // unit: rp.unit ?? "Pcs",
@@ -1221,6 +1229,7 @@ const MixerTable = () => {
         othersCost: Number(createProduct.othersCost) || 0,
         variants: getNormalizedVariantsPayload(createProduct.variantRows),
         purchase_price: Number(createProduct.purchase_price) || 0,
+        purchase_price_custom: Boolean(createProduct.purchase_price_custom),
         sale_price: Number(createProduct.sale_price) || 0,
         mixItems: buildMaterialPayload(
           createProduct.materialSelections,
@@ -1301,6 +1310,7 @@ const MixerTable = () => {
         othersCost: Number(currentProduct.othersCost) || 0,
         variants: getNormalizedVariantsPayload(currentProduct.variantRows),
         purchase_price: Number(currentProduct.purchase_price) || 0,
+        purchase_price_custom: Boolean(currentProduct.purchase_price_custom),
         sale_price: Number(currentProduct.sale_price) || 0,
         mixItems: buildMaterialPayload(
           currentProduct?.materialSelections,
@@ -1857,17 +1867,39 @@ const MixerTable = () => {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
-            Purchase Price
-          </label>
+          <div className="flex items-center justify-between mb-1.5 ml-1">
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
+              Purchase Price
+              <span className="ml-1.5 normal-case font-semibold text-[10px] text-slate-400">
+                {productState?.purchase_price_custom ? "(Custom)" : "(Auto)"}
+              </span>
+            </label>
+            {productState?.purchase_price_custom && (
+              <button
+                type="button"
+                onClick={() =>
+                  setter((prev) => ({ ...prev, purchase_price_custom: false }))
+                }
+                className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-700"
+              >
+                Reset to auto
+              </button>
+            )}
+          </div>
           <input
             type="number"
             step="0.01"
             min="0"
-            value={productState?.purchase_price || ""}
-            readOnly
-            title="Auto calculated: ((Manufacture items + Packaging items + Others Cost) ÷ Combo Quantity) + Unit Wage"
-            className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-slate-100 outline-none cursor-not-allowed"
+            value={productState?.purchase_price ?? ""}
+            onChange={(e) =>
+              setter((prev) => ({
+                ...prev,
+                purchase_price: e.target.value,
+                purchase_price_custom: true,
+              }))
+            }
+            title="Auto calculated: ((Manufacture items + Packaging items + Others Cost) ÷ Combo Quantity) + Unit Wage. Type to set a custom price."
+            className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
           />
         </div>
 

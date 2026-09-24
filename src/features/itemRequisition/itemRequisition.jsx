@@ -4,8 +4,16 @@ export const itemRequisitionApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
     getAllItemRequisition: build.query({
       query: (arg = {}) => {
-        const { page, limit, startDate, endDate, searchTerm, itemId, status } =
-          arg;
+        const {
+          page,
+          limit,
+          startDate,
+          endDate,
+          searchTerm,
+          itemId,
+          supplierId,
+          status,
+        } = arg;
         const params = {
           page,
           limit,
@@ -13,6 +21,7 @@ export const itemRequisitionApi = baseApi.injectEndpoints({
           endDate,
           searchTerm,
           itemId,
+          supplierId,
           status,
         };
 
