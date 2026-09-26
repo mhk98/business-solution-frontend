@@ -22,7 +22,6 @@ const EmployeeListTable = () => {
   const [isModalOpen1, setIsModalOpen1] = useState(false);
 
   const role = localStorage.getItem("role");
-  const userId = localStorage.getItem("userId");
 
   const [currentProduct, setCurrentProduct] = useState(null);
 
@@ -254,7 +253,8 @@ const EmployeeListTable = () => {
       departmentId: product.departmentId ? String(product.departmentId) : "",
       teamId: product.teamId ? String(product.teamId) : "",
       designationId: product.designationId ? String(product.designationId) : "",
-      userId: userId,
+      // Keep the employee's own linked login — not the editor's.
+      userId: product.userId ?? null,
     });
     setIsModalOpen2(true);
   };
@@ -276,7 +276,7 @@ const EmployeeListTable = () => {
         departmentId: currentProduct.departmentId || null,
         teamId: currentProduct.teamId || null,
         designationId: currentProduct.designationId || null,
-        userId: userId,
+        userId: currentProduct.userId ?? null,
         actorRole: role,
       };
 
@@ -311,7 +311,8 @@ const EmployeeListTable = () => {
       departmentId: product.departmentId ? String(product.departmentId) : "",
       teamId: product.teamId ? String(product.teamId) : "",
       designationId: product.designationId ? String(product.designationId) : "",
-      userId: userId,
+      // Keep the employee's own linked login — not the editor's.
+      userId: product.userId ?? null,
     });
     setIsModalOpen(true);
   };
@@ -338,7 +339,7 @@ const EmployeeListTable = () => {
         departmentId: currentProduct.departmentId || null,
         teamId: currentProduct.teamId || null,
         designationId: currentProduct.designationId || null,
-        userId: userId,
+        userId: currentProduct.userId ?? null,
         actorRole: role,
       };
 

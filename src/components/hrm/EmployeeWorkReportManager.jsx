@@ -60,6 +60,7 @@ const REPORT_FIELDS = [
   { key: "ideskReceived", label: "Inbox থেকে আসছে" },
   { key: "callDone", label: "Call দেওয়া হয়েছে" },
   { key: "callReceived", label: "Call থেকে আসছে" },
+  { key: "callReceiveDone", label: "Call Receive হয়েছে" },
   { key: "whatsappDone", label: "WhatsApp দেওয়া হয়েছে" },
   { key: "whatsappReceived", label: "WhatsApp থেকে আসছে" },
   { key: "pendingReturnReceived", label: "Pending Return থেকে আসছে" },
@@ -76,6 +77,30 @@ const REPORT_FIELDS = [
   { key: "advancePayment", label: "Advance Payment", step: "0.01" },
 ];
 
+const REPORT_FIELD_BY_KEY = Object.fromEntries(
+  REPORT_FIELDS.map((field) => [field.key, field]),
+);
+
+// Form layout: "দেওয়া হয়েছে" on the left, "থেকে আসছে" on the right.
+// null leaves the left cell empty for receive-only fields.
+const COUNT_FIELD_ROWS = [
+  ["failedGiven", "failedReceived"],
+  ["pendingGiven", "pendingReceived"],
+  ["leadGiven", "leadReceived"],
+  ["ideskGiven", "ideskReceived"],
+  ["callDone", "callReceived"],
+  ["whatsappDone", "whatsappReceived"],
+  ["notResponseGiven", "notResponseReceived"],
+  ["callReceiveDone", "pendingReturnReceived"],
+  [null, "crossReceived"],
+  [null, "canceledReceived"],
+  [null, "holdReceived"],
+];
+const COUNT_FIELD_KEYS = new Set(COUNT_FIELD_ROWS.flat().filter(Boolean));
+const SUMMARY_FIELDS = REPORT_FIELDS.filter(
+  (field) => !COUNT_FIELD_KEYS.has(field.key),
+);
+
 const TOTAL_ASSIGN_SOURCE_FIELDS = [
   "failedGiven",
   "pendingGiven",
@@ -83,12 +108,15 @@ const TOTAL_ASSIGN_SOURCE_FIELDS = [
   "ideskGiven",
   "callDone",
   "whatsappDone",
+  "notResponseGiven",
 ];
 const TOTAL_ORDER_SOURCE_FIELDS = [
   "failedReceived",
   "pendingReceived",
+  "notResponseReceived",
   "pendingReturnReceived",
   "leadReceived",
+  "crossReceived",
   "canceledReceived",
   "holdReceived",
   "ideskReceived",
@@ -111,6 +139,7 @@ const REPORT_EXPORT_COLUMNS = [
   { key: "crossReceived", label: "Cross" },
   { key: "inbox", label: "Inbox" },
   { key: "call", label: "Call" },
+  { key: "callReceiveDone", label: "Call Receive" },
   { key: "whatsapp", label: "WhatsApp" },
   { key: "canceledReceived", label: "Canceled" },
   { key: "holdReceived", label: "Hold" },
@@ -133,8 +162,21 @@ const escapeHtml = (value) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 
+// products can arrive as a JSON string (MariaDB JSON = LONGTEXT).
+const getReportProducts = (row) => {
+  const value = row?.products;
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string") return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
 const sumProductsField = (row, field) =>
-  (row.products || []).reduce(
+  getReportProducts(row).reduce(
     (sum, item) => sum + (Number(item?.[field]) || 0),
     0,
   );
@@ -159,6 +201,7 @@ const getReportCellValue = (row, key) => {
     return `${toReportNumber(row.whatsappDone)} / ${toReportNumber(row.whatsappReceived)}`;
   }
   if (key === "crossReceived") return toReportNumber(row.crossReceived);
+  if (key === "callReceiveDone") return toReportNumber(row.callReceiveDone);
   if (key === "canceledReceived") return toReportNumber(row.canceledReceived);
   if (key === "holdReceived") return toReportNumber(row.holdReceived);
   if (key === "totalAssign") return toReportNumber(row.totalAssign);
@@ -213,6 +256,7 @@ const EmployeeWorkReportManager = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 400);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [saleTypeFilter, setSaleTypeFilter] = useState("");
   const [fromDate, setFromDate] = useState(defaultFromDate);
   const [toDate, setToDate] = useState(today);
   const [currentPage, setCurrentPage] = useState(1);
@@ -235,6 +279,7 @@ const EmployeeWorkReportManager = () => {
       employeeId: selectedEmployee?.value || undefined,
       startDate: fromDate || undefined,
       endDate: toDate || undefined,
+      saleType: saleTypeFilter || undefined,
     }),
     [
       currentPage,
@@ -243,6 +288,7 @@ const EmployeeWorkReportManager = () => {
       selectedEmployee,
       fromDate,
       toDate,
+      saleTypeFilter,
     ],
   );
 
@@ -513,7 +559,7 @@ const EmployeeWorkReportManager = () => {
       }),
     );
     setProductRows(
-      (row.products || []).map((product) => {
+      getReportProducts(row).map((product) => {
         const matchedOption = productOptions.find(
           (option) => option.value === product.productId,
         );
@@ -659,11 +705,19 @@ const EmployeeWorkReportManager = () => {
   useEffect(() => {
     setCurrentPage(1);
     setStartPage(1);
-  }, [searchTerm, selectedEmployee, fromDate, toDate, pageSize]);
+  }, [searchTerm, selectedEmployee, saleTypeFilter, fromDate, toDate, pageSize]);
 
   useEffect(() => {
     setSelectedReportIds([]);
-  }, [currentPage, pageSize, searchTerm, selectedEmployee, fromDate, toDate]);
+  }, [
+    currentPage,
+    pageSize,
+    searchTerm,
+    selectedEmployee,
+    saleTypeFilter,
+    fromDate,
+    toDate,
+  ]);
 
   useEffect(() => {
     if (editingId) return;
@@ -749,10 +803,10 @@ const EmployeeWorkReportManager = () => {
           </div>
 
           <div
-            className={`mt-5 grid gap-3 ${
+            className={`mt-5 grid items-start gap-3 ${
               canManageReports
-                ? "lg:grid-cols-[260px_1fr_160px_160px]"
-                : "lg:grid-cols-[1fr_160px_160px]"
+                ? "lg:grid-cols-[260px_1fr_180px_160px_160px]"
+                : "lg:grid-cols-[1fr_180px_160px_160px]"
             }`}
           >
             {canManageReports && (
@@ -778,11 +832,27 @@ const EmployeeWorkReportManager = () => {
                 className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
               />
             </label>
+            <select
+              value={saleTypeFilter}
+              onChange={(e) => setSaleTypeFilter(e.target.value)}
+              aria-label="Filter by sale type"
+              className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
+            >
+              <option value="">All Sale Types</option>
+              {SALE_TYPE_OPTIONS.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+              <option value="none">No Sale Type</option>
+            </select>
             <DateRangeFilter
               startDate={fromDate}
               endDate={toDate}
               onStartDateChange={setFromDate}
               onEndDateChange={setToDate}
+              defaultFilter="last30"
+              label=""
               compact
               className="sm:col-span-2"
             />
@@ -1134,7 +1204,30 @@ const EmployeeWorkReportManager = () => {
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
-                  {REPORT_FIELDS.map((field) => (
+                  {COUNT_FIELD_ROWS.flat().map((key, index) => {
+                    if (!key) {
+                      return (
+                        <div
+                          key={`empty-${index}`}
+                          className="hidden sm:block"
+                          aria-hidden="true"
+                        />
+                      );
+                    }
+                    const field = REPORT_FIELD_BY_KEY[key];
+                    return (
+                      <InputField
+                        key={field.key}
+                        label={field.label}
+                        type="number"
+                        min="0"
+                        step={field.step || "1"}
+                        value={form[field.key]}
+                        onChange={(value) => handleFormChange(field.key, value)}
+                      />
+                    );
+                  })}
+                  {SUMMARY_FIELDS.map((field) => (
                     <InputField
                       key={field.key}
                       label={field.label}

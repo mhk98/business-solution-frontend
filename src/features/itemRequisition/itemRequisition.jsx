@@ -62,7 +62,14 @@ export const itemRequisitionApi = baseApi.injectEndpoints({
         method: "POST",
         body: data,
       }),
-      invalidatesTags: [{ type: "ItemRequisition", id: "LIST" }],
+      invalidatesTags: [
+        { type: "ItemRequisition", id: "LIST" },
+        // Receiving a requisition posts Item Stock and the supplier's due.
+        "supplier",
+        { type: "SupplierHistory", id: "LIST" },
+        { type: "ItemMaster", id: "LIST" },
+        { type: "Manufacture", id: "LIST" },
+      ],
     }),
 
     updateItemRequisition: build.mutation({
@@ -74,6 +81,10 @@ export const itemRequisitionApi = baseApi.injectEndpoints({
       invalidatesTags: (res, err, arg) => [
         { type: "ItemRequisition", id: arg.id },
         { type: "ItemRequisition", id: "LIST" },
+        "supplier",
+        { type: "SupplierHistory", id: "LIST" },
+        { type: "ItemMaster", id: "LIST" },
+        { type: "Manufacture", id: "LIST" },
       ],
     }),
 
@@ -85,6 +96,10 @@ export const itemRequisitionApi = baseApi.injectEndpoints({
       invalidatesTags: (res, err, id) => [
         { type: "ItemRequisition", id },
         { type: "ItemRequisition", id: "LIST" },
+        "supplier",
+        { type: "SupplierHistory", id: "LIST" },
+        { type: "ItemMaster", id: "LIST" },
+        { type: "Manufacture", id: "LIST" },
       ],
     }),
   }),

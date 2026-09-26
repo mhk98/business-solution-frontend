@@ -153,6 +153,7 @@ import { packagingFactoryStockApi } from "../features/packagingFactoryStock/pack
 import { packagingMixerApi } from "../features/packagingMixer/packagingMixer";
 import { itemRequisitionApi } from "../features/itemRequisition/itemRequisition";
 import { mixerApi } from "../features/mixer/mixer";
+import { comboProductionApi } from "../features/comboProduction/comboProduction";
 import { itemMasterApi } from "../features/manufactureStock/manufactureStock";
 import { stockMovementApi } from "../features/stockMovement/stockMovement";
 import { damageRepairingStockApi } from "../features/damageRepairingStock/damageRepairingStock";
@@ -209,6 +210,7 @@ const apis = [
   itemMasterApi,
   stockMovementApi,
   mixerApi,
+  comboProductionApi,
   assetsRequisitionApi,
   assetsApi,
   assetsSaleApi,

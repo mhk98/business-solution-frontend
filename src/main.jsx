@@ -8,6 +8,19 @@ import "@fontsource/hind-siliguri/700.css";
 import { BrowserRouter } from "react-router-dom";
 import { LayoutProvider } from "./context/LayoutContext.jsx";
 
+// Browsers step a focused number input's value on mouse-wheel scroll. Blur it
+// instead so the value stays put and the page/modal scrolls as usual.
+document.addEventListener(
+  "wheel",
+  () => {
+    const active = document.activeElement;
+    if (active instanceof HTMLInputElement && active.type === "number") {
+      active.blur();
+    }
+  },
+  { passive: true },
+);
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter

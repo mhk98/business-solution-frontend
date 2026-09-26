@@ -115,6 +115,7 @@ const PackagingFactoryStockAdjustmentPage = lazy(() => import("./pages/Packaging
 const PackagingMixerPage = lazy(() => import("./pages/PackagingMixerPage"));
 const ManufactureStockPage = lazy(() => import("./pages/ManufactureStockPage"));
 const MixerPage = lazy(() => import("./pages/MixerPage"));
+const ComboProductionPage = lazy(() => import("./pages/ComboProductionPage"));
 const StockAdjustmentPage = lazy(() => import("./pages/StockAdjustmentPage"));
 const FactoryStockAdjustmentPage = lazy(() => import("./pages/FactoryStockAdjustmentPage"));
 const StockMovementPage = lazy(() => import("./pages/StockMovementPage"));
@@ -252,6 +253,7 @@ function App() {
                 <Route path="/inventory-stock-movement" element={<AuthedRoute><InventoryStockMovementPage /></AuthedRoute>} />
                 <Route path="/packaging-stock-movement" element={<AuthedRoute><PackagingStockMovementPage /></AuthedRoute>} />
                 <Route path="/mixer" element={<AuthedRoute><MixerPage /></AuthedRoute>} />
+                <Route path="/combo-production" element={<AuthedRoute><ComboProductionPage /></AuthedRoute>} />
                 <Route path="/stock-product" element={<AuthedRoute><InventoryOverviewPage /></AuthedRoute>} />
                 <Route path="/stock-alert" element={<AuthedRoute><StockAlertPage /></AuthedRoute>} />
                 <Route path="/products" element={<AuthedRoute><ProductsPage /></AuthedRoute>} />

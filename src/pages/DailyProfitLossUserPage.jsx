@@ -56,6 +56,7 @@ const REPORT_FIELDS = [
   { key: "ideskReceived", label: "Inbox থেকে আসছে" },
   { key: "callDone", label: "Call করা হয়েছে" },
   { key: "callReceived", label: "Call থেকে আসছে" },
+  { key: "callReceiveDone", label: "Call Receive হয়েছে" },
   { key: "whatsappDone", label: "WhatsApp করা হয়েছে" },
   { key: "whatsappReceived", label: "WhatsApp থেকে আসছে" },
   { key: "totalAssign", label: "Total Assign" },
@@ -76,6 +77,7 @@ const GIVEN_REPORT_FIELDS = getReportFields([
   "callDone",
   "whatsappDone",
   "notResponseGiven",
+  "callReceiveDone",
   "totalAssign",
   "totalAmount",
 ]);
@@ -125,6 +127,7 @@ const ORDER_REPORT_COLUMNS = [
   { key: "crossReceived", label: "Cross" },
   { key: "ideskReceived", label: "Inbox" },
   { key: "callReceived", label: "Call" },
+  { key: "callReceiveDone", label: "Call Receive" },
   { key: "whatsappReceived", label: "WhatsApp" },
   { key: "pendingReturnReceived", label: "Pending Return" },
   { key: "canceledReceived", label: "Canceled" },

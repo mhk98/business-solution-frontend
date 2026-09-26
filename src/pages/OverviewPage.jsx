@@ -169,6 +169,7 @@ export const LegacyOverviewPage = () => {
   const totalDeliveryCharge = safeNumber(summary?.totalDeliveryCharge);
   const totalDeliveryAdvance = safeNumber(summary?.totalDeliveryAdvance);
   const totalShippingCharge = safeNumber(summary?.totalShippingCharge);
+  const offlineSalesAmount = safeNumber(summary?.offlineSalesAmount);
   const netRevenue =
     inTransitSalesAmount -
     salesReturnSalesAmount -
@@ -176,7 +177,8 @@ export const LegacyOverviewPage = () => {
     totalCodChange -
     totalDeliveryCharge +
     totalDeliveryAdvance +
-    totalShippingCharge;
+    totalShippingCharge +
+    offlineSalesAmount;
   const netPurchase = inTransitPurchaseAmount - salesReturnPurchaseAmount;
 
   const profitLossSummary = {

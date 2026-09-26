@@ -38,6 +38,7 @@ import {
 const createInitialItemRow = () => ({
   id: Date.now() + Math.random(),
   itemId: "",
+  supplierId: "",
   quantity: "",
   unit: "Pcs",
   amount: "",
@@ -45,7 +46,6 @@ const createInitialItemRow = () => ({
 
 const initialForm = {
   items: [createInitialItemRow()],
-  supplierId: "",
   date: new Date().toISOString().slice(0, 10),
   note: "",
   remarks: "",
@@ -220,7 +220,6 @@ const ItemRequisitionTable = () => {
   const resetForm = () => {
     setForm({
       items: [createInitialItemRow()],
-      supplierId: "",
       date: new Date().toISOString().slice(0, 10),
       note: "",
       remarks: "",
@@ -228,6 +227,10 @@ const ItemRequisitionTable = () => {
     });
     setEditingRecord(null);
   };
+
+  // Received stock already used by Mixer/Factory: the backend rejects changes
+  // to the item, quantity or amount, so lock those fields up front.
+  const isStockLocked = Boolean(editingRecord?.stockUsed);
 
   const openCreateModal = () => {
     resetForm();
@@ -241,12 +244,12 @@ const ItemRequisitionTable = () => {
         {
           id: record.Id,
           itemId: record.itemId || record.item?.Id || "",
+          supplierId: record.supplierId || "",
           quantity: record.quantity || "",
           unit: record.unit || "Pcs",
           amount: record.amount || "",
         },
       ],
-      supplierId: record.supplierId || "",
       date: record.date || new Date().toISOString().slice(0, 10),
       note: record.note || "",
       remarks: record.remarks || "",
@@ -513,7 +516,7 @@ const ItemRequisitionTable = () => {
         formData.append("quantity", Number(itemRow.quantity || 0));
         formData.append("unit", itemRow.unit || "Pcs");
         formData.append("amount", Number(itemRow.amount || 0));
-        formData.append("supplierId", form.supplierId || "");
+        formData.append("supplierId", itemRow.supplierId || "");
         formData.append("date", form.date || "");
         formData.append("note", form.note || "");
         formData.append("userId", localStorage.getItem("userId") || "");
@@ -530,13 +533,13 @@ const ItemRequisitionTable = () => {
         const formData = new FormData();
         const itemsPayload = form.items.map((row) => ({
           itemId: Number(row.itemId),
+          supplierId: row.supplierId ? Number(row.supplierId) : null,
           quantity: Number(row.quantity || 0),
           unit: row.unit || "Pcs",
           amount: Number(row.amount || 0),
         }));
 
         formData.append("items", JSON.stringify(itemsPayload));
-        formData.append("supplierId", form.supplierId || "");
         formData.append("date", form.date || "");
         formData.append("note", form.note || "");
         formData.append("userId", localStorage.getItem("userId") || "");
@@ -791,8 +794,8 @@ const ItemRequisitionTable = () => {
                       </td>
                       <td className="px-6 py-4">
                         <div className="font-semibold text-slate-900">
-                          {record.item?.supplier?.name ||
-                            record.supplier?.name ||
+                          {record.supplier?.name ||
+                            record.item?.supplier?.name ||
                             "N/A"}
                         </div>
                       </td>
@@ -884,8 +887,13 @@ const ItemRequisitionTable = () => {
                           <button
                             type="button"
                             onClick={() => handleDelete(record)}
-                            className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600"
-                            title="Delete"
+                            disabled={record.stockUsed}
+                            className="grid h-9 w-9 place-items-center rounded-lg border border-slate-200 text-slate-600 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-600 disabled:hover:border-slate-200"
+                            title={
+                              record.stockUsed
+                                ? "Received stock already used — can't delete"
+                                : "Delete"
+                            }
                           >
                             <Trash2 size={16} />
                           </button>
@@ -942,10 +950,10 @@ const ItemRequisitionTable = () => {
         isOpen={isModalOpen}
         onClose={closeModal}
         title={editingRecord ? "Edit Item Requisition" : "Add Item Requisition"}
-        maxWidth="max-w-4xl"
+        maxWidth="max-w-5xl"
       >
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Top Common Fields: Date & Supplier */}
+          {/* Top Common Field: Date (supplier is chosen per item) */}
           <div className="grid gap-4 md:grid-cols-2">
             <label className="space-y-2">
               <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
@@ -956,23 +964,6 @@ const ItemRequisitionTable = () => {
                 value={form.date}
                 onChange={(event) => updateForm("date", event.target.value)}
                 className="h-11 bg-white w-full rounded-xl border border-slate-200 px-4 text-sm text-slate-800 outline-none focus:border-indigo-400"
-              />
-            </label>
-
-            <label className="space-y-2">
-              <span className="text-xs font-bold uppercase tracking-widest text-slate-500">
-                Supplier
-              </span>
-              <Select
-                options={supplierOptions}
-                value={makeSelectValue(supplierOptions, form.supplierId)}
-                onChange={(option) =>
-                  updateForm("supplierId", option?.value || "")
-                }
-                isClearable
-                placeholder="Select supplier..."
-                classNamePrefix="react-select"
-                className="bg-white text-black"
               />
             </label>
           </div>
@@ -1017,7 +1008,14 @@ const ItemRequisitionTable = () => {
                     )}
                   </div>
 
-                  <div className="grid gap-3 md:grid-cols-3">
+                  {isStockLocked && (
+                    <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
+                      এই item-এর received stock ইতিমধ্যে ব্যবহার হয়েছে (Mixer/Factory) —
+                      Item, Quantity আর Amount বদলানো যাবে না। বাকি সব edit করা যাবে।
+                    </p>
+                  )}
+
+                  <div className="grid gap-3 md:grid-cols-[1.4fr_1.4fr_1.2fr_0.9fr] md:items-end">
                     <label className="space-y-1.5">
                       <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                         Item
@@ -1033,7 +1031,32 @@ const ItemRequisitionTable = () => {
                           )
                         }
                         isClearable
-                        placeholder="Select manufacture item..."
+                        placeholder="Select item..."
+                        isDisabled={isStockLocked}
+                        classNamePrefix="react-select"
+                        className="bg-white text-black"
+                      />
+                    </label>
+
+                    <label className="space-y-1.5">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                        Supplier
+                      </span>
+                      <Select
+                        options={supplierOptions}
+                        value={makeSelectValue(
+                          supplierOptions,
+                          itemRow.supplierId,
+                        )}
+                        onChange={(option) =>
+                          updateItemRow(
+                            itemRow.id,
+                            "supplierId",
+                            option?.value || "",
+                          )
+                        }
+                        isClearable
+                        placeholder="Select supplier..."
                         classNamePrefix="react-select"
                         className="bg-white text-black"
                       />
@@ -1056,7 +1079,8 @@ const ItemRequisitionTable = () => {
                             )
                           }
                           placeholder="Qty"
-                          className="h-full min-w-0 flex-1 border-0 bg-transparent px-3 text-sm text-slate-800 outline-none"
+                          disabled={isStockLocked}
+                          className="h-full min-w-0 flex-1 border-0 bg-transparent px-3 text-sm text-slate-800 outline-none disabled:cursor-not-allowed disabled:text-slate-400"
                           required
                         />
                         <select
@@ -1068,7 +1092,8 @@ const ItemRequisitionTable = () => {
                               event.target.value,
                             )
                           }
-                          className="h-full w-[100px] border-0 border-l border-slate-200 bg-slate-50 px-2 text-xs font-medium text-slate-700 outline-none"
+                          disabled={isStockLocked}
+                          className="h-full w-[76px] border-0 border-l border-slate-200 bg-slate-50 px-2 text-xs font-medium text-slate-700 outline-none disabled:cursor-not-allowed disabled:text-slate-400"
                         >
                           {unitOptions.map((option) => (
                             <option key={option.value} value={option.value}>
@@ -1095,7 +1120,8 @@ const ItemRequisitionTable = () => {
                           )
                         }
                         placeholder="0.00"
-                        className="h-10 bg-white w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-800 outline-none focus:border-indigo-400"
+                        disabled={isStockLocked}
+                        className="h-10 bg-white w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-800 outline-none focus:border-indigo-400 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
                       />
                     </label>
                   </div>

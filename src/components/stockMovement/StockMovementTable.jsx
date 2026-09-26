@@ -23,6 +23,7 @@ const sourceOptions = [
   { value: "Factory", label: "Factory" },
   { value: "StockAdjustment", label: "Stock Adjustment" },
   { value: "Mixer", label: "Mixer" },
+  { value: "ComboProduction", label: "Combo Production" },
 ];
 
 const stockTypeOptions = [
