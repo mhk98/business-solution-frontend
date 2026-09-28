@@ -13,10 +13,14 @@ import {
   useInsertPackagingFactoryMutation,
   useUpdatePackagingFactoryMutation,
 } from "../../features/packagingFactory/packagingFactory";
+import {
+  STOCK_UNITS,
+  findUnitOption,
+  getDefaultStockUnit,
+  getStockUnitOptions,
+  usePackagingItemStockUnits,
+} from "../../utils/stockUnits";
 
-const unitOptions = ["Pcs", "Kg", "Ml", "Gram", "Yard", "Inch", "Feet"].map(
-  (unit) => ({ value: unit, label: unit }),
-);
 const emptyFactoryItem = {
   packagingItemId: "",
   unit: "Pcs",
@@ -60,6 +64,9 @@ const money = (v) =>
   });
 
 const PackagingFactoryTable = () => {
+  const stockUnitByItem = usePackagingItemStockUnits();
+  const unitOptionsFor = (packagingItemId) =>
+    getStockUnitOptions(stockUnitByItem.get(String(packagingItemId)), STOCK_UNITS);
   const role = localStorage.getItem("role");
   const canManage = role === "superAdmin" || role === "admin";
   const [isOpen, setIsOpen] = useState(false);
@@ -263,7 +270,11 @@ const PackagingFactoryTable = () => {
                 ) || null
               }
               onChange={(s) =>
-                setForm({ ...form, packagingItemId: s?.value || "" })
+                setForm({
+                  ...form,
+                  packagingItemId: s?.value || "",
+                  unit: getDefaultStockUnit(stockUnitByItem.get(String(s?.value))),
+                })
               }
               placeholder="Search item..."
               styles={selectStyles}
@@ -285,11 +296,11 @@ const PackagingFactoryTable = () => {
                 className="h-12 bg-white border border-slate-200 rounded-2xl px-4 text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500"
               />
               <Select
-                options={unitOptions}
-                value={
-                  unitOptions.find((o) => o.value === form.unit) ||
-                  unitOptions[0]
-                }
+                options={unitOptionsFor(form.packagingItemId)}
+                value={findUnitOption(
+                  unitOptionsFor(form.packagingItemId),
+                  form.unit,
+                )}
                 onChange={(s) => setForm({ ...form, unit: s?.value || "Pcs" })}
                 styles={compactSelectStyles}
               />
@@ -329,6 +340,9 @@ const PackagingFactoryTable = () => {
                   onChange={(s) =>
                     updateCreateItem(index, {
                       packagingItemId: s?.value || "",
+                      unit: getDefaultStockUnit(
+                        stockUnitByItem.get(String(s?.value)),
+                      ),
                     })
                   }
                   placeholder="Search item..."
@@ -351,11 +365,11 @@ const PackagingFactoryTable = () => {
                     className="h-12 bg-white border border-slate-200 rounded-2xl px-4 text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500"
                   />
                   <Select
-                    options={unitOptions}
-                    value={
-                      unitOptions.find((o) => o.value === item.unit) ||
-                      unitOptions[0]
-                    }
+                    options={unitOptionsFor(item.packagingItemId)}
+                    value={findUnitOption(
+                      unitOptionsFor(item.packagingItemId),
+                      item.unit,
+                    )}
                     onChange={(s) =>
                       updateCreateItem(index, { unit: s?.value || "Pcs" })
                     }

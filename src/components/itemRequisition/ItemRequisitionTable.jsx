@@ -26,9 +26,11 @@ import {
   useDeleteItemRequisitionMutation,
   useGetAllItemRequisitionQuery,
   useInsertItemRequisitionMutation,
+  useLazyGetAllItemRequisitionQuery,
   useUpdateItemRequisitionMutation,
 } from "../../features/itemRequisition/itemRequisition";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
+import { generateItemRequisitionPdf } from "../../utils/report/generateItemRequisitionPdf";
 import {
   DEFAULT_COMPANY_NAME,
   buildAssetUrl,
@@ -94,6 +96,28 @@ const formatMoney = (value) =>
     maximumFractionDigits: 2,
   })}`;
 
+const readStoredUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem("authUser") || "null");
+  } catch {
+    return null;
+  }
+};
+
+const getReportUserName = () => {
+  const user = readStoredUser();
+  const fullName = `${user?.FirstName || ""} ${user?.LastName || ""}`.trim();
+  return (
+    fullName ||
+    user?.Name ||
+    user?.name ||
+    user?.Email ||
+    user?.email ||
+    localStorage.getItem("role") ||
+    "Unknown"
+  );
+};
+
 const makeOptions = (rows = [], labelBuilder = (row) => row.name) =>
   rows.map((row) => ({
     value: row.Id,
@@ -158,6 +182,7 @@ const ItemRequisitionTable = () => {
   const [editingRecord, setEditingRecord] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [voucherOpen, setVoucherOpen] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [voucherData, setVoucherData] = useState(null);
   const voucherRef = useRef(null);
 
@@ -191,6 +216,12 @@ const ItemRequisitionTable = () => {
     useGetAllItemRequisitionQuery(queryArgs);
   const { data: itemData } = useGetAllItemWithoutQueryQuery();
   const { data: supplierData } = useGetAllSupplierWithoutQueryQuery();
+  // Supplier balances for the selected date range (Supplier History rows
+  // dated inside it) — the same filter the table uses.
+  const { data: supplierBalanceData } = useGetAllSupplierWithoutQueryQuery({
+    startDate: filters.startDate || undefined,
+    endDate: filters.endDate || undefined,
+  });
   const { data: logoData } = useGetAllLogoQuery();
 
   const [insertItemRequisition, { isLoading: isCreating }] =
@@ -198,6 +229,7 @@ const ItemRequisitionTable = () => {
   const [updateItemRequisition, { isLoading: isUpdating }] =
     useUpdateItemRequisitionMutation();
   const [deleteItemRequisition] = useDeleteItemRequisitionMutation();
+  const [fetchItemRequisitions] = useLazyGetAllItemRequisitionQuery();
 
   const rows = data?.data || [];
   const totalCount = data?.meta?.count || 0;
@@ -211,12 +243,117 @@ const ItemRequisitionTable = () => {
     () => makeOptions(supplierData?.data || []),
     [supplierData],
   );
+
+  // The supplier's balance within the date filter (all Supplier History rows
+  // in that range, not just the requisitions on screen): the selected
+  // supplier's, or every supplier's summed when none is selected.
+  // Advance/Due are netted per supplier first.
+  const selectedSupplier = useMemo(
+    () =>
+      (supplierBalanceData?.data || []).find(
+        (supplier) => String(supplier.Id) === String(filters.supplierId),
+      ) || null,
+    [supplierBalanceData, filters.supplierId],
+  );
+  const supplierTotals = useMemo(() => {
+    const suppliers = filters.supplierId
+      ? selectedSupplier
+        ? [selectedSupplier]
+        : []
+      : supplierBalanceData?.data || [];
+    return suppliers.reduce(
+      (totals, supplier) => ({
+        // Due posted in the range (Unpaid Supplier History rows) — the
+        // purchases the paid/advance/due are measured against.
+        purchase: totals.purchase + Number(supplier.grossDue || 0),
+        paid: totals.paid + Number(supplier.totalPaid || 0),
+        advance: totals.advance + Number(supplier.totalAdvance || 0),
+        due: totals.due + Number(supplier.totalDue || 0),
+      }),
+      { purchase: 0, paid: 0, advance: 0, due: 0 },
+    );
+  }, [supplierBalanceData, filters.supplierId, selectedSupplier]);
+  const supplierTotalsLabel = filters.supplierId
+    ? selectedSupplier?.name || "Selected supplier"
+    : "All Suppliers";
   const logoUrl = useMemo(() => {
     const logoRecord = Array.isArray(logoData?.data)
       ? logoData.data[0]
       : logoData?.data;
     return buildAssetUrl(logoRecord?.file);
   }, [logoData]);
+  // Every row matching the current filters (the API pages at 100 max).
+  const handleDownloadPdf = async () => {
+    setIsDownloadingPdf(true);
+    try {
+      const allRows = [];
+      for (let pdfPage = 1; ; pdfPage += 1) {
+        const result = await fetchItemRequisitions({
+          ...queryArgs,
+          page: pdfPage,
+          limit: 100,
+        }).unwrap();
+        const pageRows = result?.data || [];
+        allRows.push(...pageRows);
+        if (!pageRows.length || allRows.length >= Number(result?.meta?.count || 0)) {
+          break;
+        }
+      }
+      if (!allRows.length) {
+        toast.error("No data found for this filter");
+        return;
+      }
+
+      const duration =
+        filters.startDate && filters.endDate
+          ? `${formatDate(filters.startDate)} - ${formatDate(filters.endDate)}`
+          : filters.startDate
+            ? `From ${formatDate(filters.startDate)}`
+            : filters.endDate
+              ? `Until ${formatDate(filters.endDate)}`
+              : "All Data";
+      const blob = await generateItemRequisitionPdf({
+        rows: allRows.map((record) => ({
+          date: formatDate(record.date),
+          item: record.item?.name || record.name || "-",
+          supplier:
+            record.supplier?.name || record.item?.supplier?.name || "N/A",
+          quantity: formatQuantityWithUnit(record.quantity, record.unit),
+          amount: Number(record.amount || 0),
+          status: record.status || "-",
+        })),
+        metadata: {
+          supplier: supplierTotalsLabel,
+          duration,
+          item: filters.itemId
+            ? itemOptions.find(
+                (option) => String(option.value) === String(filters.itemId),
+              )?.label
+            : "",
+          status: filters.status,
+          generatedBy: getReportUserName(),
+          generatedAt: new Date().toLocaleString(),
+        },
+        supplierTotals,
+        logoUrl,
+      });
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `item-requisition-${new Date().toISOString().slice(0, 10)}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      console.error("Item Requisition PDF generation failed:", error);
+      toast.error("Failed to generate PDF");
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
   const resetForm = () => {
     setForm({
       items: [createInitialItemRow()],
@@ -228,9 +365,10 @@ const ItemRequisitionTable = () => {
     setEditingRecord(null);
   };
 
-  // Received stock already used by Mixer/Factory: the backend rejects changes
-  // to the item, quantity or amount, so lock those fields up front.
-  const isStockLocked = Boolean(editingRecord?.stockUsed);
+  // Received stock already used by Mixer/Factory: item/quantity/amount edits
+  // are still allowed, but the backend rejects any that would take out more
+  // than Item Stock currently holds.
+  const isStockUsed = Boolean(editingRecord?.stockUsed);
 
   const openCreateModal = () => {
     resetForm();
@@ -638,6 +776,15 @@ const ItemRequisitionTable = () => {
             </div>
             <button
               type="button"
+              onClick={handleDownloadPdf}
+              disabled={isDownloadingPdf}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-white px-5 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-50 disabled:cursor-wait disabled:opacity-60"
+            >
+              <Download size={18} />
+              {isDownloadingPdf ? "Preparing PDF..." : "Download PDF"}
+            </button>
+            <button
+              type="button"
               onClick={openCreateModal}
               className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white shadow-lg shadow-indigo-200 transition hover:bg-indigo-700"
             >
@@ -745,6 +892,46 @@ const ItemRequisitionTable = () => {
             <X size={16} />
             Clear Filters
           </button>
+        </div>
+
+        <div className="mt-6">
+          <p className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-500">
+            Supplier Balance — {supplierTotalsLabel}
+            {filters.startDate || filters.endDate
+              ? ` (${formatDate(filters.startDate) || "…"} - ${formatDate(filters.endDate) || "…"})`
+              : " (All Data)"}
+          </p>
+          <div className="grid gap-4 sm:grid-cols-3">
+            {[
+              {
+                label: "Total Paid",
+                value: supplierTotals.paid,
+                className: "border-emerald-100 bg-emerald-50 text-emerald-700",
+              },
+              {
+                label: "Total Advance",
+                value: supplierTotals.advance,
+                className: "border-blue-100 bg-blue-50 text-blue-700",
+              },
+              {
+                label: "Total Due",
+                value: supplierTotals.due,
+                className: "border-rose-100 bg-rose-50 text-rose-700",
+              },
+            ].map((card) => (
+              <div
+                key={card.label}
+                className={`rounded-2xl border px-5 py-4 ${card.className}`}
+              >
+                <p className="text-[11px] font-bold uppercase tracking-widest opacity-80">
+                  {card.label}
+                </p>
+                <p className="mt-1 text-xl font-bold">
+                  {formatMoney(card.value)}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="mt-8 overflow-hidden rounded-2xl border border-slate-100">
@@ -1008,10 +1195,10 @@ const ItemRequisitionTable = () => {
                     )}
                   </div>
 
-                  {isStockLocked && (
+                  {isStockUsed && (
                     <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
                       এই item-এর received stock ইতিমধ্যে ব্যবহার হয়েছে (Mixer/Factory) —
-                      Item, Quantity আর Amount বদলানো যাবে না। বাকি সব edit করা যাবে।
+                      Quantity কমালে বা Item বদলালে যতটুকু বের হবে, ততটুকু Item Stock-এ থাকতে হবে।
                     </p>
                   )}
 
@@ -1032,7 +1219,6 @@ const ItemRequisitionTable = () => {
                         }
                         isClearable
                         placeholder="Select item..."
-                        isDisabled={isStockLocked}
                         classNamePrefix="react-select"
                         className="bg-white text-black"
                       />
@@ -1079,7 +1265,6 @@ const ItemRequisitionTable = () => {
                             )
                           }
                           placeholder="Qty"
-                          disabled={isStockLocked}
                           className="h-full min-w-0 flex-1 border-0 bg-transparent px-3 text-sm text-slate-800 outline-none disabled:cursor-not-allowed disabled:text-slate-400"
                           required
                         />
@@ -1092,7 +1277,6 @@ const ItemRequisitionTable = () => {
                               event.target.value,
                             )
                           }
-                          disabled={isStockLocked}
                           className="h-full w-[76px] border-0 border-l border-slate-200 bg-slate-50 px-2 text-xs font-medium text-slate-700 outline-none disabled:cursor-not-allowed disabled:text-slate-400"
                         >
                           {unitOptions.map((option) => (
@@ -1120,7 +1304,6 @@ const ItemRequisitionTable = () => {
                           )
                         }
                         placeholder="0.00"
-                        disabled={isStockLocked}
                         className="h-10 bg-white w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-800 outline-none focus:border-indigo-400 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
                       />
                     </label>

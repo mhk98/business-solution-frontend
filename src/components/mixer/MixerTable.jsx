@@ -306,8 +306,6 @@ const formatManufactureItemUnit = (item) => {
   return `${value} ${item?.unit || "Pcs"}`;
 };
 
-const getManufactureItemUnitLabel = (item) => item?.unit || "Pcs";
-
 // Quantity is only meaningful (and shown/editable) for items measured by
 // length — Yard or Inch, where a row can genuinely consume a fractional
 // amount per combo (e.g. 412.8 Yard in stock). Every other unit (Pcs, etc.)
@@ -318,6 +316,70 @@ const isQuantityUnit = (unit) => {
     .trim()
     .toLowerCase();
   return normalized === "yard" || normalized === "inch";
+};
+
+// Weight/volume stock (kept in Gram/Ml) can be taken in either its small or
+// big unit — whatever the item was purchased in. The backend converts each
+// row to the stock's base unit (Kg → Gram ×1000, Liter → Ml ×1000) before
+// deducting, so the row just sends the unit the user picked.
+const UNIT_FAMILIES = [
+  ["Gram", "Kg"],
+  ["Ml", "Liter"],
+];
+const UNIT_FACTORS = { gram: 1, kg: 1000, ml: 1, liter: 1000 };
+const unitKey = (unit) => {
+  const key = String(unit || "").trim().toLowerCase();
+  return key === "litre" ? "liter" : key;
+};
+const getUnitFamily = (unit) =>
+  UNIT_FAMILIES.find((family) =>
+    family.some((member) => unitKey(member) === unitKey(unit)),
+  ) || null;
+const getRowUnitChoices = (stockUnit) =>
+  getUnitFamily(stockUnit) || [stockUnit || "Pcs"];
+// The row's own unit when it belongs to the stock's family, else the stock's.
+const resolveRowUnit = (rowUnit, stockUnit) => {
+  const family = getUnitFamily(stockUnit);
+  if (family && family.some((member) => unitKey(member) === unitKey(rowUnit))) {
+    return family.find((member) => unitKey(member) === unitKey(rowUnit));
+  }
+  return stockUnit || rowUnit || "Pcs";
+};
+// `value` in `fromUnit` expressed in `toUnit` (same family only).
+const convertUnitValue = (value, fromUnit, toUnit) => {
+  const from = UNIT_FACTORS[unitKey(fromUnit)];
+  const to = UNIT_FACTORS[unitKey(toUnit)];
+  if (!from || !to || getUnitFamily(fromUnit) !== getUnitFamily(toUnit)) {
+    return Number(value || 0);
+  }
+  return (Number(value || 0) * from) / to;
+};
+
+// Unit box of a Mixer row: a Gram/Kg or Ml/Liter picker for weight/volume
+// stock, the stock's own unit (read-only) for everything else.
+const UnitField = ({ stockUnit, value, onChange }) => {
+  const choices = getRowUnitChoices(stockUnit);
+  const current = resolveRowUnit(value, stockUnit);
+  if (choices.length < 2) {
+    return (
+      <div className="flex h-11 w-full items-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-slate-700">
+        {current}
+      </div>
+    );
+  }
+  return (
+    <select
+      value={current}
+      onChange={(e) => onChange(e.target.value)}
+      className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+    >
+      {choices.map((choice) => (
+        <option key={choice} value={choice}>
+          {choice}
+        </option>
+      ))}
+    </select>
+  );
 };
 
 const getEffectiveQuantity = (selection, unit) =>
@@ -356,7 +418,12 @@ const getAutoPurchasePrice = (
   const materialsTotal = (productState?.materialSelections || []).reduce(
     (sum, selection) => {
       const stockItem = manufactureMap.get(String(selection?.manufactureId));
-      const takenTotal = getMaterialTotal(selection, stockItem?.unit);
+      const rowUnit = resolveRowUnit(selection?.unit, stockItem?.unit);
+      const takenTotal = convertUnitValue(
+        getMaterialTotal(selection, stockItem?.unit),
+        rowUnit,
+        stockItem?.unit,
+      );
       return sum + takenTotal * getStockUnitCost(stockItem);
     },
     0,
@@ -364,7 +431,12 @@ const getAutoPurchasePrice = (
   const packagingTotal = (productState?.packagingSelections || []).reduce(
     (sum, selection) => {
       const stockItem = packagingMap.get(String(selection?.itemMasterId));
-      const takenTotal = getPackagingTotal(selection);
+      const rowUnit = resolveRowUnit(selection?.unit, stockItem?.unit);
+      const takenTotal = convertUnitValue(
+        getPackagingTotal(selection, stockItem?.unit),
+        rowUnit,
+        stockItem?.unit,
+      );
       return sum + takenTotal * getStockUnitCost(stockItem);
     },
     0,
@@ -452,13 +524,13 @@ const buildMaterialPayload = (selections, manufactureItems = []) => {
   );
 
   return getSelectedMaterialItems(selections).map((selection) => {
-    const unit =
-      unitMap.get(String(selection.manufactureId)) || selection.unit || "Pcs";
+    const stockUnit = unitMap.get(String(selection.manufactureId));
+    const unit = resolveRowUnit(selection.unit, stockUnit);
     return {
       manufactureId: Number(selection.manufactureId) || "",
-      unitValue: getMaterialTotal(selection, unit),
+      unitValue: getMaterialTotal(selection, stockUnit),
       value: Number(selection.value) || 0,
-      quantity: getEffectiveQuantity(selection, unit),
+      quantity: getEffectiveQuantity(selection, stockUnit),
       unit,
     };
   });
@@ -1662,9 +1734,13 @@ const MixerTable = () => {
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
                     Unit
                   </label>
-                  <div className="flex h-11 w-full items-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-slate-700">
-                    {selection.unit || selectedOption?.unit || "Pcs"}
-                  </div>
+                  <UnitField
+                    stockUnit={selectedOption?.unit || selection.unit}
+                    value={selection.unit}
+                    onChange={(unit) =>
+                      handlePackagingSelectionChange(mode, index, "unit", unit)
+                    }
+                  />
                 </div>
 
                 <div>
@@ -2584,11 +2660,21 @@ const MixerTable = () => {
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
                           Unit
                         </label>
-                        <div className="flex h-11 w-full items-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-slate-700">
-                          {getManufactureItemUnitLabel(
-                            getCurrentManufactureItemByIndex(index),
-                          )}
-                        </div>
+                        <UnitField
+                          stockUnit={
+                            getCurrentManufactureItemByIndex(index)?.unit
+                          }
+                          value={
+                            currentProduct?.materialSelections?.[index]?.unit
+                          }
+                          onChange={(unit) =>
+                            handleCurrentMaterialSelectionChange(
+                              index,
+                              "unit",
+                              unit,
+                            )
+                          }
+                        />
                       </div>
 
                       <div>
@@ -3012,11 +3098,21 @@ const MixerTable = () => {
                         <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">
                           Unit
                         </label>
-                        <div className="flex h-11 w-full items-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold text-slate-700">
-                          {getManufactureItemUnitLabel(
-                            getCreateManufactureItemByIndex(index),
-                          )}
-                        </div>
+                        <UnitField
+                          stockUnit={
+                            getCreateManufactureItemByIndex(index)?.unit
+                          }
+                          value={
+                            createProduct?.materialSelections?.[index]?.unit
+                          }
+                          onChange={(unit) =>
+                            handleCreateMaterialSelectionChange(
+                              index,
+                              "unit",
+                              unit,
+                            )
+                          }
+                        />
                       </div>
 
                       <div>

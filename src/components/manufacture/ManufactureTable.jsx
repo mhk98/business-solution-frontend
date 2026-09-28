@@ -125,8 +125,7 @@ const ManufactureTable = () => {
 
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [itemName, setItemName] = useState("");
-  const [itemId, setItemId] = useState("");
+  const [itemIds, setItemIds] = useState([]);
 
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
@@ -152,7 +151,7 @@ const ManufactureTable = () => {
   useEffect(() => {
     setCurrentPage(1);
     setStartPage(1);
-  }, [startDate, endDate, itemId, itemName, itemsPerPage]);
+  }, [startDate, endDate, itemIds, itemsPerPage]);
 
   useEffect(() => {
     if (startDate && endDate && startDate > endDate) {
@@ -300,8 +299,7 @@ const ManufactureTable = () => {
       limit: itemsPerPage,
       startDate: startDate || undefined,
       endDate: endDate || undefined,
-      itemId: itemId || undefined,
-      name: itemId ? undefined : itemName || undefined,
+      itemId: itemIds.length ? itemIds.join(",") : undefined,
     };
 
     Object.keys(args).forEach((k) => {
@@ -311,7 +309,7 @@ const ManufactureTable = () => {
     });
 
     return args;
-  }, [currentPage, itemsPerPage, startDate, endDate, itemId, itemName]);
+  }, [currentPage, itemsPerPage, startDate, endDate, itemIds]);
 
   const { data, isLoading, isError, error, refetch } =
     useGetAllManufactureQuery(queryArgs);
@@ -421,8 +419,7 @@ const ManufactureTable = () => {
         limit: REPORT_ROW_LIMIT,
         startDate: startDate || undefined,
         endDate: endDate || undefined,
-        itemId: itemId || undefined,
-        name: itemId ? undefined : itemName || undefined,
+        itemId: itemIds.length ? itemIds.join(",") : undefined,
       };
 
       Object.keys(args).forEach((key) => {
@@ -734,8 +731,7 @@ const ManufactureTable = () => {
   const clearFilters = () => {
     setStartDate("");
     setEndDate("");
-    setItemName("");
-    setItemId("");
+    setItemIds([]);
   };
 
   const handleNoteClick = (note) => {
@@ -860,14 +856,13 @@ const ManufactureTable = () => {
           </label>
           <Select
             options={itemDropdownOptions}
-            value={
-              itemDropdownOptions.find((o) => o.value === itemId) ||
-              itemDropdownOptions.find((o) => o.label === itemName) ||
-              null
-            }
+            isMulti
+            closeMenuOnSelect={false}
+            value={itemDropdownOptions.filter((o) =>
+              itemIds.includes(o.value),
+            )}
             onChange={(selected) => {
-              setItemId(selected?.value || "");
-              setItemName(selected?.label || "");
+              setItemIds((selected || []).map((o) => o.value));
             }}
             placeholder={t.search || "Search"}
             isClearable

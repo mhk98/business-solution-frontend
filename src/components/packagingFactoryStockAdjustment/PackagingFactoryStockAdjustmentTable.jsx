@@ -23,6 +23,7 @@ import {
   useInsertPackagingFactoryStockAdjustmentMutation,
   useUpdatePackagingFactoryStockAdjustmentMutation,
 } from "../../features/packagingFactoryStockAdjustment/packagingFactoryStockAdjustment";
+import { getStockUnitOptions } from "../../utils/stockUnits";
 
 const createStockItemLine = () => ({
   packagingFactoryStockId: "",
@@ -594,18 +595,9 @@ const PackagingFactoryStockAdjustmentTable = () => {
                   />
 
                   <Select
-                    options={[
-                      "Pcs",
-                      "Kg",
-                      "Liter",
-                      "Ml",
-                      "Gram",
-                      "Box",
-                      "Dozen",
-                    ].map((unit) => ({
-                      value: unit,
-                      label: unit,
-                    }))}
+                    options={getStockUnitOptions(
+                      findStockOption(item)?.row?.unit,
+                    )}
                     value={{
                       value: item.unit || "Pcs",
                       label: item.unit || "Pcs",
@@ -1041,18 +1033,9 @@ const PackagingFactoryStockAdjustmentTable = () => {
                   />
 
                   <Select
-                    options={[
-                      "Pcs",
-                      "Kg",
-                      "Liter",
-                      "Ml",
-                      "Gram",
-                      "Box",
-                      "Dozen",
-                    ].map((unit) => ({
-                      value: unit,
-                      label: unit,
-                    }))}
+                    options={getStockUnitOptions(
+                      findStockOption(currentProduct)?.row?.unit,
+                    )}
                     value={{
                       value: currentProduct?.unit || "Pcs",
                       label: currentProduct?.unit || "Pcs",

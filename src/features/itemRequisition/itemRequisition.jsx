@@ -108,6 +108,7 @@ export const itemRequisitionApi = baseApi.injectEndpoints({
 
 export const {
   useGetAllItemRequisitionQuery,
+  useLazyGetAllItemRequisitionQuery,
   useGetAllItemRequisitionWithoutQueryQuery,
   useInsertItemRequisitionMutation,
   useUpdateItemRequisitionMutation,

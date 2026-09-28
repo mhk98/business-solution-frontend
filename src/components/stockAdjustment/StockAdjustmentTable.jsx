@@ -26,6 +26,22 @@ import {
   useUpdateStockAdjustmentMutation,
 } from "../../features/stockAdjustment/stockAdjustment";
 
+// Unit choices for the selected stock row: weight stock takes Gram/Kg, volume
+// stock Ml/Liter, anything else only its own unit — a unit from another family
+// would be miscounted (e.g. "Pcs" against Gram stock counted as grams).
+const ADJUSTMENT_UNITS = ["Pcs", "Kg", "Liter", "Ml", "Gram", "Box", "Dozen"];
+const getAdjustmentUnitOptions = (stockUnit) => {
+  const key = String(stockUnit || "").trim().toLowerCase();
+  const units = ["gram", "kg"].includes(key)
+    ? ["Gram", "Kg"]
+    : ["ml", "liter", "litre"].includes(key)
+      ? ["Ml", "Liter"]
+      : stockUnit
+        ? [stockUnit]
+        : ADJUSTMENT_UNITS;
+  return units.map((unit) => ({ value: unit, label: unit }));
+};
+
 const createStockItemLine = () => ({
   itemMasterId: "",
   itemId: "",
@@ -712,18 +728,9 @@ const StockAdjustmentTable = () => {
                   />
 
                   <Select
-                    options={[
-                      "Pcs",
-                      "Kg",
-                      "Liter",
-                      "Ml",
-                      "Gram",
-                      "Box",
-                      "Dozen",
-                    ].map((unit) => ({
-                      value: unit,
-                      label: unit,
-                    }))}
+                    options={getAdjustmentUnitOptions(
+                      findStockOption(item)?.row?.unit,
+                    )}
                     value={{
                       value: item.unit || "Pcs",
                       label: item.unit || "Pcs",
@@ -1190,18 +1197,9 @@ const StockAdjustmentTable = () => {
                   />
 
                   <Select
-                    options={[
-                      "Pcs",
-                      "Kg",
-                      "Liter",
-                      "Ml",
-                      "Gram",
-                      "Box",
-                      "Dozen",
-                    ].map((unit) => ({
-                      value: unit,
-                      label: unit,
-                    }))}
+                    options={getAdjustmentUnitOptions(
+                      findStockOption(currentProduct)?.row?.unit,
+                    )}
                     value={{
                       value: currentProduct?.unit || "Pcs",
                       label: currentProduct?.unit || "Pcs",

@@ -16,6 +16,7 @@ import Modal from "../common/Modal";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 import { useGetAllItemWithoutQueryQuery } from "../../features/item/item";
 import { useGetAllManufacturerWithoutQueryQuery } from "../../features/manufacturer/manufacturer";
+import { useGetAllItemMasterWithoutQueryQuery } from "../../features/manufactureStock/manufactureStock";
 import {
   useDeleteManufactureProductionMutation,
   useGetAllManufactureProductionQuery,
@@ -49,6 +50,15 @@ const unitOptions = [
   "Inch",
   "Feet",
 ].map((unit) => ({ value: unit, label: unit }));
+
+// Item Stock keeps weight in Gram and volume in Ml; a Factory entry may use
+// the big or small unit of that family (the backend converts), but never a
+// unit from another family — "Pcs" against Gram stock would count as grams.
+const UNIT_FAMILIES = { gram: ["Gram", "Kg"], ml: ["Ml", "Liter"] };
+const getStockUnitChoices = (stockUnit) =>
+  stockUnit
+    ? UNIT_FAMILIES[String(stockUnit).toLowerCase()] || [stockUnit]
+    : null;
 
 const selectStyles = {
   control: (base, state) => ({
@@ -91,6 +101,26 @@ const ManufactureProductionTable = () => {
     useGetAllItemWithoutQueryQuery();
   const { data: manufacturersRes, isLoading: isManufacturersLoading } =
     useGetAllManufacturerWithoutQueryQuery();
+  const { data: itemStockRes } = useGetAllItemMasterWithoutQueryQuery();
+
+  // itemId → the unit its Item Stock row is kept in.
+  const stockUnitByItemId = useMemo(() => {
+    const map = new Map();
+    for (const row of itemStockRes?.data || []) {
+      if (row?.productId && Number(row.productId) !== 0) continue;
+      if (!map.has(String(row.itemId))) map.set(String(row.itemId), row.unit);
+    }
+    return map;
+  }, [itemStockRes?.data]);
+
+  const getUnitOptionsFor = (itemId) => {
+    const choices = getStockUnitChoices(stockUnitByItemId.get(String(itemId)));
+    return choices
+      ? choices.map((unit) => ({ value: unit, label: unit }))
+      : unitOptions;
+  };
+  const getDefaultUnitFor = (itemId) =>
+    getStockUnitChoices(stockUnitByItemId.get(String(itemId)))?.[0] || "Pcs";
 
   const itemOptions = useMemo(
     () =>
@@ -510,7 +540,11 @@ const ManufactureProductionTable = () => {
                   null
                 }
                 onChange={(selected) =>
-                  setForm({ ...form, itemId: selected?.value || "" })
+                  setForm({
+                    ...form,
+                    itemId: selected?.value || "",
+                    unit: getDefaultUnitFor(selected?.value),
+                  })
                 }
                 placeholder="Select item..."
                 isDisabled={isItemsLoading}
@@ -554,6 +588,7 @@ const ManufactureProductionTable = () => {
                           onChange={(selected) =>
                             updateCreateItem(index, {
                               itemId: selected?.value || "",
+                              unit: getDefaultUnitFor(selected?.value),
                             })
                           }
                           placeholder="Select item..."
@@ -582,7 +617,7 @@ const ManufactureProductionTable = () => {
                             className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
                           />
                           <Select
-                            options={unitOptions}
+                            options={getUnitOptionsFor(item.itemId)}
                             value={{
                               value: item.unit || "Pcs",
                               label: item.unit || "Pcs",
@@ -633,7 +668,7 @@ const ManufactureProductionTable = () => {
                 className="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
               />
               <Select
-                options={unitOptions}
+                options={getUnitOptionsFor(form.itemId)}
                 value={{ value: form.unit, label: form.unit }}
                 onChange={(selected) =>
                   setForm({ ...form, unit: selected?.value || "Pcs" })

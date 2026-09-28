@@ -14,10 +14,8 @@ import {
   useInsertPackagingMixerMutation,
   useUpdatePackagingMixerMutation,
 } from "../../features/packagingMixer/packagingMixer";
+import { findUnitOption, getStockUnitOptions } from "../../utils/stockUnits";
 
-const unitOptions = ["Pcs", "Kg", "Ml", "Gram", "Yard", "Inch", "Feet"].map(
-  (unit) => ({ value: unit, label: unit }),
-);
 const createPackagingLine = () => ({
   packagingFactoryStockId: "",
   value: "",
@@ -536,11 +534,11 @@ const PackagingMixerTable = () => {
                       Unit
                     </span>
                     <Select
-                      options={unitOptions}
-                      value={
-                        unitOptions.find((o) => o.value === line.unit) ||
-                        unitOptions[0]
-                      }
+                      options={getStockUnitOptions(selectedStock?.unit)}
+                      value={findUnitOption(
+                        getStockUnitOptions(selectedStock?.unit),
+                        line.unit,
+                      )}
                       onChange={(s) =>
                         updateLine(index, { unit: s?.value || "Pcs" })
                       }

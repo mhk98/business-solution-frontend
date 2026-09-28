@@ -23,10 +23,14 @@ import {
   useInsertPackagingItemPurchaseMutation,
   useUpdatePackagingItemPurchaseMutation,
 } from "../../features/packagingItemPurchase/packagingItemPurchase";
+import {
+  STOCK_UNITS,
+  findUnitOption,
+  getDefaultStockUnit,
+  getStockUnitOptions,
+  usePackagingItemStockUnits,
+} from "../../utils/stockUnits";
 
-const unitOptions = ["Pcs", "Kg", "Ml", "Gram", "Yard", "Inch", "Feet"].map(
-  (unit) => ({ value: unit, label: unit }),
-);
 
 const emptyPurchaseItem = {
   packagingItemId: "",
@@ -125,6 +129,9 @@ const formatMoney = (value) =>
   });
 
 const PackagingItemPurchaseTable = () => {
+  const stockUnitByItem = usePackagingItemStockUnits();
+  const unitOptionsFor = (packagingItemId) =>
+    getStockUnitOptions(stockUnitByItem.get(String(packagingItemId)), STOCK_UNITS);
   const role = localStorage.getItem("role");
   const canManage = role === "superAdmin" || role === "admin";
   const [rows, setRows] = useState([]);
@@ -373,6 +380,9 @@ const PackagingItemPurchaseTable = () => {
                 onChange={(selected) =>
                   updateCreateItem(index, {
                     packagingItemId: selected?.value || "",
+                    unit: getDefaultStockUnit(
+                      stockUnitByItem.get(String(selected?.value)),
+                    ),
                   })
                 }
                 placeholder="Search item..."
@@ -397,11 +407,11 @@ const PackagingItemPurchaseTable = () => {
                   style={{ backgroundColor: "#ffffff", colorScheme: "light" }}
                 />
                 <Select
-                  options={unitOptions}
-                  value={
-                    unitOptions.find((option) => option.value === item.unit) ||
-                    unitOptions[0]
-                  }
+                  options={unitOptionsFor(item.packagingItemId)}
+                  value={findUnitOption(
+                    unitOptionsFor(item.packagingItemId),
+                    item.unit,
+                  )}
                   onChange={(selected) =>
                     updateCreateItem(index, {
                       unit: selected?.value || "Pcs",
@@ -533,7 +543,13 @@ const PackagingItemPurchaseTable = () => {
               ) || null
             }
             onChange={(selected) =>
-              setValue({ ...value, packagingItemId: selected?.value || "" })
+              setValue({
+                ...value,
+                packagingItemId: selected?.value || "",
+                unit: getDefaultStockUnit(
+                  stockUnitByItem.get(String(selected?.value)),
+                ),
+              })
             }
             placeholder="Select packaging item..."
             styles={selectStyles}
@@ -575,11 +591,11 @@ const PackagingItemPurchaseTable = () => {
               style={{ backgroundColor: "#ffffff", colorScheme: "light" }}
             />
             <Select
-              options={unitOptions}
-              value={
-                unitOptions.find((option) => option.value === value.unit) ||
-                unitOptions[0]
-              }
+              options={unitOptionsFor(value.packagingItemId)}
+              value={findUnitOption(
+                unitOptionsFor(value.packagingItemId),
+                value.unit,
+              )}
               onChange={(selected) =>
                 setValue({ ...value, unit: selected?.value || "Pcs" })
               }
