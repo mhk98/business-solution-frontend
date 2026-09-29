@@ -46,9 +46,9 @@ export const loanApi = createApi({
     }),
 
     getAllLoan: build.query({
-      query: ({ page, limit, searchTerm, status, startDate, endDate } = {}) => ({
+      query: ({ page, limit, searchTerm, status, startDate, endDate, balanceStatus } = {}) => ({
         url: "/loan",
-        params: { page, limit, searchTerm, status, startDate, endDate },
+        params: { page, limit, searchTerm, status, startDate, endDate, balanceStatus },
       }),
       providesTags: ["loan"],
       refetchOnMountOrArgChange: true,

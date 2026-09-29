@@ -23,6 +23,9 @@ const CourierNoEntryPage = lazy(() => import("./pages/CourierNoEntryPage"));
 const CourierProductStockPage = lazy(() =>
   import("./pages/CourierProductStockPage"),
 );
+const CourierBalancePage = lazy(() =>
+  import("./pages/CourierBalancePage"),
+);
 const SalesDuePage = lazy(() => import("./pages/SalesDuePage"));
 const SalaryAdvancePage = lazy(() => import("./pages/SalaryAdvancePage"));
 const MetaPage = lazy(() => import("./pages/MetaPage"));
@@ -262,6 +265,7 @@ function App() {
                 <Route path="/intransit-product" element={<AuthedRoute><InTransitProductPage /></AuthedRoute>} />
                 <Route path="/courier-no-entry" element={<AuthedRoute><CourierNoEntryPage /></AuthedRoute>} />
                 <Route path="/courier-product-stock" element={<AuthedRoute><CourierProductStockPage /></AuthedRoute>} />
+                <Route path="/courier-balance" element={<AuthedRoute><CourierBalancePage /></AuthedRoute>} />
                 <Route path="/sales-due" element={<AuthedRoute><SalesDuePage /></AuthedRoute>} />
                 <Route path="/salary-advance" element={<AuthedRoute><SalaryAdvancePage /></AuthedRoute>} />
                 <Route path="/sales-return" element={<AuthedRoute><ReturnProductPage /></AuthedRoute>} />

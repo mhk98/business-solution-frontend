@@ -18,6 +18,7 @@ import {
 import { useGetAllProductWithoutQueryQuery } from "../../features/product/product";
 import {
   useFixInventoryMismatchMutation,
+  useAcceptInventoryMismatchMutation,
   useGetAllInventoryOverviewQuery,
   useGetInventoryMismatchAuditQuery,
   useUpdateInventoryPriceMutation,
@@ -262,6 +263,27 @@ const InventoryOverviewTable = () => {
   const auditData = auditRes?.data;
   const mismatchRows = auditData?.data || [];
 
+  const [acceptInventoryMismatch, { isLoading: isAcceptingMismatch }] =
+    useAcceptInventoryMismatchMutation();
+
+  // Keep the current (hand-edited) quantity; Fix Stock would overwrite it.
+  const handleKeepCurrent = async (item) => {
+    const ok = window.confirm(
+      `Keep current stock for "${item.name}"?\n\nCurrent ${Number(item.currentQuantity || 0)} will stay; the expected ${Number(item.expectedQuantity || 0)} will be adjusted to match.`,
+    );
+    if (!ok) return;
+    try {
+      const res = await acceptInventoryMismatch(item.productId).unwrap();
+      if (res?.success === false) {
+        toast.error(res?.message || "Could not keep current stock");
+        return;
+      }
+      toast.success("Current stock kept");
+    } catch (error) {
+      toast.error(error?.data?.message || "Could not keep current stock");
+    }
+  };
+
   const handleFixMismatch = async (productId) => {
     try {
       const res = await fixInventoryMismatch(productId).unwrap();
@@ -500,6 +522,16 @@ const InventoryOverviewTable = () => {
                     ) : null}
                   </div>
 
+                  <button
+                    type="button"
+                    disabled={isAcceptingMismatch || isFixingMismatch}
+                    onClick={() => handleKeepCurrent(item)}
+                    title="Keep the current quantity (e.g. after a manual correction)"
+                    className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-bold text-emerald-700 shadow-sm transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 active:scale-95"
+                  >
+                    <CheckCircle2 size={16} />
+                    Keep Current
+                  </button>
                   <button
                     type="button"
                     disabled={isFixingMismatch}

@@ -78,8 +78,14 @@ const MarketingBookTable = () => {
   const books = useMemo(() => data?.data ?? [], [data]);
   const bookIds = useMemo(() => books.map((item) => item.Id), [books]);
 
+  // Date filter — applies to the summary cards and each channel's totals.
+  const defaultRange = useMemo(() => getDefaultRange(), []);
+  const [from, setFrom] = useState(defaultRange.from);
+  const [to, setTo] = useState(defaultRange.to);
+  const [applied, setApplied] = useState(defaultRange);
+
   const { data: bookTotalsRes } = useGetMarketingExpenseTotalsByBookQuery(
-    bookIds,
+    { bookIds, from: applied.from, to: applied.to },
     { skip: bookIds.length === 0 },
   );
   const bookTotals = bookTotalsRes?.data || {};
@@ -185,12 +191,6 @@ const MarketingBookTable = () => {
     setStartPage((p) =>
       Math.min(p + pagesPerSet, Math.max(1, totalPages - pagesPerSet + 1)),
     );
-
-  const defaultRange = useMemo(() => getDefaultRange(), []);
-
-  const [from, setFrom] = useState(defaultRange.from);
-  const [to, setTo] = useState(defaultRange.to);
-  const [applied, setApplied] = useState(defaultRange);
 
   const {
     data: summaryRes,

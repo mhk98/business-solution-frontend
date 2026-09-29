@@ -69,6 +69,7 @@ export const baseApi = createApi({
     "InTransitProduct",
     "CourierNoEntry",
     "CourierProductStock",
+    "CourierBalance",
     "SalesDue",
     "SalaryAdvance",
     "ReturnProduct",

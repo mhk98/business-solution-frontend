@@ -7,6 +7,26 @@ import { useGetSingleLoanQuery } from "../../features/loan/loan";
 import useDebounce from "../../hooks/useDebounce";
 
 const formatAmount = (value) => Number(value || 0).toLocaleString();
+// Balance = Received − Paid; positive → Payable (we owe), negative → Receivable.
+const formatBalance = (value) => {
+  const n = Number(value || 0);
+  if (n === 0) return "0";
+  return `${formatAmount(Math.abs(n))} ${n > 0 ? "Payable" : "Receivable"}`;
+};
+const balanceTone = (value) =>
+  Number(value || 0) > 0
+    ? "text-rose-600"
+    : Number(value || 0) < 0
+      ? "text-emerald-600"
+      : "text-slate-500";
+const ENTRY_TYPES = {
+  LOAN_TAKEN: { label: "Loan Taken", cls: "border-sky-200 bg-sky-50 text-sky-700" },
+  LOAN_REPAID: { label: "Repaid", cls: "border-rose-200 bg-rose-50 text-rose-700" },
+  REPAID_AND_GIVEN: { label: "Repaid + Loan Given", cls: "border-amber-200 bg-amber-50 text-amber-700" },
+  LOAN_GIVEN: { label: "Loan Given", cls: "border-amber-200 bg-amber-50 text-amber-700" },
+  LOAN_RECOVERED: { label: "Recovered", cls: "border-emerald-200 bg-emerald-50 text-emerald-700" },
+  RECOVERED_AND_TAKEN: { label: "Recovered + Loan Taken", cls: "border-sky-200 bg-sky-50 text-sky-700" },
+};
 
 const LoanHistoryTable = () => {
   const { lender: loanParam } = useParams();
@@ -44,7 +64,7 @@ const LoanHistoryTable = () => {
     >
       <div className="mb-5 flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm text-slate-500">Lender History</p>
+          <p className="text-sm text-slate-500">Loan Ledger</p>
           <h2 className="text-xl font-semibold text-slate-900">{loanName || "Lender"}</h2>
         </div>
         <Link to="/loan" className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
@@ -53,9 +73,20 @@ const LoanHistoryTable = () => {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full mb-6">
-        <Summary label="Total Loan নিয়েছি" value={meta.totalLoanTaken} />
-        <Summary label="Total পরিশোধ" value={meta.totalLoanGiven} />
-        <Summary label="কত পাবে" value={meta.netBalance} />
+        <Summary label="Total Received" hint="Loan taken + recovered" value={formatAmount(meta.periodCashIn)} />
+        <Summary label="Total Paid" hint="Repaid + loan given" value={formatAmount(meta.periodCashOut)} />
+        <Summary
+          label="Current Balance"
+          hint={
+            Number(meta.closingBalance || 0) > 0
+              ? "We owe this party"
+              : Number(meta.closingBalance || 0) < 0
+                ? "This party owes us"
+                : "Nothing outstanding"
+          }
+          value={formatBalance(meta.closingBalance)}
+          valueClass={balanceTone(meta.closingBalance)}
+        />
       </div>
 
       <div className="relative w-full sm:max-w-[520px] mb-6">
@@ -79,30 +110,38 @@ const LoanHistoryTable = () => {
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Type</th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Payment Mode</th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Remarks</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Amount</th>
+              <th className="px-6 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Received</th>
+              <th className="px-6 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Paid</th>
+              <th className="px-6 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Balance</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
             {rows.map((row) => {
-              const isTaken = row.paymentStatus === "CashIn";
+              const isIn = row.paymentStatus === "CashIn";
+              const entry = ENTRY_TYPES[row.ledgerEntryType] || {
+                label: isIn ? "Received" : "Paid",
+                cls: "border-slate-200 bg-slate-50 text-slate-700",
+              };
               return (
                 <tr key={row.Id ?? row.id} className="hover:bg-slate-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{row.date || "-"}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <span className={`inline-flex rounded-lg border px-2.5 py-1 text-xs font-semibold ${isTaken ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
-                      {isTaken ? "Loan নিয়েছি" : "পরিশোধ"}
+                    <span className={`inline-flex rounded-lg border px-2.5 py-1 text-xs font-semibold ${entry.cls}`}>
+                      {entry.label}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{row.paymentMode || "-"}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{row.remarks || row.note || "-"}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 tabular-nums">{formatAmount(row.amount)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-slate-700 tabular-nums">{isIn ? formatAmount(row.amount) : ""}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-slate-700 tabular-nums">{isIn ? "" : formatAmount(row.amount)}</td>
+                  <td className={`px-6 py-4 whitespace-nowrap text-right text-sm font-semibold tabular-nums ${balanceTone(row.runningBalance)}`}>{formatBalance(row.runningBalance)}</td>
                 </tr>
               );
             })}
 
             {!isLoading && rows.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-6 py-6 text-center text-sm text-slate-600">
+                <td colSpan={7} className="px-6 py-6 text-center text-sm text-slate-600">
                   No loan history found
                 </td>
               </tr>
@@ -133,12 +172,13 @@ const LoanHistoryTable = () => {
   );
 };
 
-const Summary = ({ label, value }) => (
+const Summary = ({ label, hint, value, valueClass = "text-slate-900" }) => (
   <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
     <p className="text-xs font-medium text-slate-500">{label}</p>
-    <p className="mt-2 text-2xl font-semibold text-slate-900 tabular-nums">
-      {formatAmount(value)}
+    <p className={`mt-2 text-2xl font-semibold tabular-nums ${valueClass}`}>
+      {value}
     </p>
+    {hint && <p className="mt-1 text-xs text-slate-400">{hint}</p>}
   </div>
 );
 

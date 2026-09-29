@@ -218,6 +218,12 @@ const ManufactureStockTable = ({ stockType = "item" }) => {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
+  // Per-gram/ml costs are tiny (e.g. ৳0.325/g), so unit cost shows 4 places.
+  const formatUnitCost = (value) =>
+    Number(value || 0).toLocaleString("en-US", {
+      minimumFractionDigits: 4,
+      maximumFractionDigits: 4,
+    });
 
   const handleDownloadExcel = async () => {
     if (!rows || rows.length === 0) {
@@ -244,7 +250,7 @@ const ManufactureStockTable = ({ stockType = "item" }) => {
         }
 
         rowData["In Hand Value"] = `${Number(rp.unitValue || 0)} ${rp.unit || "Pcs"}`;
-        rowData["Unit Cost"] = Number(unitCostVal.toFixed(2));
+        rowData["Unit Cost"] = Number(unitCostVal.toFixed(4));
         rowData["Balance"] = Number(itemBal.toFixed(2));
 
         return rowData;
@@ -361,7 +367,7 @@ const ManufactureStockTable = ({ stockType = "item" }) => {
             })
           : "—";
         const inHand = `${Number(rp.unitValue || 0)} ${rp.unit || "Pcs"}`;
-        const unitCostStr = formatMoney(getUnitCost(rp));
+        const unitCostStr = formatUnitCost(getUnitCost(rp));
         const balanceStr = formatMoney(getItemBalance(rp));
 
         if (isManufactureStock) {
@@ -444,7 +450,7 @@ const ManufactureStockTable = ({ stockType = "item" }) => {
             })
           : "—";
         const inHand = `${Number(rp.unitValue || 0)} ${rp.unit || "Pcs"}`;
-        const unitCostStr = formatMoney(getUnitCost(rp));
+        const unitCostStr = formatUnitCost(getUnitCost(rp));
         const balanceStr = formatMoney(getItemBalance(rp));
 
         if (isManufactureStock) {
@@ -807,7 +813,7 @@ const ManufactureStockTable = ({ stockType = "item" }) => {
                   </td>
                   <td className="px-6 py-5 whitespace-nowrap text-center">
                     <span className="inline-flex items-center px-4 py-1.5 rounded-2xl text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-100 shadow-sm shadow-emerald-50 tabular-nums">
-                      {formatMoney(getUnitCost(rp))}
+                      {formatUnitCost(getUnitCost(rp))}
                     </span>
                   </td>
                 </motion.tr>

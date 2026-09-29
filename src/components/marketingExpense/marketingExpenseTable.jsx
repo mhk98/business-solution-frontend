@@ -266,6 +266,9 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
   const handleEditClick = (rp) => {
     setCurrentProduct({
       ...rp,
+      dollarSupplierId: rp.dollarSupplierId ? String(rp.dollarSupplierId) : "",
+      usdAmount: rp.usdAmount != null ? String(Number(rp.usdAmount)) : "",
+      usdRate: rp.usdRate != null ? String(Number(rp.usdRate)) : "",
       paymentMode: rp.paymentMode ?? "",
       paymentStatus: rp.paymentStatus ?? "",
       amount: rp.amount ?? "",
@@ -301,9 +304,36 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
   // update
   const [updateMarketingExpense] = useUpdateMarketingExpenseMutation();
 
+  // Edit mirrors Add: Amount = USD × USD Rate when both are given (older rows
+  // without USD keep their typed Amount).
+  const editUsd = Number(currentProduct?.usdAmount) || 0;
+  const editRate = Number(currentProduct?.usdRate) || 0;
+  const editHasUsd = editUsd > 0 && editRate > 0;
+  const editLocalAmount = editHasUsd
+    ? Math.round(editUsd * editRate * 100) / 100
+    : Number(currentProduct?.amount) || 0;
+
   const handleUpdateProduct = async () => {
     const rowId = currentProduct?.Id ?? currentProduct?.id;
     if (!rowId) return toast.error("Invalid item!");
+    if (!editLocalAmount || editLocalAmount <= 0)
+      return toast.error("Amount must be greater than 0!");
+    if ((editUsd > 0) !== (editRate > 0))
+      return toast.error("Enter both USD and USD rate!");
+
+    const isCashIn = currentProduct.paymentStatus === "CashIn";
+    const editDollarSupplierId = isCashIn ? currentProduct.dollarSupplierId || "" : "";
+    const supplierName =
+      dollarSuppliers.find((s) => String(s.Id) === String(editDollarSupplierId))
+        ?.name || "";
+    // Keep the auto "Dollar Supplier: … — $x × rate" remark in step with edits.
+    const typedRemarks = currentProduct.remarks?.trim() || "";
+    const remarks =
+      editDollarSupplierId &&
+      editHasUsd &&
+      (!typedRemarks || typedRemarks.startsWith("Dollar Supplier:"))
+        ? `Dollar Supplier: ${supplierName} — $${editUsd} × ${editRate}`
+        : typedRemarks;
 
     try {
       // let finalCategoryName = currentProduct.category;
@@ -317,16 +347,13 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
       // }
 
       const formData = new FormData();
-      if (!currentProduct.paymentMode)
-        return toast.error("Payment Mode is required!");
-
       if (currentProduct.paymentMode === "Bank") {
         if (!currentProduct.bankName) return toast.error("Bank Name is required!");
         if (!currentProduct.bankAccount)
           return toast.error("Bank Account is required!");
       }
 
-      formData.append("paymentMode", currentProduct.paymentMode);
+      formData.append("paymentMode", currentProduct.paymentMode || "");
       formData.append("paymentStatus", currentProduct.paymentStatus);
       formData.append("note", currentProduct.note);
       formData.append("category", currentProduct.category);
@@ -349,8 +376,11 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
 
       // Use categoryName (not categoryId)
       // formData.append("category", finalCategoryName); // Using category name here
-      formData.append("remarks", currentProduct.remarks?.trim() || "");
-      formData.append("amount", String(Number(currentProduct.amount)));
+      formData.append("remarks", remarks);
+      formData.append("amount", String(editLocalAmount));
+      formData.append("dollarSupplierId", editDollarSupplierId);
+      formData.append("usdAmount", editHasUsd ? String(editUsd) : "");
+      formData.append("usdRate", editHasUsd ? String(editRate) : "");
       if (currentProduct.file) formData.append("file", currentProduct.file);
 
       const res = await updateMarketingExpense({
@@ -1323,27 +1353,102 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
             />
           </div>
 
-          {renderPaymentModeFields(currentProduct, setCurrentProduct)}
-
           <div>
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
-              Payment Status
+              Type
             </label>
-            <select
-              value={currentProduct?.paymentStatus || ""}
-              onChange={(e) =>
-                setCurrentProduct((p) => ({
-                  ...p,
-                  paymentStatus: e.target.value,
-                }))
-              }
-              className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-              required
-            >
-              <option value="">Select Payment Status</option>
-              <option value="CashIn">CashIn</option>
-              <option value="CashOut">CashOut</option>
-            </select>
+            <div className="w-full h-12 flex items-center border border-slate-200 rounded-2xl px-4 text-sm font-bold text-slate-900 bg-slate-50">
+              {currentProduct?.paymentStatus === "CashIn" ? "Cash In" : "Cash Out"}
+            </div>
+          </div>
+
+          {currentProduct?.paymentStatus === "CashIn" && (
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                Dollar Supplier
+              </label>
+              <select
+                value={currentProduct?.dollarSupplierId || ""}
+                onChange={(e) =>
+                  setCurrentProduct((p) => ({
+                    ...p,
+                    dollarSupplierId: e.target.value,
+                  }))
+                }
+                className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+              >
+                <option value="">No Dollar Supplier</option>
+                {dollarSuppliers.map((s) => (
+                  <option key={s.Id} value={s.Id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 ml-1 text-xs text-slate-400">
+                Changes here update this dollar supplier's due.
+              </p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                USD
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={currentProduct?.usdAmount ?? ""}
+                onChange={(e) =>
+                  setCurrentProduct((p) => ({ ...p, usdAmount: e.target.value }))
+                }
+                placeholder="Dollar amount"
+                className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                USD Rate
+              </label>
+              <input
+                type="number"
+                step="0.0001"
+                min="0"
+                value={currentProduct?.usdRate ?? ""}
+                onChange={(e) =>
+                  setCurrentProduct((p) => ({ ...p, usdRate: e.target.value }))
+                }
+                placeholder="Current rate"
+                className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                Amount
+              </label>
+              {editHasUsd ? (
+                <input
+                  type="text"
+                  readOnly
+                  value={editLocalAmount.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                  className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-bold text-slate-900 bg-slate-50"
+                />
+              ) : (
+                <input
+                  type="number"
+                  step="0.01"
+                  value={currentProduct?.amount || ""}
+                  onChange={(e) =>
+                    setCurrentProduct((p) => ({ ...p, amount: e.target.value }))
+                  }
+                  className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+                />
+              )}
+            </div>
           </div>
 
           <div>
@@ -1377,22 +1482,6 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
                 setCurrentProduct((p) => ({ ...p, remarks: e.target.value }))
               }
               className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
-              Amount
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              value={currentProduct?.amount || ""}
-              onChange={(e) =>
-                setCurrentProduct((p) => ({ ...p, amount: e.target.value }))
-              }
-              className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-              required
             />
           </div>
 

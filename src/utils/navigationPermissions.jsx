@@ -874,6 +874,13 @@ export const SIDEBAR_ITEMS = [
         href: "/courier-product-stock",
         roles: ["superAdmin", "admin", "inventor"],
       },
+      {
+        name: "Courier Balance",
+        key: "courier_balance",
+        icon: Wallet,
+        href: "/courier-balance",
+        roles: ["superAdmin", "admin", "inventor"],
+      },
 
       {
         name: "Sales Return",

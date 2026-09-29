@@ -26,12 +26,32 @@ import DateRangeFilter, {
 import Modal from "../common/Modal";
 
 const formatAmount = (value) => Number(value || 0).toLocaleString();
+// Each party is a two-way running account: balance = Received − Paid.
+// Positive → company owes the party (Payable), negative → party owes company (Receivable).
+const balanceSide = (value) => {
+  const n = Number(value || 0);
+  if (n > 0) return "Payable";
+  if (n < 0) return "Receivable";
+  return "Settled";
+};
+const formatBalance = (value) => {
+  const n = Number(value || 0);
+  return n === 0 ? "0" : `${formatAmount(Math.abs(n))} ${balanceSide(n)}`;
+};
 const EXPORT_COLUMNS = [
   { label: "Name", key: "name" },
-  { label: "Loan নিয়েছি", key: "totalLoanTaken" },
-  { label: "পরিশোধ", key: "totalLoanPaid" },
-  { label: "কত পাবে", key: "netBalance" },
-  { label: "Status", key: "status" },
+  { label: "Opening Balance", key: "openingBalance", balance: true },
+  { label: "Received", key: "periodCashIn" },
+  { label: "Paid", key: "periodCashOut" },
+  { label: "Closing Balance", key: "closingBalance", balance: true },
+  { label: "Position", key: "closingBalance", side: true },
+];
+const BALANCE_TABS = [
+  { key: "open", label: "Open" },
+  { key: "payable", label: "Payable (We Owe)" },
+  { key: "receivable", label: "Receivable (Owed to Us)" },
+  { key: "settled", label: "Settled" },
+  { key: "all", label: "All" },
 ];
 
 const emptyForm = { name: "", note: "", status: "Active" };
@@ -49,6 +69,7 @@ const LoanTable = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLoan, setEditingLoan] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [balanceStatus, setBalanceStatus] = useState("open");
 
   const itemsPerPage = 10;
   const pagesPerSet = 10;
@@ -60,6 +81,7 @@ const LoanTable = () => {
     searchTerm: debouncedSearchTerm || undefined,
     startDate: startDate || undefined,
     endDate: endDate || undefined,
+    balanceStatus,
   });
   const exportLimit = Math.max(
     Number(data?.meta?.count || 0),
@@ -72,6 +94,7 @@ const LoanTable = () => {
     searchTerm: debouncedSearchTerm || undefined,
     startDate: startDate || undefined,
     endDate: endDate || undefined,
+    balanceStatus,
   });
   const [insertLoan, { isLoading: isCreating }] = useInsertLoanMutation();
   const [updateLoan, { isLoading: isUpdating }] = useUpdateLoanMutation();
@@ -90,19 +113,19 @@ const LoanTable = () => {
     }
   }, [error, isError, isLoading, meta.count]);
 
-  const summary = useMemo(
-    () => ({
-      totalLoanTaken: meta.totalLoanTaken || 0,
-      totalLoanPaid: meta.totalLoanPaid ?? meta.totalLoanGiven ?? 0,
-      netBalance: meta.netBalance || 0,
-    }),
-    [meta],
-  );
+  const toSummary = (m) => ({
+    totalPayable: m.totalPayable || 0,
+    totalReceivable: m.totalReceivable || 0,
+    netPosition: m.netPosition || 0,
+    payableCount: m.payableCount || 0,
+    receivableCount: m.receivableCount || 0,
+  });
+  const summary = useMemo(() => toSummary(meta), [meta]);
 
   useEffect(() => {
     setCurrentPage(1);
     setStartPage(1);
-  }, [debouncedSearchTerm, startDate, endDate]);
+  }, [debouncedSearchTerm, startDate, endDate, balanceStatus]);
 
   const dateRangeLabel = useMemo(() => {
     if (startDate && endDate) return `${startDate} to ${endDate}`;
@@ -111,14 +134,9 @@ const LoanTable = () => {
     return "All Data";
   }, [startDate, endDate]);
 
-  const exportSummary = useMemo(
-    () => ({
-      totalLoanTaken: exportMeta.totalLoanTaken || 0,
-      totalLoanPaid: exportMeta.totalLoanPaid ?? exportMeta.totalLoanGiven ?? 0,
-      netBalance: exportMeta.netBalance || 0,
-    }),
-    [exportMeta],
-  );
+  const exportSummary = useMemo(() => toSummary(exportMeta), [exportMeta]);
+  const netPositionLabel = (value) =>
+    value < 0 ? "Net Payable" : value > 0 ? "Net Receivable" : "Net Position";
 
   const escapeHtml = (value) =>
     String(value ?? "")
@@ -128,11 +146,13 @@ const LoanTable = () => {
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#039;");
 
-  const getExportCellValue = (row, key) => {
-    if (["totalLoanTaken", "totalLoanPaid", "netBalance"].includes(key)) {
-      return Number(row[key] || 0);
+  const getExportCellValue = (row, column) => {
+    if (column.side) return balanceSide(row[column.key]);
+    if (column.balance) return formatBalance(row[column.key]);
+    if (["periodCashIn", "periodCashOut"].includes(column.key)) {
+      return Number(row[column.key] || 0);
     }
-    return row[key] || "";
+    return row[column.key] || "";
   };
 
   const getExportRows = () =>
@@ -140,7 +160,7 @@ const LoanTable = () => {
       EXPORT_COLUMNS.reduce(
         (acc, column) => ({
           ...acc,
-          [column.label]: getExportCellValue(row, column.key),
+          [column.label]: getExportCellValue(row, column),
         }),
         {},
       ),
@@ -166,9 +186,12 @@ const LoanTable = () => {
       const worksheetRows = [
         { Field: "Report", Value: "Lender History" },
         { Field: "Date Range", Value: dateRangeLabel },
-        { Field: "Total Loan নিয়েছি", Value: exportSummary.totalLoanTaken },
-        { Field: "Total পরিশোধ", Value: exportSummary.totalLoanPaid },
-        { Field: "কত পাবে", Value: exportSummary.netBalance },
+        { Field: "Total Payable (We Owe)", Value: exportSummary.totalPayable },
+        { Field: "Total Receivable (Owed to Us)", Value: exportSummary.totalReceivable },
+        {
+          Field: netPositionLabel(exportSummary.netPosition),
+          Value: Math.abs(exportSummary.netPosition),
+        },
         {},
         ...getExportRows(),
       ];
@@ -195,16 +218,20 @@ const LoanTable = () => {
       doc.text("Lender History", 14, 16);
       doc.setFontSize(10);
       doc.text(`Date Range: ${dateRangeLabel}`, 14, 23);
-      doc.text(`Total Loan: ${formatAmount(exportSummary.totalLoanTaken)}`, 14, 30);
-      doc.text(`Total Paid: ${formatAmount(exportSummary.totalLoanPaid)}`, 82, 30);
-      doc.text(`Net Balance: ${formatAmount(exportSummary.netBalance)}`, 145, 30);
+      doc.text(`Total Payable: ${formatAmount(exportSummary.totalPayable)}`, 14, 30);
+      doc.text(`Total Receivable: ${formatAmount(exportSummary.totalReceivable)}`, 82, 30);
+      doc.text(
+        `Net ${exportSummary.netPosition < 0 ? "Payable" : "Receivable"}: ${formatAmount(Math.abs(exportSummary.netPosition))}`,
+        160,
+        30,
+      );
 
       autoTable(doc, {
         startY: 38,
         head: [EXPORT_COLUMNS.map((column) => column.label)],
         body: exportRows.map((row) =>
           EXPORT_COLUMNS.map((column) => {
-            const value = getExportCellValue(row, column.key);
+            const value = getExportCellValue(row, column);
             return typeof value === "number" ? formatAmount(value) : value;
           }),
         ),
@@ -229,7 +256,7 @@ const LoanTable = () => {
         (row) => `
           <tr>
             ${EXPORT_COLUMNS.map((column) => {
-              const value = getExportCellValue(row, column.key);
+              const value = getExportCellValue(row, column);
               return `<td>${escapeHtml(
                 typeof value === "number" ? formatAmount(value) : value,
               )}</td>`;
@@ -267,9 +294,9 @@ const LoanTable = () => {
           <h1>Lender History</h1>
           <p class="muted">Date Range: ${escapeHtml(dateRangeLabel)}</p>
           <div class="summary">
-            <div><span>Total Loan নিয়েছি</span><strong>${escapeHtml(formatAmount(exportSummary.totalLoanTaken))}</strong></div>
-            <div><span>Total পরিশোধ</span><strong>${escapeHtml(formatAmount(exportSummary.totalLoanPaid))}</strong></div>
-            <div><span>কত পাবে</span><strong>${escapeHtml(formatAmount(exportSummary.netBalance))}</strong></div>
+            <div><span>Total Payable (We Owe)</span><strong>${escapeHtml(formatAmount(exportSummary.totalPayable))}</strong></div>
+            <div><span>Total Receivable (Owed to Us)</span><strong>${escapeHtml(formatAmount(exportSummary.totalReceivable))}</strong></div>
+            <div><span>${escapeHtml(netPositionLabel(exportSummary.netPosition))}</span><strong>${escapeHtml(formatAmount(Math.abs(exportSummary.netPosition)))}</strong></div>
           </div>
           <table>
             <thead><tr>${headerMarkup}</tr></thead>
@@ -360,16 +387,23 @@ const LoanTable = () => {
     >
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full mb-6">
         <SummaryCard
-          label="Total Loan নিয়েছি"
-          value={summary.totalLoanTaken}
+          label="Total Payable (We Owe)"
+          value={summary.totalPayable}
+          hint={`${summary.payableCount} parties`}
+          tone="rose"
+        />
+        <SummaryCard
+          label="Total Receivable (Owed to Us)"
+          value={summary.totalReceivable}
+          hint={`${summary.receivableCount} parties`}
           tone="emerald"
         />
         <SummaryCard
-          label="Total পরিশোধ"
-          value={summary.totalLoanPaid}
-          tone="rose"
+          label={netPositionLabel(summary.netPosition)}
+          value={Math.abs(summary.netPosition)}
+          hint="Receivable − Payable"
+          tone={summary.netPosition < 0 ? "rose" : "indigo"}
         />
-        <SummaryCard label="কত পাবে" value={summary.netBalance} tone="indigo" />
       </div>
 
       <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
@@ -431,9 +465,26 @@ const LoanTable = () => {
             className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white hover:bg-indigo-700"
           >
             <Plus size={18} />
-            Add Lender
+            Add Loan Party
           </button>
         </div>
+      </div>
+
+      <div className="mt-5 flex flex-wrap gap-2">
+        {BALANCE_TABS.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => setBalanceStatus(tab.key)}
+            className={`rounded-xl border px-4 py-2 text-sm font-semibold transition ${
+              balanceStatus === tab.key
+                ? "border-indigo-600 bg-indigo-600 text-white"
+                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200">
@@ -443,17 +494,20 @@ const LoanTable = () => {
               <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
                 Name
               </th>
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
-                Loan নিয়েছি
+              <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-600">
+                Opening Balance<span className="block text-[10px] font-normal normal-case tracking-normal text-slate-400">Before period</span>
+              </th>
+              <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-600">
+                Received<span className="block text-[10px] font-normal normal-case tracking-normal text-slate-400">Loan taken / recovered</span>
+              </th>
+              <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-600">
+                Paid<span className="block text-[10px] font-normal normal-case tracking-normal text-slate-400">Repaid / loan given</span>
+              </th>
+              <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-600">
+                Closing Balance
               </th>
               <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
-                পরিশোধ
-              </th>
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
-                কত পাবে
-              </th>
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
-                Status
+                Position
               </th>
               <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-600">
                 Actions
@@ -483,19 +537,31 @@ const LoanTable = () => {
                     </span>
                   </Link>
                 </td>
-                <td className="px-5 py-4 text-sm tabular-nums text-slate-700">
-                  {formatAmount(item.totalLoanTaken)}
+                <td className="px-5 py-4 text-right text-sm tabular-nums text-slate-500">
+                  {formatBalance(item.openingBalance)}
                 </td>
-                <td className="px-5 py-4 text-sm tabular-nums text-slate-700">
-                  {formatAmount(item.totalLoanPaid)}
+                <td className="px-5 py-4 text-right text-sm tabular-nums text-slate-700">
+                  {formatAmount(item.periodCashIn)}
                 </td>
-                <td className="px-5 py-4 text-sm font-semibold tabular-nums text-slate-900">
-                  {formatAmount(item.netBalance)}
+                <td className="px-5 py-4 text-right text-sm tabular-nums text-slate-700">
+                  {formatAmount(item.periodCashOut)}
+                </td>
+                <td
+                  className={`px-5 py-4 text-right text-sm font-semibold tabular-nums ${
+                    item.closingBalance > 0
+                      ? "text-rose-600"
+                      : item.closingBalance < 0
+                        ? "text-emerald-600"
+                        : "text-slate-400"
+                  }`}
+                >
+                  {formatAmount(Math.abs(item.closingBalance || 0))}
                 </td>
                 <td className="px-5 py-4">
-                  <span className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
-                    {item.status || "Active"}
-                  </span>
+                  <BalanceBadge value={item.closingBalance} />
+                  {item.status === "Inactive" && (
+                    <span className="ml-2 text-xs text-slate-400">Inactive</span>
+                  )}
                 </td>
                 <td className="px-5 py-4">
                   <div className="flex justify-end gap-2">
@@ -520,7 +586,7 @@ const LoanTable = () => {
             {!isLoading && rows.length === 0 && (
               <tr>
                 <td
-                  colSpan={6}
+                  colSpan={7}
                   className="px-6 py-10 text-center text-sm text-slate-500"
                 >
                   No loan data found
@@ -575,7 +641,7 @@ const LoanTable = () => {
       <Modal
         isOpen={isModalOpen}
         onClose={closeModal}
-        title={editingLoan ? "Edit Lender" : "Add Lender"}
+        title={editingLoan ? "Edit Loan Party" : "Add Loan Party"}
         maxWidth="max-w-lg"
       >
         <form onSubmit={handleSave} className="space-y-4">
@@ -587,7 +653,7 @@ const LoanTable = () => {
               value={form.name}
               onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
               className="h-11 bg-white w-full rounded-xl border border-slate-200 px-3 text-slate-900 outline-none focus:border-indigo-200 focus:ring-2 focus:ring-indigo-500/20"
-              placeholder="Loan person name"
+              placeholder="Party you borrow from or lend to"
             />
           </div>
           <div>
@@ -638,7 +704,22 @@ const LoanTable = () => {
   );
 };
 
-const SummaryCard = ({ label, value, tone }) => {
+const BalanceBadge = ({ value }) => {
+  const n = Number(value || 0);
+  const cls =
+    n > 0
+      ? "border-rose-200 bg-rose-50 text-rose-700"
+      : n < 0
+        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+        : "border-slate-200 bg-slate-50 text-slate-500";
+  return (
+    <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${cls}`}>
+      {balanceSide(n)}
+    </span>
+  );
+};
+
+const SummaryCard = ({ label, value, hint, tone }) => {
   const toneClass = {
     emerald: "text-emerald-600 bg-emerald-50 border-emerald-100",
     rose: "text-rose-600 bg-rose-50 border-rose-100",
@@ -653,6 +734,7 @@ const SummaryCard = ({ label, value, tone }) => {
           <p className="mt-2 text-2xl font-semibold text-slate-900 tabular-nums">
             {formatAmount(value)}
           </p>
+          {hint && <p className="mt-1 text-xs text-slate-400">{hint}</p>}
         </div>
         <div
           className={`h-10 w-10 rounded-xl border flex items-center justify-center ${toneClass}`}

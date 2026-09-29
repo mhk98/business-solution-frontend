@@ -13,7 +13,7 @@ import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 import Modal from "../common/Modal";
 import DateRangeFilter from "../common/DateRangeFilter";
 
-const STATUS_OPTIONS = ["Pending", "Approval Pending", "Return Request"].map(
+const STATUS_OPTIONS = ["Pending", "Return Request"].map(
   (status) => ({ value: status, label: status }),
 );
 

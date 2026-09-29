@@ -109,6 +109,9 @@ const renderVoucherPdfFromCanvas = async ({
   refNo,
   voucherTitle,
   isCashOut,
+  typeLabel,
+  amountLabel = "Paid Amount",
+  discountText,
   date,
   detailRows,
   amount,
@@ -228,7 +231,7 @@ const renderVoucherPdfFromCanvas = async ({
   ctx.textAlign = "center";
   setFont(14, 900);
   ctx.fillText(
-    isCashOut ? "CASH OUT" : "CASH IN",
+    typeLabel || (isCashOut ? "CASH OUT" : "CASH IN"),
     right - typeBoxWidth / 2,
     y + 31,
   );
@@ -287,7 +290,14 @@ const renderVoucherPdfFromCanvas = async ({
   ctx.strokeRect(left, y, tableWidth, 58);
   ctx.fillStyle = "#64748b";
   setFont(15, 700);
-  ctx.fillText("Paid Amount", left + 14, y + 35);
+  if (discountText) {
+    ctx.fillText(amountLabel, left + 14, y + 26);
+    ctx.fillStyle = "#b45309";
+    setFont(12, 700);
+    ctx.fillText(discountText, left + 14, y + 45);
+  } else {
+    ctx.fillText(amountLabel, left + 14, y + 35);
+  }
   ctx.fillStyle = "#111827";
   ctx.textAlign = "right";
   setFont(25, 900);
@@ -411,6 +421,10 @@ const CashInOutTable = () => {
   const [isModalOpen1, setIsModalOpen1] = useState(false); // add
   const [, setIsModalOpen2] = useState(false); // delete/note
   const [isModalOpen3, setIsModalOpen3] = useState(false); // delete/note
+  // Supplier discount (non-cash) is only offered on a supplier Cash Out.
+  const isSupplierParty = (value) =>
+    value?.partyType === "Supplier" &&
+    String(value?.supplierId || "").trim() !== "";
   const [currentProduct, setCurrentProduct] = useState(null);
   const [filterCategory, setFilterCategory] = useState("");
   const [filterLoanId, setFilterLoanId] = useState("");
@@ -797,7 +811,7 @@ const CashInOutTable = () => {
 
   const paymentStatusOptions = useMemo(
     () =>
-      ["CashIn", "CashOut"].map((status) => ({
+      ["CashIn", "CashOut", "Discount"].map((status) => ({
         value: status,
         label: status,
       })),
@@ -989,6 +1003,7 @@ const CashInOutTable = () => {
       paymentMode: rp.paymentMode ?? "",
       paymentStatus: rp.paymentStatus ?? "",
       amount: rp.amount ?? "",
+      discountAmount: Number(rp.discountAmount || 0) || "",
       bankName: rp.bankName ?? "",
       bankAccount: rp.bankAccount ?? "",
       partyType: getPartyTypeFromRow(rp),
@@ -1029,6 +1044,7 @@ const CashInOutTable = () => {
       paymentMode: rp.paymentMode ?? "",
       paymentStatus: rp.paymentStatus ?? "",
       amount: rp.amount ?? "",
+      discountAmount: Number(rp.discountAmount || 0) || "",
       bankName: rp.bankName ?? "",
       partyType: getPartyTypeFromRow(rp),
       supplierId: rp.supplierId ?? "",
@@ -1175,7 +1191,14 @@ const CashInOutTable = () => {
         "receiverName",
         currentProduct.receiverName?.trim() || "",
       );
-      formData.append("amount", String(Number(currentProduct.amount)));
+      formData.append("amount", String(Number(currentProduct.amount || 0)));
+      formData.append(
+        "discountAmount",
+        ["CashOut", "Discount"].includes(currentProduct.paymentStatus) &&
+          isSupplierParty(currentProduct)
+          ? String(Number(currentProduct.discountAmount || 0))
+          : "0",
+      );
       if (currentProduct.file) formData.append("file", currentProduct.file);
 
       const res = await updateCashInOut({ id: rowId, data: formData }).unwrap();
@@ -1343,7 +1366,12 @@ const CashInOutTable = () => {
     e.preventDefault();
 
     // Ensure required fields are filled
-    if (!createProduct.amount) return toast.error("Amount is required!");
+    const createDiscount = isSupplierParty(createProduct)
+      ? Number(createProduct.discountAmount || 0)
+      : 0;
+    if (createDiscount < 0) return toast.error("Discount must be 0 or more");
+    if (!(Number(createProduct.amount) > 0) && !(createDiscount > 0))
+      return toast.error("Amount or Discount is required!");
     if (!createProduct.paymentMode)
       return toast.error("Payment Mode is required!");
 
@@ -1393,6 +1421,7 @@ const CashInOutTable = () => {
       formData.append("voucherPrefix", "KM-");
       formData.append("paymentMode", createProduct.paymentMode);
       formData.append("paymentStatus", "CashOut");
+      formData.append("discountAmount", String(createDiscount));
       formData.append(
         "receiverName",
         createProduct.receiverName?.trim() || "",
@@ -1418,7 +1447,7 @@ const CashInOutTable = () => {
       formData.append("categoryId", finalCategoryId);
       formData.append("remarks", createProduct.remarks?.trim() || "");
       formData.append("refNo", createProduct.refNo?.trim() || "");
-      formData.append("amount", String(Number(createProduct.amount)));
+      formData.append("amount", String(Number(createProduct.amount || 0)));
       formData.append("bookId", id);
       formData.append("actorRole", role);
       formData.append("partyType", createProduct?.partyType || "");
@@ -1695,7 +1724,7 @@ const CashInOutTable = () => {
     const voucherNo = row?.voucherNo || "-";
     const refNo = row?.refNo || "-";
     const voucherTitle = "Cash Memo";
-    const isCashOut = row?.paymentStatus === "CashOut";
+    const isCashOut = ["CashOut", "Discount"].includes(row?.paymentStatus);
     const rowSupplier = suppliers.find(
       (item) => String(item.Id) === String(row?.supplierId),
     );
@@ -1716,10 +1745,18 @@ const CashInOutTable = () => {
       row?.manufacturer?.name ||
       rowManufacturer?.name ||
       "-";
-    const amount = Number(row?.amount || 0).toLocaleString("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
+    const formatMoney = (value) =>
+      Number(value || 0).toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+    // Supplier discount is non-cash: a discount-only entry prints as a
+    // DISCOUNT memo; a Cash Out with a discount shows it under the paid amount.
+    const discountValue = Number(row?.discountAmount || 0);
+    const isDiscountOnly =
+      row?.paymentStatus === "Discount" ||
+      (Number(row?.amount || 0) === 0 && discountValue > 0);
+    const amount = formatMoney(isDiscountOnly ? discountValue : row?.amount);
     const voucherWidthMm = 5.75 * 25.4;
     const voucherHeightMm = 8.25 * 25.4;
     const safe = escapeVoucherHtml;
@@ -1745,6 +1782,12 @@ const CashInOutTable = () => {
       refNo,
       voucherTitle,
       isCashOut,
+      typeLabel: isDiscountOnly ? "DISCOUNT" : undefined,
+      amountLabel: isDiscountOnly ? "Discount Amount" : "Paid Amount",
+      discountText:
+        !isDiscountOnly && discountValue > 0
+          ? `Discount: ${formatMoney(discountValue)} BDT`
+          : undefined,
       date: row?.date || "-",
       detailRows,
       amount,
@@ -2863,7 +2906,7 @@ const CashInOutTable = () => {
                         rp.loan_person_name ||
                         rp.loanPersonName) && (
                         <div className="text-xs font-medium text-amber-700">
-                          {rp.paymentStatus === "CashOut" ? "To: " : "From: "}
+                          {["CashOut", "Discount"].includes(rp.paymentStatus) ? "To: " : "From: "}
                           {rp.loan?.name ||
                             rp.lender ||
                             rp.loanName ||
@@ -2881,7 +2924,15 @@ const CashInOutTable = () => {
                   </td>
 
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                    {rp.paymentStatus || "---"}
+                    {rp.paymentStatus === "Discount" ||
+                    (Number(rp.amount || 0) === 0 &&
+                      Number(rp.discountAmount || 0) > 0) ? (
+                      <span className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
+                        Discount
+                      </span>
+                    ) : (
+                      rp.paymentStatus || "---"
+                    )}
                   </td>
 
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
@@ -2890,6 +2941,11 @@ const CashInOutTable = () => {
 
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 tabular-nums">
                     {Number(rp.amount || 0).toFixed(2)}
+                    {Number(rp.discountAmount || 0) > 0 && (
+                      <span className="block text-[11px] font-semibold text-amber-600">
+                        Discount: {Number(rp.discountAmount).toFixed(2)}
+                      </span>
+                    )}
                   </td>
 
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
@@ -3410,6 +3466,31 @@ const CashInOutTable = () => {
                 className="h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 bg-white"
               />
             </div>
+            {["CashOut", "Discount"].includes(currentProduct?.paymentStatus) &&
+              isSupplierParty(currentProduct) && (
+                <div>
+                  <label className="block text-sm text-slate-600 mb-1">
+                    Discount
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={currentProduct?.discountAmount ?? ""}
+                    onChange={(e) =>
+                      setCurrentProduct({
+                        ...currentProduct,
+                        discountAmount: e.target.value,
+                      })
+                    }
+                    placeholder="0"
+                    className="h-11 border border-amber-200 rounded-xl px-3 w-full text-slate-900 bg-amber-50/40"
+                  />
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Reduces supplier due. Not counted as Cash Out.
+                  </p>
+                </div>
+              )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -4145,9 +4226,38 @@ const CashInOutTable = () => {
                   setCreateProduct({ ...createProduct, amount: e.target.value })
                 }
                 className="h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 bg-white"
-                required
+                required={
+                  !(
+                    isSupplierParty(createProduct) &&
+                    Number(createProduct.discountAmount) > 0
+                  )
+                }
               />
             </div>
+            {isSupplierParty(createProduct) && (
+              <div>
+                <label className="block text-sm text-slate-600 mb-1">
+                  Discount
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={createProduct.discountAmount ?? ""}
+                  onChange={(e) =>
+                    setCreateProduct({
+                      ...createProduct,
+                      discountAmount: e.target.value,
+                    })
+                  }
+                  placeholder="0"
+                  className="h-11 border border-amber-200 rounded-xl px-3 w-full text-slate-900 bg-amber-50/40"
+                />
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Reduces supplier due. Not counted as Cash Out.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -238,15 +238,16 @@ const SupplierTable = () => {
         const totals = summarySuppliers.reduce(
           (acc, item) => {
             acc.totalPaid += Number(item.totalPaid || 0);
+            acc.totalDiscount += Number(item.totalDiscount || 0);
             acc.totalAdvance += Number(item.totalAdvance || 0);
             acc.totalDue += Number(item.totalDue ?? item.totalUnpaid ?? 0);
             return acc;
           },
-          { totalPaid: 0, totalAdvance: 0, totalDue: 0 },
+          { totalPaid: 0, totalDiscount: 0, totalAdvance: 0, totalDue: 0 },
         );
 
         return (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 w-full mb-6">
             {/* Total Paid */}
             <div className="group relative overflow-hidden rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm transition hover:shadow-md">
               <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition bg-gradient-to-br from-emerald-50/70 to-transparent" />
@@ -272,6 +273,39 @@ const SupplierTable = () => {
                   >
                     <path d="M12 19V5" />
                     <path d="M5 12l7-7 7 7" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            {/* Total Discount */}
+            <div className="group relative overflow-hidden rounded-2xl border border-amber-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+              <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition bg-gradient-to-br from-amber-50/70 to-transparent" />
+              <div className="relative flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide">
+                    Total Discount
+                  </p>
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    Discount received from suppliers
+                  </p>
+                  <p className="mt-2 text-2xl font-bold text-amber-700 tabular-nums">
+                    {summaryLoading
+                      ? "—"
+                      : `৳${formatAmount(totals.totalDiscount)}`}
+                  </p>
+                </div>
+                <div className="h-10 w-10 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center">
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="h-5 w-5 text-amber-600"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path d="M19 5L5 19" />
+                    <circle cx="6.5" cy="6.5" r="2.5" />
+                    <circle cx="17.5" cy="17.5" r="2.5" />
                   </svg>
                 </div>
               </div>
@@ -401,11 +435,12 @@ const SupplierTable = () => {
 
       {/* List */}
       <div className="mt-6 overflow-x-auto rounded-2xl border border-slate-200">
-        {isLoading && <TableSkeleton rows={8} columns={4} />}
+        {isLoading && <TableSkeleton rows={8} columns={5} />}
         {!isLoading && suppliers.length > 0 && (
-          <table className="min-w-[820px] w-full table-fixed text-sm">
+          <table className="min-w-[970px] w-full table-fixed text-sm">
             <colgroup>
               <col className="w-auto" />
+              <col className="w-[150px]" />
               <col className="w-[150px]" />
               <col className="w-[150px]" />
               <col className="w-[150px]" />
@@ -418,6 +453,9 @@ const SupplierTable = () => {
                 </th>
                 <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">
                   Paid
+                </th>
+                <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">
+                  Discount
                 </th>
                 <th className="px-5 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">
                   Advance
@@ -447,6 +485,9 @@ const SupplierTable = () => {
                   </td>
                   <td className="px-5 py-4 text-right font-semibold tabular-nums text-emerald-600">
                     ৳{formatAmount(item.totalPaid)}
+                  </td>
+                  <td className="px-5 py-4 text-right font-semibold tabular-nums text-amber-600">
+                    ৳{formatAmount(item.totalDiscount)}
                   </td>
                   <td className="px-5 py-4 text-right font-semibold tabular-nums text-sky-600">
                     ৳{formatAmount(getAdvanceAmount(item))}

@@ -172,6 +172,7 @@ export const useBookStatementExport = () => {
         books: booksForPdf,
         assetsSummary: statementAssetsSummary || null,
         paymentModeSummary: statementPaymentModeSummary || null,
+        courierBalance: statementInventoryStockReport?.courierBalance || null,
         inventoryStockReport,
         itemFactoryStock:
           statementInventoryStockReport?.itemFactoryStock || null,

@@ -350,6 +350,14 @@ const PACKAGING_STOCK_POOLS = [
 // Courier Product Stock is summarised one row per status over the filter's
 // date range: তারিখ shows the range and পরিমান = that status's range total.
 // শুরু স্টক / সমাপনী স্টক / স্টক পার্থক্য are intentionally omitted.
+// Courier Balance entries dated inside the report range.
+const COURIER_BALANCE_COLUMNS = [
+  { key: "sl", label: "#", widthPct: 6 },
+  { key: "date", label: "তারিখ", widthPct: 22 },
+  { key: "description", label: "বিবরণ", widthPct: 42 },
+  { key: "amount", label: "পরিমান (টাকা)", widthPct: 30, isAmount: true },
+];
+
 const COURIER_PRODUCT_STOCK_COLUMNS = [
   { key: "sl", label: "#", widthPct: 5 },
   { key: "date", label: "তারিখ", widthPct: 33 },
@@ -443,6 +451,12 @@ const GRAND_TOTAL_COLUMNS = [
 ];
 
 const PAYABLE_TOTAL_COLUMNS = GRAND_TOTAL_COLUMNS;
+
+// দেনা tables: the whole amount column (header, rows, total) reads red.
+const DEBT_COLUMNS = GRAND_TOTAL_COLUMNS.map((column) =>
+  column.isAmount ? { ...column, tone: "debit" } : column,
+);
+
 
 // Net cash per payment mode (Cash / Bank / …). Only the live, filter-
 // independent balance (`current`) is shown as পরিমান (টাকা) — the date-scoped
@@ -760,10 +774,11 @@ const buildCell = (
   positive = false,
 ) => {
   const classes = [];
+  const cellTone = tone ?? column.tone;
   if (column.isAmount) {
     classes.push("amount");
-    if (tone === "credit") classes.push("amount-credit");
-    if (tone === "debit") classes.push("amount-debit");
+    if (cellTone === "credit") classes.push("amount-credit");
+    if (cellTone === "debit") classes.push("amount-debit");
   }
   if (column.isQuantity) classes.push("quantity");
   if (column.isAmount || column.isQuantity) {
@@ -844,7 +859,7 @@ const buildLedgerFooter = (
     return `<tfoot>
       <tr${lossClass}>
         <td colspan="${columns.length - 1}">${escapeHtml(totalLabel)}</td>
-        <td class="amount${isNegativeValue(total) ? " negative" : ""}">${formatAmount(total)}</td>
+        <td class="amount${isNegativeValue(total) ? " negative" : ""}${totalTone === "debit" ? " amount-debit" : ""}">${formatAmount(total)}</td>
       </tr>
     </tfoot>`;
   }
@@ -1070,20 +1085,20 @@ const normalizeCourierProductStockRows = (courierProductStock, periodLabel) => {
     periodLabel ||
     (fromDate || toDate ? formatDateRangeLabel(fromDate, toDate) : "-");
 
+  // Each courier stock entry is a snapshot: the row shows the balance as of
+  // the period's end date (the latest entry on or before it), not a sum of
+  // the period's entries — so the date column is the filter's end date.
+  const asOfLabel = toDate ? formatReadableDate(toDate) : rangeLabel;
   const normalizedRows = rows.map((row) => {
     const openingStock = Number(row.openingAmount || 0);
-    const periodAmount = Number(row.periodAmount || 0);
-    const closingStock =
-      row.endingAmount != null
-        ? Number(row.endingAmount)
-        : openingStock + periodAmount;
+    const closingStock = Number(row.endingAmount ?? row.periodAmount ?? 0);
     return {
-      date: rangeLabel,
+      date: asOfLabel,
       status: row.status || "-",
-      amount: periodAmount,
+      amount: closingStock,
       openingStock,
       closingStock,
-      stockDiff: periodAmount,
+      stockDiff: closingStock - openingStock,
     };
   });
 
@@ -1098,7 +1113,7 @@ const normalizeCourierProductStockRows = (courierProductStock, periodLabel) => {
       amount: sum("amount"),
       openingStock: sum("openingStock"),
       closingStock: sum("closingStock"),
-      stockDiff: sum("amount"),
+      stockDiff: sum("stockDiff"),
     },
   ];
 };
@@ -2488,6 +2503,35 @@ const appendProfitLossSection = async (
   });
 };
 
+// Courier Balance entries inside the filter range and their total — shown
+// right after the মোট দেনা summary.
+const appendCourierBalanceSection = async (
+  doc,
+  html2canvas,
+  cursor,
+  { courierBalance, regularFontDataUrl, boldFontDataUrl },
+) => {
+  if (!courierBalance) return;
+  const rows = (courierBalance.data || []).map((row) => ({
+    date: formatReadableDate(row.date) || "-",
+    description: row.note || "-",
+    amount: Number(row.amount || 0),
+  }));
+
+  await placeLedgerSection(doc, html2canvas, cursor, {
+    title: "কুরিয়ার ব্যালেন্স",
+    rows,
+    totalLabel: "মোট কুরিয়ার ব্যালেন্স",
+    total: Number(
+      courierBalance.meta?.totalAmount ??
+        rows.reduce((sum, row) => sum + row.amount, 0),
+    ),
+    columns: COURIER_BALANCE_COLUMNS,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+};
+
 const appendPaymentModeSection = async (
   doc,
   html2canvas,
@@ -2829,6 +2873,92 @@ const appendEndingCashSummarySection = async (
   });
 };
 
+// Who owes the company (প্রাপ্য) and whom the company owes (দেনা), per
+// category — one দেনা and one প্রাপ্য section as of the opening date, then the
+// same pair as of the ending date. Totals equal the প্রাপ্য / দেনা rows of the
+// opening and ending summaries above (same report metas).
+const appendReceivablePayableBalanceSection = async (
+  doc,
+  html2canvas,
+  cursor,
+  {
+    inventoryStockReport,
+    salesDue,
+    salaryAdvance,
+    supplierReceivable,
+    dollarSupplierReceivable,
+    manufacturerReceivable,
+    packagingManufacturerReceivable,
+    lenderReceivable,
+    pendingPayrollSalary,
+    manufacturerDue,
+    packagingManufacturerDue,
+    supplierDue,
+    dollarSupplierDue,
+    lenderPayable,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  },
+) => {
+  const receivableSources = [
+    ["সেলস বাকি", salesDue],
+    ["বেতন অগ্রিম", salaryAdvance],
+    ["কোম্পানি পাবে (সাপ্লাইয়ার)", supplierReceivable],
+    ["কোম্পানি পাবে (ডলার সাপ্লাইয়ার)", dollarSupplierReceivable],
+    ["কোম্পানি পাবে (ম্যানুফ্যাকচার)", manufacturerReceivable],
+    [
+      "কোম্পানি পাবে (প্যাকেজিং ম্যানুফ্যাকচার)",
+      packagingManufacturerReceivable,
+    ],
+    ["কোম্পানি পাবে (লেন্ডার)", lenderReceivable],
+  ];
+  const payableSources = [
+    ["পেন্ডিং বেতন", pendingPayrollSalary],
+    ["কোম্পানির কাছে পাবে (ম্যানুফ্যাকচার)", manufacturerDue],
+    [
+      "কোম্পানির কাছে পাবে (প্যাকেজিং ম্যানুফ্যাকচার)",
+      packagingManufacturerDue,
+    ],
+    ["কোম্পানির কাছে পাবে (সাপ্লাইয়ার)", supplierDue],
+    ["কোম্পানির কাছে পাবে (ডলার সাপ্লাইয়ার)", dollarSupplierDue],
+    ["কোম্পানির কাছে পাবে (লেন্ডার)", lenderPayable],
+  ];
+
+  const periods = [
+    {
+      metaKey: "totalOpeningBalance",
+      dateLabel: formatOpeningBalanceDateLabel(inventoryStockReport?.meta?.from),
+    },
+    {
+      metaKey: "totalEndingBalance",
+      dateLabel: formatEndingBalanceDateLabel(inventoryStockReport?.meta?.to),
+    },
+  ];
+
+  for (const { metaKey, dateLabel } of periods) {
+    const prefix = dateLabel ? `${dateLabel} পর্যন্ত ` : "";
+    for (const [title, totalLabel, sources, isDebt] of [
+      ["দেনা — কোম্পানির কাছে যারা পাবে", "মোট দেনা", payableSources, true],
+      ["প্রাপ্য — কোম্পানি যাদের কাছে পাবে", "মোট প্রাপ্য", receivableSources, false],
+    ]) {
+      const rows = sources.map(([description, report]) => ({
+        description,
+        amount: Number(report?.meta?.[metaKey] || 0),
+      }));
+      await placeLedgerSection(doc, html2canvas, cursor, {
+        title: `${prefix}${title}`,
+        rows,
+        totalLabel,
+        total: rows.reduce((sum, row) => sum + row.amount, 0),
+        totalTone: isDebt ? "debit" : undefined,
+        columns: isDebt ? DEBT_COLUMNS : GRAND_TOTAL_COLUMNS,
+        regularFontDataUrl,
+        boldFontDataUrl,
+      });
+    }
+  }
+};
+
 // Compare the same dated balances shown in the opening and ending summaries.
 const appendCashStockComparisonSection = async (
   doc,
@@ -2954,6 +3084,7 @@ export const generateBookStatementPdf = async ({
   directorInvestment = null,
   assetsSummary = null,
   paymentModeSummary = null,
+  courierBalance = null,
 }) => {
   const { jsPDF } = await import("jspdf");
   const html2canvas = (await import("html2canvas")).default;
@@ -3021,6 +3152,25 @@ export const generateBookStatementPdf = async ({
     itemFactoryStock,
     packagingStock,
     courierProductStock,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
+  await appendReceivablePayableBalanceSection(doc, html2canvas, cursor, {
+    inventoryStockReport,
+    salesDue,
+    salaryAdvance,
+    supplierReceivable,
+    dollarSupplierReceivable,
+    manufacturerReceivable,
+    packagingManufacturerReceivable,
+    lenderReceivable,
+    pendingPayrollSalary,
+    manufacturerDue,
+    packagingManufacturerDue,
+    supplierDue,
+    dollarSupplierDue,
+    lenderPayable,
     regularFontDataUrl,
     boldFontDataUrl,
   });
@@ -3230,6 +3380,12 @@ export const generateBookStatementPdf = async ({
     supplierDue,
     dollarSupplierDue,
     lenderPayable,
+    regularFontDataUrl,
+    boldFontDataUrl,
+  });
+
+  await appendCourierBalanceSection(doc, html2canvas, cursor, {
+    courierBalance,
     regularFontDataUrl,
     boldFontDataUrl,
   });

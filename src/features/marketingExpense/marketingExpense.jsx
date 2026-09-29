@@ -106,10 +106,14 @@ export const marketingExpenseApi = createApi({
     }),
 
     getMarketingExpenseTotalsByBook: build.query({
-      query: (bookIds) => ({
-        url: "/marketing-expense/totals-by-book",
-        params: { bookIds: (bookIds || []).join(",") },
-      }),
+      query: ({ bookIds, from, to } = {}) => {
+        const params = { bookIds: (bookIds || []).join(","), from, to };
+        Object.keys(params).forEach((k) => {
+          if (params[k] === undefined || params[k] === null || params[k] === "")
+            delete params[k];
+        });
+        return { url: "/marketing-expense/totals-by-book", params };
+      },
       providesTags: ["marketingExpense"],
       refetchOnMountOrArgChange: true,
     }),

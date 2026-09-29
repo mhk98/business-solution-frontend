@@ -1,11 +1,12 @@
 import { motion } from "framer-motion";
-import { ShoppingBasket } from "lucide-react";
+import { BadgePercent, ShoppingBasket, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import Select from "react-select";
 
 import { useGetAllSupplierWithoutQueryQuery } from "../../features/supplier/supplier";
 import Modal from "../common/Modal";
+import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 import DateRangeFilter from "../common/DateRangeFilter";
 import { useGetAllBookWithoutQueryQuery } from "../../features/book/book";
 import {
@@ -43,6 +44,15 @@ const SupplierHistoryTable = () => {
   });
 
   const [rows, setRows] = useState([]);
+
+  // Supplier discount: reduces this supplier's due without any Book entry.
+  const emptyDiscount = {
+    date: new Date().toISOString().slice(0, 10),
+    amount: "",
+  };
+  const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
+  const [discountForm, setDiscountForm] = useState(emptyDiscount);
+  const [isSavingDiscount, setIsSavingDiscount] = useState(false);
 
 
   // ✅ Filters: start/end + product NAME
@@ -294,8 +304,53 @@ const SupplierHistoryTable = () => {
     }
   };
 
+  const handleSaveDiscount = async (e) => {
+    e.preventDefault();
+    const amount = Number(discountForm.amount);
+    if (!discountForm.date) return toast.error("Please select a date");
+    if (!Number.isFinite(amount) || amount <= 0)
+      return toast.error("Please enter a valid discount amount");
+
+    setIsSavingDiscount(true);
+    try {
+      const res = await insertSupplierHistory({
+        supplierId: Number(id),
+        amount,
+        date: discountForm.date,
+        status: "Discount",
+      }).unwrap();
+      if (res?.success) {
+        toast.success("Discount added!");
+        setIsDiscountModalOpen(false);
+        setDiscountForm(emptyDiscount);
+        refetch?.();
+      } else toast.error(res?.message || "Save failed!");
+    } catch (err) {
+      toast.error(err?.data?.message || "Save failed!");
+    } finally {
+      setIsSavingDiscount(false);
+    }
+  };
+
   // ✅ Delete
   const [deleteSupplierHistory] = useDeleteSupplierHistoryMutation();
+
+  const handleDeleteDiscount = async (rowId) => {
+    const confirmDelete = await requestDeleteConfirmation({
+      message: "Do you want to delete this discount?",
+    });
+    if (!confirmDelete) return;
+
+    try {
+      const res = await deleteSupplierHistory(rowId).unwrap();
+      if (res?.success) {
+        toast.success("Discount deleted!");
+        refetch?.();
+      } else toast.error(res?.message || "Delete failed!");
+    } catch (err) {
+      toast.error(err?.data?.message || "Delete failed!");
+    }
+  };
 
   const handleDeleteProduct = async (id) => {
     const confirmDelete = await requestDeleteConfirmation({
@@ -408,10 +463,15 @@ const SupplierHistoryTable = () => {
     if (status === "Due") {
       return "bg-rose-50 text-rose-700 border-rose-200";
     }
+    if (status === "Discount") {
+      return "bg-amber-50 text-amber-700 border-amber-200";
+    }
     return "bg-slate-50 text-slate-700 border-slate-200";
   };
 
   const totalPaid = Number(data?.meta?.totalPaid || 0);
+  const totalDiscount = Number(data?.meta?.totalDiscount || 0);
+  const canManageDiscount = role === "superAdmin" || role === "admin";
   const totalAdvance = Number(data?.meta?.totalAdvance ?? data?.meta?.netBalance ?? 0);
   const totalDue = Number(data?.meta?.totalDue ?? data?.meta?.totalUnpaid ?? 0);
 
@@ -422,7 +482,7 @@ const SupplierHistoryTable = () => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
     >
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 w-full">
         {/* Total Paid */}
         <div className="group relative overflow-hidden rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm transition hover:shadow-md">
           <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition bg-gradient-to-br from-emerald-50/70 to-transparent" />
@@ -447,6 +507,25 @@ const SupplierHistoryTable = () => {
                 <path d="M12 19V5" />
                 <path d="M5 12l7-7 7 7" />
               </svg>
+            </div>
+          </div>
+        </div>
+
+        {/* Total Discount */}
+        <div className="group relative overflow-hidden rounded-2xl border border-amber-200 bg-white p-5 shadow-sm transition hover:shadow-md">
+          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition bg-gradient-to-br from-amber-50/70 to-transparent" />
+          <div className="relative flex items-start justify-between">
+            <div>
+              <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide">
+                Total Discount
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-amber-700 tabular-nums">
+                {isLoading ? "—" : totalDiscount.toLocaleString()}
+              </p>
+            </div>
+
+            <div className="h-10 w-10 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center">
+              <BadgePercent size={20} className="text-amber-600" />
             </div>
           </div>
         </div>
@@ -517,7 +596,18 @@ const SupplierHistoryTable = () => {
           Add <Plus size={18} className="ml-2" />
         </button> */}
 
-        <div></div>
+        <div>
+          {canManageDiscount && (
+            <button
+              type="button"
+              onClick={() => setIsDiscountModalOpen(true)}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 text-sm font-semibold text-white hover:bg-amber-600 transition"
+            >
+              <BadgePercent size={18} />
+              Add Discount
+            </button>
+          )}
+        </div>
         <div className="flex items-center justify-between sm:justify-end gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2 shadow-sm">
           <div className="flex items-center gap-2 text-slate-700">
             <ShoppingBasket size={18} className="text-amber-500" />
@@ -619,6 +709,11 @@ const SupplierHistoryTable = () => {
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Payment Status
               </th>
+              {canManageDiscount && (
+                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                  Action
+                </th>
+              )}
               {/* <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Actions
               </th> */}
@@ -821,9 +916,13 @@ const SupplierHistoryTable = () => {
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200 uppercase tracking-tighter">
-                      {rp?.book?.name || t.no_book || "No Book"}
-                    </span>
+                    {paymentStatus === "Discount" ? (
+                      <span className="text-sm text-slate-400">—</span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200 uppercase tracking-tighter">
+                        {rp?.book?.name || t.no_book || "No Book"}
+                      </span>
+                    )}
                   </td>
 
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 tabular-nums">
@@ -839,6 +938,21 @@ const SupplierHistoryTable = () => {
                       {paymentStatus}
                     </span>
                   </td>
+
+                  {canManageDiscount && (
+                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                      {paymentStatus === "Discount" && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteDiscount(rowId)}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 hover:bg-rose-50 transition"
+                          title="Delete discount"
+                        >
+                          <Trash2 size={16} className="text-rose-600" />
+                        </button>
+                      )}
+                    </td>
+                  )}
 
                   {/* <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex items-center gap-2">
@@ -1137,6 +1251,64 @@ const SupplierHistoryTable = () => {
             </button>
           </div>
         </div>
+      </Modal>
+
+      {/* Add Discount Modal */}
+      <Modal
+        isOpen={isDiscountModalOpen}
+        onClose={() => setIsDiscountModalOpen(false)}
+        title="Add Supplier Discount"
+        maxWidth="max-w-md"
+      >
+        <form onSubmit={handleSaveDiscount} className="space-y-4">
+          <p className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+            Discount reduces this supplier's due. No Book entry is created.
+          </p>
+          <div>
+            <label className="mb-1 block text-sm font-semibold text-slate-600">
+              Date
+            </label>
+            <input
+              type="date"
+              value={discountForm.date}
+              onChange={(e) =>
+                setDiscountForm((p) => ({ ...p, date: e.target.value }))
+              }
+              className="h-11 bg-white w-full rounded-xl border border-slate-200 px-3 text-slate-900 outline-none focus:border-indigo-200 focus:ring-2 focus:ring-indigo-500/20"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-semibold text-slate-600">
+              Discount Amount
+            </label>
+            <input
+              type="number"
+              min="1"
+              value={discountForm.amount}
+              onChange={(e) =>
+                setDiscountForm((p) => ({ ...p, amount: e.target.value }))
+              }
+              placeholder="0"
+              className="h-11 bg-white w-full rounded-xl border border-slate-200 px-3 text-slate-900 outline-none focus:border-indigo-200 focus:ring-2 focus:ring-indigo-500/20"
+            />
+          </div>
+          <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
+            <button
+              type="button"
+              onClick={() => setIsDiscountModalOpen(false)}
+              className="h-11 rounded-xl border border-slate-200 px-5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSavingDiscount}
+              className="h-11 rounded-xl bg-amber-500 px-5 text-sm font-semibold text-white hover:bg-amber-600 disabled:opacity-60"
+            >
+              {isSavingDiscount ? "Saving..." : "Save Discount"}
+            </button>
+          </div>
+        </form>
       </Modal>
 
       {/* Note View Modal */}

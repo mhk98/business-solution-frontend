@@ -126,6 +126,18 @@ export const inventoryOverviewApi = baseApi.injectEndpoints({
       ],
     }),
 
+    // Keep the Stock Product quantity as it is now (hand-corrected), making it
+    // the expected quantity instead of rebuilding it from movements.
+    acceptInventoryMismatch: build.mutation({
+      query: (productId) => ({
+        url: `/inventory-master/audit/accept/${productId}`,
+        method: "POST",
+      }),
+      invalidatesTags: [
+        { type: "InventoryOverview", id: "LIST" },
+        { type: "InventoryOverview", id: "AUDIT" },
+      ],
+    }),
     fixInventoryMismatch: build.mutation({
       query: (productId) => ({
         url: `/inventory-master/audit/fix/${productId}`,
@@ -151,5 +163,6 @@ export const {
   useLazyGetInventoryReportsQuery,
   useGetInventoryMismatchAuditQuery,
   useFixInventoryMismatchMutation,
+  useAcceptInventoryMismatchMutation,
   useUpdateInventoryPriceMutation,
 } = inventoryOverviewApi;
