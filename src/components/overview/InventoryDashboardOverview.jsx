@@ -48,12 +48,7 @@ import { useGetOverviewDashboardQuery } from "../../features/overview/overview";
 import { useGetAllSupplierWithoutQueryQuery } from "../../features/supplier/supplier";
 import { useGetAllManufacturerWithoutQueryQuery } from "../../features/manufacturer/manufacturer";
 import { useGetAllPackagingManufacturerWithoutQueryQuery } from "../../features/packagingManufacturer/packagingManufacturer";
-import {
-  useGetStellarAttendanceEmployeesQuery,
-  useGetStellarAttendanceHolidaysQuery,
-  useGetStellarAttendanceLeavesQuery,
-  useGetStellarAttendanceLogsQuery,
-} from "../../features/stellarAttendance/stellarAttendance";
+import { useGetAttendanceDashboardQuery } from "../../features/attendance/attendance";
 import Header from "../common/Header";
 import { useCanUseMasterPermission } from "../../utils/masterPermissions";
 import { useNavigate } from "react-router-dom";
@@ -151,163 +146,6 @@ const buildCalendarWeeks = (baseDate = new Date()) => {
     }),
     days,
   };
-};
-
-const getAttendanceMonthRange = (dateValue = getTodayDate()) => {
-  const date = new Date(`${dateValue}T00:00:00`);
-  if (date.getDate() <= 25) {
-    date.setMonth(date.getMonth() - 1);
-  }
-
-  const startDate = new Date(date.getFullYear(), date.getMonth() - 1, 26);
-  const endDate = new Date(date.getFullYear(), date.getMonth(), 25);
-
-  return {
-    start: dateFromParts(
-      startDate.getFullYear(),
-      startDate.getMonth() + 1,
-      startDate.getDate(),
-    ),
-    end: dateFromParts(
-      endDate.getFullYear(),
-      endDate.getMonth() + 1,
-      endDate.getDate(),
-    ),
-  };
-};
-
-const getDateRangeList = (start, end) => {
-  const dates = [];
-  const cursor = new Date(`${start}T00:00:00`);
-  const endDate = new Date(`${end}T00:00:00`);
-  while (!Number.isNaN(cursor.getTime()) && cursor <= endDate) {
-    dates.push(
-      dateFromParts(
-        cursor.getFullYear(),
-        cursor.getMonth() + 1,
-        cursor.getDate(),
-      ),
-    );
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return dates;
-};
-
-const getOverlapDates = (start, end, range) => {
-  const overlapStart = start > range.start ? start : range.start;
-  const overlapEnd = end < range.end ? end : range.end;
-  if (!overlapStart || !overlapEnd || overlapStart > overlapEnd) return [];
-  return getDateRangeList(overlapStart, overlapEnd);
-};
-
-const isActiveStatus = (value) =>
-  ["active", "approved"].includes(String(value || "").toLowerCase());
-
-const getEmployeeRegistrationId = (employee) =>
-  employee?.employee_id || employee?.employeeCode || "";
-
-const getRegistrationId = (row) =>
-  row.registration_id ||
-  row.registraton_id ||
-  row.registrationId ||
-  row.deviceUserId ||
-  "";
-
-const getLogDate = (row) => row.access_date || row.logDate || row.date || "";
-
-const getHolidayDates = (holidays, range) => {
-  const dates = new Set();
-  holidays.forEach((holiday) => {
-    if (!isActiveStatus(holiday.status)) return;
-    const start = String(holiday.startDate || holiday.holidayDate || "").slice(
-      0,
-      10,
-    );
-    const end = String(holiday.endDate || start).slice(0, 10);
-    getOverlapDates(start, end, range).forEach((date) => dates.add(date));
-  });
-  return dates;
-};
-
-const getWeekdayName = (date) =>
-  new Date(`${date}T00:00:00`).toLocaleDateString("en-US", {
-    weekday: "long",
-  });
-
-const getWeeklyOffDates = (shift, range) => {
-  const weeklyOffDays = Array.isArray(shift?.weeklyOffDays)
-    ? shift.weeklyOffDays.map((item) => String(item).toLowerCase())
-    : [];
-  if (!weeklyOffDays.length) return new Set();
-  return new Set(
-    getDateRangeList(range.start, range.end).filter((date) =>
-      weeklyOffDays.includes(getWeekdayName(date).toLowerCase()),
-    ),
-  );
-};
-
-const countLeaveDates = ({
-  leaveRequests,
-  employeeId,
-  range,
-  excludedDates,
-}) => {
-  const dates = new Set();
-  leaveRequests.forEach((leave) => {
-    if (String(leave.employeeId) !== String(employeeId)) return;
-    if (String(leave.approvalStatus || "").toLowerCase() !== "approved") return;
-    const start = String(leave.startDate || "").slice(0, 10);
-    const end = String(leave.endDate || start).slice(0, 10);
-    getOverlapDates(start, end, range).forEach((date) => {
-      if (!excludedDates.has(date)) dates.add(date);
-    });
-  });
-  return dates.size;
-};
-
-const buildAttendanceRows = ({
-  logs,
-  employees,
-  holidays,
-  leaveRequests,
-  range,
-}) => {
-  const holidayDates = getHolidayDates(holidays, range);
-  const totalDays = getDateRangeList(range.start, range.end).length;
-  const logsByEmployeeAndDate = logs.reduce((acc, log) => {
-    const registrationId = String(getRegistrationId(log));
-    const date = getLogDate(log);
-    if (!registrationId || !date) return acc;
-    if (!acc.has(registrationId)) acc.set(registrationId, new Set());
-    acc.get(registrationId).add(date);
-    return acc;
-  }, new Map());
-
-  return employees
-    .map((employee) => {
-      const registrationId = String(getEmployeeRegistrationId(employee));
-      const weeklyOffDates = getWeeklyOffDates(employee.shift, range);
-      const offDates = new Set([...holidayDates, ...weeklyOffDates]);
-      const workDays = Math.max(0, totalDays - offDates.size);
-      const employeeLogs =
-        logsByEmployeeAndDate.get(registrationId) || new Set();
-      const present = Array.from(employeeLogs).filter(
-        (date) => !offDates.has(date),
-      ).length;
-      const leave = countLeaveDates({
-        leaveRequests,
-        employeeId: employee.Id,
-        range,
-        excludedDates: offDates,
-      });
-      const absent = Math.max(0, workDays - present - leave);
-      const presentPercent = workDays
-        ? Math.round((present / workDays) * 100)
-        : 0;
-
-      return { registrationId, present, absent, presentPercent };
-    })
-    .filter((row) => row.registrationId);
 };
 
 const metricTone = (changePercent) => {
@@ -557,43 +395,9 @@ const InventoryDashboardOverview = () => {
       autoPrint: false,
     });
   const todayDate = useMemo(() => getTodayDate(), []);
-  const attendanceMonthRange = useMemo(
-    () => getAttendanceMonthRange(todayDate),
-    [todayDate],
-  );
-  const attendanceQueryRange = useMemo(() => {
-    const dates = [
-      attendanceMonthRange.start,
-      attendanceMonthRange.end,
-      todayDate,
-    ].sort();
-    return { start: dates[0], end: dates[dates.length - 1] };
-  }, [attendanceMonthRange, todayDate]);
-  const { data: attendanceLogsData } = useGetStellarAttendanceLogsQuery({
-    start_date: attendanceQueryRange.start,
-    end_date: attendanceQueryRange.end,
-    start_time: "00:00:01",
-    end_time: "23:59:59",
-  });
-  const { data: attendanceEmployeesData } =
-    useGetStellarAttendanceEmployeesQuery({
-      page: 1,
-      limit: 1000,
-      status: "Active",
-    });
-  const { data: attendanceHolidaysData } = useGetStellarAttendanceHolidaysQuery(
-    {
-      page: 1,
-      limit: 1000,
-      status: "Active",
-    },
-  );
-  const { data: attendanceLeavesData } = useGetStellarAttendanceLeavesQuery({
-    page: 1,
-    limit: 1000,
-    from: attendanceQueryRange.start,
-    to: attendanceQueryRange.end,
-    approvalStatus: "Approved",
+  // Today's counts from the attendance engine (HRM → Attendance).
+  const { data: attendanceDashboardData } = useGetAttendanceDashboardQuery({
+    date: todayDate,
   });
   const { data: assetStockData } = useGetAllAssetsStockQuery({
     page: 1,
@@ -728,7 +532,10 @@ const InventoryDashboardOverview = () => {
       changePercent: metrics.stockValue?.changePercent,
       icon: Coins,
       color: "#8b5cf6",
-      neutralLabel: "Live stock snapshot",
+      // Same closing "মোট স্টক" as the Book statement, as of the filter's end date.
+      neutralLabel: dashboard.to
+        ? `Closing stock as of ${dashboard.to}`
+        : "Closing stock as of today",
     },
   ];
 
@@ -781,6 +588,9 @@ const InventoryDashboardOverview = () => {
     {
       label: "Net Revenue",
       value: summary.netRevenue,
+      // Sale value of returns already deducted from Net Revenue.
+      subLabel: "Sales Return",
+      subValue: summary.salesReturnSalesAmount,
       icon: WalletCards,
       iconClass: "bg-indigo-50 text-indigo-600 border-indigo-100",
       accentClass: "bg-indigo-500",
@@ -789,6 +599,9 @@ const InventoryDashboardOverview = () => {
     {
       label: "Net Purchase",
       value: summary.netPurchase,
+      // Cost of returned goods already deducted from Net Purchase.
+      subLabel: "Sales Return",
+      subValue: summary.salesReturnPurchaseAmount,
       icon: ReceiptText,
       iconClass: "bg-amber-50 text-amber-600 border-amber-100",
       accentClass: "bg-amber-500",
@@ -842,51 +655,7 @@ const InventoryDashboardOverview = () => {
     netBalance: summary.netCashPosition,
     ...(managementSummary.accounts || {}),
   };
-  const attendanceLogs = attendanceLogsData?.data?.rows || [];
-  const attendanceEmployees = attendanceEmployeesData?.data || [];
-  const attendanceHolidays = attendanceHolidaysData?.data || [];
-  const attendanceLeaveRequests = attendanceLeavesData?.data || [];
-  const attendanceComputedSummary = useMemo(() => {
-    const logsForRange = (range) =>
-      attendanceLogs.filter((log) => {
-        const date = getLogDate(log);
-        return date >= range.start && date <= range.end;
-      });
-    const monthRows = buildAttendanceRows({
-      logs: logsForRange(attendanceMonthRange),
-      employees: attendanceEmployees,
-      holidays: attendanceHolidays,
-      leaveRequests: attendanceLeaveRequests,
-      range: attendanceMonthRange,
-    });
-    const todayRows = buildAttendanceRows({
-      logs: logsForRange({ start: todayDate, end: todayDate }),
-      employees: attendanceEmployees,
-      holidays: attendanceHolidays,
-      leaveRequests: attendanceLeaveRequests,
-      range: { start: todayDate, end: todayDate },
-    });
-
-    return {
-      totalEmployees: monthRows.length,
-      activeEmployees: monthRows.filter((row) => row.presentPercent >= 80)
-        .length,
-      inactiveEmployees: Math.max(
-        monthRows.length -
-          monthRows.filter((row) => row.presentPercent >= 80).length,
-        0,
-      ),
-      presentToday: todayRows.filter((row) => row.present > 0).length,
-      absentToday: todayRows.filter((row) => row.absent > 0).length,
-    };
-  }, [
-    attendanceEmployees,
-    attendanceHolidays,
-    attendanceLeaveRequests,
-    attendanceLogs,
-    attendanceMonthRange,
-    todayDate,
-  ]);
+  const attendanceComputedSummary = attendanceDashboardData?.data || {};
   const apiEmployeeSummary = managementSummary.employees || {};
   const employeeSummary = {
     totalEmployees:
@@ -1029,7 +798,7 @@ const InventoryDashboardOverview = () => {
       centerLabel: "Total Employees",
       icon: Users,
       color: "#f97316",
-      href: "/hrm/attendance-summaries",
+      href: "/hrm/attendance",
       actionLabel: "View attendance",
       chartData: [
         {
@@ -1383,6 +1152,14 @@ const InventoryDashboardOverview = () => {
                           >
                             {isLoading ? "..." : formatCurrency(card.value, 2)}
                           </p>
+                          {card.subLabel && !isLoading && (
+                            <p className="mt-1.5 text-xs font-medium text-slate-500">
+                              {card.subLabel}:{" "}
+                              <span className="font-semibold text-rose-600">
+                                {formatCurrency(card.subValue, 2)}
+                              </span>
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>

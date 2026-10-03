@@ -1,12 +1,17 @@
 import {
+  Bell,
   Building2,
+  CalendarRange,
   CircleDollarSign,
   ClipboardCheck,
   ClipboardList,
   Fingerprint,
   Layers3,
   RefreshCcw,
+  Settings,
   ShieldCheck,
+  SlidersHorizontal,
+  Tags,
   Users2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -54,11 +59,74 @@ const SECTION_ITEMS = [
     icon: Users2,
   },
   {
-    group: "HRM",
+    group: "Attendance",
     label: "Attendance",
     href: "/hrm/attendance",
     match: ["/hrm/attendance"],
     icon: Fingerprint,
+  },
+  {
+    group: "Attendance",
+    label: "Attendance Setup",
+    href: "/hrm/attendance-setup",
+    match: ["/hrm/attendance-setup"],
+    icon: Users2,
+  },
+  {
+    group: "Attendance",
+    label: "Attendance Device",
+    href: "/hrm/attendance-devices",
+    match: ["/hrm/attendance-devices"],
+    icon: Settings,
+  },
+  {
+    group: "Attendance",
+    label: "Shifts",
+    href: "/hrm/shifts",
+    match: ["/hrm/shifts"],
+    icon: ClipboardCheck,
+  },
+  {
+    group: "Attendance",
+    label: "Shift Assignment",
+    href: "/hrm/shift-assignments",
+    match: ["/hrm/shift-assignments"],
+    icon: CalendarRange,
+  },
+  {
+    group: "Attendance",
+    label: "Holidays",
+    href: "/hrm/holidays",
+    match: ["/hrm/holidays"],
+    icon: Bell,
+  },
+  {
+    group: "Attendance",
+    label: "Leave Types",
+    href: "/hrm/leave-types",
+    match: ["/hrm/leave-types"],
+    icon: Tags,
+  },
+  {
+    group: "Attendance",
+    label: "Leave Requests",
+    href: "/hrm/leave-requests",
+    match: ["/hrm/leave-requests"],
+    icon: ClipboardList,
+  },
+  {
+    group: "Attendance",
+    label: "Attendance Correction",
+    href: "/hrm/attendance-regularizations",
+    match: ["/hrm/attendance-regularizations"],
+    icon: RefreshCcw,
+  },
+  {
+    group: "Attendance",
+    label: "Attendance Policy",
+    href: "/hrm/attendance-policy",
+    match: ["/hrm/attendance-policy"],
+    icon: SlidersHorizontal,
   },
   // {
   //   group: "HRM",
@@ -217,7 +285,7 @@ const HrmWorkspace = ({
   }, [pathname]);
   const visibleSectionGroups = useMemo(
     () =>
-      ["HRM", "Payroll"]
+      ["HRM", "Attendance", "Payroll"]
         .map((group) => ({
           group,
           items: visibleSectionItems.filter(

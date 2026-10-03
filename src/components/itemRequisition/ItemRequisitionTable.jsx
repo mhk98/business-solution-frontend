@@ -44,10 +44,28 @@ const createInitialItemRow = () => ({
   quantity: "",
   unit: "Pcs",
   amount: "",
+  othersCost: "",
 });
+
+// Other cost (transport, labour, …) sits on the item's own line: it adds to
+// that line's supplier due but not to the Item Stock unit cost (product cost
+// ÷ qty). With no item at all, the standalone "Others Cost" block saves a line
+// that carries only the other cost.
+const OTHERS_COST = "Others Cost";
+const createInitialOthersCost = () => ({ supplierId: "", amount: "" });
+
+// An untouched item row — skipped on save so a requisition can hold only
+// an Others Cost.
+const isBlankItemRow = (row) =>
+  !row.itemId &&
+  !row.supplierId &&
+  !Number(row.quantity || 0) &&
+  !Number(row.amount || 0) &&
+  !Number(row.othersCost || 0);
 
 const initialForm = {
   items: [createInitialItemRow()],
+  othersCost: createInitialOthersCost(),
   date: new Date().toISOString().slice(0, 10),
   note: "",
   remarks: "",
@@ -318,8 +336,14 @@ const ItemRequisitionTable = () => {
           item: record.item?.name || record.name || "-",
           supplier:
             record.supplier?.name || record.item?.supplier?.name || "N/A",
-          quantity: formatQuantityWithUnit(record.quantity, record.unit),
-          amount: Number(record.amount || 0),
+          quantity:
+            record.entryType === OTHERS_COST
+              ? "—"
+              : formatQuantityWithUnit(record.quantity, record.unit),
+          productCost: Number(record.amount || 0),
+          otherCost: Number(record.othersCost || 0),
+          // Product cost + other cost — what the line owes the supplier.
+          amount: Number(record.amount || 0) + Number(record.othersCost || 0),
           status: record.status || "-",
         })),
         metadata: {
@@ -357,6 +381,7 @@ const ItemRequisitionTable = () => {
   const resetForm = () => {
     setForm({
       items: [createInitialItemRow()],
+      othersCost: createInitialOthersCost(),
       date: new Date().toISOString().slice(0, 10),
       note: "",
       remarks: "",
@@ -369,6 +394,7 @@ const ItemRequisitionTable = () => {
   // are still allowed, but the backend rejects any that would take out more
   // than Item Stock currently holds.
   const isStockUsed = Boolean(editingRecord?.stockUsed);
+  const isEditingOthersCost = editingRecord?.entryType === OTHERS_COST;
 
   const openCreateModal = () => {
     resetForm();
@@ -377,7 +403,23 @@ const ItemRequisitionTable = () => {
 
   const openEditModal = (record) => {
     setEditingRecord(record);
+    if (record.entryType === OTHERS_COST) {
+      setForm({
+        items: [],
+        othersCost: {
+          supplierId: record.supplierId || "",
+          amount: Number(record.othersCost || 0) || record.amount || "",
+        },
+        date: record.date || new Date().toISOString().slice(0, 10),
+        note: record.note || "",
+        remarks: record.remarks || "",
+        file: null,
+      });
+      setIsModalOpen(true);
+      return;
+    }
     setForm({
+      othersCost: createInitialOthersCost(),
       items: [
         {
           id: record.Id,
@@ -386,6 +428,7 @@ const ItemRequisitionTable = () => {
           quantity: record.quantity || "",
           unit: record.unit || "Pcs",
           amount: record.amount || "",
+          othersCost: Number(record.othersCost || 0) || "",
         },
       ],
       date: record.date || new Date().toISOString().slice(0, 10),
@@ -428,6 +471,13 @@ const ItemRequisitionTable = () => {
     });
   };
 
+  const updateOthersCost = (key, value) => {
+    setForm((prev) => ({
+      ...prev,
+      othersCost: { ...(prev?.othersCost || createInitialOthersCost()), [key]: value },
+    }));
+  };
+
   const updateItemRow = (id, key, value) => {
     setForm((prev) => ({
       ...prev,
@@ -450,6 +500,7 @@ const ItemRequisitionTable = () => {
       quantity: Number(record.quantity || 0),
       unit: record.unit || "Pcs",
       amount: Number(record.amount || 0),
+      othersCost: Number(record.othersCost || 0),
       status: record.status || "Pending",
       note: record.note || "—",
     });
@@ -531,27 +582,43 @@ const ItemRequisitionTable = () => {
 
       const boxGap = 6;
       const boxWidth = (contentWidth - boxGap) / 2;
-      drawBox(margin, y, boxWidth, 38, "Requisition Details", [
+      drawBox(margin, y, boxWidth, 45, "Requisition Details", [
         ["Procurement", voucherData.procurement],
         ["Supplier", voucherData.supplier],
         ["Status", voucherData.status],
       ]);
-      drawBox(margin + boxWidth + boxGap, y, boxWidth, 38, "Item Summary", [
+      drawBox(margin + boxWidth + boxGap, y, boxWidth, 45, "Item Summary", [
         ["Item", voucherData.item],
         [
           "Quantity",
           formatQuantityWithUnit(voucherData.quantity, voucherData.unit),
         ],
         [
-          "Amount",
+          "Product Cost",
           `${Number(voucherData.amount || 0).toLocaleString("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })} BDT`,
+        ],
+        [
+          "Other Cost",
+          `${Number(voucherData.othersCost || 0).toLocaleString("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })} BDT`,
+        ],
+        [
+          "Total Amount",
+          `${(
+            Number(voucherData.amount || 0) + Number(voucherData.othersCost || 0)
+          ).toLocaleString("en-US", {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
           })} BDT`,
         ],
       ]);
 
-      y += 48;
+      y += 55;
       const noteHeight = 34;
       pdf.setDrawColor(203, 213, 225);
       pdf.rect(margin, y, contentWidth, noteHeight);
@@ -629,13 +696,59 @@ const ItemRequisitionTable = () => {
   const handleSubmit = async (event) => {
     event.preventDefault();
 
-    if (!form.items || !form.items.length) {
-      toast.error("Please add at least one item");
+    const othersCost = form.othersCost || createInitialOthersCost();
+    const othersCostAmount = Number(othersCost.amount || 0);
+    const hasOthersCost = othersCostAmount > 0 || Boolean(othersCost.supplierId);
+    if (hasOthersCost) {
+      if (!othersCost.supplierId) {
+        toast.error("Please select a supplier for Others Cost");
+        return;
+      }
+      if (othersCostAmount <= 0) {
+        toast.error("Others Cost amount must be greater than 0");
+        return;
+      }
+    }
+
+    if (isEditingOthersCost) {
+      try {
+        const formData = new FormData();
+        formData.append("entryType", OTHERS_COST);
+        formData.append("supplierId", othersCost.supplierId || "");
+        formData.append("othersCost", othersCostAmount);
+        formData.append("date", form.date || "");
+        formData.append("note", form.note || "");
+        formData.append("userId", localStorage.getItem("userId") || "");
+        if (form.file instanceof File) {
+          formData.append("file", form.file);
+        }
+        await updateItemRequisition({
+          id: editingRecord.Id,
+          data: formData,
+        }).unwrap();
+        toast.success("Others Cost updated");
+        closeModal();
+      } catch (error) {
+        toast.error(getErrorMessage(error, "Others Cost save failed"));
+      }
       return;
     }
 
-    for (let i = 0; i < form.items.length; i += 1) {
-      const row = form.items[i];
+    const filledItems = editingRecord
+      ? form.items || []
+      : (form.items || []).filter((row) => !isBlankItemRow(row));
+
+    if (!filledItems.length && !hasOthersCost) {
+      toast.error("Please add at least one item or an Others Cost");
+      return;
+    }
+    if (filledItems.length && hasOthersCost) {
+      toast.error("Item থাকলে Other Cost item-এর সারিতেই দিন");
+      return;
+    }
+
+    for (let i = 0; i < filledItems.length; i += 1) {
+      const row = filledItems[i];
       if (!row.itemId) {
         toast.error(`Please select an item for row ${i + 1}`);
         return;
@@ -654,6 +767,7 @@ const ItemRequisitionTable = () => {
         formData.append("quantity", Number(itemRow.quantity || 0));
         formData.append("unit", itemRow.unit || "Pcs");
         formData.append("amount", Number(itemRow.amount || 0));
+        formData.append("othersCost", Number(itemRow.othersCost || 0));
         formData.append("supplierId", itemRow.supplierId || "");
         formData.append("date", form.date || "");
         formData.append("note", form.note || "");
@@ -669,15 +783,25 @@ const ItemRequisitionTable = () => {
         toast.success("Item requisition updated");
       } else {
         const formData = new FormData();
-        const itemsPayload = form.items.map((row) => ({
+        const itemsPayload = filledItems.map((row) => ({
           itemId: Number(row.itemId),
           supplierId: row.supplierId ? Number(row.supplierId) : null,
           quantity: Number(row.quantity || 0),
           unit: row.unit || "Pcs",
           amount: Number(row.amount || 0),
+          othersCost: Number(row.othersCost || 0),
         }));
 
         formData.append("items", JSON.stringify(itemsPayload));
+        if (hasOthersCost) {
+          formData.append(
+            "othersCost",
+            JSON.stringify({
+              supplierId: Number(othersCost.supplierId),
+              amount: othersCostAmount,
+            }),
+          );
+        }
         formData.append("date", form.date || "");
         formData.append("note", form.note || "");
         formData.append("userId", localStorage.getItem("userId") || "");
@@ -686,9 +810,10 @@ const ItemRequisitionTable = () => {
         }
 
         await insertItemRequisition(formData).unwrap();
+        const createdCount = filledItems.length + (hasOthersCost ? 1 : 0);
         toast.success(
-          form.items.length > 1
-            ? `${form.items.length} item requisitions created`
+          createdCount > 1
+            ? `${createdCount} item requisitions created`
             : "Item requisition created",
         );
       }
@@ -944,7 +1069,9 @@ const ItemRequisitionTable = () => {
                     "Item",
                     "Supplier",
                     "Quantity",
-                    "Amount",
+                    "Product Cost",
+                    "Other Cost",
+                    "Total Amount",
                     "Document",
                     "Status",
                     "Actions",
@@ -962,7 +1089,7 @@ const ItemRequisitionTable = () => {
                 {isLoading || isFetching ? (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={10}
                       className="px-6 py-16 text-center text-sm text-slate-400"
                     >
                       Loading...
@@ -988,10 +1115,25 @@ const ItemRequisitionTable = () => {
                       </td>
 
                       <td className="px-6 py-4 text-sm font-semibold text-slate-700">
-                        {formatQuantityWithUnit(record.quantity, record.unit)}
+                        {record.entryType === OTHERS_COST
+                          ? "—"
+                          : formatQuantityWithUnit(record.quantity, record.unit)}
                       </td>
                       <td className="px-6 py-4 text-sm font-semibold text-slate-700">
-                        {formatMoney(record.amount)}
+                        {record.entryType === OTHERS_COST
+                          ? "—"
+                          : formatMoney(record.amount)}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-semibold text-slate-700">
+                        {Number(record.othersCost || 0)
+                          ? formatMoney(record.othersCost)
+                          : "—"}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-bold text-slate-900">
+                        {formatMoney(
+                          Number(record.amount || 0) +
+                            Number(record.othersCost || 0),
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         {record.file ? (
@@ -1091,7 +1233,7 @@ const ItemRequisitionTable = () => {
                 ) : (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={10}
                       className="px-6 py-16 text-center text-sm italic text-slate-400"
                     >
                       No data found
@@ -1156,6 +1298,7 @@ const ItemRequisitionTable = () => {
           </div>
 
           {/* Items Section */}
+          {!isEditingOthersCost && (
           <div className="space-y-3 pt-2 border-t border-slate-100">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-widest text-slate-700">
@@ -1202,7 +1345,7 @@ const ItemRequisitionTable = () => {
                     </p>
                   )}
 
-                  <div className="grid gap-3 md:grid-cols-[1.4fr_1.4fr_1.2fr_0.9fr] md:items-end">
+                  <div className="grid gap-3 md:grid-cols-[1.3fr_1.3fr_1.1fr_0.8fr_0.8fr] md:items-end">
                     <label className="space-y-1.5">
                       <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                         Item
@@ -1266,7 +1409,6 @@ const ItemRequisitionTable = () => {
                           }
                           placeholder="Qty"
                           className="h-full min-w-0 flex-1 border-0 bg-transparent px-3 text-sm text-slate-800 outline-none disabled:cursor-not-allowed disabled:text-slate-400"
-                          required
                         />
                         <select
                           value={itemRow.unit || "Pcs"}
@@ -1290,7 +1432,7 @@ const ItemRequisitionTable = () => {
 
                     <label className="space-y-1.5">
                       <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                        Amount
+                        Product Cost
                       </span>
                       <input
                         type="number"
@@ -1307,11 +1449,84 @@ const ItemRequisitionTable = () => {
                         className="h-10 bg-white w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-800 outline-none focus:border-indigo-400 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
                       />
                     </label>
+
+                    <label className="space-y-1.5">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                        Other Cost
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={itemRow.othersCost ?? ""}
+                        onChange={(event) =>
+                          updateItemRow(
+                            itemRow.id,
+                            "othersCost",
+                            event.target.value,
+                          )
+                        }
+                        placeholder="0.00"
+                        title="Added to the supplier due only — not to the Item Stock unit cost"
+                        className="h-10 bg-white w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-800 outline-none focus:border-indigo-400"
+                      />
+                    </label>
                   </div>
                 </div>
               ))}
             </div>
           </div>
+          )}
+
+          {/* Others Cost — its own supplier due, with or without items */}
+          {(!editingRecord || isEditingOthersCost) && (
+            <div className="space-y-3 pt-2 border-t border-slate-100">
+              <div>
+                <span className="text-xs font-bold uppercase tracking-widest text-slate-700">
+                  Others Cost (item ছাড়া)
+                </span>
+                <p className="mt-1 text-xs text-slate-500">
+                  শুধু item ছাড়া entry-র জন্য। Item থাকলে Other Cost উপরে item-এর
+                  সারিতেই দিন — তাহলে একই সারিতে আলাদা কলামে দেখাবে।
+                </p>
+              </div>
+              <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 md:grid-cols-[1.4fr_0.9fr] md:items-end">
+                <label className="space-y-1.5">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    Supplier
+                  </span>
+                  <Select
+                    options={supplierOptions}
+                    value={makeSelectValue(
+                      supplierOptions,
+                      form.othersCost?.supplierId,
+                    )}
+                    onChange={(option) =>
+                      updateOthersCost("supplierId", option?.value || "")
+                    }
+                    isClearable
+                    placeholder="Select supplier..."
+                    classNamePrefix="react-select"
+                    className="bg-white text-black"
+                  />
+                </label>
+                <label className="space-y-1.5">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    Amount
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={form.othersCost?.amount ?? ""}
+                    onChange={(event) =>
+                      updateOthersCost("amount", event.target.value)
+                    }
+                    placeholder="0.00"
+                    className="h-10 bg-white w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-800 outline-none focus:border-indigo-400"
+                  />
+                </label>
+              </div>
+            </div>
+          )}
 
           {/* Common Note & Document */}
           <div className="grid gap-4 md:grid-cols-2 pt-2 border-t border-slate-100">
@@ -1504,8 +1719,19 @@ function ItemRequisitionVoucherModal({
                     )}
                   />
                   <VoucherRow
-                    label="Amount"
+                    label="Product Cost"
                     value={formatMoney(voucher?.amount)}
+                  />
+                  <VoucherRow
+                    label="Other Cost"
+                    value={formatMoney(voucher?.othersCost)}
+                  />
+                  <VoucherRow
+                    label="Total Amount"
+                    value={formatMoney(
+                      Number(voucher?.amount || 0) +
+                        Number(voucher?.othersCost || 0),
+                    )}
                   />
                 </VoucherBox>
               </div>

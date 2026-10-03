@@ -11,11 +11,17 @@ import {
   useInsertFundTransferMutation,
   useUpdateFundTransferMutation,
 } from "../../features/fundTransfer/fundTransfer";
+import {
+  ACCOUNT_TYPES,
+  getAccountType,
+  isAccountMode,
+} from "../../utils/accountTypes";
 
-const PAYMENT_MODE_OPTIONS = [
-  { value: "Cash", label: "Cash" },
-  { value: "Bank", label: "Bank" },
-];
+// Cash + every account-backed mode (Bank, Bkash, Nagad, Rocket).
+const PAYMENT_MODE_OPTIONS = ["Cash", ...ACCOUNT_TYPES].map((mode) => ({
+  value: mode,
+  label: mode,
+}));
 
 const formatAmount = (value) =>
   Number(value || 0).toLocaleString("en-US", {
@@ -60,15 +66,15 @@ const FundTransferFormModal = ({
     [books],
   );
 
-  const bankAccountOptions = useMemo(
-    () =>
-      bankAccounts.map((ba) => ({
+  // Accounts of the chosen mode only (a Bkash transfer lists Bkash wallets).
+  const getAccountOptions = (mode) =>
+    bankAccounts
+      .filter((ba) => getAccountType(ba) === mode)
+      .map((ba) => ({
         value: String(ba.Id),
         label: `${ba.bankName} - ${ba.accountNumber}`,
         bankName: ba.bankName,
-      })),
-    [bankAccounts],
-  );
+      }));
 
   const findBankBalance = (bankAccountId) =>
     Number(
@@ -114,13 +120,13 @@ const FundTransferFormModal = ({
     if (!form.bookId) return toast.error("Book is required");
     if (!form.fromPaymentMode) return toast.error("From payment mode is required");
     if (!form.toPaymentMode) return toast.error("To payment mode is required");
-    if (form.fromPaymentMode === "Bank" && !form.fromBankAccount)
-      return toast.error("From bank account is required");
-    if (form.toPaymentMode === "Bank" && !form.toBankAccount)
-      return toast.error("To bank account is required");
+    if (isAccountMode(form.fromPaymentMode) && !form.fromBankAccount)
+      return toast.error(`From ${form.fromPaymentMode} account is required`);
+    if (isAccountMode(form.toPaymentMode) && !form.toBankAccount)
+      return toast.error(`To ${form.toPaymentMode} account is required`);
     if (
       form.fromPaymentMode === form.toPaymentMode &&
-      (form.fromPaymentMode !== "Bank" ||
+      (!isAccountMode(form.fromPaymentMode) ||
         form.fromBankAccount === form.toBankAccount)
     ) {
       return toast.error("From and To account cannot be the same");
@@ -141,12 +147,17 @@ const FundTransferFormModal = ({
       bookId: form.bookId,
       date: form.date,
       fromPaymentMode: form.fromPaymentMode,
-      fromBankAccount:
-        form.fromPaymentMode === "Bank" ? form.fromBankAccount : "",
-      fromBankName: form.fromPaymentMode === "Bank" ? fromBank?.bankName || "" : "",
+      fromBankAccount: isAccountMode(form.fromPaymentMode)
+        ? form.fromBankAccount
+        : "",
+      fromBankName: isAccountMode(form.fromPaymentMode)
+        ? fromBank?.bankName || ""
+        : "",
       toPaymentMode: form.toPaymentMode,
-      toBankAccount: form.toPaymentMode === "Bank" ? form.toBankAccount : "",
-      toBankName: form.toPaymentMode === "Bank" ? toBank?.bankName || "" : "",
+      toBankAccount: isAccountMode(form.toPaymentMode) ? form.toBankAccount : "",
+      toBankName: isAccountMode(form.toPaymentMode)
+        ? toBank?.bankName || ""
+        : "",
       amount: amountNumber,
       note: form.note?.trim() || "",
       remarks: form.remarks?.trim() || "",
@@ -227,18 +238,22 @@ const FundTransferFormModal = ({
                 setForm((prev) => ({
                   ...prev,
                   fromPaymentMode: opt?.value || "",
-                  fromBankAccount: opt?.value === "Bank" ? prev.fromBankAccount : "",
+                  fromBankAccount:
+                    opt?.value === prev.fromPaymentMode ? prev.fromBankAccount : "",
                 }))
               }
             />
-            {form.fromPaymentMode === "Bank" && (
+            {isAccountMode(form.fromPaymentMode) && (
               <div className="mt-3">
                 <Select
                   classNamePrefix="rs"
-                  placeholder="Bank account"
-                  options={bankAccountOptions}
+                  placeholder={`${form.fromPaymentMode} account`}
+                  options={getAccountOptions(form.fromPaymentMode)}
+                  noOptionsMessage={() =>
+                    `No ${form.fromPaymentMode} account — add one from Accounting > Account`
+                  }
                   value={
-                    bankAccountOptions.find(
+                    getAccountOptions(form.fromPaymentMode).find(
                       (o) => o.value === form.fromBankAccount,
                     ) || null
                   }
@@ -279,18 +294,22 @@ const FundTransferFormModal = ({
                 setForm((prev) => ({
                   ...prev,
                   toPaymentMode: opt?.value || "",
-                  toBankAccount: opt?.value === "Bank" ? prev.toBankAccount : "",
+                  toBankAccount:
+                    opt?.value === prev.toPaymentMode ? prev.toBankAccount : "",
                 }))
               }
             />
-            {form.toPaymentMode === "Bank" && (
+            {isAccountMode(form.toPaymentMode) && (
               <div className="mt-3">
                 <Select
                   classNamePrefix="rs"
-                  placeholder="Bank account"
-                  options={bankAccountOptions}
+                  placeholder={`${form.toPaymentMode} account`}
+                  options={getAccountOptions(form.toPaymentMode)}
+                  noOptionsMessage={() =>
+                    `No ${form.toPaymentMode} account — add one from Accounting > Account`
+                  }
                   value={
-                    bankAccountOptions.find(
+                    getAccountOptions(form.toPaymentMode).find(
                       (o) => o.value === form.toBankAccount,
                     ) || null
                   }

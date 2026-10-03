@@ -21,16 +21,19 @@ const DEFAULT_STAT_ICON_COLOR = "#4338CA";
 
 const useNoopApproveMutation = () => [null, { isLoading: false }];
 
+const emptyValueFor = (field) =>
+  field.type === "checkbox" ? false : field.type === "multiselect" ? [] : "";
+
 const buildInitialState = (fields = []) =>
   fields.reduce((acc, field) => {
     acc[field.name] =
-      field.defaultValue !== undefined ? field.defaultValue : field.type === "checkbox" ? false : "";
+      field.defaultValue !== undefined ? field.defaultValue : emptyValueFor(field);
     return acc;
   }, {});
 
 const normalizeFieldValue = (field, value) => {
   if (value === undefined || value === null) {
-    return field.type === "checkbox" ? false : "";
+    return emptyValueFor(field);
   }
 
   if (field.serialize) {
@@ -336,6 +339,55 @@ const HrmCrudManager = ({
       );
     }
 
+    if (field.type === "checkbox") {
+      return (
+        <span className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">
+          <input
+            type="checkbox"
+            checked={Boolean(form[field.name])}
+            onChange={(e) => setFieldValue(field.name, e.target.checked)}
+            className="h-5 w-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+          />
+          <span className="text-sm text-slate-600">{field.checkboxLabel || "Yes"}</span>
+        </span>
+      );
+    }
+
+    // Toggle chips; the value is an array of option values.
+    if (field.type === "multiselect") {
+      const selected = Array.isArray(form[field.name]) ? form[field.name] : [];
+      const isSelected = (value) => selected.map(String).includes(String(value));
+      const toggle = (value) =>
+        setFieldValue(
+          field.name,
+          isSelected(value)
+            ? selected.filter((item) => String(item) !== String(value))
+            : [...selected, value],
+        );
+      return (
+        <div className="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-3">
+          {(field.options || []).length === 0 && (
+            <span className="text-sm text-slate-400">No options</span>
+          )}
+          {(field.options || []).map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => toggle(option.value)}
+              aria-pressed={isSelected(option.value)}
+              className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
+                isSelected(option.value)
+                  ? "border-indigo-600 bg-indigo-600 text-white"
+                  : "border-slate-200 bg-slate-50 text-slate-600 hover:border-indigo-300"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      );
+    }
+
     if (field.type === "textarea") {
       return (
         <textarea
@@ -408,14 +460,24 @@ const HrmCrudManager = ({
   const renderForm = (onSubmit, loading) => (
     <form onSubmit={onSubmit} className="space-y-5">
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        {fields.map((field) => (
-          <label key={field.name} className="block">
-            <span className="mb-2 block text-sm font-semibold text-slate-700">
-              {field.label}
-            </span>
-            {renderInput(field)}
-          </label>
-        ))}
+        {fields.map((field) => {
+          // A label around chip buttons would toggle the first chip on click.
+          const Wrapper = field.type === "multiselect" ? "div" : "label";
+          return (
+            <Wrapper
+              key={field.name}
+              className={`block ${field.fullWidth ? "md:col-span-2" : ""}`}
+            >
+              <span className="mb-2 block text-sm font-semibold text-slate-700">
+                {field.label}
+              </span>
+              {renderInput(field)}
+              {field.help && (
+                <span className="mt-1.5 block text-xs text-slate-500">{field.help}</span>
+              )}
+            </Wrapper>
+          );
+        })}
       </div>
 
       <div className="flex justify-end">

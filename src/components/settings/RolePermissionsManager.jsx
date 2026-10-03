@@ -198,7 +198,16 @@ const RolePermissionsManager = () => {
 
               {item.children?.length ? (
                 <div className="mt-4 space-y-3 border-t border-slate-200 pt-4">
-                  {item.children.map((child) => (
+                  {/* Several menus can share one permission key (e.g. all
+                      Attendance screens) — show that key once. */}
+                  {Object.values(
+                    item.children.reduce((acc, child) => {
+                      acc[child.key] = acc[child.key]
+                        ? { ...acc[child.key], name: `${acc[child.key].name} · ${child.name}` }
+                        : child;
+                      return acc;
+                    }, {}),
+                  ).map((child) => (
                     <label
                       key={child.key}
                       className="flex items-center gap-3 text-sm text-slate-700"

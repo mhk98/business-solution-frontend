@@ -32,6 +32,10 @@ const normalizeWeeklyOffDays = (value) => {
   return [];
 };
 
+const WEEKDAY_OPTIONS = ["Saturday", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"].map(
+  (day) => ({ value: day, label: day }),
+);
+
 const ShiftPage = () => {
   return (
     <div className="flex-1 relative z-10">
@@ -40,7 +44,7 @@ const ShiftPage = () => {
         <HrmCrudManager
           entityLabel="Shift"
           title="Shift Management"
-          description="Define office shifts, timing windows, grace rules and weekly off policy for attendance."
+          description="Define office shifts: timing, grace, weekly off, break and the half-day / overtime limits the attendance calculation uses. An end time earlier than the start is a night shift."
           fields={[
             { name: "name", label: "Shift Name", required: true },
             { name: "code", label: "Code" },
@@ -50,18 +54,52 @@ const ShiftPage = () => {
               name: "graceInMinutes",
               label: "Grace In Minutes",
               type: "number",
+              help: "Coming in within this is not late.",
             },
             {
               name: "graceOutMinutes",
               label: "Grace Out Minutes",
               type: "number",
+              help: "Leaving within this before the end is not early leave.",
             },
             {
               name: "weeklyOffDays",
               label: "Weekly Off Days",
-              placeholder: "Friday,Saturday",
+              type: "multiselect",
+              options: WEEKDAY_OPTIONS,
+              fullWidth: true,
               parse: normalizeWeeklyOffDays,
-              serialize: (value) => normalizeWeeklyOffDays(value).join(", "),
+              serialize: normalizeWeeklyOffDays,
+            },
+            {
+              name: "breakMinutes",
+              label: "Break Minutes",
+              type: "number",
+              help: "Deducted from worked time.",
+            },
+            {
+              name: "fullDayMinutes",
+              label: "Full Day Minimum (minutes)",
+              type: "number",
+              help: "Worked less than this = Half Day. Empty = off.",
+            },
+            {
+              name: "halfDayMinutes",
+              label: "Half Day Minimum (minutes)",
+              type: "number",
+              help: "Worked less than this = Absent. Empty = off.",
+            },
+            {
+              name: "overtimeStartAfterMinutes",
+              label: "Overtime Starts After (minutes)",
+              type: "number",
+              help: "Minutes after shift end before overtime counts.",
+            },
+            {
+              name: "minimumOvertimeMinutes",
+              label: "Minimum Overtime (minutes)",
+              type: "number",
+              help: "Shorter overtime is ignored. Turn overtime on in Attendance Policy.",
             },
             { name: "note", label: "Note", type: "textarea" },
             {

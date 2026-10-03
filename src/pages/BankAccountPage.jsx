@@ -1,5 +1,12 @@
 import { useMemo, useState } from "react";
-import { Building2, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import {
+  Building2,
+  Pencil,
+  Plus,
+  Search,
+  Smartphone,
+  Trash2,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import Header from "../components/common/Header";
 import Modal from "../components/common/Modal";
@@ -11,8 +18,15 @@ import {
 } from "../features/bankAccount/bankAccount";
 import useDebounce from "../hooks/useDebounce";
 import { requestDeleteConfirmation } from "../utils/deleteConfirmation";
+import {
+  ACCOUNT_TYPES,
+  ACCOUNT_TYPE_STYLES,
+  getAccountFieldLabels,
+  getAccountType,
+} from "../utils/accountTypes";
 
-const emptyForm = { bankName: "", accountNumber: "" };
+const emptyForm = { accountType: "Bank", bankName: "", accountNumber: "" };
+const TYPE_TABS = ["All", ...ACCOUNT_TYPES];
 
 const BankAccountPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -21,12 +35,16 @@ const BankAccountPage = () => {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [typeTab, setTypeTab] = useState("All");
 
   const { data, isLoading, refetch } = useGetAllBankAccountQuery({
     page,
     limit: 20,
     searchTerm: debouncedSearchTerm || undefined,
+    accountType: typeTab === "All" ? undefined : typeTab,
   });
+  const fieldLabels = getAccountFieldLabels(form.accountType);
+  const isWalletForm = form.accountType !== "Bank";
   const [insertBankAccount, { isLoading: creating }] =
     useInsertBankAccountMutation();
   const [updateBankAccount, { isLoading: updating }] =
@@ -46,13 +64,17 @@ const BankAccountPage = () => {
   };
 
   const openAdd = () => {
-    setForm(emptyForm);
+    setForm({
+      ...emptyForm,
+      accountType: typeTab === "All" ? "Bank" : typeTab,
+    });
     setEditing(null);
     setIsAddOpen(true);
   };
 
   const openEdit = (row) => {
     setForm({
+      accountType: getAccountType(row),
       bankName: row?.bankName || "",
       accountNumber: row?.accountNumber || "",
     });
@@ -61,13 +83,21 @@ const BankAccountPage = () => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    const accountNumber = form.accountNumber.trim();
     const payload = {
-      bankName: form.bankName.trim(),
-      accountNumber: form.accountNumber.trim(),
+      accountType: form.accountType,
+      // A wallet's name is optional — default to the wallet type.
+      bankName: form.bankName.trim() || (isWalletForm ? form.accountType : ""),
+      accountNumber,
     };
 
-    if (!payload.bankName) return toast.error("Bank name is required");
-    if (!payload.accountNumber) return toast.error("Account number is required");
+    if (!payload.bankName) return toast.error(`${fieldLabels.name} is required`);
+    if (!accountNumber) return toast.error(`${fieldLabels.number} is required`);
+    if (isWalletForm && !/^01\d{9,10}$/.test(accountNumber)) {
+      return toast.error(
+        `${fieldLabels.number} must be a mobile number like 01XXXXXXXXX`,
+      );
+    }
 
     try {
       const res = editing
@@ -78,7 +108,7 @@ const BankAccountPage = () => {
         : await insertBankAccount(payload).unwrap();
 
       if (res?.success) {
-        toast.success(editing ? "Bank account updated" : "Bank account added");
+        toast.success(editing ? "Account updated" : "Account added");
         resetForm();
         refetch?.();
       } else {
@@ -98,7 +128,7 @@ const BankAccountPage = () => {
     try {
       const res = await deleteBankAccount(row.Id || row.id).unwrap();
       if (res?.success !== false) {
-        toast.success("Bank account deleted");
+        toast.success("Account deleted");
         refetch?.();
       } else {
         toast.error(res?.message || "Delete failed");
@@ -110,7 +140,7 @@ const BankAccountPage = () => {
 
   return (
     <div className="flex-1 relative z-10">
-      <Header title="Bank" />
+      <Header title="Account" />
 
       <main className="max-w-8xl mx-auto py-6 px-4 lg:px-8 bg-slate-50 min-h-[calc(100vh-64px)]">
         <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-[0_10px_30px_rgba(15,23,42,0.08)]">
@@ -122,7 +152,7 @@ const BankAccountPage = () => {
                   setSearchTerm(event.target.value);
                   setPage(1);
                 }}
-                placeholder="Search bank or account number..."
+                placeholder="Search name or account number..."
                 className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 pr-12 text-sm text-slate-900 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-200"
               />
               <Search
@@ -137,16 +167,39 @@ const BankAccountPage = () => {
               className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white shadow-md transition hover:bg-indigo-700"
             >
               <Plus size={18} />
-              Add Bank Account
+              Add Account
             </button>
           </div>
 
-          <div className="mt-8 overflow-x-auto">
+          <div className="mt-5 flex flex-wrap gap-2">
+            {TYPE_TABS.map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => {
+                  setTypeTab(tab);
+                  setPage(1);
+                }}
+                className={`h-9 rounded-xl border px-4 text-sm font-semibold transition ${
+                  typeTab === tab
+                    ? "border-indigo-600 bg-indigo-600 text-white"
+                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-6 overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-200">
               <thead className="bg-slate-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
-                    Bank Name
+                    Name
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    Type
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
                     Account Number
@@ -160,14 +213,26 @@ const BankAccountPage = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 bg-white">
-                {rows.map((row) => (
+                {rows.map((row) => {
+                  const type = getAccountType(row);
+                  const TypeIcon = type === "Bank" ? Building2 : Smartphone;
+                  return (
                   <tr key={row.Id || row.id} className="hover:bg-slate-50">
                     <td className="px-6 py-4 text-sm font-semibold text-slate-900">
                       <span className="inline-flex items-center gap-3">
                         <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-indigo-100 bg-indigo-50">
-                          <Building2 size={17} className="text-indigo-600" />
+                          <TypeIcon size={17} className="text-indigo-600" />
                         </span>
                         {row.bankName}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-sm">
+                      <span
+                        className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${
+                          ACCOUNT_TYPE_STYLES[type] || ACCOUNT_TYPE_STYLES.Bank
+                        }`}
+                      >
+                        {type}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-slate-700">
@@ -200,13 +265,14 @@ const BankAccountPage = () => {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
 
             {!isLoading && rows.length === 0 && (
               <div className="py-10 text-center text-sm text-slate-500">
-                No bank accounts found
+                No accounts found
               </div>
             )}
           </div>
@@ -238,12 +304,41 @@ const BankAccountPage = () => {
       <Modal
         isOpen={isAddOpen || Boolean(editing)}
         onClose={resetForm}
-        title={editing ? "Edit Bank Account" : "Add Bank Account"}
+        title={editing ? "Edit Account" : "Add Account"}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="mb-2 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
-              Bank Name
+              Account Type
+            </label>
+            <div className="grid grid-cols-4 gap-2">
+              {ACCOUNT_TYPES.map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() =>
+                    setForm((prev) => ({ ...prev, accountType: type }))
+                  }
+                  className={`h-11 rounded-xl border text-sm font-semibold transition ${
+                    form.accountType === type
+                      ? "border-indigo-600 bg-indigo-600 text-white"
+                      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-2 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
+              {fieldLabels.name}
+              {isWalletForm && (
+                <span className="ml-1 normal-case tracking-normal text-slate-400">
+                  (optional)
+                </span>
+              )}
             </label>
             <input
               value={form.bankName}
@@ -251,13 +346,17 @@ const BankAccountPage = () => {
                 setForm((prev) => ({ ...prev, bankName: event.target.value }))
               }
               className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
-              placeholder="Bank name"
+              placeholder={
+                isWalletForm
+                  ? `e.g. ${form.accountType} Personal / Merchant`
+                  : "Bank name"
+              }
             />
           </div>
 
           <div>
             <label className="mb-2 ml-1 block text-xs font-bold uppercase tracking-wider text-slate-500">
-              Account Number
+              {fieldLabels.number}
             </label>
             <input
               value={form.accountNumber}
@@ -268,7 +367,8 @@ const BankAccountPage = () => {
                 }))
               }
               className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10"
-              placeholder="Account number"
+              inputMode={isWalletForm ? "numeric" : undefined}
+              placeholder={isWalletForm ? "01XXXXXXXXX" : "Account number"}
             />
           </div>
 

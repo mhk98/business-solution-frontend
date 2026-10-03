@@ -22,11 +22,12 @@ import {
   useGetAllFundTransferQuery,
 } from "../../features/fundTransfer/fundTransfer";
 import FundTransferFormModal from "./FundTransferFormModal";
+import { ACCOUNT_TYPES, isAccountMode } from "../../utils/accountTypes";
 
-const PAYMENT_MODE_OPTIONS = [
-  { value: "Cash", label: "Cash" },
-  { value: "Bank", label: "Bank" },
-];
+const PAYMENT_MODE_OPTIONS = ["Cash", ...ACCOUNT_TYPES].map((mode) => ({
+  value: mode,
+  label: mode,
+}));
 
 const formatDate = (value) => {
   if (!value) return "-";
@@ -401,7 +402,7 @@ const FundTransferTable = () => {
                     <td className="px-4 py-4 text-sm text-slate-700">
                       <span className="inline-flex items-center gap-1">
                         {row.fromPaymentMode}
-                        {row.fromPaymentMode === "Bank" && (
+                        {isAccountMode(row.fromPaymentMode) && (
                           <span className="text-slate-500">
                             (
                             {findBankLabel(
@@ -417,7 +418,7 @@ const FundTransferTable = () => {
                       <span className="inline-flex items-center gap-1">
                         <ArrowLeftRight size={14} className="text-indigo-500" />
                         {row.toPaymentMode}
-                        {row.toPaymentMode === "Bank" && (
+                        {isAccountMode(row.toPaymentMode) && (
                           <span className="text-slate-500">
                             ({findBankLabel(row.toBankAccount, row.toBankName)})
                           </span>

@@ -7,8 +7,26 @@ import {
   useGetAllHolidaysQuery,
   useUpdateHolidayMutation,
 } from "../features/holiday/holiday";
+import { useGetAllDepartmentsQuery } from "../features/department/department";
+
+const parseIds = (value) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
 
 const HolidayPage = () => {
+  const { data: departmentsRes } = useGetAllDepartmentsQuery({ page: 1, limit: 500 });
+  const departmentOptions = (departmentsRes?.data || []).map((row) => ({ value: row.Id, label: row.name }));
+  const departmentName = (id) => departmentOptions.find((row) => String(row.value) === String(id))?.label || `#${id}`;
+
   return (
     <div className="flex-1 relative z-10">
       <Header title="Holiday" />
@@ -36,10 +54,21 @@ const HolidayPage = () => {
               label: "Type",
               type: "select",
               options: [
+                { value: "Govt Holiday", label: "Govt Holiday" },
                 { value: "Public Holiday", label: "Public Holiday" },
                 { value: "Company Holiday", label: "Company Holiday" },
                 { value: "Festival Holiday", label: "Festival Holiday" },
               ],
+            },
+            {
+              name: "departmentIds",
+              label: "Applies to departments",
+              type: "multiselect",
+              options: departmentOptions,
+              fullWidth: true,
+              serialize: parseIds,
+              parse: (value) => (Array.isArray(value) && value.length ? value.map(Number) : null),
+              help: "Leave empty for a holiday for everyone.",
             },
             { name: "note", label: "Note", type: "textarea" },
             {
@@ -66,6 +95,14 @@ const HolidayPage = () => {
                   : row.holidayDate || "-",
             },
             { key: "holidayType", label: "Type" },
+            {
+              key: "departmentIds",
+              label: "Applies To",
+              render: (row) => {
+                const ids = parseIds(row.departmentIds);
+                return ids.length ? ids.map(departmentName).join(", ") : "Everyone";
+              },
+            },
             { key: "status", label: "Status" },
           ]}
           useListQuery={useGetAllHolidaysQuery}

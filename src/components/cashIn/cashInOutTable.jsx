@@ -44,6 +44,11 @@ import { useGetAllDirectorWithoutQueryQuery } from "../../features/ownerTransact
 import { useGetAllManufacturerWithoutQueryQuery } from "../../features/manufacturer/manufacturer";
 import { useGetAllPackagingManufacturerWithoutQueryQuery } from "../../features/packagingManufacturer/packagingManufacturer";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
+import {
+  getAccountType,
+  isAccountMode,
+  isWalletMode,
+} from "../../utils/accountTypes";
 import useDebounce from "../../hooks/useDebounce";
 
 import {
@@ -480,6 +485,7 @@ const CashInOutTable = () => {
   const [isNewCategoryEdit, setIsNewCategoryEdit] = useState(false);
   const [newCategoryNameEdit, setNewCategoryNameEdit] = useState("");
   const [supplier, setSupplier] = useState("");
+  const [filterDollarSupplier, setFilterDollarSupplier] = useState("");
 
   const [isNewBankAccountAdd, setIsNewBankAccountAdd] = useState(false);
   const [newBankNameAdd, setNewBankNameAdd] = useState("");
@@ -652,6 +658,7 @@ const CashInOutTable = () => {
       category: filterCategory || undefined,
       loanId: filterLoanId || undefined,
       supplierId: supplier || undefined,
+      dollarSupplierId: filterDollarSupplier || undefined,
       paymentMode: filterPaymentMode || undefined,
       paymentStatus: filterPaymentStatus || undefined,
       searchTerm: debouncedSearchTerm || undefined, // ensure it's included in the query
@@ -674,6 +681,7 @@ const CashInOutTable = () => {
     filterCategory,
     filterLoanId,
     supplier,
+    filterDollarSupplier,
     debouncedSearchTerm,
   ]);
 
@@ -819,7 +827,22 @@ const CashInOutTable = () => {
   );
 
   const { data: bankAccountRes } = useGetAllBankAccountWithoutQueryQuery();
-  const bankAccountsFromDB = bankAccountRes?.data || [];
+  const allAccountsFromDB = bankAccountRes?.data || [];
+  // Bank dropdowns list only Bank-type accounts; Bkash/Nagad/Rocket wallet
+  // accounts are picked from their own dropdown (getWalletAccountOptions).
+  const bankAccountsFromDB = useMemo(
+    () =>
+      allAccountsFromDB.filter((account) => getAccountType(account) === "Bank"),
+    [allAccountsFromDB],
+  );
+  const getWalletAccountOptions = (mode) =>
+    allAccountsFromDB
+      .filter((account) => getAccountType(account) === mode)
+      .map((account) => ({
+        value: account.accountNumber,
+        label: `${account.accountNumber} (${account.bankName || mode})`,
+        bankName: account.bankName || mode,
+      }));
   const [insertBankAccount] = useInsertBankAccountMutation();
 
   const bankOptions = useMemo(() => {
@@ -1173,12 +1196,12 @@ const CashInOutTable = () => {
 
       formData.append(
         "bankName",
-        currentProduct.paymentMode === "Bank" ? currentProduct.bankName : "",
+        isAccountMode(currentProduct.paymentMode) ? currentProduct.bankName : "",
       );
       formData.append(
         "bankAccount",
-        currentProduct.paymentMode === "Bank"
-          ? String(currentProduct.bankAccount)
+        isAccountMode(currentProduct.paymentMode)
+          ? String(currentProduct.bankAccount || "")
           : "",
       );
 
@@ -1235,6 +1258,14 @@ const CashInOutTable = () => {
       if (!createProduct.bankAccount)
         return toast.error("Bank Account is required!");
     }
+    // Wallet account is required once at least one exists for that mode.
+    if (
+      isWalletMode(createProduct.paymentMode) &&
+      getWalletAccountOptions(createProduct.paymentMode).length &&
+      !createProduct.bankAccount
+    ) {
+      return toast.error(`${createProduct.paymentMode} account is required!`);
+    }
 
     // Category check - Make sure categoryName is either selected or added
     if (!createProduct.category && !isNewCategoryAdd) {
@@ -1284,12 +1315,12 @@ const CashInOutTable = () => {
 
       formData.append(
         "bankName",
-        createProduct.paymentMode === "Bank" ? createProduct.bankName : "",
+        isAccountMode(createProduct.paymentMode) ? createProduct.bankName : "",
       );
       formData.append(
         "bankAccount",
-        createProduct.paymentMode === "Bank"
-          ? String(createProduct.bankAccount)
+        isAccountMode(createProduct.paymentMode)
+          ? String(createProduct.bankAccount || "")
           : "",
       );
 
@@ -1381,6 +1412,14 @@ const CashInOutTable = () => {
       if (!createProduct.bankAccount)
         return toast.error("Bank Account is required!");
     }
+    // Wallet account is required once at least one exists for that mode.
+    if (
+      isWalletMode(createProduct.paymentMode) &&
+      getWalletAccountOptions(createProduct.paymentMode).length &&
+      !createProduct.bankAccount
+    ) {
+      return toast.error(`${createProduct.paymentMode} account is required!`);
+    }
 
     // Category check - Make sure category is either selected or added
     if (!createProduct.category && !isNewCategoryAdd) {
@@ -1434,12 +1473,12 @@ const CashInOutTable = () => {
 
       formData.append(
         "bankName",
-        createProduct.paymentMode === "Bank" ? createProduct.bankName : "",
+        isAccountMode(createProduct.paymentMode) ? createProduct.bankName : "",
       );
       formData.append(
         "bankAccount",
-        createProduct.paymentMode === "Bank"
-          ? String(createProduct.bankAccount)
+        isAccountMode(createProduct.paymentMode)
+          ? String(createProduct.bankAccount || "")
           : "",
       );
 
@@ -1604,6 +1643,7 @@ const CashInOutTable = () => {
     setFilterCategory("");
     setFilterLoanId("");
     setSupplier("");
+    setFilterDollarSupplier("");
     setCurrentPage(1);
     setStartPage(1);
   };
@@ -1771,10 +1811,15 @@ const CashInOutTable = () => {
       ["Receiver", receiverLabel],
       ["Category", row?.category || "-"],
       ["Payment Mode", row?.paymentMode || "-"],
-      ["Bank", row?.paymentMode === "Bank" ? row?.bankName || "-" : "-"],
       [
-        "Bank Account",
-        row?.paymentMode === "Bank" ? row?.bankAccount || "-" : "-",
+        isWalletMode(row?.paymentMode) ? "Account" : "Bank",
+        isAccountMode(row?.paymentMode) ? row?.bankName || "-" : "-",
+      ],
+      [
+        isWalletMode(row?.paymentMode)
+          ? `${row?.paymentMode} Number`
+          : "Bank Account",
+        isAccountMode(row?.paymentMode) ? row?.bankAccount || "-" : "-",
       ],
     ];
     const pdf = await renderVoucherPdfFromCanvas({
@@ -2721,7 +2766,7 @@ const CashInOutTable = () => {
       </div>
 
       {/* Filters - Full Width Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 items-end mb-6 w-full [&>*]:min-w-0">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 2xl:grid-cols-8 gap-3 items-end mb-6 w-full [&>*]:min-w-0">
         <DateRangeFilter
           startDate={startDate}
           endDate={endDate}
@@ -2823,6 +2868,29 @@ const CashInOutTable = () => {
             }
             onChange={(selected) => {
               setSupplier(selected?.value || "");
+              setCurrentPage(1);
+              setStartPage(1);
+            }}
+            placeholder={t.search}
+            isClearable
+            styles={selectStyles}
+            className="text-black w-full"
+          />
+        </div>
+
+        <div className="flex flex-col w-full">
+          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">
+            Dollar Supplier
+          </label>
+          <Select
+            options={dollarSupplierOptions}
+            value={
+              dollarSupplierOptions.find(
+                (o) => String(o.value) === String(filterDollarSupplier),
+              ) || null
+            }
+            onChange={(selected) => {
+              setFilterDollarSupplier(selected?.value || "");
               setCurrentPage(1);
               setStartPage(1);
             }}
@@ -3197,6 +3265,9 @@ const CashInOutTable = () => {
                 setCurrentProduct({
                   ...currentProduct,
                   paymentMode: e.target.value,
+                  ...(e.target.value !== currentProduct?.paymentMode
+                    ? { bankName: "", bankAccount: "" }
+                    : {}),
                 })
               }
               className="h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 bg-white outline-none
@@ -3214,6 +3285,36 @@ const CashInOutTable = () => {
               <option value="Card">Card</option>
             </select>
           </div>
+
+          {isWalletMode(currentProduct?.paymentMode) && (
+            <div>
+              <label className="block text-sm text-slate-600 mb-1">
+                {currentProduct.paymentMode} Account
+              </label>
+              <Select
+                options={getWalletAccountOptions(currentProduct.paymentMode)}
+                value={
+                  getWalletAccountOptions(currentProduct.paymentMode).find(
+                    (option) => option.value === currentProduct.bankAccount,
+                  ) || null
+                }
+                onChange={(selected) =>
+                  setCurrentProduct({
+                    ...currentProduct,
+                    bankAccount: selected?.value || "",
+                    bankName: selected?.bankName || "",
+                  })
+                }
+                placeholder={`Select ${currentProduct.paymentMode} account`}
+                noOptionsMessage={() =>
+                  `No ${currentProduct.paymentMode} account — add one from Accounting > Account`
+                }
+                className="text-sm"
+                styles={selectStyles}
+                isClearable
+              />
+            </div>
+          )}
 
           {currentProduct?.paymentMode === "Bank" && (
             <>
@@ -3605,11 +3706,11 @@ const CashInOutTable = () => {
                     ...createProduct,
                     paymentMode: selectedOption?.value || "",
                     bankName:
-                      selectedOption?.value === "Bank"
+                      selectedOption?.value === createProduct.paymentMode
                         ? createProduct.bankName
                         : "",
                     bankAccount:
-                      selectedOption?.value === "Bank"
+                      selectedOption?.value === createProduct.paymentMode
                         ? createProduct.bankAccount
                         : "",
                   })
@@ -3622,6 +3723,36 @@ const CashInOutTable = () => {
               />
             </div>
           </div>
+
+          {isWalletMode(createProduct?.paymentMode) && (
+            <div>
+              <label className="block text-sm text-slate-600 mb-1">
+                {createProduct.paymentMode} Account
+              </label>
+              <Select
+                options={getWalletAccountOptions(createProduct.paymentMode)}
+                value={
+                  getWalletAccountOptions(createProduct.paymentMode).find(
+                    (option) => option.value === createProduct.bankAccount,
+                  ) || null
+                }
+                onChange={(selected) =>
+                  setCreateProduct({
+                    ...createProduct,
+                    bankAccount: selected?.value || "",
+                    bankName: selected?.bankName || "",
+                  })
+                }
+                placeholder={`Select ${createProduct.paymentMode} account`}
+                noOptionsMessage={() =>
+                  `No ${createProduct.paymentMode} account — add one from Accounting > Account`
+                }
+                className="text-sm"
+                styles={selectStyles}
+                isClearable
+              />
+            </div>
+          )}
 
           {createProduct.paymentMode === "Bank" && (
             <>
@@ -3975,11 +4106,11 @@ const CashInOutTable = () => {
                     ...createProduct,
                     paymentMode: selectedOption?.value || "",
                     bankName:
-                      selectedOption?.value === "Bank"
+                      selectedOption?.value === createProduct.paymentMode
                         ? createProduct.bankName
                         : "",
                     bankAccount:
-                      selectedOption?.value === "Bank"
+                      selectedOption?.value === createProduct.paymentMode
                         ? createProduct.bankAccount
                         : "",
                   })
@@ -3992,6 +4123,36 @@ const CashInOutTable = () => {
               />
             </div>
           </div>
+
+          {isWalletMode(createProduct?.paymentMode) && (
+            <div>
+              <label className="block text-sm text-slate-600 mb-1">
+                {createProduct.paymentMode} Account
+              </label>
+              <Select
+                options={getWalletAccountOptions(createProduct.paymentMode)}
+                value={
+                  getWalletAccountOptions(createProduct.paymentMode).find(
+                    (option) => option.value === createProduct.bankAccount,
+                  ) || null
+                }
+                onChange={(selected) =>
+                  setCreateProduct({
+                    ...createProduct,
+                    bankAccount: selected?.value || "",
+                    bankName: selected?.bankName || "",
+                  })
+                }
+                placeholder={`Select ${createProduct.paymentMode} account`}
+                noOptionsMessage={() =>
+                  `No ${createProduct.paymentMode} account — add one from Accounting > Account`
+                }
+                className="text-sm"
+                styles={selectStyles}
+                isClearable
+              />
+            </div>
+          )}
 
           {createProduct.paymentMode === "Bank" && (
             <>

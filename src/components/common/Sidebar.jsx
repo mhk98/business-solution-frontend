@@ -170,13 +170,39 @@ const Sidebar = () => {
     if (firstWithChildren) setOpenMenu(firstWithChildren.key);
   }, [menuQuery, filteredItems]);
 
-  useEffect(() => {
-    const activeParent = filteredItems.find((item) =>
+  // The same page can sit under two menus (e.g. Supplier under Inventory and
+  // Accounting). Remember which menu the user clicked it from so that menu —
+  // not simply the first match — opens and highlights.
+  const [preferredParent, setPreferredParent] = useState(() => {
+    try {
+      return sessionStorage.getItem("sidebarActiveParent") || "";
+    } catch {
+      return "";
+    }
+  });
+
+  const selectParent = (parentKey) => {
+    setPreferredParent(parentKey);
+    try {
+      sessionStorage.setItem("sidebarActiveParent", parentKey);
+    } catch {
+      // storage unavailable — in-memory preference still works
+    }
+  };
+
+  const activeParentKey = useMemo(() => {
+    const matches = filteredItems.filter((item) =>
       item.children?.some((child) => isActive(child)),
     );
+    if (!matches.length) return null;
+    return (
+      matches.find((item) => item.key === preferredParent) || matches[0]
+    ).key;
+  }, [filteredItems, isActive, preferredParent]);
 
-    if (activeParent) setOpenMenu(activeParent.key);
-  }, [filteredItems, isActive]);
+  useEffect(() => {
+    if (activeParentKey) setOpenMenu(activeParentKey);
+  }, [activeParentKey]);
 
   // ✅ logo
   const [logo, setLogo] = useState("");
@@ -352,7 +378,7 @@ const Sidebar = () => {
                 const menuOpen = openMenu === item.key;
 
                 const childActive = hasChildren
-                  ? item.children.some((c) => isActive(c))
+                  ? item.key === activeParentKey
                   : false;
 
                 const parentActive = !hasChildren
@@ -483,10 +509,15 @@ const Sidebar = () => {
                           <div className="space-y-1 pb-2">
                             {item.children.map((sub) => {
                               const SubIcon = sub.icon;
-                              const activeSub = isActive(sub);
+                              const activeSub =
+                                item.key === activeParentKey && isActive(sub);
 
                               return (
-                                <Link key={sub.key} to={sub.href}>
+                                <Link
+                                  key={sub.href || sub.key}
+                                  to={sub.href}
+                                  onClick={() => selectParent(item.key)}
+                                >
                                   <div
                                     className={`group flex items-center gap-2 px-3 py-2 rounded-xl transition border ${
                                       activeSub

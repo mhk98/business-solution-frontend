@@ -561,11 +561,23 @@ const getStockClosingValueTotal = getStockValueTotal;
 // দেনা, all as of the report's `to` date) — shared with the Profit/Loss
 // calculation, which uses this single figure instead of separately adding
 // the opening carry-forward and the period's grand total.
+// Courier balance as of the report's end date (backend returns the latest
+// snapshot on or before `to`) — money the courier holds for the company.
+const getCourierBalanceTotal = (courierBalance) =>
+  Number(
+    courierBalance?.meta?.totalAmount ??
+      (courierBalance?.data || []).reduce(
+        (sum, row) => sum + Number(row.amount || 0),
+        0,
+      ),
+  ) || 0;
+
 const getEndingBalanceTotal = ({
   inventoryStockReport,
   itemFactoryStock,
   packagingStock,
   courierProductStock,
+  courierBalance,
 }) => {
   const modeRows = Array.isArray(
     inventoryStockReport?.meta?.cashEndingBalanceByPaymentMode,
@@ -588,8 +600,14 @@ const getEndingBalanceTotal = ({
     inventoryStockReport?.meta?.receivableEndingBalance || 0,
   );
   const due = Number(inventoryStockReport?.meta?.payableEndingBalance || 0);
+  const courier = getCourierBalanceTotal(courierBalance);
 
-  return Math.round((cashTotal + pettyCash + stock + dmBalance + receivable - due) * 100) / 100;
+  return (
+    Math.round(
+      (cashTotal + pettyCash + stock + dmBalance + receivable + courier - due) *
+        100,
+    ) / 100
+  );
 };
 
 const FRAGMENT_STYLES = `
@@ -2458,6 +2476,7 @@ const appendProfitLossSection = async (
     itemFactoryStock,
     packagingStock,
     courierProductStock,
+    courierBalance,
     regularFontDataUrl,
     boldFontDataUrl,
   },
@@ -2467,6 +2486,7 @@ const appendProfitLossSection = async (
     itemFactoryStock,
     packagingStock,
     courierProductStock,
+    courierBalance,
   });
   const directorInvestmentTotal = getDirectorInvestmentTotalAmount(directorInvestment);
   const result = endingBalanceTotal - directorInvestmentTotal;
@@ -2503,8 +2523,9 @@ const appendProfitLossSection = async (
   });
 };
 
-// Courier Balance entries inside the filter range and their total — shown
-// right after the মোট দেনা summary.
+// Courier balance as of the filter's end date (backend returns only the
+// latest date's entries on or before it) — shown right after the মোট দেনা
+// summary.
 const appendCourierBalanceSection = async (
   doc,
   html2canvas,
@@ -2650,7 +2671,15 @@ const appendAssetsSections = async (
 // comparison table).
 const buildCashStockSummaryTableHtml = (
   modeRows,
-  { pettyCashTotal, stockTotal, dmBalanceTotal, payableTotal, receivableTotal, totalLabel },
+  {
+    pettyCashTotal,
+    stockTotal,
+    dmBalanceTotal,
+    payableTotal,
+    receivableTotal,
+    courierBalanceTotal,
+    totalLabel,
+  },
 ) => {
   const cashTotal = modeRows.reduce(
     (sum, modeRow) => sum + Number(modeRow.amount || 0),
@@ -2661,8 +2690,15 @@ const buildCashStockSummaryTableHtml = (
   const dmBalance = Number(dmBalanceTotal || 0);
   const due = Number(payableTotal || 0);
   const receivable = Number(receivableTotal || 0);
+  // Only the closing summary passes a courier balance; the opening one
+  // leaves it undefined and shows no row.
+  const hasCourierBalance = courierBalanceTotal !== undefined;
+  const courier = Number(courierBalanceTotal || 0);
   const total =
-    Math.round((cashTotal + pettyCash + stock + dmBalance + receivable - due) * 100) / 100;
+    Math.round(
+      (cashTotal + pettyCash + stock + dmBalance + receivable + courier - due) *
+        100,
+    ) / 100;
 
   const amountCell = (value, extraClass = "") =>
     `<td class="amount${isNegativeValue(value) ? " negative" : ""}${extraClass ? ` ${extraClass}` : ""}">${formatAmount(value)}</td>`;
@@ -2707,6 +2743,7 @@ const buildCashStockSummaryTableHtml = (
         ${plainRow("মোট স্টক (+)", stock)}
         ${plainRow("DM Balance (+)", dmBalance)}
         ${plainRow("মোট প্রাপ্য (+)", receivable)}
+        ${hasCourierBalance ? plainRow("কুরিয়ার ব্যালেন্স (+)", courier) : ""}
         ${plainRow("মোট দেনা (−)", -due)}
       </tbody>
       <tfoot>
@@ -2823,6 +2860,7 @@ const appendEndingCashSummarySection = async (
     itemFactoryStock,
     packagingStock,
     courierProductStock,
+    courierBalance,
     regularFontDataUrl,
     boldFontDataUrl,
   },
@@ -2866,6 +2904,7 @@ const appendEndingCashSummarySection = async (
       receivableTotal: Number(
         inventoryStockReport?.meta?.receivableEndingBalance || 0,
       ),
+      courierBalanceTotal: getCourierBalanceTotal(courierBalance),
     },
     totalLabel: "সমাপনী ব্যালেন্স",
     regularFontDataUrl,
@@ -3152,6 +3191,7 @@ export const generateBookStatementPdf = async ({
     itemFactoryStock,
     packagingStock,
     courierProductStock,
+    courierBalance,
     regularFontDataUrl,
     boldFontDataUrl,
   });
@@ -3220,6 +3260,7 @@ export const generateBookStatementPdf = async ({
     itemFactoryStock,
     packagingStock,
     courierProductStock,
+    courierBalance,
     regularFontDataUrl,
     boldFontDataUrl,
   });

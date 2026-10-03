@@ -110,6 +110,7 @@ export const supplierHistoryApi = baseApi.injectEndpoints({
 
 export const {
   useGetAllSupplierHistoryQuery,
+  useLazyGetAllSupplierHistoryQuery,
   useGetAllSupplierHistoryWithoutQueryQuery,
   useGetAllSupplierSummaryQuery,
   useInsertSupplierHistoryMutation,

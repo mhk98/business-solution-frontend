@@ -38,9 +38,9 @@ export const bankAccountApi = createApi({
       invalidatesTags: ["bankAccount"],
     }),
     getAllBankAccount: build.query({
-      query: ({ page = 1, limit = 200, searchTerm } = {}) => ({
+      query: ({ page = 1, limit = 200, searchTerm, accountType } = {}) => ({
         url: "/bank-account",
-        params: { page, limit, searchTerm },
+        params: { page, limit, searchTerm, accountType },
       }),
       providesTags: ["bankAccount"],
       refetchOnMountOrArgChange: true,

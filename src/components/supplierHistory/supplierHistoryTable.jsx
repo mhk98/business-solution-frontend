@@ -1,5 +1,10 @@
 import { motion } from "framer-motion";
-import { BadgePercent, ShoppingBasket, Trash2 } from "lucide-react";
+import {
+  BadgePercent,
+  FileSpreadsheet,
+  FileText,
+  ShoppingBasket,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import Select from "react-select";
@@ -13,11 +18,34 @@ import {
   useDeleteSupplierHistoryMutation,
   useGetAllSupplierHistoryQuery,
   useInsertSupplierHistoryMutation,
+  useLazyGetAllSupplierHistoryQuery,
   useUpdateSupplierHistoryMutation,
 } from "../../features/supplierHistory/supplierHistory";
 import { useParams } from "react-router-dom";
 import { translations } from "../../utils/translations";
 import { useLayout } from "../../context/LayoutContext";
+import { useGetAllLogoQuery } from "../../features/logo/logo";
+import { buildAssetUrl } from "../../utils/pdfBranding";
+import { generateSupplierHistoryPdf } from "../../utils/report/generateSupplierHistoryPdf";
+
+const getReportUserName = () => {
+  let user = null;
+  try {
+    user = JSON.parse(localStorage.getItem("authUser") || "null");
+  } catch {
+    user = null;
+  }
+  const fullName = `${user?.FirstName || ""} ${user?.LastName || ""}`.trim();
+  return (
+    fullName ||
+    user?.Name ||
+    user?.name ||
+    user?.Email ||
+    user?.email ||
+    localStorage.getItem("role") ||
+    "Unknown"
+  );
+};
 
 const SupplierHistoryTable = () => {
   const role = localStorage.getItem("role");
@@ -44,15 +72,6 @@ const SupplierHistoryTable = () => {
   });
 
   const [rows, setRows] = useState([]);
-
-  // Supplier discount: reduces this supplier's due without any Book entry.
-  const emptyDiscount = {
-    date: new Date().toISOString().slice(0, 10),
-    amount: "",
-  };
-  const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
-  const [discountForm, setDiscountForm] = useState(emptyDiscount);
-  const [isSavingDiscount, setIsSavingDiscount] = useState(false);
 
 
   // ✅ Filters: start/end + product NAME
@@ -304,53 +323,8 @@ const SupplierHistoryTable = () => {
     }
   };
 
-  const handleSaveDiscount = async (e) => {
-    e.preventDefault();
-    const amount = Number(discountForm.amount);
-    if (!discountForm.date) return toast.error("Please select a date");
-    if (!Number.isFinite(amount) || amount <= 0)
-      return toast.error("Please enter a valid discount amount");
-
-    setIsSavingDiscount(true);
-    try {
-      const res = await insertSupplierHistory({
-        supplierId: Number(id),
-        amount,
-        date: discountForm.date,
-        status: "Discount",
-      }).unwrap();
-      if (res?.success) {
-        toast.success("Discount added!");
-        setIsDiscountModalOpen(false);
-        setDiscountForm(emptyDiscount);
-        refetch?.();
-      } else toast.error(res?.message || "Save failed!");
-    } catch (err) {
-      toast.error(err?.data?.message || "Save failed!");
-    } finally {
-      setIsSavingDiscount(false);
-    }
-  };
-
   // ✅ Delete
   const [deleteSupplierHistory] = useDeleteSupplierHistoryMutation();
-
-  const handleDeleteDiscount = async (rowId) => {
-    const confirmDelete = await requestDeleteConfirmation({
-      message: "Do you want to delete this discount?",
-    });
-    if (!confirmDelete) return;
-
-    try {
-      const res = await deleteSupplierHistory(rowId).unwrap();
-      if (res?.success) {
-        toast.success("Discount deleted!");
-        refetch?.();
-      } else toast.error(res?.message || "Delete failed!");
-    } catch (err) {
-      toast.error(err?.data?.message || "Delete failed!");
-    }
-  };
 
   const handleDeleteProduct = async (id) => {
     const confirmDelete = await requestDeleteConfirmation({
@@ -453,6 +427,45 @@ const SupplierHistoryTable = () => {
 
   const getPaymentStatus = (row) => row.displayStatus || row.status || "-";
 
+  // Due rows from an Item Requisition line: product cost and other cost shown
+  // apart; the row's amount is their total (the due). A standalone Others
+  // Cost line has no product cost (null → "—").
+  const getCostBreakdown = (row) => {
+    const req = row.itemRequisition;
+    if (!req || getPaymentStatus(row) !== "Due") return null;
+    return {
+      productCost:
+        req.entryType === "Others Cost" ? null : Number(req.amount || 0),
+      otherCost: Number(req.othersCost || 0),
+    };
+  };
+
+  // Due rows from Item Requisition (Item Received) or an older Item Purchase
+  // carry the item they were posted for.
+  const getProductInfo = (row) => {
+    if (getPaymentStatus(row) !== "Due") return null;
+    const req = row.itemRequisition;
+    if (req?.entryType === "Others Cost") {
+      return { name: "Others Cost", qty: "" };
+    }
+    if (req?.item?.name) {
+      const qty = Number(req.quantity || 0);
+      return {
+        name: req.item.name,
+        qty: qty ? `${qty} ${req.unit || ""}`.trim() : "",
+      };
+    }
+    const purchase = row.manufacture;
+    if (purchase?.name) {
+      const qty = Number(purchase.unitValue || 0);
+      return {
+        name: purchase.name,
+        qty: qty ? `${qty} ${purchase.unit || ""}`.trim() : "",
+      };
+    }
+    return null;
+  };
+
   const getPaymentStatusClass = (status) => {
     if (status === "Paid") {
       return "bg-emerald-50 text-emerald-700 border-emerald-200";
@@ -469,9 +482,159 @@ const SupplierHistoryTable = () => {
     return "bg-slate-50 text-slate-700 border-slate-200";
   };
 
+  // ✅ Report export (PDF / Google Sheet): all rows matching the current
+  // filters, not just the visible page (API caps a page at 100 rows).
+  const [fetchSupplierHistory] = useLazyGetAllSupplierHistoryQuery();
+  const [isExporting, setIsExporting] = useState(false);
+  const { data: logoData } = useGetAllLogoQuery();
+  const logoUrl = buildAssetUrl(logoData?.data?.file);
+
+  const supplierName =
+    suppliers.find((s) => String(s.Id) === String(id))?.name || "Supplier";
+  const bookName =
+    books.find((b) => String(b.Id) === String(book))?.name || "All Books";
+  const dateRangeLabel =
+    startDate || endDate
+      ? `${startDate || "Start"} to ${endDate || "Today"}`
+      : "All Dates";
+
+  const REPORT_COLUMNS = [
+    "Date",
+    "Product",
+    "Product Cost",
+    "Other Cost",
+    "Amount",
+    "Payment Status",
+  ];
+
+  const loadReportData = async () => {
+    const pageSize = 100;
+    const collected = [];
+    let meta = {};
+    for (let page = 1; ; page += 1) {
+      const res = await fetchSupplierHistory({
+        ...queryArgs,
+        page,
+        limit: pageSize,
+      }).unwrap();
+      const batch = res?.data || [];
+      meta = res?.meta || meta;
+      collected.push(...batch);
+      if (batch.length < pageSize || collected.length >= (meta.total ?? 0))
+        break;
+    }
+    return { rows: collected, meta };
+  };
+
+  const toReportRow = (row) => {
+    const info = getProductInfo(row);
+    return {
+      date: row.date || "",
+      product: info ? [info.name, info.qty].filter(Boolean).join(" - ") : "",
+      productName: info?.name || "",
+      productQty: info?.qty || "",
+      productCost: getCostBreakdown(row)?.productCost ?? "",
+      otherCost: getCostBreakdown(row)?.otherCost ?? "",
+      amount: Number(row.amount || 0),
+      status: getPaymentStatus(row),
+    };
+  };
+
+  const getReportFileName = (extension) =>
+    `${supplierName}-history-${startDate || "all"}-${endDate || "data"}`
+      .replace(/[^\w-]+/g, "_")
+      .concat(`.${extension}`);
+
+  const getReportSummary = (meta) => [
+    ["Total Paid", Number(meta.totalPaid || 0)],
+    ["Total Discount", Number(meta.totalDiscount || 0)],
+    ["Total Advance", Number(meta.totalAdvance || 0)],
+    ["Total Due", Number(meta.totalDue || 0)],
+  ];
+
+  const runExport = async (build) => {
+    if (isExporting) return;
+    setIsExporting(true);
+    try {
+      const { rows: allRows, meta } = await loadReportData();
+      if (!allRows.length) {
+        toast.error("No data found for these filters.");
+        return;
+      }
+      await build(allRows.map(toReportRow), meta);
+    } catch (err) {
+      console.error("Supplier history export failed", err);
+      toast.error("Report download failed.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleDownloadSheet = () =>
+    runExport(async (reportRows, meta) => {
+      const XLSX = await import("xlsx");
+      const sheetRows = [
+        [`${supplierName} - Supplier History`],
+        ["Date Range", dateRangeLabel],
+        ["Book", bookName],
+        ...getReportSummary(meta),
+        [],
+        REPORT_COLUMNS,
+        ...reportRows.map((r) => [
+          r.date,
+          r.product,
+          r.productCost,
+          r.otherCost,
+          r.amount,
+          r.status,
+        ]),
+      ];
+      const worksheet = XLSX.utils.aoa_to_sheet(sheetRows);
+      worksheet["!cols"] = [
+        { wch: 14 },
+        { wch: 36 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 16 },
+      ];
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Supplier History");
+      XLSX.writeFile(workbook, getReportFileName("xlsx"));
+    });
+
+  const handleDownloadPdf = () =>
+    runExport(async (reportRows, meta) => {
+      const blob = await generateSupplierHistoryPdf({
+        rows: reportRows,
+        supplierName,
+        summary: {
+          totalPaid: Number(meta.totalPaid || 0),
+          totalDiscount: Number(meta.totalDiscount || 0),
+          totalAdvance: Number(meta.totalAdvance || 0),
+          totalDue: Number(meta.totalDue || 0),
+        },
+        metadata: {
+          duration: dateRangeLabel,
+          book: bookName,
+          generatedBy: getReportUserName(),
+          generatedAt: new Date().toLocaleString(),
+        },
+        logoUrl,
+      });
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = getReportFileName("pdf");
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
+
   const totalPaid = Number(data?.meta?.totalPaid || 0);
   const totalDiscount = Number(data?.meta?.totalDiscount || 0);
-  const canManageDiscount = role === "superAdmin" || role === "admin";
   const totalAdvance = Number(data?.meta?.totalAdvance ?? data?.meta?.netBalance ?? 0);
   const totalDue = Number(data?.meta?.totalDue ?? data?.meta?.totalUnpaid ?? 0);
 
@@ -596,17 +759,25 @@ const SupplierHistoryTable = () => {
           Add <Plus size={18} className="ml-2" />
         </button> */}
 
-        <div>
-          {canManageDiscount && (
-            <button
-              type="button"
-              onClick={() => setIsDiscountModalOpen(true)}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 text-sm font-semibold text-white hover:bg-amber-600 transition"
-            >
-              <BadgePercent size={18} />
-              Add Discount
-            </button>
-          )}
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={handleDownloadSheet}
+            disabled={isExporting}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 text-sm font-semibold text-emerald-700 hover:bg-emerald-100 disabled:opacity-60"
+          >
+            <FileSpreadsheet size={17} />
+            Google Sheet
+          </button>
+          <button
+            type="button"
+            onClick={handleDownloadPdf}
+            disabled={isExporting}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-60"
+          >
+            <FileText size={17} />
+            {isExporting ? "Preparing..." : "PDF"}
+          </button>
         </div>
         <div className="flex items-center justify-between sm:justify-end gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2 shadow-sm">
           <div className="flex items-center gap-2 text-slate-700">
@@ -704,16 +875,20 @@ const SupplierHistoryTable = () => {
                 Book
               </th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                Product
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                Product Cost
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                Other Cost
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Amount
               </th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Payment Status
               </th>
-              {canManageDiscount && (
-                <th className="px-6 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">
-                  Action
-                </th>
-              )}
               {/* <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
                 Actions
               </th> */}
@@ -859,6 +1034,8 @@ const SupplierHistoryTable = () => {
             {rows.map((rp) => {
               const rowId = rp.Id ?? rp.id;
               const paymentStatus = getPaymentStatus(rp);
+              const productInfo = getProductInfo(rp);
+              const costBreakdown = getCostBreakdown(rp);
 
               const safePath = String(rp.file || "").replace(/\\/g, "/");
               const fileUrl = safePath
@@ -925,34 +1102,46 @@ const SupplierHistoryTable = () => {
                     )}
                   </td>
 
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                    {productInfo ? (
+                      <div>
+                        <p className="font-medium text-slate-900">
+                          {productInfo.name}
+                        </p>
+                        {productInfo.qty && (
+                          <p className="text-xs text-slate-500 tabular-nums">
+                            {productInfo.qty}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-slate-400">—</span>
+                    )}
+                  </td>
+
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 tabular-nums">
+                    {costBreakdown?.productCost != null
+                      ? costBreakdown.productCost.toFixed(2)
+                      : "—"}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700 tabular-nums">
+                    {costBreakdown ? costBreakdown.otherCost.toFixed(2) : "—"}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-900 tabular-nums">
                     {Number(rp.amount || 0).toFixed(2)}
                   </td>
 
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                    <span
-                      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border ${
-                        getPaymentStatusClass(paymentStatus)
-                      }`}
-                    >
-                      {paymentStatus}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border ${
+                          getPaymentStatusClass(paymentStatus)
+                        }`}
+                      >
+                        {paymentStatus}
+                      </span>
+                    </div>
                   </td>
-
-                  {canManageDiscount && (
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                      {paymentStatus === "Discount" && (
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteDiscount(rowId)}
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 hover:bg-rose-50 transition"
-                          title="Delete discount"
-                        >
-                          <Trash2 size={16} className="text-rose-600" />
-                        </button>
-                      )}
-                    </td>
-                  )}
 
                   {/* <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex items-center gap-2">
@@ -1251,64 +1440,6 @@ const SupplierHistoryTable = () => {
             </button>
           </div>
         </div>
-      </Modal>
-
-      {/* Add Discount Modal */}
-      <Modal
-        isOpen={isDiscountModalOpen}
-        onClose={() => setIsDiscountModalOpen(false)}
-        title="Add Supplier Discount"
-        maxWidth="max-w-md"
-      >
-        <form onSubmit={handleSaveDiscount} className="space-y-4">
-          <p className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-            Discount reduces this supplier's due. No Book entry is created.
-          </p>
-          <div>
-            <label className="mb-1 block text-sm font-semibold text-slate-600">
-              Date
-            </label>
-            <input
-              type="date"
-              value={discountForm.date}
-              onChange={(e) =>
-                setDiscountForm((p) => ({ ...p, date: e.target.value }))
-              }
-              className="h-11 bg-white w-full rounded-xl border border-slate-200 px-3 text-slate-900 outline-none focus:border-indigo-200 focus:ring-2 focus:ring-indigo-500/20"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-semibold text-slate-600">
-              Discount Amount
-            </label>
-            <input
-              type="number"
-              min="1"
-              value={discountForm.amount}
-              onChange={(e) =>
-                setDiscountForm((p) => ({ ...p, amount: e.target.value }))
-              }
-              placeholder="0"
-              className="h-11 bg-white w-full rounded-xl border border-slate-200 px-3 text-slate-900 outline-none focus:border-indigo-200 focus:ring-2 focus:ring-indigo-500/20"
-            />
-          </div>
-          <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
-            <button
-              type="button"
-              onClick={() => setIsDiscountModalOpen(false)}
-              className="h-11 rounded-xl border border-slate-200 px-5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSavingDiscount}
-              className="h-11 rounded-xl bg-amber-500 px-5 text-sm font-semibold text-white hover:bg-amber-600 disabled:opacity-60"
-            >
-              {isSavingDiscount ? "Saving..." : "Save Discount"}
-            </button>
-          </div>
-        </form>
       </Modal>
 
       {/* Note View Modal */}

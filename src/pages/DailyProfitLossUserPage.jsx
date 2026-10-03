@@ -324,6 +324,7 @@ const DailyProfitLossUserPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 400);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [reportSaleType, setReportSaleType] = useState(null);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -361,10 +362,11 @@ const DailyProfitLossUserPage = () => {
       limit: pageSize,
       searchTerm: debouncedSearchTerm || undefined,
       employeeId: selectedEmployee?.value || undefined,
+      saleType: reportSaleType?.value || undefined,
       startDate: fromDate || undefined,
       endDate: toDate || undefined,
     }),
-    [currentPage, debouncedSearchTerm, selectedEmployee, fromDate, toDate],
+    [currentPage, debouncedSearchTerm, selectedEmployee, reportSaleType, fromDate, toDate],
   );
 
   const allReportsQueryArgs = useMemo(
@@ -373,10 +375,11 @@ const DailyProfitLossUserPage = () => {
       limit: 9999,
       searchTerm: debouncedSearchTerm || undefined,
       employeeId: selectedEmployee?.value || undefined,
+      saleType: reportSaleType?.value || undefined,
       startDate: fromDate || undefined,
       endDate: toDate || undefined,
     }),
-    [debouncedSearchTerm, selectedEmployee, fromDate, toDate],
+    [debouncedSearchTerm, selectedEmployee, reportSaleType, fromDate, toDate],
   );
 
   const { data: employeeListRes } = useGetAllEmployeeListWithoutQueryQuery(
@@ -1005,7 +1008,7 @@ const DailyProfitLossUserPage = () => {
   useEffect(() => {
     setCurrentPage(1);
     setStartPage(1);
-  }, [searchTerm, selectedEmployee, fromDate, toDate]);
+  }, [searchTerm, selectedEmployee, reportSaleType, fromDate, toDate]);
 
   useEffect(() => {
     if (currentPage < startPage) {
@@ -1109,8 +1112,8 @@ const DailyProfitLossUserPage = () => {
             <div
               className={`mt-5 grid min-w-0 grid-cols-1 items-end gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 p-3 ${
                 canManageReports
-                  ? "md:grid-cols-2 2xl:grid-cols-[260px_minmax(220px,1fr)_minmax(360px,520px)]"
-                  : "lg:grid-cols-[minmax(220px,1fr)_minmax(360px,520px)]"
+                  ? "md:grid-cols-2 2xl:grid-cols-[240px_200px_minmax(200px,1fr)_minmax(360px,520px)]"
+                  : "md:grid-cols-2 lg:grid-cols-[200px_minmax(220px,1fr)_minmax(360px,520px)]"
               }`}
             >
               {canManageReports && (
@@ -1129,6 +1132,20 @@ const DailyProfitLossUserPage = () => {
                   />
                 </div>
               )}
+              <div className="min-w-0">
+                <label className="mb-1.5 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  Sales Type
+                </label>
+                <Select
+                  value={reportSaleType}
+                  onChange={setReportSaleType}
+                  options={salesTypeOptions}
+                  isClearable
+                  placeholder="All sales types"
+                  className="text-sm text-slate-900"
+                  styles={selectStyles}
+                />
+              </div>
               <label className="block min-w-0">
                 <span className="mb-1.5 ml-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">
                   Search
@@ -1155,7 +1172,7 @@ const DailyProfitLossUserPage = () => {
                 className={
                   canManageReports
                     ? "min-w-0 md:col-span-2 2xl:col-span-1"
-                    : "min-w-0"
+                    : "min-w-0 md:col-span-2 lg:col-span-1"
                 }
               />
             </div>

@@ -14,12 +14,14 @@ const PAGE_HEIGHT = 1123;
 const ROWS_PER_PAGE = 18;
 
 const COLUMNS = [
-  { label: "Date", key: "date", width: "12%" },
-  { label: "Item", key: "item", width: "22%" },
-  { label: "Supplier", key: "supplier", width: "22%" },
-  { label: "Quantity", key: "quantity", width: "13%" },
-  { label: "Amount", key: "amount", width: "15%", className: "amount" },
-  { label: "Status", key: "status", width: "16%" },
+  { label: "Date", key: "date", width: "10%" },
+  { label: "Item", key: "item", width: "17%" },
+  { label: "Supplier", key: "supplier", width: "17%" },
+  { label: "Quantity", key: "quantity", width: "10%" },
+  { label: "Product Cost", key: "productCost", width: "12%", className: "amount" },
+  { label: "Other Cost", key: "otherCost", width: "11%", className: "amount" },
+  { label: "Total Amount", key: "amount", width: "12%", className: "amount" },
+  { label: "Status", key: "status", width: "11%" },
 ];
 
 const chunkRows = (rows) => {
@@ -178,6 +180,8 @@ const createPageHtml = ({
           pageNumber === totalPages && rows.length
             ? `<tr class="pdf-total-row">
                 <td colspan="4">Total</td>
+                <td class="amount">${escapeHtml(formatAmount(totals.productCost))}</td>
+                <td class="amount">${escapeHtml(formatAmount(totals.otherCost))}</td>
                 <td class="amount">${escapeHtml(formatAmount(totals.amount))}</td>
                 <td></td>
               </tr>`
@@ -201,7 +205,8 @@ const createRenderFrame = () => {
   return iframe;
 };
 
-// rows: [{ date, item, supplier, quantity, amount (number), status }]
+// rows: [{ date, item, supplier, quantity, productCost, otherCost,
+//          amount (number, product + other), status }]
 // supplierTotals: { purchase, paid, advance, due } — Supplier History within
 // the date filter (purchase = due posted in the range)
 export const generateItemRequisitionPdf = async ({
@@ -216,13 +221,22 @@ export const generateItemRequisitionPdf = async ({
 
   const totals = {
     amount: rows.reduce((sum, row) => sum + Number(row.amount || 0), 0),
+    productCost: rows.reduce((sum, row) => sum + Number(row.productCost || 0), 0),
+    otherCost: rows.reduce((sum, row) => sum + Number(row.otherCost || 0), 0),
     purchase: Number(supplierTotals.purchase || 0),
     paid: Number(supplierTotals.paid || 0),
     advance: Number(supplierTotals.advance || 0),
     due: Number(supplierTotals.due || 0),
   };
   const pages = chunkRows(
-    rows.map((row) => ({ ...row, amount: formatAmount(row.amount) })),
+    rows.map((row) => ({
+      ...row,
+      productCost: Number(row.productCost || 0)
+        ? formatAmount(row.productCost)
+        : "—",
+      otherCost: Number(row.otherCost || 0) ? formatAmount(row.otherCost) : "—",
+      amount: formatAmount(row.amount),
+    })),
   );
   const reportMetadata = {
     supplier: metadata.supplier || "All Suppliers",

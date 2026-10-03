@@ -65,6 +65,21 @@ const LeaveRequestPage = () => {
               type: "date",
               required: true,
             },
+            {
+              name: "isHalfDay",
+              label: "Half-day leave",
+              type: "checkbox",
+              checkboxLabel: "Only half of the start date",
+            },
+            {
+              name: "halfDaySession",
+              label: "Half",
+              type: "select",
+              options: [
+                { value: "First Half", label: "First Half" },
+                { value: "Second Half", label: "Second Half" },
+              ],
+            },
             { name: "totalDays", label: "Total Days", type: "number" },
             {
               name: "reason",
@@ -114,6 +129,11 @@ const LeaveRequestPage = () => {
             },
             { key: "startDate", label: "Start" },
             { key: "endDate", label: "End" },
+            {
+              key: "isHalfDay",
+              label: "Days",
+              render: (row) => (row.isHalfDay ? `½ (${row.halfDaySession || "Half"})` : row.totalDays || "-"),
+            },
             { key: "approvalStatus", label: "Approval" },
           ]}
           useListQuery={useGetAllLeaveRequestsQuery}
