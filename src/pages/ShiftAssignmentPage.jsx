@@ -1,11 +1,11 @@
 import { CalendarRange, Users } from "lucide-react";
 import Header from "../components/common/Header";
 import HrmCrudManager from "../components/hrm/HrmCrudManager";
-import { useGetAllEmployeeListQuery } from "../features/employeeList/employeeList";
 import { useGetAllShiftsQuery } from "../features/shift/shift";
 import {
   useCreateShiftAssignmentMutation,
   useDeleteShiftAssignmentMutation,
+  useGetAttendancePeopleQuery,
   useGetShiftAssignmentsQuery,
   useUpdateShiftAssignmentMutation,
 } from "../features/attendance/attendance";
@@ -34,13 +34,14 @@ const isCurrent = (row) => {
 };
 
 const ShiftAssignmentPage = () => {
-  const { data: employeesRes } = useGetAllEmployeeListQuery({ page: 1, limit: 500 });
+  const { data: peopleRes } = useGetAttendancePeopleQuery();
   const { data: shiftsRes } = useGetAllShiftsQuery({ page: 1, limit: 200 });
   const { data: assignmentsRes } = useGetShiftAssignmentsQuery({ page: 1, limit: 200 });
 
-  const employeeOptions = (employeesRes?.data || [])
-    .filter((employee) => !/deactive|inactive/i.test(String(employee.status || "")))
-    .map((employee) => ({ value: employee.Id, label: employee.name }));
+  const employeeOptions = (peopleRes?.data || []).map((person) => ({
+    value: person.Id,
+    label: `${person.name} (ID ${person.Id})`,
+  }));
   const shiftOptions = (shiftsRes?.data || [])
     .filter((shift) => shift.status !== "Inactive")
     .map((shift) => ({ value: shift.Id, label: `${shift.name} (${shift.startTime || "?"}–${shift.endTime || "?"})` }));

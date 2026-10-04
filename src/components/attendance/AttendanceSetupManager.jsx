@@ -4,6 +4,7 @@ import { AlertTriangle, Pencil, RefreshCcw, UserCheck, UserX, Users } from "luci
 import HrmWorkspace from "../hrm/HrmWorkspace";
 import Modal from "../common/Modal";
 import { useGetAllShiftsQuery } from "../../features/shift/shift";
+import { useGetAllDepartmentsQuery } from "../../features/department/department";
 import {
   useGetAttendanceSetupQuery,
   useRecomputeAttendanceMutation,
@@ -13,11 +14,26 @@ import { Panel, TableShell, bdToday, inputClass } from "./attendanceUi";
 
 const PIN_SOURCE_LABEL = {
   attendancePin: "set here",
-  employee_id: "from Employee ID",
-  employeeCode: "from Employee Code",
+  userId: "= User ID",
 };
 
-const EditEmployeeModal = ({ employee, shifts, onClose }) => {
+// Date input with a Clear button — a browser date field is awkward to empty.
+const DateField = ({ label, value, onChange, help }) => (
+  <div>
+    <div className="mb-1.5 flex items-center justify-between">
+      <span className="text-sm font-semibold text-slate-700">{label}</span>
+      {value && (
+        <button type="button" onClick={() => onChange("")} className="text-xs font-semibold text-rose-600 hover:text-rose-700">
+          Clear
+        </button>
+      )}
+    </div>
+    <input type="date" value={value || ""} onChange={(e) => onChange(e.target.value)} className={`${inputClass} w-full`} />
+    {help && <span className="mt-1 block text-xs text-slate-500">{help}</span>}
+  </div>
+);
+
+const EditEmployeeModal = ({ employee, shifts, departments, onClose }) => {
   const [form, setForm] = useState({});
   const [save, { isLoading }] = useUpdateEmployeeAttendanceSetupMutation();
 
@@ -26,6 +42,7 @@ const EditEmployeeModal = ({ employee, shifts, onClose }) => {
     setForm({
       attendancePin: employee.attendancePin || "",
       shiftId: employee.defaultShift?.Id || "",
+      departmentId: employee.departmentId || "",
       joiningDate: employee.joiningDate || "",
       exitDate: employee.exitDate || "",
       attendanceExempt: employee.attendanceExempt,
@@ -43,6 +60,7 @@ const EditEmployeeModal = ({ employee, shifts, onClose }) => {
         data: {
           attendancePin: form.attendancePin,
           shiftId: form.shiftId || null,
+          departmentId: form.departmentId || null,
           joiningDate: form.joiningDate || null,
           exitDate: form.exitDate || null,
           attendanceExempt: Boolean(form.attendanceExempt),
@@ -63,11 +81,11 @@ const EditEmployeeModal = ({ employee, shifts, onClose }) => {
           <input
             value={form.attendancePin || ""}
             onChange={(e) => set("attendancePin", e.target.value)}
-            placeholder={employee.pin ? `Empty = ${employee.pin} (${PIN_SOURCE_LABEL[employee.pinSource] || ""})` : "e.g. 2158"}
+            placeholder={`Empty = ${employee.Id} (User ID)`}
             className={`${inputClass} w-full`}
           />
           <span className="mt-1 block text-xs text-slate-500">
-            Leave empty to keep using the Employee ID. Must match the User ID the employee was enrolled with on the device.
+            Leave empty to use the User ID ({employee.Id}). Fill it only if this person was enrolled on the device with a different User ID.
           </span>
         </label>
         <label className="block">
@@ -84,15 +102,26 @@ const EditEmployeeModal = ({ employee, shifts, onClose }) => {
             A dated Shift Assignment overrides this for its period.
           </span>
         </label>
+        <label className="block">
+          <span className="mb-1.5 block text-sm font-semibold text-slate-700">Department</span>
+          <select value={form.departmentId || ""} onChange={(e) => set("departmentId", e.target.value)} className={`${inputClass} w-full`}>
+            <option value="">—</option>
+            {departments.map((department) => (
+              <option key={department.Id} value={department.Id}>
+                {department.name}
+              </option>
+            ))}
+          </select>
+          <span className="mt-1 block text-xs text-slate-500">Used for the department filter and department-only holidays.</span>
+        </label>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-semibold text-slate-700">Joining date</span>
-            <input type="date" value={form.joiningDate || ""} onChange={(e) => set("joiningDate", e.target.value)} className={`${inputClass} w-full`} />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-semibold text-slate-700">Last working day (exit)</span>
-            <input type="date" value={form.exitDate || ""} onChange={(e) => set("exitDate", e.target.value)} className={`${inputClass} w-full`} />
-          </label>
+          <DateField label="Joining date" value={form.joiningDate} onChange={(value) => set("joiningDate", value)} />
+          <DateField
+            label="Last working day (exit)"
+            value={form.exitDate}
+            onChange={(value) => set("exitDate", value)}
+            help="Only for someone who has left — no attendance is calculated after this day."
+          />
         </div>
         <label className="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3">
           <input type="checkbox" checked={Boolean(form.attendanceExempt)} onChange={(e) => set("attendanceExempt", e.target.checked)} />
@@ -115,6 +144,8 @@ const EditEmployeeModal = ({ employee, shifts, onClose }) => {
 const AttendanceSetupManager = () => {
   const { data, isFetching, error } = useGetAttendanceSetupQuery(undefined, { refetchOnMountOrArgChange: true });
   const { data: shiftsRes } = useGetAllShiftsQuery({ page: 1, limit: 200 });
+  const { data: departmentsRes } = useGetAllDepartmentsQuery({ page: 1, limit: 500 });
+  const departments = departmentsRes?.data || [];
   const [save] = useUpdateEmployeeAttendanceSetupMutation();
   const [recompute, { isLoading: recomputing }] = useRecomputeAttendanceMutation();
   const [editing, setEditing] = useState(null);
@@ -179,7 +210,7 @@ const AttendanceSetupManager = () => {
     <HrmWorkspace
       eyebrow="Attendance"
       title="Attendance Setup"
-      description="Link each employee to the PIN they punch with on the device, set joining/exit dates and who is exempt. Everything here feeds the daily calculation."
+      description="Attendance people are the system Users. Enroll each person on the device with their User ID (shown as PIN) — or set a different PIN here. Also set department, joining/exit date and who is exempt."
       stats={stats}
     >
       {error?.status === 403 && (
@@ -212,7 +243,7 @@ const AttendanceSetupManager = () => {
                         <option value="">Select employee</option>
                         {tracked.map((employee) => (
                           <option key={employee.Id} value={employee.Id}>
-                            {employee.name} (now {employee.pin || "no PIN"})
+                            {employee.name} (ID {employee.Id})
                           </option>
                         ))}
                       </select>
@@ -272,12 +303,14 @@ const AttendanceSetupManager = () => {
               <tr key={row.Id} className={row.tracked ? "" : "bg-slate-50/70 text-slate-400"}>
                 <td className="px-3 py-2.5">
                   <div className="font-semibold text-slate-900">{row.name}</div>
-                  <div className="text-xs text-slate-400">{row.department || row.status}</div>
+                  <div className="text-xs text-slate-400">
+                    {[row.role, row.department].filter(Boolean).join(" · ") || row.status}
+                  </div>
                 </td>
                 <td className="px-3 py-2.5">
                   <span className={row.pinConflict ? "font-bold text-amber-700" : "font-medium"}>{row.pin || "—"}</span>
                   <div className="text-xs text-slate-400">
-                    {row.pinConflict ? "Shared with another employee" : PIN_SOURCE_LABEL[row.pinSource] || "no PIN"}
+                    {row.pinConflict ? "Shared with another user" : PIN_SOURCE_LABEL[row.pinSource] || ""}
                   </div>
                 </td>
                 <td className="px-3 py-2.5">{row.onDevice ? "Yes" : <span className="text-slate-400">No</span>}</td>
@@ -313,7 +346,9 @@ const AttendanceSetupManager = () => {
         </div>
       </Panel>
 
-      {editing && <EditEmployeeModal employee={editing} shifts={shifts} onClose={() => setEditing(null)} />}
+      {editing && (
+        <EditEmployeeModal employee={editing} shifts={shifts} departments={departments} onClose={() => setEditing(null)} />
+      )}
     </HrmWorkspace>
   );
 };

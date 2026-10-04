@@ -7,8 +7,14 @@ import {
   useGetAllDepartmentsQuery,
   useUpdateDepartmentMutation,
 } from "../features/department/department";
+import { useGetAttendancePeopleQuery } from "../features/attendance/attendance";
 
 const DepartmentPage = () => {
+  const { data: peopleRes } = useGetAttendancePeopleQuery({ scope: "all" });
+  const people = peopleRes?.data || [];
+  const userOptions = people.map((person) => ({ value: person.Id, label: person.name }));
+  const userName = (id) => people.find((person) => String(person.Id) === String(id))?.name || (id ? `User #${id}` : "-");
+
   return (
     <div className="flex-1 relative z-10">
       <Header title="Department" />
@@ -21,6 +27,14 @@ const DepartmentPage = () => {
             { name: "name", label: "Department Name", required: true },
             { name: "code", label: "Code" },
             { name: "description", label: "Description", type: "textarea" },
+            {
+              name: "teamLeaderUserId",
+              label: "Team Leader",
+              type: "select",
+              options: userOptions,
+              placeholder: "No team leader",
+              help: "Approves this department's leave requests and gets their notifications.",
+            },
             {
               name: "status",
               label: "Status",
@@ -36,6 +50,7 @@ const DepartmentPage = () => {
             { key: "name", label: "Name" },
             { key: "code", label: "Code" },
             { key: "description", label: "Description" },
+            { key: "teamLeaderUserId", label: "Team Leader", render: (row) => userName(row.teamLeaderUserId) },
             { key: "status", label: "Status" },
           ]}
           useListQuery={useGetAllDepartmentsQuery}

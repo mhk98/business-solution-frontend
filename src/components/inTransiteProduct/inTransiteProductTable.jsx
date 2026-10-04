@@ -190,10 +190,14 @@ const getInventoryVariantColorOptions = (inventoryItem) => {
   );
 };
 
+// Variant size/color compared without stray spaces (e.g. a hand-edited
+// "Black " in stock must still match the "Black" option).
+const sameVariantValue = (a, b) => String(a || "").trim() === String(b || "").trim();
+
 const getInventoryVariantColorsForSize = (inventoryItem, size) => {
   if (!size) return [];
   return getSelectableVariantRows(inventoryItem)
-    .filter((v) => String(v.size || "") === String(size))
+    .filter((v) => sameVariantValue(v.size, size))
     .map((v) => v.color)
     .filter(Boolean)
     .filter((v, i, arr) => arr.indexOf(v) === i)
@@ -227,8 +231,7 @@ const getInventoryVariantStockQuantity = (inventoryItem, variant) => {
 
   const match = getVariantDisplayRows(inventoryItem).find(
     (row) =>
-      String(row.size || "") === String(variant.size || "") &&
-      String(row.color || "") === String(variant.color || ""),
+      sameVariantValue(row.size, variant.size) && sameVariantValue(row.color, variant.color),
   );
 
   return Number(match?.quantity || 0);
@@ -605,8 +608,7 @@ const IntransiteProductTable = () => {
     const sourceRecord = getSourceRecordForTransitItem(item);
     const sourceVariant = getVariantDisplayRows(sourceRecord).find(
       (source) =>
-        String(source?.size || "") === String(variant?.size || "") &&
-        String(source?.color || "") === String(variant?.color || ""),
+        sameVariantValue(source?.size, variant?.size) && sameVariantValue(source?.color, variant?.color),
     );
 
     return pickPositivePrice(
@@ -624,8 +626,7 @@ const IntransiteProductTable = () => {
     const sourceRecord = getSourceRecordForTransitItem(item);
     const sourceVariant = getVariantDisplayRows(sourceRecord).find(
       (source) =>
-        String(source?.size || "") === String(variant?.size || "") &&
-        String(source?.color || "") === String(variant?.color || ""),
+        sameVariantValue(source?.size, variant?.size) && sameVariantValue(source?.color, variant?.color),
     );
 
     return Number(sourceVariant?.quantity || 0);

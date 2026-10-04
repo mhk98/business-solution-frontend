@@ -6,17 +6,15 @@ import {
   useGetAllAttendanceRegularizationsQuery,
   useUpdateAttendanceRegularizationMutation,
 } from "../features/attendanceRegularization/attendanceRegularization";
-import { useGetAllEmployeeListQuery } from "../features/employeeList/employeeList";
+import { useGetAttendancePeopleQuery } from "../features/attendance/attendance";
 
 const AttendanceRegularizationPage = () => {
   const currentUserId = localStorage.getItem("userId");
-  const { data: employeesRes } = useGetAllEmployeeListQuery({
-    page: 1,
-    limit: 500,
-  });
-  const employeeOptions = (employeesRes?.data || []).map((employee) => ({
-    value: employee.Id,
-    label: `${employee.name}${employee.employeeCode ? ` • ${employee.employeeCode}` : ""}`,
+  // Attendance people are Users; their Id is the device PIN.
+  const { data: peopleRes } = useGetAttendancePeopleQuery();
+  const employeeOptions = (peopleRes?.data || []).map((person) => ({
+    value: person.Id,
+    label: `${person.name} (ID ${person.Id})`,
   }));
 
   return (
@@ -30,7 +28,7 @@ const AttendanceRegularizationPage = () => {
           description="Capture missing punch and manual correction requests before payroll and daily attendance are finalized."
           fields={[
             {
-              name: "employeeId",
+              name: "userId",
               label: "Employee",
               type: "select",
               options: employeeOptions,
@@ -102,7 +100,10 @@ const AttendanceRegularizationPage = () => {
             {
               key: "employee",
               label: "Employee",
-              render: (row) => row.employee?.name || "-",
+              render: (row) =>
+                row.attendanceUser
+                  ? [row.attendanceUser.FirstName, row.attendanceUser.LastName].filter(Boolean).join(" ")
+                  : row.employee?.name || "-",
             },
             { key: "attendanceDate", label: "Date" },
             { key: "requestType", label: "Type" },

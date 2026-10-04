@@ -29,6 +29,12 @@ export const attendanceApi = baseApi.injectEndpoints({
       query: (params = {}) => ({ url: "/attendance/dashboard", params }),
       providesTags: DAY_TAGS,
     }),
+    // Users who can be picked as an attendance person (Id = device PIN).
+    // scope: "all" also returns exempt users (approvers, requesters).
+    getAttendancePeople: build.query({
+      query: (params = {}) => ({ url: "/attendance/people", params }),
+      providesTags: ["AttendanceSetup"],
+    }),
     getLeaveBalance: build.query({
       query: (params = {}) => ({ url: "/attendance/leave-balance", params }),
       providesTags: DAY_TAGS,
@@ -61,7 +67,7 @@ export const attendanceApi = baseApi.injectEndpoints({
       // show the row's employee in the create-time multi-select.
       transformResponse: (res) => ({
         ...res,
-        data: (res?.data || []).map((row) => ({ ...row, employeeIds: [row.employeeId] })),
+        data: (res?.data || []).map((row) => ({ ...row, employeeIds: [row.userId] })),
         meta: { count: res?.data?.length || 0 },
       }),
       providesTags: ["ShiftAssignment"],
@@ -106,6 +112,7 @@ export const {
   useGetAttendancePunchesQuery,
   useGetAttendanceDashboardQuery,
   useGetLeaveBalanceQuery,
+  useGetAttendancePeopleQuery,
   useRecomputeAttendanceMutation,
   useAddManualPunchMutation,
   useDeleteManualPunchMutation,

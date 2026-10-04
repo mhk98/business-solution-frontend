@@ -60,6 +60,9 @@ const HrmCrudManager = ({
   useApproveMutation,
   stats = [],
   eyebrow,
+  // (name, value, nextForm) => patch | undefined — lets one field fill
+  // another (e.g. picking an employee pre-selects their approver).
+  onFieldChange,
 }) => {
   const emptyForm = useMemo(() => buildInitialState(fields), [fields]);
   const currentRole = localStorage.getItem("role");
@@ -160,7 +163,11 @@ const HrmCrudManager = ({
   };
 
   const setFieldValue = (name, value) => {
-    setForm((prev) => ({ ...prev, [name]: value }));
+    setForm((prev) => {
+      const next = { ...prev, [name]: value };
+      const patch = onFieldChange?.(name, value, next);
+      return patch ? { ...next, ...patch } : next;
+    });
   };
 
   const buildPayload = () => {

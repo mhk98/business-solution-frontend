@@ -60,7 +60,7 @@ const SECTION_ITEMS = [
   },
   {
     group: "Attendance",
-    label: "Attendance",
+    label: "Attendance Report",
     href: "/hrm/attendance",
     match: ["/hrm/attendance"],
     icon: Fingerprint,

@@ -6,24 +6,38 @@ import {
   useGetAllLeaveRequestsQuery,
   useUpdateLeaveRequestMutation,
 } from "../features/leaveRequest/leaveRequest";
-import { useGetAllEmployeeListQuery } from "../features/employeeList/employeeList";
+import { useGetAttendancePeopleQuery } from "../features/attendance/attendance";
 import { useGetAllLeaveTypesQuery } from "../features/leaveType/leaveType";
 
 const LeaveRequestPage = () => {
   const currentUserId = localStorage.getItem("userId");
-  const { data: employeesRes } = useGetAllEmployeeListQuery({
-    page: 1,
-    limit: 500,
-  });
+  // Attendance people are Users; their Id is the device PIN.
+  const { data: peopleRes } = useGetAttendancePeopleQuery();
+  // Everyone active (incl. exempt) — requesters and approvers.
+  const { data: allPeopleRes } = useGetAttendancePeopleQuery({ scope: "all" });
   const { data: leaveTypesRes } = useGetAllLeaveTypesQuery({
     page: 1,
     limit: 500,
   });
 
-  const employeeOptions = (employeesRes?.data || []).map((employee) => ({
-    value: employee.Id,
-    label: `${employee.name}${employee.employeeCode ? ` • ${employee.employeeCode}` : ""}`,
+  const employeeOptions = (peopleRes?.data || []).map((person) => ({
+    value: person.Id,
+    label: `${person.name} (ID ${person.Id})`,
   }));
+  const allPeople = allPeopleRes?.data || [];
+  const personById = (id) => allPeople.find((person) => String(person.Id) === String(id));
+  const requesterOptions = allPeople.map((person) => ({ value: person.Id, label: person.name }));
+  // Team leaders first, labelled with the departments they lead.
+  const approverOptions = [...allPeople]
+    .sort((a, b) => (b.leaderOf.length > 0) - (a.leaderOf.length > 0) || a.name.localeCompare(b.name))
+    .map((person) => ({
+      value: person.Id,
+      label: person.leaderOf.length ? `${person.name} — Team Leader (${person.leaderOf.join(", ")})` : person.name,
+    }));
+  // The approver for a leave: the employee's department leader, else the
+  // requester's.
+  const leaderFor = (...ids) => ids.map((id) => personById(id)?.teamLeaderUserId).find(Boolean) || "";
+  const fullName = (user) => (user ? [user.FirstName, user.LastName].filter(Boolean).join(" ") : "-");
   const leaveTypeOptions = (leaveTypesRes?.data || []).map((type) => ({
     value: type.Id,
     label: type.name,
@@ -37,10 +51,10 @@ const LeaveRequestPage = () => {
           eyebrow="Phase 3"
           entityLabel="Leave Request"
           title="Leave Requests"
-          description="Submit, approve and review leave applications so payroll can respect paid and unpaid absence."
+          description="Apply for leave and send it to the department's team leader for approval. Approved leave is counted in attendance."
           fields={[
             {
-              name: "employeeId",
+              name: "userId",
               label: "Employee",
               type: "select",
               options: employeeOptions,
@@ -89,14 +103,18 @@ const LeaveRequestPage = () => {
             },
             {
               name: "requestedByUserId",
-              label: "Requested By User ID",
-              type: "number",
+              label: "Requested By",
+              type: "select",
+              options: requesterOptions,
               defaultValue: currentUserId || "",
             },
             {
               name: "approvedByUserId",
-              label: "Approved By User ID",
-              type: "number",
+              label: "Approved By (Team Leader)",
+              type: "select",
+              options: approverOptions,
+              defaultValue: leaderFor(currentUserId),
+              help: "Filled with the employee's department team leader — they get a notification to approve.",
             },
             {
               name: "approvedAt",
@@ -120,7 +138,10 @@ const LeaveRequestPage = () => {
             {
               key: "employee",
               label: "Employee",
-              render: (row) => row.employee?.name || "-",
+              render: (row) =>
+                row.attendanceUser
+                  ? [row.attendanceUser.FirstName, row.attendanceUser.LastName].filter(Boolean).join(" ")
+                  : row.employee?.name || "-",
             },
             {
               key: "leaveType",
@@ -134,8 +155,17 @@ const LeaveRequestPage = () => {
               label: "Days",
               render: (row) => (row.isHalfDay ? `½ (${row.halfDaySession || "Half"})` : row.totalDays || "-"),
             },
+            { key: "requestedBy", label: "Requested By", render: (row) => fullName(row.requestedBy) },
+            { key: "approvedBy", label: "Approver", render: (row) => fullName(row.approvedBy) },
             { key: "approvalStatus", label: "Approval" },
           ]}
+          onFieldChange={(name, value, form) => {
+            if (name === "userId" || name === "requestedByUserId") {
+              const leader = leaderFor(form.userId, form.requestedByUserId);
+              if (leader) return { approvedByUserId: leader };
+            }
+            return undefined;
+          }}
           useListQuery={useGetAllLeaveRequestsQuery}
           useCreateMutation={useCreateLeaveRequestMutation}
           useUpdateMutation={useUpdateLeaveRequestMutation}

@@ -14,6 +14,21 @@ export const leaveRequestApi = createApi({
   }),
   tagTypes: ["LeaveRequest"],
   endpoints: (build) => ({
+    // Requests the logged-in user must approve (as team leader).
+    getMyLeaveApprovals: build.query({
+      query: () => ({ url: "/leave-request/approvals" }),
+      providesTags: ["LeaveRequest"],
+    }),
+    decideLeaveRequest: build.mutation({
+      // id + timestamp in the body keep the backend duplicate-POST guard
+      // from treating two different decisions as the same request.
+      query: ({ id, decision, note }) => ({
+        url: `/leave-request/${id}/decide`,
+        method: "POST",
+        body: { decision, note, leaveRequestId: id, requestedAt: Date.now() },
+      }),
+      invalidatesTags: ["LeaveRequest"],
+    }),
     createLeaveRequest: build.mutation({
       query: (data) => ({
         url: "/leave-request/create",
@@ -48,6 +63,8 @@ export const leaveRequestApi = createApi({
 });
 
 export const {
+  useGetMyLeaveApprovalsQuery,
+  useDecideLeaveRequestMutation,
   useCreateLeaveRequestMutation,
   useUpdateLeaveRequestMutation,
   useDeleteLeaveRequestMutation,
