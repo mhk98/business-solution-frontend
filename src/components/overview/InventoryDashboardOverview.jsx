@@ -871,31 +871,31 @@ const InventoryDashboardOverview = () => {
     {
       title: "Payroll Management",
       value: formatCurrency(payrollSummary.netAmount, 2),
-      centerLabel: "Payroll",
+      centerLabel: "Salary Paid",
       icon: WalletCards,
       color: "#14b8a6",
       href: "/hrm/payroll-runs",
       actionLabel: "View payroll",
       chartData: [
         {
-          label: "Net",
+          label: "Paid",
           value: payrollSummary.netAmount,
           color: "#14b8a6",
         },
         {
-          label: "Deduction",
+          label: "Salary Deduction",
           value: payrollSummary.deductionAmount,
           color: "#f97316",
         },
       ],
       rows: [
         {
-          label: "Gross",
+          label: "Total Salary",
           value: formatCurrency(payrollSummary.grossAmount, 2),
           color: "#14b8a6",
         },
         {
-          label: "Deduction",
+          label: "Salary Deduction",
           value: formatCurrency(payrollSummary.deductionAmount, 2),
           color: "#f97316",
         },

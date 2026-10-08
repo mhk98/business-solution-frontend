@@ -20,12 +20,30 @@ const balanceTone = (value) =>
       ? "text-emerald-600"
       : "text-slate-500";
 const ENTRY_TYPES = {
-  LOAN_TAKEN: { label: "Loan Taken", cls: "border-sky-200 bg-sky-50 text-sky-700" },
-  LOAN_REPAID: { label: "Repaid", cls: "border-rose-200 bg-rose-50 text-rose-700" },
-  REPAID_AND_GIVEN: { label: "Repaid + Loan Given", cls: "border-amber-200 bg-amber-50 text-amber-700" },
-  LOAN_GIVEN: { label: "Loan Given", cls: "border-amber-200 bg-amber-50 text-amber-700" },
-  LOAN_RECOVERED: { label: "Recovered", cls: "border-emerald-200 bg-emerald-50 text-emerald-700" },
-  RECOVERED_AND_TAKEN: { label: "Recovered + Loan Taken", cls: "border-sky-200 bg-sky-50 text-sky-700" },
+  LOAN_TAKEN: {
+    label: "Loan Taken",
+    cls: "border-sky-200 bg-sky-50 text-sky-700",
+  },
+  LOAN_REPAID: {
+    label: "Repaid",
+    cls: "border-rose-200 bg-rose-50 text-rose-700",
+  },
+  REPAID_AND_GIVEN: {
+    label: "Repaid + Loan Given",
+    cls: "border-amber-200 bg-amber-50 text-amber-700",
+  },
+  LOAN_GIVEN: {
+    label: "Loan Given",
+    cls: "border-amber-200 bg-amber-50 text-amber-700",
+  },
+  LOAN_RECOVERED: {
+    label: "Recovered",
+    cls: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  },
+  RECOVERED_AND_TAKEN: {
+    label: "Recovered + Loan Taken",
+    cls: "border-sky-200 bg-sky-50 text-sky-700",
+  },
 };
 
 const LoanHistoryTable = () => {
@@ -46,7 +64,8 @@ const LoanHistoryTable = () => {
 
   const rows = data?.data || [];
   const meta = data?.meta || {};
-  const loanName = loanRes?.data?.name || rows?.[0]?.loan?.name || rows?.[0]?.lender || "";
+  const loanName =
+    loanRes?.data?.name || rows?.[0]?.loan?.name || rows?.[0]?.lender || "";
 
   useEffect(() => {
     if (isError) console.error("Error fetching loan history", error);
@@ -65,16 +84,29 @@ const LoanHistoryTable = () => {
       <div className="mb-5 flex items-center justify-between gap-3">
         <div>
           <p className="text-sm text-slate-500">Loan Ledger</p>
-          <h2 className="text-xl font-semibold text-slate-900">{loanName || "Lender"}</h2>
+          <h2 className="text-xl font-semibold text-slate-900">
+            {loanName || "Lender"}
+          </h2>
         </div>
-        <Link to="/loan" className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+        <Link
+          to="/loan"
+          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+        >
           Back
         </Link>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full mb-6">
-        <Summary label="Total Received" hint="Loan taken + recovered" value={formatAmount(meta.periodCashIn)} />
-        <Summary label="Total Paid" hint="Repaid + loan given" value={formatAmount(meta.periodCashOut)} />
+        <Summary
+          label="Total Received"
+          hint="Loan taken + recovered"
+          value={formatAmount(meta.periodCashIn)}
+        />
+        <Summary
+          label="Total Paid"
+          hint="Repaid + loan given"
+          value={formatAmount(meta.periodCashOut)}
+        />
         <Summary
           label="Current Balance"
           hint={
@@ -99,20 +131,37 @@ const LoanHistoryTable = () => {
           placeholder="Search history..."
           className="w-full h-11 rounded-xl border border-slate-200 bg-white px-4 pr-11 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
         />
-        <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+        <Search
+          className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400"
+          size={18}
+        />
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-slate-200">
         <table className="min-w-full divide-y divide-slate-200 bg-white">
           <thead className="bg-slate-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Date</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Type</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Payment Mode</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Remarks</th>
-              <th className="px-6 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Received</th>
-              <th className="px-6 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Paid</th>
-              <th className="px-6 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Balance</th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                Date
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                Type
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                Payment Mode
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                Remarks
+              </th>
+              <th className="px-6 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                Received
+              </th>
+              <th className="px-6 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                Paid
+              </th>
+              <th className="px-6 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                Balance
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
@@ -124,24 +173,43 @@ const LoanHistoryTable = () => {
               };
               return (
                 <tr key={row.Id ?? row.id} className="hover:bg-slate-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{row.date || "-"}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                    {row.date || "-"}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <span className={`inline-flex rounded-lg border px-2.5 py-1 text-xs font-semibold ${entry.cls}`}>
+                    <span
+                      className={`inline-flex rounded-lg border px-2.5 py-1 text-xs font-semibold ${entry.cls}`}
+                    >
                       {entry.label}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{row.paymentMode || "-"}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{row.remarks || row.note || "-"}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-slate-700 tabular-nums">{isIn ? formatAmount(row.amount) : ""}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-slate-700 tabular-nums">{isIn ? "" : formatAmount(row.amount)}</td>
-                  <td className={`px-6 py-4 whitespace-nowrap text-right text-sm font-semibold tabular-nums ${balanceTone(row.runningBalance)}`}>{formatBalance(row.runningBalance)}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                    {row.paymentMode || "-"}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                    {row.remarks || row.note || "-"}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-slate-700 tabular-nums">
+                    {isIn ? formatAmount(row.amount) : ""}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-slate-700 tabular-nums">
+                    {isIn ? "" : formatAmount(row.amount)}
+                  </td>
+                  <td
+                    className={`px-6 py-4 whitespace-nowrap text-right text-sm font-semibold tabular-nums ${balanceTone(row.runningBalance)}`}
+                  >
+                    {formatBalance(row.runningBalance)}
+                  </td>
                 </tr>
               );
             })}
 
             {!isLoading && rows.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-6 py-6 text-center text-sm text-slate-600">
+                <td
+                  colSpan={7}
+                  className="px-6 py-6 text-center text-sm text-slate-600"
+                >
                   No loan history found
                 </td>
               </tr>

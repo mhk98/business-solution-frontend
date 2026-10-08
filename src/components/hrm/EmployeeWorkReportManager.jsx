@@ -249,6 +249,8 @@ const createProductRow = () => ({
 const EmployeeWorkReportManager = () => {
   const role = localStorage.getItem("role") || "user";
   const canManageReports = ["superAdmin", "admin"].includes(role);
+  const canViewAllReports =
+    canManageReports || ["marketer", "leaderCs"].includes(role);
   const currentUserId = Number(localStorage.getItem("userId") || 0);
 
   const [form, setForm] = useState(EMPTY_FORM);
@@ -306,14 +308,14 @@ const EmployeeWorkReportManager = () => {
     isLoading: myReportsLoading,
     refetch: refetchMine,
   } = useGetMyEmployeeWorkReportsQuery(listQueryArgs, {
-    skip: canManageReports,
+    skip: canViewAllReports,
   });
   const {
     data: allReportsRes,
     isLoading: allReportsLoading,
     refetch: refetchAll,
   } = useGetAllEmployeeWorkReportsQuery(listQueryArgs, {
-    skip: !canManageReports,
+    skip: !canViewAllReports,
   });
 
   const [createReport, { isLoading: creating }] =
@@ -362,7 +364,7 @@ const EmployeeWorkReportManager = () => {
   );
 
   const currentReport = currentReportRes?.data?.[0];
-  const reportRes = canManageReports ? allReportsRes : myReportsRes;
+  const reportRes = canViewAllReports ? allReportsRes : myReportsRes;
   const reports = reportRes?.data || [];
   const reportMeta = reportRes?.meta || {};
   const totalReports = reportMeta?.count || 0;
@@ -423,7 +425,7 @@ const EmployeeWorkReportManager = () => {
 
   const refetchReports = () => {
     refetchCurrent();
-    if (canManageReports) refetchAll();
+    if (canViewAllReports) refetchAll();
     else refetchMine();
   };
 
@@ -750,7 +752,7 @@ const EmployeeWorkReportManager = () => {
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h3 className="text-lg font-bold text-slate-900">
-                {canManageReports ? "All Employee Reports" : "My Reports"}
+                {canViewAllReports ? "All Employee Reports" : "My Reports"}
               </h3>
               <p className="mt-1 text-sm text-slate-500">
                 Search by name and filter with start and end date.

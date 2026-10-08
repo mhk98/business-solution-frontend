@@ -176,6 +176,7 @@ const DirectorTable = () => {
             <tr>
               <TableHead>Director Name</TableHead>
               <TableHead>Invest Amount</TableHead>
+              <TableHead>Withdraw</TableHead>
               <TableHead>Profit Amount</TableHead>
               <TableHead>Balance</TableHead>
               <TableHead>Status</TableHead>
@@ -202,6 +203,7 @@ const DirectorTable = () => {
                   </div>
                 </td>
                 <TableCell strong>{formatAmount(director.totalInvest)}</TableCell>
+                <TableCell strong>{formatAmount(director.totalWithdraw)}</TableCell>
                 <TableCell strong>{formatAmount(director.totalProfit)}</TableCell>
                 <TableCell strong>{formatAmount(director.netBalance)}</TableCell>
                 <TableCell>{director.status || "Active"}</TableCell>
@@ -234,7 +236,7 @@ const DirectorTable = () => {
             ))}
             {!directorsLoading && visibleDirectors.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-6 py-10 text-center text-sm text-slate-500">
+                <td colSpan={8} className="px-6 py-10 text-center text-sm text-slate-500">
                   No director found
                 </td>
               </tr>

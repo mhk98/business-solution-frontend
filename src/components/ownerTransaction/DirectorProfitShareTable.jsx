@@ -95,9 +95,9 @@ const DirectorProfitShareTable = ({
   const selectedTotal = selectedRows.reduce(
     (sum, row) =>
       sum +
-      (row.type === "Profit"
-        ? -Number(row.amount || 0)
-        : Number(row.amount || 0)),
+      (row.type === "Invest"
+        ? Number(row.amount || 0)
+        : -Number(row.amount || 0)),
     0,
   );
   const allCurrentPageSelected =
@@ -382,12 +382,18 @@ const DirectorProfitShareTable = ({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
     >
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <SummaryCard
           label="Total Invest"
           value={meta.totalInvest}
           tone="emerald"
           icon={<ArrowDownLeft size={18} />}
+        />
+        <SummaryCard
+          label="Total Withdraw"
+          value={meta.totalWithdraw}
+          tone="amber"
+          icon={<ArrowUpRight size={18} />}
         />
         <SummaryCard
           label="Total Profit"
@@ -396,7 +402,7 @@ const DirectorProfitShareTable = ({
           icon={<ArrowUpRight size={18} />}
         />
         <SummaryCard
-          label="Net Director Balance"
+          label="Balance (Invest − Withdraw)"
           value={meta.netBalance}
           tone="indigo"
           icon={<WalletCards size={18} />}
@@ -461,6 +467,7 @@ const DirectorProfitShareTable = ({
                 >
                   <option value="">All</option>
                   <option value="Invest">Invest</option>
+                  <option value="Withdraw">Withdraw</option>
                   <option value="Profit">Profit</option>
                 </select>
               </label>
@@ -563,7 +570,9 @@ const DirectorProfitShareTable = ({
                         className={`rounded-full px-3 py-1 text-xs font-semibold ${
                           row.type === "Invest"
                             ? "bg-emerald-50 text-emerald-700"
-                            : "bg-rose-50 text-rose-700"
+                            : row.type === "Withdraw"
+                              ? "bg-amber-50 text-amber-700"
+                              : "bg-rose-50 text-rose-700"
                         }`}
                       >
                         {row.type}
@@ -678,6 +687,7 @@ const DirectorProfitShareTable = ({
             }
             options={[
               { value: "Invest", label: "Invest" },
+              { value: "Withdraw", label: "Withdraw" },
               { value: "Profit", label: "Profit" },
             ]}
           />
@@ -736,6 +746,7 @@ const SummaryCard = ({ label, value, tone, icon }) => {
   const toneClass = {
     emerald: "text-emerald-600 bg-emerald-50 border-emerald-100",
     rose: "text-rose-600 bg-rose-50 border-rose-100",
+    amber: "text-amber-600 bg-amber-50 border-amber-100",
     indigo: "text-indigo-600 bg-indigo-50 border-indigo-100",
   }[tone];
 

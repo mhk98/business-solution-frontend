@@ -451,6 +451,7 @@ const CashInOutTable = () => {
     packagingManufacturerId: "",
     ownerId: "",
     directorId: "",
+    directorEntryType: "",
     lender: "",
     loanId: "",
     note: "",
@@ -475,6 +476,7 @@ const CashInOutTable = () => {
   const [startDate, setStartDate] = useState(defaultDateRange.from);
   const [endDate, setEndDate] = useState(defaultDateRange.to);
   const [filterPaymentMode, setFilterPaymentMode] = useState("");
+  const [filterAccount, setFilterAccount] = useState("");
   const [filterPaymentStatus, setFilterPaymentStatus] = useState("");
 
   // ✅ Category states
@@ -506,6 +508,16 @@ const CashInOutTable = () => {
     String(category || "")
       .trim()
       .toLowerCase() === "loan";
+
+  // Director ledger type → Book form choice: Invest/Withdraw are the
+  // "Investment" side, Profit is "Profit".
+  const getDirectorEntryTypeFromRow = (row) => {
+    if (!row?.directorId) return "";
+    const shareType = row?.DirectorProfitShare?.type;
+    if (shareType === "Invest" || shareType === "Withdraw") return "Investment";
+    if (shareType === "Profit") return "Profit";
+    return row?.paymentStatus === "CashOut" ? "Profit" : "Investment";
+  };
 
   const getPartyTypeFromRow = (row) => {
     if (row?.supplierId) return "Supplier";
@@ -555,6 +567,12 @@ const CashInOutTable = () => {
     ) {
       return "Director is required!";
     }
+    if (
+      value?.partyType === "Director" &&
+      !String(value?.directorEntryType || "").trim()
+    ) {
+      return "Select Investment or Profit for the Director!";
+    }
     return "";
   };
 
@@ -599,6 +617,7 @@ const CashInOutTable = () => {
     startDate,
     endDate,
     filterPaymentMode,
+    filterAccount,
     filterPaymentStatus,
     filterCategory,
     filterLoanId,
@@ -660,6 +679,7 @@ const CashInOutTable = () => {
       supplierId: supplier || undefined,
       dollarSupplierId: filterDollarSupplier || undefined,
       paymentMode: filterPaymentMode || undefined,
+      bankAccount: filterAccount || undefined,
       paymentStatus: filterPaymentStatus || undefined,
       searchTerm: debouncedSearchTerm || undefined, // ensure it's included in the query
     };
@@ -677,6 +697,7 @@ const CashInOutTable = () => {
     endDate,
     id,
     filterPaymentMode,
+    filterAccount,
     filterPaymentStatus,
     filterCategory,
     filterLoanId,
@@ -843,6 +864,20 @@ const CashInOutTable = () => {
         label: `${account.accountNumber} (${account.bankName || mode})`,
         bankName: account.bankName || mode,
       }));
+  // Account filter: only for Bank/Bkash/Nagad/Rocket, listing the accounts
+  // of the selected payment mode.
+  const filterAccountOptions = useMemo(
+    () =>
+      ["Bank", "Bkash", "Nagad", "Rocket"].includes(filterPaymentMode)
+        ? allAccountsFromDB
+            .filter((account) => getAccountType(account) === filterPaymentMode)
+            .map((account) => ({
+              value: String(account.accountNumber),
+              label: `${account.accountNumber} (${account.bankName || filterPaymentMode})`,
+            }))
+        : [],
+    [allAccountsFromDB, filterPaymentMode],
+  );
   const [insertBankAccount] = useInsertBankAccountMutation();
 
   const bankOptions = useMemo(() => {
@@ -868,6 +903,35 @@ const CashInOutTable = () => {
         label: `${ba.accountNumber} (${ba.bankName})`,
         bankName: ba.bankName,
       }));
+
+  // Selected account for a saved row: match as strings (accountNumber may come
+  // back as a number), and still show the stored number if the account is no
+  // longer in the Account list.
+  // Old entries were saved while the column was INT, so long account numbers
+  // were clipped to 2147483647. Recover the account from the bank name when
+  // that bank has exactly one account.
+  const resolveSavedAccount = (account, bankName = "", mode = "") => {
+    const key = String(account ?? "").trim();
+    if (key !== "2147483647") return key;
+    const matches = allAccountsFromDB.filter(
+      (item) =>
+        getAccountType(item) === (mode || "Bank") &&
+        String(item.bankName || "").trim() === String(bankName || "").trim(),
+    );
+    return matches.length === 1 ? String(matches[0].accountNumber) : key;
+  };
+
+  const findAccountOption = (options, account, bankName = "") => {
+    const key = String(account ?? "").trim();
+    if (!key) return null;
+    return (
+      options.find((option) => String(option.value) === key) || {
+        value: key,
+        label: bankName ? `${key} (${bankName})` : key,
+        bankName,
+      }
+    );
+  };
 
   const getBankAccountSelectOptions = (bankName = "") => [
     ...getBankAccountOptions(bankName),
@@ -973,6 +1037,7 @@ const CashInOutTable = () => {
       packagingManufacturerId: "",
       ownerId: "",
       directorId: "",
+      directorEntryType: "",
       lender: "",
       loanId: "",
       note: "",
@@ -1028,7 +1093,11 @@ const CashInOutTable = () => {
       amount: rp.amount ?? "",
       discountAmount: Number(rp.discountAmount || 0) || "",
       bankName: rp.bankName ?? "",
-      bankAccount: rp.bankAccount ?? "",
+      bankAccount: resolveSavedAccount(
+        rp.bankAccount,
+        rp.bankName,
+        rp.paymentMode,
+      ),
       partyType: getPartyTypeFromRow(rp),
       supplierId: rp.supplierId ?? "",
       dollarSupplierId: rp.dollarSupplierId ?? "",
@@ -1036,6 +1105,7 @@ const CashInOutTable = () => {
       packagingManufacturerId: rp.packagingManufacturerId ?? "",
       ownerId: rp.ownerId ?? "",
       directorId: rp.directorId ?? "",
+      directorEntryType: getDirectorEntryTypeFromRow(rp),
       loanId: rp.loanId ?? rp.loan?.Id ?? "",
       lender:
         rp.loan?.name ??
@@ -1076,6 +1146,7 @@ const CashInOutTable = () => {
       packagingManufacturerId: rp.packagingManufacturerId ?? "",
       ownerId: rp.ownerId ?? "",
       directorId: rp.directorId ?? "",
+      directorEntryType: getDirectorEntryTypeFromRow(rp),
       loanId: rp.loanId ?? rp.loan?.Id ?? "",
       lender:
         rp.loan?.name ??
@@ -1185,6 +1256,12 @@ const CashInOutTable = () => {
         "directorId",
         currentProduct?.partyType === "Director"
           ? currentProduct?.directorId || ""
+          : "",
+      );
+      formData.append(
+        "directorEntryType",
+        currentProduct?.partyType === "Director"
+          ? currentProduct?.directorEntryType || ""
           : "",
       );
       formData.append("lender", selectedEditLoan?.name || "");
@@ -1375,6 +1452,12 @@ const CashInOutTable = () => {
           ? createProduct?.directorId || ""
           : "",
       );
+      formData.append(
+        "directorEntryType",
+        createProduct?.partyType === "Director"
+          ? createProduct?.directorEntryType || ""
+          : "",
+      );
       formData.append("lender", selectedCreateLoan?.name || "");
       if (createProduct.file) formData.append("file", createProduct.file);
 
@@ -1533,6 +1616,12 @@ const CashInOutTable = () => {
           ? createProduct?.directorId || ""
           : "",
       );
+      formData.append(
+        "directorEntryType",
+        createProduct?.partyType === "Director"
+          ? createProduct?.directorEntryType || ""
+          : "",
+      );
       formData.append("lender", selectedCreateLoan?.name || "");
       if (createProduct.file) formData.append("file", createProduct.file);
 
@@ -1557,6 +1646,7 @@ const CashInOutTable = () => {
           packagingManufacturerId: "",
           ownerId: "",
           directorId: "",
+          directorEntryType: "",
           category: "",
           categoryId: "",
           remarks: "",
@@ -1639,6 +1729,7 @@ const CashInOutTable = () => {
     setStartDate(defaultDateRange.from);
     setEndDate(defaultDateRange.to);
     setFilterPaymentMode("");
+    setFilterAccount("");
     setFilterPaymentStatus("");
     setFilterCategory("");
     setFilterLoanId("");
@@ -2289,9 +2380,17 @@ const CashInOutTable = () => {
   const renderPartyFields = (
     value,
     onChange,
-    { showBalance = true, options = partyTypeOptions } = {},
+    {
+      showBalance = true,
+      options = partyTypeOptions,
+      directorEntryTypes = ["Investment", "Profit"],
+    } = {},
   ) => {
     const partyType = value?.partyType || "";
+    const directorEntryOptions = directorEntryTypes.map((type) => ({
+      value: type,
+      label: type,
+    }));
     const selectedPartyTypeOption =
       options.find((option) => option.value === partyType) || null;
     const updatePartyType = (nextType) => {
@@ -2306,6 +2405,11 @@ const CashInOutTable = () => {
         lender: "",
         ownerId: "",
         directorId: "",
+        // Cash In has only "Investment", so pick it straight away.
+        directorEntryType:
+          nextType === "Director" && directorEntryTypes.length === 1
+            ? directorEntryTypes[0]
+            : "",
       });
     };
 
@@ -2551,6 +2655,32 @@ const CashInOutTable = () => {
         {partyType === "Director" && (
           <div>
             <label className="block text-sm text-slate-600 mb-1">
+              Investment / Profit
+            </label>
+            <Select
+              options={directorEntryOptions}
+              value={
+                directorEntryOptions.find(
+                  (option) => option.value === value?.directorEntryType,
+                ) || null
+              }
+              onChange={(selectedOption) =>
+                onChange({
+                  ...value,
+                  directorEntryType: selectedOption?.value || "",
+                })
+              }
+              placeholder="Select Investment or Profit"
+              className="text-sm"
+              styles={selectStyles}
+              isClearable
+            />
+          </div>
+        )}
+
+        {partyType === "Director" && value?.directorEntryType && (
+          <div>
+            <label className="block text-sm text-slate-600 mb-1">
               Director Name
             </label>
             <Select
@@ -2788,13 +2918,37 @@ const CashInOutTable = () => {
                 (option) => option.value === filterPaymentMode,
               ) || null
             }
-            onChange={(selected) => setFilterPaymentMode(selected?.value || "")}
+            onChange={(selected) => {
+              setFilterPaymentMode(selected?.value || "");
+              setFilterAccount("");
+            }}
             placeholder={t.all || "All"}
             isClearable
             styles={selectStyles}
             className="text-black w-full"
           />
         </div>
+
+        {["Bank", "Bkash", "Nagad", "Rocket"].includes(filterPaymentMode) && (
+          <div className="flex flex-col w-full">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">
+              {filterPaymentMode} Account
+            </label>
+            <Select
+              options={filterAccountOptions}
+              value={
+                filterAccountOptions.find(
+                  (option) => option.value === filterAccount,
+                ) || null
+              }
+              onChange={(selected) => setFilterAccount(selected?.value || "")}
+              placeholder={t.all || "All"}
+              isClearable
+              styles={selectStyles}
+              className="text-black w-full"
+            />
+          </div>
+        )}
 
         <div className="flex flex-col w-full">
           <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">
@@ -3293,11 +3447,11 @@ const CashInOutTable = () => {
               </label>
               <Select
                 options={getWalletAccountOptions(currentProduct.paymentMode)}
-                value={
-                  getWalletAccountOptions(currentProduct.paymentMode).find(
-                    (option) => option.value === currentProduct.bankAccount,
-                  ) || null
-                }
+                value={findAccountOption(
+                  getWalletAccountOptions(currentProduct.paymentMode),
+                  currentProduct.bankAccount,
+                  currentProduct.bankName,
+                )}
                 onChange={(selected) =>
                   setCurrentProduct({
                     ...currentProduct,
@@ -3354,10 +3508,11 @@ const CashInOutTable = () => {
                     value={
                       isNewBankAccountEdit
                         ? { value: "__new_bank__", label: "+ New Bank Account" }
-                        : getBankAccountOptions(currentProduct.bankName).find(
-                            (option) =>
-                              option.value === currentProduct.bankAccount,
-                          ) || null
+                        : findAccountOption(
+                            getBankAccountOptions(currentProduct.bankName),
+                            currentProduct.bankAccount,
+                            currentProduct.bankName,
+                          )
                     }
                     onChange={(selected) => {
                       if (selected?.value === "__new_bank__") {
@@ -3476,7 +3631,12 @@ const CashInOutTable = () => {
             )}
           </div>
 
-          {renderPartyFields(currentProduct, setCurrentProduct)}
+          {renderPartyFields(currentProduct, setCurrentProduct, {
+            directorEntryTypes:
+              currentProduct?.paymentStatus === "CashOut"
+                ? ["Investment", "Profit"]
+                : ["Investment"],
+          })}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {currentProduct?.paymentStatus !== "CashOut" ? (
@@ -3936,6 +4096,7 @@ const CashInOutTable = () => {
 
           {renderPartyFields(createProduct, setCreateProduct, {
             options: cashInPartyTypeOptions,
+            directorEntryTypes: ["Investment"],
           })}
 
           <div>

@@ -224,10 +224,12 @@ const getSavedCalculationSummary = (row, fallbackSummary) => {
   const returnRate = safeNumber(row?.returnPercentage);
   const returnDeduction = safeNumber(row?.return);
   const revenue = safeNumber(row?.revenue);
-  const grossProfit = revenue - returnDeduction;
+  const purchaseCost = safeNumber(row?.purchase);
+  const grossProfit = revenue - returnDeduction - purchaseCost;
 
   return {
     revenue: revenue || fallbackSummary.revenue,
+    purchaseCost: revenue ? purchaseCost : safeNumber(fallbackSummary.purchaseCost),
     returnRate,
     returnDeduction,
     marketingCost,
@@ -476,7 +478,10 @@ const DailyProfitLossUserPage = () => {
   const calcReportRes = canManageReports
     ? allReportsForCalcRes
     : myReportsForCalcRes;
-  const allCalcReports = calcReportRes?.data || [];
+  const allCalcReports = useMemo(
+    () => calcReportRes?.data || [],
+    [calcReportRes],
+  );
   const calcMeta = calcReportRes?.meta || {};
 
   const totals = {
@@ -539,12 +544,32 @@ const DailyProfitLossUserPage = () => {
 
   // ── Calculation summary ──
   const summary = useMemo(() => {
-    const revenue = totals.totalAmount;
+    // Sale / purchase come from each report's product lines (Total Sale
+    // Price / Total Purchase Price on the Submit Work Report form). A report
+    // without products has no purchase cost, so its Total Amount is used as
+    // the sale and it is counted in reportsWithoutProducts.
+    let revenue = 0;
+    let purchaseCost = 0;
+    let reportsWithoutProducts = 0;
+    allCalcReports.forEach((row) => {
+      if ((row.products || []).length) {
+        revenue += sumProductsField(row, "salePrice");
+        purchaseCost += sumProductsField(row, "purchasePrice");
+      } else {
+        revenue += safeNumber(row.totalAmount);
+        reportsWithoutProducts += 1;
+      }
+    });
     const returnRate = Math.min(Math.max(safeNumber(returnPercentage), 0), 100);
     const returnDeduction = (revenue * returnRate) / 100;
+    // Returned goods come back to stock, so the same return % also comes off
+    // the purchase cost; purchaseCost below is the cost of goods kept sold.
+    const totalPurchase = purchaseCost;
+    const purchaseReturn = (totalPurchase * returnRate) / 100;
+    purchaseCost = totalPurchase - purchaseReturn;
     const mktCost = safeNumber(marketingSpends);
     const otherCost = safeNumber(otherExpenses);
-    const grossProfit = revenue - returnDeduction;
+    const grossProfit = revenue - returnDeduction - purchaseCost;
     const incentiveInput = safeNumber(incentiveValue);
     const incentiveAmount =
       incentiveType === "percentage"
@@ -555,6 +580,10 @@ const DailyProfitLossUserPage = () => {
 
     return {
       revenue,
+      purchaseCost,
+      totalPurchase,
+      purchaseReturn,
+      reportsWithoutProducts,
       returnRate,
       returnDeduction,
       mktCost,
@@ -568,7 +597,7 @@ const DailyProfitLossUserPage = () => {
       employeeCount: totalCalcReports,
     };
   }, [
-    totals.totalAmount,
+    allCalcReports,
     totalCalcReports,
     returnPercentage,
     marketingSpends,
@@ -691,7 +720,7 @@ const DailyProfitLossUserPage = () => {
     const payload = {
       mode: "user",
       products: summary.employeeCount,
-      purchase: 0,
+      purchase: Math.round(summary.purchaseCost),
       revenue: Math.round(summary.revenue),
       return: Math.round(summary.returnDeduction),
       marketingSpends: safeNumber(marketingSpends),
@@ -818,8 +847,12 @@ const DailyProfitLossUserPage = () => {
           <h2>Calculation Breakdown</h2>
           <div class="breakdown">
             <div class="breakdown-item">
-              <div class="lbl">Total Amount</div>
+              <div class="lbl">Total Sale</div>
               <div class="val">${escapeHtml(formatCurrency(invoiceSummary.revenue))}</div>
+            </div>
+            <div class="breakdown-item">
+              <div class="lbl">Purchase (after return)</div>
+              <div class="val">${escapeHtml(formatCurrency(invoiceSummary.purchaseCost))}</div>
             </div>
             <div class="breakdown-item">
               <div class="lbl">Marketing Spends</div>
@@ -1483,9 +1516,26 @@ const DailyProfitLossUserPage = () => {
           {/* ── Summary Bar ── */}
           <div
             className={`grid gap-4 sm:grid-cols-2 ${
-              canSeeSensitiveSummary ? "lg:grid-cols-5" : "lg:grid-cols-2"
+              canSeeSensitiveSummary ? "lg:grid-cols-4" : "lg:grid-cols-2"
             }`}
           >
+            {canSeeSensitiveSummary && (
+              <div className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700">
+                Total Sale: {formatCurrency(summary.revenue)}
+              </div>
+            )}
+            {canSeeSensitiveSummary && (
+              <div className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700">
+                Total Purchase: {formatCurrency(summary.totalPurchase)}
+                {summary.purchaseReturn > 0 && (
+                  <span className="block text-xs font-medium text-slate-500">
+                    − Return {summary.returnRate.toFixed(2)}% (
+                    {formatCurrency(summary.purchaseReturn)}) ={" "}
+                    {formatCurrency(summary.purchaseCost)}
+                  </span>
+                )}
+              </div>
+            )}
             {canSeeSensitiveSummary && (
               <div className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700">
                 Gross Profit:{" "}
@@ -1516,6 +1566,13 @@ const DailyProfitLossUserPage = () => {
               </div>
             )}
           </div>
+          {canSeeSensitiveSummary && summary.reportsWithoutProducts > 0 && (
+            <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+              {summary.reportsWithoutProducts} টি report-এ কোনো product দেওয়া
+              নেই — ওগুলোর Total Amount sale হিসেবে ধরা হয়েছে, কিন্তু কেনা
+              দাম 0 ধরা হয়েছে।
+            </p>
+          )}
 
           {/* ── Saved Profit/Loss History ── */}
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -1569,6 +1626,7 @@ const DailyProfitLossUserPage = () => {
                     {isSuperAdmin && (
                       <>
                         <th className="px-4 py-3">Sale</th>
+                        <th className="px-4 py-3">Purchase</th>
                         <th className="px-4 py-3">Return</th>
                         <th className="px-4 py-3">Cost</th>
                         <th className="px-4 py-3">Profit/Loss</th>
@@ -1582,7 +1640,7 @@ const DailyProfitLossUserPage = () => {
                   {profitLossLoading && (
                     <tr>
                       <td
-                        colSpan={isSuperAdmin ? 8 : 4}
+                        colSpan={isSuperAdmin ? 9 : 4}
                         className="px-4 py-10 text-center text-slate-500"
                       >
                         Loading history...
@@ -1592,7 +1650,7 @@ const DailyProfitLossUserPage = () => {
                   {!profitLossLoading && profitLossRows.length === 0 && (
                     <tr>
                       <td
-                        colSpan={isSuperAdmin ? 8 : 4}
+                        colSpan={isSuperAdmin ? 9 : 4}
                         className="px-4 py-10 text-center text-slate-500"
                       >
                         No saved profit/loss records found.
@@ -1610,6 +1668,9 @@ const DailyProfitLossUserPage = () => {
                           <>
                             <td className="px-4 py-3 font-semibold">
                               {formatCurrency(row.revenue)}
+                            </td>
+                            <td className="px-4 py-3 font-semibold">
+                              {formatCurrency(row.purchase)}
                             </td>
                             <td className="px-4 py-3 font-semibold">
                               {formatCurrency(row.return)}
