@@ -10,6 +10,7 @@ import {
   Trash2,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import Select from "react-select";
 import Modal from "../common/Modal";
 import HrmWorkspace from "./HrmWorkspace";
 import useDebounce from "../../hooks/useDebounce";
@@ -22,7 +23,32 @@ const DEFAULT_STAT_ICON_COLOR = "#4338CA";
 const useNoopApproveMutation = () => [null, { isLoading: false }];
 
 const emptyValueFor = (field) =>
-  field.type === "checkbox" ? false : field.type === "multiselect" ? [] : "";
+  field.type === "checkbox"
+    ? false
+    : field.type === "multiselect" || (field.type === "combobox" && field.multiple)
+      ? []
+      : "";
+
+// `options` may depend on the rest of the form, e.g. employees of the picked department.
+const optionsFor = (field, form) =>
+  (typeof field.options === "function" ? field.options(form) : field.options) || [];
+
+const comboboxStyles = {
+  control: (base, state) => ({
+    ...base,
+    minHeight: 46,
+    borderRadius: 12,
+    fontSize: 14,
+    borderColor: state.isFocused ? "#6366f1" : "#e2e8f0",
+    boxShadow: state.isFocused ? "0 0 0 4px rgba(99,102,241,0.1)" : "none",
+    "&:hover": { borderColor: state.isFocused ? "#6366f1" : "#cbd5e1" },
+  }),
+  valueContainer: (base) => ({ ...base, padding: "2px 12px" }),
+  multiValue: (base) => ({ ...base, borderRadius: 8, backgroundColor: "#eef2ff" }),
+  multiValueLabel: (base) => ({ ...base, color: "#4338ca", fontWeight: 500 }),
+  option: (base) => ({ ...base, fontSize: 14 }),
+  menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+};
 
 const buildInitialState = (fields = []) =>
   fields.reduce((acc, field) => {
@@ -172,6 +198,8 @@ const HrmCrudManager = ({
 
   const buildPayload = () => {
     return fields.reduce((acc, field) => {
+      // Form-only helpers (e.g. a filter for another field) are not sent.
+      if (field.omit) return acc;
       let value = form[field.name];
 
       if (field.type === "checkbox") {
@@ -328,6 +356,47 @@ const HrmCrudManager = ({
       input?.focus();
     };
 
+    if (field.type === "combobox") {
+      const options = optionsFor(field, form);
+      // Selected values stay visible even when the current filter hides their option.
+      const known = field.allOptions || options;
+      const findOption = (value) =>
+        known.find((option) => String(option.value) === String(value)) || { value, label: String(value) };
+      const raw = form[field.name];
+      const value = field.multiple
+        ? (Array.isArray(raw) ? raw : []).map(findOption)
+        : raw === "" || raw === null || raw === undefined
+          ? null
+          : findOption(raw);
+      const disabledText = field.disabledText?.(form);
+      return (
+        <Select
+          inputId={`hrm-field-${field.name}`}
+          options={options}
+          value={value}
+          isMulti={Boolean(field.multiple)}
+          isClearable
+          isSearchable
+          isDisabled={Boolean(disabledText)}
+          closeMenuOnSelect={!field.multiple}
+          placeholder={disabledText || field.placeholder || `Select ${field.label}`}
+          noOptionsMessage={() => field.noOptionsText || "No options"}
+          onChange={(selected) =>
+            setFieldValue(
+              field.name,
+              field.multiple
+                ? (selected || []).map((option) => option.value)
+                : selected
+                  ? selected.value
+                  : "",
+            )
+          }
+          styles={comboboxStyles}
+          menuPortalTarget={typeof document !== "undefined" ? document.body : null}
+        />
+      );
+    }
+
     if (field.type === "select") {
       return (
         <select
@@ -469,7 +538,7 @@ const HrmCrudManager = ({
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {fields.map((field) => {
           // A label around chip buttons would toggle the first chip on click.
-          const Wrapper = field.type === "multiselect" ? "div" : "label";
+          const Wrapper = field.type === "multiselect" || field.type === "combobox" ? "div" : "label";
           return (
             <Wrapper
               key={field.name}

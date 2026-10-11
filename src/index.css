@@ -367,3 +367,18 @@ tr.duplicate-same-day-entry:hover > td {
   border-color: #e2e8f0 !important;
   /* slate-200 */
 }
+
+/* Header breaking-news ticker: the track holds the items twice, so -50% loops seamlessly. */
+@keyframes news-ticker {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.news-ticker-track {
+  animation: news-ticker linear infinite;
+}
+.news-ticker:hover .news-ticker-track {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .news-ticker-track { animation: none; }
+}

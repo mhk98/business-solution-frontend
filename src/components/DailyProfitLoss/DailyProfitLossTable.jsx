@@ -23,6 +23,9 @@ import {
   useSendProfitLossInvoiceMutation,
 } from "../../features/profitLoss/profitLoss";
 import { useCanUseMasterPermission } from "../../utils/masterPermissions";
+import { useGetAllLogoQuery } from "../../features/logo/logo";
+import { useGetAllCompanyInfoQuery } from "../../features/companyInfo/companyInfo";
+import { buildAssetUrl, DEFAULT_COMPANY_NAME } from "../../utils/pdfBranding";
 
 const safeNumber = (value) => {
   const parsed = Number(value);
@@ -170,6 +173,42 @@ const selectStyles = {
   }),
 };
 
+const parseItems = (value) => {
+  if (Array.isArray(value)) return value;
+  try {
+    const parsed = JSON.parse(value || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+// Print/email use only the saved record, never what is selected on screen.
+// Records saved before product lines were stored have no items, and older
+// ones kept marketing + other expenses only as one `cost` total.
+const recordInvoiceData = (row) => {
+  const purchase = safeNumber(row?.purchase);
+  const revenue = safeNumber(row?.revenue);
+  const cost = safeNumber(row?.cost);
+  const marketingCost = safeNumber(row?.marketingSpends);
+  const otherCost = safeNumber(row?.otherExpenses);
+  return {
+    items: parseItems(row?.items),
+    costSplit: Math.round(marketingCost + otherCost) === Math.round(cost),
+    summary: {
+      totalCost: purchase,
+      totalRevenue: revenue,
+      grossProfit: revenue - purchase,
+      marketingCost,
+      otherCost,
+      extraCost: cost,
+      returnRate: safeNumber(row?.returnPercentage),
+      returnDeduction: safeNumber(row?.return),
+      finalProfit: safeNumber(row?.profitLoss),
+    },
+  };
+};
+
 const salesTypeOptions = [
   { value: "Regular Sale", label: "Regular Sale" },
   { value: "Up Sale", label: "Up Sale" },
@@ -201,6 +240,12 @@ const DailyProfitLossTable = () => {
     () => normalizeReceivedProducts(receivedData),
     [receivedData],
   );
+  // Letterhead for the printed invoice.
+  const { data: logoData } = useGetAllLogoQuery();
+  const { data: companyInfoData } = useGetAllCompanyInfoQuery();
+  const logoUrl = buildAssetUrl(logoData?.data?.file);
+  const companyInfo = companyInfoData?.data || {};
+
   const [insertProfitLoss, { isLoading: isSavingProfitLoss }] =
     useInsertProfitLossMutation();
   const [sendProfitLossInvoice, { isLoading: isSendingProfitLossInvoice }] =
@@ -255,10 +300,21 @@ const DailyProfitLossTable = () => {
     () => profitLossRes?.data || [],
     [profitLossRes],
   );
-  const totalProfitLossCount = safeNumber(profitLossRes?.meta?.count);
+  // The API reports the row count as meta.total.
+  const totalProfitLossCount = safeNumber(
+    profitLossRes?.meta?.total ?? profitLossRes?.meta?.count,
+  );
   const totalPages = Math.max(
     1,
     Math.ceil(totalProfitLossCount / itemsPerPage),
+  );
+  // Up to 10 page numbers at a time: the block of ten that holds the current page.
+  const PAGES_PER_SET = 10;
+  const pageSetStart =
+    Math.floor((currentPage - 1) / PAGES_PER_SET) * PAGES_PER_SET + 1;
+  const visiblePages = Array.from(
+    { length: Math.min(PAGES_PER_SET, totalPages - pageSetStart + 1) },
+    (_, index) => pageSetStart + index,
   );
   const savedHistoryHeadings = [
     "Date",
@@ -453,6 +509,24 @@ const DailyProfitLossTable = () => {
       profitLoss: Math.round(summary.finalProfit),
       salesType: salesType.value,
       date: calculationDate,
+      marketingSpends: safeNumber(marketingSpends),
+      otherExpenses: safeNumber(otherExpenses),
+      returnPercentage: summary.returnRate,
+      items: selectedRows.map((item) => {
+        const unitsSold = Math.max(safeNumber(item.unitsSold), 0);
+        const costPrice = safeNumber(item.costPrice);
+        const sellingPrice = safeNumber(item.sellingPrice);
+        return {
+          name: item.name,
+          sku: item.sku,
+          unitsSold,
+          costPrice,
+          sellingPrice,
+          totalCost: costPrice * unitsSold,
+          totalRevenue: sellingPrice * unitsSold,
+          profit: (sellingPrice - costPrice) * unitsSold,
+        };
+      }),
     };
 
     try {
@@ -496,48 +570,43 @@ const DailyProfitLossTable = () => {
       row?.salesType || salesType?.value || "-",
     );
 
+    const { items, costSplit, summary: recordSummary } = recordInvoiceData(row);
     const productRowsHtml =
-      selectedRows.length > 0
-        ? selectedRows
-            .map((item) => {
-              const unitsSold = safeNumber(item.unitsSold);
-              const sellingPrice = safeNumber(item.sellingPrice);
-              const costPrice = safeNumber(item.costPrice);
-              const totalRevenue = sellingPrice * unitsSold;
-              const totalCost = costPrice * unitsSold;
-              const profit = totalRevenue - totalCost;
+      items.length > 0
+        ? items
+            .map((item, index) => {
+              const profit = safeNumber(item.profit);
               const profitColor = profit >= 0 ? "#059669" : "#dc2626";
               return `<tr>
-                <td>${escapeHtml(item.name)}</td>
-                <td style="color:#64748b">${escapeHtml(item.sku)}</td>
-                <td>${unitsSold.toLocaleString()}</td>
-                <td class="amount">${escapeHtml(formatCurrency(totalCost))}</td>
-                <td class="amount">${escapeHtml(formatCurrency(totalRevenue))}</td>
-                <td class="amount" style="color:${profitColor}">${escapeHtml(formatCurrency(profit))}</td>
+                <td class="num muted">${index + 1}</td>
+                <td><div class="strong">${escapeHtml(item.name)}</div><div class="muted small">${escapeHtml(item.sku)}</div></td>
+                <td class="num">${safeNumber(item.unitsSold).toLocaleString()}</td>
+                <td class="num">${escapeHtml(formatCurrency(item.costPrice))}</td>
+                <td class="num">${escapeHtml(formatCurrency(item.sellingPrice))}</td>
+                <td class="num">${escapeHtml(formatCurrency(item.totalCost))}</td>
+                <td class="num">${escapeHtml(formatCurrency(item.totalRevenue))}</td>
+                <td class="num strong" style="color:${profitColor}">${escapeHtml(formatCurrency(profit))}</td>
               </tr>`;
             })
             .join("")
-        : `<tr><td colspan="6" style="text-align:center;padding:20px;color:#94a3b8;">কোনো product select করা হয়নি</td></tr>`;
+        : `<tr><td colspan="8" style="text-align:center;padding:20px;color:#94a3b8;">এই record-এর product-এর বিস্তারিত save করা হয়নি (পুরনো record) — মোট ${safeNumber(row?.products)}টা product</td></tr>`;
 
-    const historyRowsHtml =
-      profitLossRows.length > 0
-        ? profitLossRows
-            .map((hr) => {
-              const pl = safeNumber(hr?.profitLoss);
-              const plColor = pl >= 0 ? "#059669" : "#dc2626";
-              return `<tr>
-                <td>${escapeHtml(formatDate(hr?.createdAt || hr?.date))}</td>
-                <td>${escapeHtml(hr?.salesType || "-")}</td>
-                <td>${safeNumber(hr?.products)}</td>
-                <td class="amount">${escapeHtml(formatCurrency(hr?.purchase))}</td>
-                <td class="amount">${escapeHtml(formatCurrency(hr?.revenue))}</td>
-                <td class="amount">${escapeHtml(formatCurrency(hr?.return))}</td>
-                <td class="amount">${escapeHtml(formatCurrency(hr?.cost))}</td>
-                <td class="amount" style="color:${plColor}">${escapeHtml(formatCurrency(hr?.profitLoss))}</td>
-              </tr>`;
-            })
-            .join("")
-        : `<tr><td colspan="8" style="text-align:center;padding:20px;color:#94a3b8;">কোনো saved history নেই</td></tr>`;
+    const totalUnits = items.reduce((sum, item) => sum + safeNumber(item.unitsSold), 0);
+    const summaryRow = (label, value, className = "") =>
+      `<tr class="${className}"><td>${escapeHtml(label)}</td><td class="num">${escapeHtml(value)}</td></tr>`;
+    const expenseRowsHtml = costSplit
+      ? summaryRow("Less: Marketing Spends", formatCurrency(recordSummary.marketingCost)) +
+        summaryRow("Less: Other Expenses", formatCurrency(recordSummary.otherCost))
+      : summaryRow("Less: Marketing + Other Expenses", formatCurrency(recordSummary.extraCost));
+    const isProfit = recordSummary.finalProfit >= 0;
+    const contactLine = [
+      companyInfo.hotline && `Hotline: ${companyInfo.hotline}`,
+      companyInfo.email,
+      companyInfo.website,
+    ]
+      .filter(Boolean)
+      .map(escapeHtml)
+      .join(" &nbsp;|&nbsp; ");
 
     printWindow.document.write(`
       <!DOCTYPE html>
@@ -545,97 +614,125 @@ const DailyProfitLossTable = () => {
         <head>
           <title>Profit Loss Invoice - ${escapeHtml(invoiceNo)}</title>
           <style>
+            @page { size: A4; margin: 14mm 12mm; }
             * { box-sizing: border-box; }
-            body { font-family: Arial, sans-serif; padding: 32px; color: #0f172a; font-size: 13px; }
-            h1 { font-size: 24px; font-weight: 700; margin: 0 0 4px; }
-            h2 { font-size: 15px; font-weight: 700; margin: 28px 0 10px; color: #1e293b; padding-bottom: 6px; border-bottom: 2px solid #e2e8f0; }
-            .meta { color: #475569; font-size: 12px; margin-bottom: 3px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 6px; }
-            th, td { border: 1px solid #e2e8f0; padding: 9px 11px; text-align: left; }
-            th { background: #f8fafc; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; font-size: 10px; color: #475569; }
-            .amount { font-weight: 700; }
-            .breakdown { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 8px; }
-            .breakdown-item { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; }
-            .breakdown-item .lbl { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
-            .breakdown-item .val { font-size: 15px; font-weight: 700; margin-top: 5px; }
-            .profit { color: #059669; }
-            .loss { color: #dc2626; }
-            .span2 { grid-column: span 2; }
-            @media print { body { padding: 16px; } }
+            body { font-family: "Segoe UI", Arial, sans-serif; color: #0f172a; font-size: 12px; margin: 0; }
+            .muted { color: #64748b; }
+            .small { font-size: 10.5px; }
+            .strong { font-weight: 700; }
+            .num { text-align: right; white-space: nowrap; }
+            .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; padding-bottom: 14px; border-bottom: 3px solid #4f46e5; }
+            .brand { display: flex; align-items: center; gap: 14px; }
+            .brand img { max-height: 64px; max-width: 160px; object-fit: contain; }
+            .brand .name { font-size: 22px; font-weight: 800; letter-spacing: -0.01em; }
+            .brand .lines { margin-top: 3px; line-height: 1.5; }
+            .doc { text-align: right; }
+            .doc .title { font-size: 20px; font-weight: 800; color: #4f46e5; letter-spacing: 0.04em; }
+            .doc table { margin-top: 8px; margin-left: auto; border-collapse: collapse; }
+            .doc td { padding: 2px 0 2px 14px; font-size: 11.5px; }
+            .doc td:first-child { color: #64748b; }
+            h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #475569; margin: 22px 0 8px; }
+            table.items { width: 100%; border-collapse: collapse; }
+            table.items th { background: #eef2ff; color: #3730a3; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; padding: 8px 9px; text-align: left; border-bottom: 1px solid #c7d2fe; }
+            table.items th.num { text-align: right; }
+            table.items td { padding: 8px 9px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+            table.items tfoot td { font-weight: 700; background: #f8fafc; border-top: 2px solid #cbd5e1; }
+            .bottom { display: flex; justify-content: space-between; gap: 24px; margin-top: 18px; }
+            .notes { flex: 1; font-size: 11px; line-height: 1.6; color: #475569; }
+            table.summary { width: 320px; border-collapse: collapse; }
+            table.summary td { padding: 7px 10px; border-bottom: 1px solid #e2e8f0; }
+            table.summary tr.sub td { font-weight: 700; background: #f8fafc; }
+            table.summary tr.total td { font-size: 14px; font-weight: 800; color: #fff; background: ${isProfit ? "#059669" : "#dc2626"}; border-bottom: none; }
+            .signs { display: flex; justify-content: space-between; margin-top: 60px; }
+            .signs div { width: 30%; border-top: 1px solid #94a3b8; padding-top: 6px; text-align: center; font-size: 11px; color: #475569; }
+            .foot { margin-top: 26px; padding-top: 8px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #94a3b8; text-align: center; }
           </style>
         </head>
         <body>
-          <h1>Profit/Loss Invoice</h1>
-          <div class="meta">Invoice No: ${escapeHtml(invoiceNo)}</div>
-          <div class="meta">Date: ${escapeHtml(invoiceDate)}</div>
-          <div class="meta">Sales Type: ${invoiceSalesType}</div>
-
-          <h2>Product Variants</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Product</th>
-                <th>SKU</th>
-                <th>Units Sold</th>
-                <th>Total Purchase</th>
-                <th>Total Sale</th>
-                <th>Profit/Loss</th>
-              </tr>
-            </thead>
-            <tbody>${productRowsHtml}</tbody>
-          </table>
-
-          <h2>Calculation Breakdown</h2>
-          <div class="breakdown">
-            <div class="breakdown-item">
-              <div class="lbl">Gross Profit</div>
-              <div class="val">${escapeHtml(formatCurrency(summary.totalProfit))}</div>
+          <div class="head">
+            <div class="brand">
+              ${logoUrl ? `<img src="${escapeHtml(logoUrl)}" alt="" />` : ""}
+              <div>
+                <div class="name">${escapeHtml(DEFAULT_COMPANY_NAME)}</div>
+                <div class="lines muted small">
+                  ${companyInfo.address ? `${escapeHtml(companyInfo.address)}<br />` : ""}
+                  ${contactLine}
+                </div>
+              </div>
             </div>
-            <div class="breakdown-item">
-              <div class="lbl">Marketing Spends</div>
-              <div class="val">${escapeHtml(formatCurrency(summary.marketingCost))}</div>
-            </div>
-            <div class="breakdown-item">
-              <div class="lbl">Other Expenses</div>
-              <div class="val">${escapeHtml(formatCurrency(summary.otherCost))}</div>
-            </div>
-            <div class="breakdown-item">
-              <div class="lbl">Return (${safeNumber(summary.returnRate).toFixed(2)}%)</div>
-              <div class="val">${escapeHtml(formatCurrency(summary.returnDeduction))}</div>
-            </div>
-            <div class="breakdown-item span2">
-              <div class="lbl">Total Purchase</div>
-              <div class="val">${escapeHtml(formatCurrency(summary.totalCost))}</div>
-            </div>
-            <div class="breakdown-item span2">
-              <div class="lbl">Net Profit/Loss</div>
-              <div class="val ${summary.finalProfit >= 0 ? "profit" : "loss"}">${escapeHtml(formatCurrency(summary.finalProfit))}</div>
+            <div class="doc">
+              <div class="title">PROFIT &amp; LOSS INVOICE</div>
+              <table>
+                <tr><td>Invoice No</td><td class="strong">${escapeHtml(invoiceNo)}</td></tr>
+                <tr><td>Date</td><td class="strong">${escapeHtml(invoiceDate)}</td></tr>
+                <tr><td>Sales Type</td><td class="strong">${invoiceSalesType}</td></tr>
+              </table>
             </div>
           </div>
 
-          <h2>Saved Profit/Loss History</h2>
-          <table>
+          <h2>Product Details</h2>
+          <table class="items">
             <thead>
               <tr>
-                <th>Date</th>
-                <th>Sales Type</th>
-                <th>Products</th>
-                <th>Purchase</th>
-                <th>Sale</th>
-                <th>Return</th>
-                <th>Cost</th>
-                <th>Profit/Loss</th>
+                <th class="num">#</th>
+                <th>Product</th>
+                <th class="num">Units</th>
+                <th class="num">Unit Cost</th>
+                <th class="num">Unit Price</th>
+                <th class="num">Total Purchase</th>
+                <th class="num">Total Sale</th>
+                <th class="num">Profit/Loss</th>
               </tr>
             </thead>
-            <tbody>${historyRowsHtml}</tbody>
+            <tbody>${productRowsHtml}</tbody>
+            ${
+              items.length
+                ? `<tfoot><tr>
+                    <td></td><td>Total (${items.length} products)</td>
+                    <td class="num">${totalUnits.toLocaleString()}</td><td></td><td></td>
+                    <td class="num">${escapeHtml(formatCurrency(items.reduce((sum, item) => sum + safeNumber(item.totalCost), 0)))}</td>
+                    <td class="num">${escapeHtml(formatCurrency(items.reduce((sum, item) => sum + safeNumber(item.totalRevenue), 0)))}</td>
+                    <td class="num">${escapeHtml(formatCurrency(items.reduce((sum, item) => sum + safeNumber(item.profit), 0)))}</td>
+                  </tr></tfoot>`
+                : ""
+            }
           </table>
+
+          <div class="bottom">
+            <div class="notes">
+              ${
+                recordSummary.returnRate
+                  ? `Return ${recordSummary.returnRate.toFixed(2)}%: purchase value ${escapeHtml(formatCurrency(recordSummary.returnDeduction))} returned — already taken out of Total Sale and Total Purchase on the right.`
+                  : "No return deducted."
+              }
+            </div>
+            <table class="summary">
+              ${summaryRow("Total Sale", formatCurrency(recordSummary.totalRevenue))}
+              ${summaryRow("Less: Total Purchase", formatCurrency(recordSummary.totalCost))}
+              ${summaryRow("Gross Profit", formatCurrency(recordSummary.grossProfit), "sub")}
+              ${expenseRowsHtml}
+              ${summaryRow(isProfit ? "Net Profit" : "Net Loss", formatCurrency(recordSummary.finalProfit), "total")}
+            </table>
+          </div>
+
+          <div class="signs">
+            <div>Prepared By</div>
+            <div>Checked By</div>
+            <div>Authorized Signature</div>
+          </div>
+
+          <div class="foot">
+            System generated invoice · ${escapeHtml(DEFAULT_COMPANY_NAME)} · Printed ${escapeHtml(formatDate(new Date()))}
+          </div>
+          <script>
+            // Print once the logo has loaded.
+            window.onload = function () { window.focus(); window.print(); };
+          </script>
         </body>
       </html>
     `);
 
     printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
   };
 
   const handleSendEmail = (row) => {
@@ -668,32 +765,7 @@ const DailyProfitLossTable = () => {
       return;
     }
 
-    const productDetails = selectedRows.map((item) => {
-      const unitsSold = safeNumber(item.unitsSold);
-      const sellingPrice = safeNumber(item.sellingPrice);
-      const costPrice = safeNumber(item.costPrice);
-      const totalRevenue = sellingPrice * unitsSold;
-      const totalCost = costPrice * unitsSold;
-      return {
-        name: item.name,
-        sku: item.sku,
-        unitsSold,
-        totalCost,
-        totalRevenue,
-        profit: totalRevenue - totalCost,
-      };
-    });
-
-    const savedHistoryDetails = profitLossRows.map((hr) => ({
-      date: formatDate(hr?.createdAt || hr?.date),
-      salesType: hr?.salesType || "-",
-      products: safeNumber(hr?.products),
-      purchase: safeNumber(hr?.purchase),
-      revenue: safeNumber(hr?.revenue),
-      return: safeNumber(hr?.return),
-      cost: safeNumber(hr?.cost),
-      profitLoss: safeNumber(hr?.profitLoss),
-    }));
+    const { items, summary: recordSummary } = recordInvoiceData(selectedInvoiceRow);
 
     const payload = {
       clientEmail: recipientEmail,
@@ -710,18 +782,8 @@ const DailyProfitLossTable = () => {
       return: safeNumber(selectedInvoiceRow?.return),
       cost: safeNumber(selectedInvoiceRow?.cost),
       profitLoss: safeNumber(selectedInvoiceRow?.profitLoss),
-      selectedProducts: productDetails,
-      calculationSummary: {
-        totalCost: summary.totalCost,
-        totalRevenue: summary.totalRevenue,
-        grossProfit: summary.totalProfit,
-        marketingCost: summary.marketingCost,
-        otherCost: summary.otherCost,
-        returnRate: summary.returnRate,
-        returnDeduction: summary.returnDeduction,
-        finalProfit: summary.finalProfit,
-      },
-      savedHistory: savedHistoryDetails,
+      selectedProducts: items,
+      calculationSummary: recordSummary,
     };
 
     try {
@@ -1007,7 +1069,19 @@ const DailyProfitLossTable = () => {
         </table>
       </div>
 
-      <div className="mt-8 grid grid-cols-1 gap-4 xl:grid-cols-5">
+      {!selectedRows.length && (
+        <p className="mt-8 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+          উপর থেকে product select করলে নিচের calculation চালু হবে।
+        </p>
+      )}
+
+      {/* Nothing to calculate until products are picked above. */}
+      <fieldset
+        disabled={!selectedRows.length}
+        className={`grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-5 ${
+          selectedRows.length ? "mt-8" : "mt-4 cursor-not-allowed opacity-50"
+        }`}
+      >
         <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
           <h3 className="text-2xl font-bold text-slate-900">
             Calculation Date
@@ -1084,6 +1158,7 @@ const DailyProfitLossTable = () => {
               onChange={setSalesType}
               placeholder="Select sales type"
               styles={selectStyles}
+              isDisabled={!selectedRows.length}
             />
           </div>
           <button
@@ -1102,7 +1177,7 @@ const DailyProfitLossTable = () => {
             Reset
           </button>
         </div>
-      </div>
+      </fieldset>
 
       <div className="mt-4 rounded-3xl border border-slate-200 bg-slate-50 p-5">
         <div className="grid grid-cols-1 gap-3 text-sm font-medium text-slate-600 md:grid-cols-2 xl:grid-cols-4">
@@ -1294,24 +1369,37 @@ const DailyProfitLossTable = () => {
           </table>
         </div>
 
-        <div className="mt-5 flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-5 grid grid-cols-1 items-center gap-3 border-t border-slate-100 pt-4 sm:grid-cols-[1fr_auto_1fr]">
           <p className="text-sm font-medium text-slate-500">
             Total: {totalProfitLossCount} records
           </p>
 
-          <div className="flex items-center gap-2 self-end">
+          <div className="flex flex-wrap items-center justify-center gap-1.5">
             <button
               type="button"
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={currentPage === 1}
+              aria-label="Previous page"
               className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <ChevronLeft size={18} />
             </button>
 
-            <div className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700">
-              Page {currentPage} / {totalPages}
-            </div>
+            {visiblePages.map((page) => (
+              <button
+                key={page}
+                type="button"
+                onClick={() => setCurrentPage(page)}
+                aria-current={page === currentPage ? "page" : undefined}
+                className={`inline-flex h-10 min-w-10 items-center justify-center rounded-xl border px-3 text-sm font-semibold transition ${
+                  page === currentPage
+                    ? "border-indigo-600 bg-indigo-600 text-white"
+                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                {page}
+              </button>
+            ))}
 
             <button
               type="button"
@@ -1319,6 +1407,7 @@ const DailyProfitLossTable = () => {
                 setCurrentPage((prev) => Math.min(prev + 1, totalPages))
               }
               disabled={currentPage === totalPages}
+              aria-label="Next page"
               className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <ChevronRight size={18} />

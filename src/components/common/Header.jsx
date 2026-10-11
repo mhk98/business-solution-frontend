@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bell, ChevronDown, Menu, Languages, Megaphone } from "lucide-react";
+import { Bell, ChevronDown, ClipboardCheck, Menu, Languages } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import NotificationDropdown from "./NotificationDropdown";
 import { useGetDataByIdQuery } from "../../features/notification/notification";
 import { useGetLatestNoticeQuery } from "../../features/notice/notice";
+import { useGetPendingApprovalsQuery } from "../../features/approval/approval";
 import { Link, useNavigate } from "react-router-dom";
 import {
   useSingleUserQuery,
@@ -85,6 +86,12 @@ const Header = ({ title }) => {
   });
   const latestNotice = latestNoticeRes?.data;
 
+  // Pending approvals (admin / superAdmin / department heads only).
+  const { data: approvalsRes } = useGetPendingApprovalsQuery(undefined, {
+    skip: !userId,
+  });
+  const pendingApprovals = approvalsRes?.meta?.isApprover ? approvalsRes?.data?.length || 0 : null;
+
   // ✅ notifications
   const { data, isLoading, isError, error } = useGetDataByIdQuery(
     { page: 1, limit: 10, userId },
@@ -98,6 +105,19 @@ const Header = ({ title }) => {
       setNotifications(unread.length);
     }
   }, [data, isLoading, isError, error]);
+
+  // Breaking-news ticker: the latest notice, then unread notifications. Once
+  // they are read (and no notice is up) the ticker disappears.
+  const tickerItems = [
+    ...(latestNotice?.message
+      ? [`${latestNotice.title ? `${latestNotice.title}: ` : ""}${latestNotice.message}`]
+      : []),
+    ...(data?.data || [])
+      .filter((notif) => notif.isRead === false)
+      .map((notif) => notif.message)
+      .filter(Boolean),
+  ];
+  const tickerDuration = Math.max(20, Math.round(tickerItems.join(" ").length / 6));
 
   useEffect(() => {
     setAvatarLoadError(false);
@@ -172,18 +192,35 @@ const Header = ({ title }) => {
           </div>
         </div>
 
-        {latestNotice?.message && (
+        {tickerItems.length > 0 && (
           <div className="hidden md:flex flex-1 min-w-0 justify-center">
-            <div className="max-w-4xl w-full h-10 px-4 rounded-md bg-amber-50 border border-amber-200 text-amber-900 flex items-center gap-2 overflow-hidden">
-              <Megaphone size={17} className="shrink-0 text-amber-600" />
-              {latestNotice.title && (
-                <span className="shrink-0 text-sm font-semibold">
-                  {latestNotice.title}:
-                </span>
-              )}
-              <p className="min-w-0 truncate text-sm font-medium">
-                {latestNotice.message}
-              </p>
+            <div className="news-ticker max-w-4xl w-full h-10 rounded-lg bg-red-50 text-red-800 flex items-center overflow-hidden">
+              <span className="shrink-0 h-full px-4 flex items-center gap-1.5 rounded-lg bg-red-700 text-white text-sm font-bold uppercase tracking-wide">
+                <span aria-hidden="true" className="text-xs">◁</span>
+                {language === "BN" ? "ব্রেকিং" : "Breaking"}
+              </span>
+              <button
+                type="button"
+                onClick={() => navigate("/notifications")}
+                className="relative min-w-0 flex-1 h-full overflow-hidden text-left"
+                title={language === "BN" ? "সব নোটিফিকেশন দেখুন" : "Open notifications"}
+              >
+                <div
+                  className="news-ticker-track absolute inset-y-0 left-0 flex min-w-[200%] items-center whitespace-nowrap"
+                  style={{ animationDuration: `${tickerDuration}s` }}
+                >
+                  {[0, 1].map((copy) => (
+                    <span key={copy} className="flex min-w-[50%] shrink-0 items-center" aria-hidden={copy === 1}>
+                      {tickerItems.map((text, index) => (
+                        <span key={index} className="flex items-center text-sm font-medium">
+                          <span className="px-4">{text}</span>
+                          <span className="text-red-300">◆</span>
+                        </span>
+                      ))}
+                    </span>
+                  ))}
+                </div>
+              </button>
             </div>
           </div>
         )}
@@ -205,6 +242,22 @@ const Header = ({ title }) => {
               {language === "EN" ? "BN" : "EN"}
             </span>
           </button>
+
+          {pendingApprovals !== null && (
+            <button
+              type="button"
+              onClick={() => navigate("/approvals")}
+              className="relative h-10 w-10 rounded-md bg-white border border-slate-200 flex items-center justify-center"
+              title="Approvals"
+            >
+              <ClipboardCheck className="text-slate-700" size={18} />
+              {pendingApprovals > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 min-w-5 h-5 px-1 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">
+                  {pendingApprovals > 99 ? "99+" : pendingApprovals}
+                </span>
+              )}
+            </button>
+          )}
 
           {/* Notifications */}
           <button

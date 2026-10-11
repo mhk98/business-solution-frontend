@@ -957,8 +957,6 @@ import { translations } from "../../utils/translations";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 import {
   useGetAllAssetWithoutQueryQuery,
-  useDeleteAssetMutation,
-  useInsertAssetMutation,
 } from "../../features/assets/assets";
 
 const formatNumber = (value) => Number(value || 0).toLocaleString();
@@ -1007,10 +1005,6 @@ const AssetsRequisitionTable = () => {
 
   // Assets states
   const [assets, setAssets] = useState([]);
-  const [isNewAssetAdd, setIsNewAssetAdd] = useState(false);
-  const [newAssetNameAdd, setNewAssetNameAdd] = useState("");
-  const [isNewAssetEdit, setIsNewAssetEdit] = useState(false);
-  const [newAssetNameEdit, setNewAssetNameEdit] = useState("");
 
   // Assets fetch
   const {
@@ -1084,58 +1078,16 @@ const AssetsRequisitionTable = () => {
     }
   }, [data, isLoading, isError, error, itemsPerPage]);
 
-  // Asset mutation
-  const [insertAsset, { isLoading: isAddingAsset }] = useInsertAssetMutation();
-  const [deleteAsset] = useDeleteAssetMutation();
-
-  const addAssetByName = async (name) => {
-    const n = String(name || "").trim();
-
-    if (!n) {
-      toast.error("New asset name is required!");
-      return null;
-    }
-
-    try {
-      const res = await insertAsset({ name: n }).unwrap();
-
-      if (res?.success) {
-        setAssets((prev) => {
-          const exists = prev.some(
-            (a) =>
-              String(a?.name || "")
-                .trim()
-                .toLowerCase() === n.toLowerCase(),
-          );
-          if (exists) return prev;
-          return [...prev, res?.data || { name: n }];
-        });
-
-        return n;
-      }
-
-      toast.error(res?.message || "Asset add failed!");
-      return null;
-    } catch (err) {
-      toast.error(err?.data?.message || "Asset add failed!");
-      return null;
-    }
-  };
-
   // Modals
   const handleModalClose = () => {
     setIsModalOpen(false);
     setCurrentProduct(null);
-    setIsNewAssetEdit(false);
-    setNewAssetNameEdit("");
   };
 
   const handleAddProduct = () => setIsModalOpen1(true);
 
   const handleModalClose1 = () => {
     setIsModalOpen1(false);
-    setIsNewAssetAdd(false);
-    setNewAssetNameAdd("");
   };
 
   const handleModalClose2 = () => {
@@ -1201,14 +1153,12 @@ const AssetsRequisitionTable = () => {
       date: product.date ?? "",
       userId: userId,
     });
-    setIsNewAssetEdit(false);
-    setNewAssetNameEdit("");
     setIsModalOpen(true);
   };
 
   const handleUpdateProduct = async () => {
     if (!currentProduct?.Id) return toast.error("Invalid item!");
-    if (!currentProduct?.name?.trim() && !isNewAssetEdit)
+    if (!currentProduct?.name?.trim())
       return toast.error("Name is required!");
     if (currentProduct?.price === "" || currentProduct?.price === null)
       return toast.error("Price is required!");
@@ -1216,16 +1166,8 @@ const AssetsRequisitionTable = () => {
       return toast.error("Quantity is required!");
 
     try {
-      let finalAssetName = currentProduct.name;
-
-      if (isNewAssetEdit) {
-        const createdAssetName = await addAssetByName(newAssetNameEdit);
-        if (!createdAssetName) return;
-        finalAssetName = createdAssetName;
-      }
-
       const payload = {
-        name: String(finalAssetName || "").trim(),
+        name: String(currentProduct.name || "").trim(),
         quantity: Number(currentProduct.quantity),
         price: Number(currentProduct.price),
         note: currentProduct.note,
@@ -1244,8 +1186,6 @@ const AssetsRequisitionTable = () => {
         toast.success("Successfully updated product!");
         setIsModalOpen(false);
         setCurrentProduct(null);
-        setIsNewAssetEdit(false);
-        setNewAssetNameEdit("");
         refetch?.();
       } else {
         toast.error(res?.message || "Update failed!");
@@ -1261,22 +1201,14 @@ const AssetsRequisitionTable = () => {
   const handleCreateProduct = async (e) => {
     e.preventDefault();
 
-    if (!createProduct.name?.trim() && !isNewAssetAdd)
+    if (!createProduct.name?.trim())
       return toast.error("Name is required!");
     if (!createProduct.price) return toast.error("Price is required!");
     if (!createProduct.quantity) return toast.error("Quantity is required!");
 
     try {
-      let finalAssetName = createProduct.name;
-
-      if (isNewAssetAdd) {
-        const createdAssetName = await addAssetByName(newAssetNameAdd);
-        if (!createdAssetName) return;
-        finalAssetName = createdAssetName;
-      }
-
       const payload = {
-        name: String(finalAssetName || "").trim(),
+        name: String(createProduct.name || "").trim(),
         quantity: Number(createProduct.quantity),
         price: Number(createProduct.price),
         note: createProduct.note,
@@ -1289,8 +1221,6 @@ const AssetsRequisitionTable = () => {
       if (res?.success) {
         toast.success("Successfully created product");
         setIsModalOpen1(false);
-        setIsNewAssetAdd(false);
-        setNewAssetNameAdd("");
         setCreateProduct({
           name: "",
           price: "",
@@ -1372,67 +1302,6 @@ const AssetsRequisitionTable = () => {
         return true;
       });
   }, [assets]);
-
-  const assetSelectOptions = useMemo(
-    () => [...assetOptions, { value: "__new__", label: "+ New Asset" }],
-    [assetOptions],
-  );
-
-  const handleDeleteAssetOption = async (assetOption) => {
-    if (!assetOption?.assetId) return;
-
-    const confirmDelete = await requestDeleteConfirmation({
-      message: `Do you want to delete "${assetOption.label}"?`,
-    });
-    if (!confirmDelete) return toast.info("Delete action was cancelled.");
-
-    try {
-      const res = await deleteAsset(assetOption.assetId).unwrap();
-
-      if (res?.success !== false) {
-        toast.success("Asset deleted successfully!");
-        setAssets((prev) =>
-          prev.filter((asset) => Number(asset.Id) !== Number(assetOption.assetId)),
-        );
-        setCreateProduct((prev) =>
-          prev.name === assetOption.value ? { ...prev, name: "" } : prev,
-        );
-        setCurrentProduct((prev) =>
-          prev?.name === assetOption.value ? { ...prev, name: "" } : prev,
-        );
-      } else {
-        toast.error(res?.message || "Asset delete failed!");
-      }
-    } catch (err) {
-      toast.error(err?.data?.message || "Asset delete failed!");
-    }
-  };
-
-  const formatAssetOptionLabel = (option, { context }) => {
-    if (option.value === "__new__" || context !== "menu") return option.label;
-
-    return (
-      <div className="flex items-center justify-between gap-3">
-        <span className="truncate">{option.label}</span>
-        <button
-          type="button"
-          onMouseDown={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-          }}
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            handleDeleteAssetOption(option);
-          }}
-          className="shrink-0 rounded-md p-1 text-rose-500 hover:bg-rose-50 hover:text-rose-600"
-          title="Delete asset"
-        >
-          <Trash2 size={14} />
-        </button>
-      </div>
-    );
-  };
 
   const selectStyles = useMemo(
     () => ({
@@ -1803,64 +1672,24 @@ const AssetsRequisitionTable = () => {
               <label className="block text-sm text-slate-700">{t.name}</label>
 
               <Select
-                options={assetSelectOptions}
+                options={assetOptions}
                 value={
-                  assetSelectOptions.find(
-                    (option) =>
-                      option.value ===
-                      (isNewAssetEdit ? "__new__" : currentProduct?.name),
-                  ) || null
+                  assetOptions.find((option) => option.value === currentProduct?.name) ||
+                  null
                 }
-                onChange={(selectedOption) => {
-                  const value = selectedOption?.value || "";
-
-                  if (value === "__new__") {
-                    setIsNewAssetEdit(true);
-                    setCurrentProduct((prev) => ({ ...prev, name: "" }));
-                    return;
-                  }
-
-                  setIsNewAssetEdit(false);
-                  setNewAssetNameEdit("");
-                  setCurrentProduct((prev) => ({ ...prev, name: value }));
-                }}
+                onChange={(selectedOption) =>
+                  setCurrentProduct((prev) => ({
+                    ...prev,
+                    name: selectedOption?.value || "",
+                  }))
+                }
                 placeholder={t.select_assets || "Select Asset"}
+                noOptionsMessage={() => "No asset — add it from Assets → Asset"}
                 className="text-sm mt-1"
                 styles={selectStyles}
-                formatOptionLabel={formatAssetOptionLabel}
                 isClearable
               />
 
-              {isNewAssetEdit && (
-                <div className="mt-3 flex gap-2">
-                  <input
-                    type="text"
-                    value={newAssetNameEdit}
-                    onChange={(e) => setNewAssetNameEdit(e.target.value)}
-                    placeholder="New asset name"
-                    className="h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 bg-white outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const createdAssetName =
-                        await addAssetByName(newAssetNameEdit);
-                      if (!createdAssetName) return;
-
-                      setCurrentProduct((prev) => ({
-                        ...prev,
-                        name: createdAssetName,
-                      }));
-                      setIsNewAssetEdit(false);
-                      setNewAssetNameEdit("");
-                    }}
-                    disabled={isAddingAsset}
-                    className="h-11 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
-                  >
-                    {isAddingAsset ? "..." : "Add"}
-                  </button>
-                </div>
-              )}
             </div>
           </div>
 
@@ -2038,64 +1867,24 @@ const AssetsRequisitionTable = () => {
               <label className="block text-sm text-slate-700">{t.name}</label>
 
               <Select
-                options={assetSelectOptions}
+                options={assetOptions}
                 value={
-                  assetSelectOptions.find(
-                    (option) =>
-                      option.value ===
-                      (isNewAssetAdd ? "__new__" : createProduct.name),
-                  ) || null
+                  assetOptions.find((option) => option.value === createProduct.name) ||
+                  null
                 }
-                onChange={(selectedOption) => {
-                  const value = selectedOption?.value || "";
-
-                  if (value === "__new__") {
-                    setIsNewAssetAdd(true);
-                    setCreateProduct((prev) => ({ ...prev, name: "" }));
-                    return;
-                  }
-
-                  setIsNewAssetAdd(false);
-                  setNewAssetNameAdd("");
-                  setCreateProduct((prev) => ({ ...prev, name: value }));
-                }}
+                onChange={(selectedOption) =>
+                  setCreateProduct((prev) => ({
+                    ...prev,
+                    name: selectedOption?.value || "",
+                  }))
+                }
                 placeholder={t.select_assets || "Select Asset"}
+                noOptionsMessage={() => "No asset — add it from Assets → Asset"}
                 className="text-sm mt-1"
                 styles={selectStyles}
-                formatOptionLabel={formatAssetOptionLabel}
                 isClearable
               />
 
-              {isNewAssetAdd && (
-                <div className="mt-3 flex gap-2">
-                  <input
-                    type="text"
-                    value={newAssetNameAdd}
-                    onChange={(e) => setNewAssetNameAdd(e.target.value)}
-                    placeholder="New asset name"
-                    className="h-11 border border-slate-200 rounded-xl px-3 w-full text-slate-900 bg-white outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const createdAssetName =
-                        await addAssetByName(newAssetNameAdd);
-                      if (!createdAssetName) return;
-
-                      setCreateProduct((prev) => ({
-                        ...prev,
-                        name: createdAssetName,
-                      }));
-                      setIsNewAssetAdd(false);
-                      setNewAssetNameAdd("");
-                    }}
-                    disabled={isAddingAsset}
-                    className="h-11 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
-                  >
-                    {isAddingAsset ? "..." : "Add"}
-                  </button>
-                </div>
-              )}
             </div>
           </div>
 

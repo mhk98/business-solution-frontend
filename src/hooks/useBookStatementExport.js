@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { createElement as h, useState } from "react";
 import toast from "react-hot-toast";
 import {
   useLazyGetMonthlyReportingSummaryQuery,
@@ -7,6 +7,7 @@ import {
 import { useLazyGetInventoryReportsQuery } from "../features/inventoryOverview/inventoryOverview";
 import { useGetAllLogoQuery } from "../features/logo/logo";
 import { useGetAllCompanyInfoQuery } from "../features/companyInfo/companyInfo";
+import { useLazyGetCourierReportCoverageQuery } from "../features/courierBalance/courierBalance";
 import { DEFAULT_COMPANY_NAME, buildAssetUrl } from "../utils/pdfBranding";
 import { generateBookStatementPdf } from "../utils/report/generateBookStatementPdf";
 
@@ -38,6 +39,65 @@ export const useBookStatementExport = () => {
   const [fetchSummaryRows] = useLazyGetMonthlyReportingSummaryQuery();
   const [fetchBookStatement] = useLazyGetBookStatementQuery();
   const [fetchInventoryReports] = useLazyGetInventoryReportsQuery();
+  const [fetchCourierCoverage] = useLazyGetCourierReportCoverageQuery();
+
+  // The opening and closing balances need the courier stock and courier
+  // balance of the day before the start date and of the end date. Returns
+  // false (after warning) when any of them is missing.
+  const ensureCourierEntries = async (range) => {
+    let coverage;
+    try {
+      coverage = (await fetchCourierCoverage({ from: range.from, to: range.to }).unwrap())?.data;
+    } catch (error) {
+      // Older backend without the check: don't block the report.
+      console.warn("Courier coverage check failed", error);
+      return true;
+    }
+    if (!coverage || coverage.ok) return true;
+
+    const formatDay = (ymd) =>
+      new Date(`${ymd}T00:00:00`).toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+    const lines = coverage.missing.map(
+      (row) => `• ${formatDay(row.date)} — ${row.label}`,
+    );
+    const message = `Report তৈরি হবে না। নিচের তারিখের entry দেওয়া নেই:\n${lines.join("\n")}\n\nCourier Product Stock ও Courier Balance-এ entry দিয়ে আবার চেষ্টা করুন।`;
+    // Stays until closed with ✕ (one at a time, so repeated clicks don't stack).
+    toast.error(
+      (t) =>
+        h("div", { style: { display: "flex", alignItems: "flex-start", gap: 10 } }, [
+          h("span", { key: "text", style: { whiteSpace: "pre-line" } }, message),
+          h(
+            "button",
+            {
+              key: "close",
+              type: "button",
+              onClick: () => toast.dismiss(t.id),
+              "aria-label": "Close",
+              title: "Close",
+              style: {
+                flexShrink: 0,
+                border: "none",
+                background: "#f1f5f9",
+                borderRadius: 6,
+                width: 26,
+                height: 26,
+                cursor: "pointer",
+                fontSize: 14,
+                lineHeight: "26px",
+                color: "#334155",
+              },
+            },
+            "✕",
+          ),
+        ]),
+      { id: "courier-coverage-warning", duration: Infinity, style: { maxWidth: 480 } },
+    );
+    return false;
+  };
 
   const closePreview = () => {
     if (preview.blobUrl) URL.revokeObjectURL(preview.blobUrl);
@@ -80,6 +140,8 @@ export const useBookStatementExport = () => {
     autoPrint,
     title,
   }) => {
+    if (!(await ensureCourierEntries(range))) return;
+
     const reportTitle =
       title ||
       (bookName
@@ -173,6 +235,8 @@ export const useBookStatementExport = () => {
         assetsSummary: statementAssetsSummary || null,
         paymentModeSummary: statementPaymentModeSummary || null,
         courierBalance: statementInventoryStockReport?.courierBalance || null,
+        courierOpeningBalance:
+          statementInventoryStockReport?.courierOpeningBalance || null,
         inventoryStockReport,
         itemFactoryStock:
           statementInventoryStockReport?.itemFactoryStock || null,

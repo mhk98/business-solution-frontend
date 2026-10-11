@@ -4,6 +4,7 @@ import Sidebar from "./Sidebar";
 import OfflineBanner from "./OfflineBanner";
 import { useLayout } from "../../context/LayoutContext";
 import ChatWidget from "../chat/ChatWidget";
+import ApprovalReminder from "../approval/ApprovalReminder";
 import useSessionExpiry from "../../hooks/useSessionExpiry";
 import { useRefreshTokenMutation } from "../../features/auth/auth";
 
@@ -74,6 +75,7 @@ const SidebarLayout = ({ children }) => {
       </div>
 
       <ChatWidget />
+      <ApprovalReminder />
       <OfflineBanner />
     </div>
   );

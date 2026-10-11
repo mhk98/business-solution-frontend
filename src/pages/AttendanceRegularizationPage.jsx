@@ -16,6 +16,20 @@ const AttendanceRegularizationPage = () => {
     value: person.Id,
     label: `${person.name} (ID ${person.Id})`,
   }));
+  // Everyone active (incl. exempt) — requesters and approvers.
+  const { data: allPeopleRes } = useGetAttendancePeopleQuery({ scope: "all" });
+  const allPeople = allPeopleRes?.data || [];
+  const personById = (id) => allPeople.find((person) => String(person.Id) === String(id));
+  const requesterOptions = allPeople.map((person) => ({ value: person.Id, label: person.name }));
+  // Team leaders first, labelled with the departments they lead.
+  const approverOptions = [...allPeople]
+    .sort((a, b) => (b.leaderOf.length > 0) - (a.leaderOf.length > 0) || a.name.localeCompare(b.name))
+    .map((person) => ({
+      value: person.Id,
+      label: person.leaderOf.length ? `${person.name} — Team Leader (${person.leaderOf.join(", ")})` : person.name,
+    }));
+  // The approver: the employee's department leader, else the requester's.
+  const leaderFor = (...ids) => ids.map((id) => personById(id)?.teamLeaderUserId).find(Boolean) || "";
 
   return (
     <div className="flex-1 relative z-10">
@@ -30,8 +44,9 @@ const AttendanceRegularizationPage = () => {
             {
               name: "userId",
               label: "Employee",
-              type: "select",
+              type: "combobox",
               options: employeeOptions,
+              placeholder: "Select employee",
               required: true,
             },
             {
@@ -69,14 +84,20 @@ const AttendanceRegularizationPage = () => {
             },
             {
               name: "requestedByUserId",
-              label: "Requested By User ID",
-              type: "number",
+              label: "Requested By",
+              type: "combobox",
+              options: requesterOptions,
+              placeholder: "Select requester",
               defaultValue: currentUserId || "",
             },
             {
               name: "approvedByUserId",
-              label: "Approved By User ID",
-              type: "number",
+              label: "Approved By",
+              type: "combobox",
+              options: approverOptions,
+              placeholder: "Select approver",
+              defaultValue: leaderFor(currentUserId),
+              help: "Filled with the employee's department team leader.",
             },
             {
               name: "approvalStatus",
@@ -118,6 +139,13 @@ const AttendanceRegularizationPage = () => {
             },
           ]}
           useListQuery={useGetAllAttendanceRegularizationsQuery}
+          onFieldChange={(name, value, form) => {
+            if (name === "userId" || name === "requestedByUserId") {
+              const leader = leaderFor(form.userId, form.requestedByUserId);
+              if (leader) return { approvedByUserId: leader };
+            }
+            return undefined;
+          }}
           useCreateMutation={useCreateAttendanceRegularizationMutation}
           useUpdateMutation={useUpdateAttendanceRegularizationMutation}
           useDeleteMutation={useDeleteAttendanceRegularizationMutation}

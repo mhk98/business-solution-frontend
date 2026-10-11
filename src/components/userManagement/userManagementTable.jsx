@@ -27,6 +27,8 @@ import {
   saveRolePermissionsForRole,
 } from "../../utils/navigationPermissions";
 import Modal from "../common/Modal";
+import { useGetAllDepartmentsQuery } from "../../features/department/department";
+import { useGetAllDesignationsQuery } from "../../features/designation/designation";
 import useDebounce from "../../hooks/useDebounce";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 import {
@@ -113,6 +115,8 @@ const UserManagementTable = () => {
     Password: "",
     Phone: "",
     role: "",
+    departmentId: "",
+    designationId: "",
   });
   const [createFiles, setCreateFiles] = useState({});
   const [createPreviewUrls, setCreatePreviewUrls] = useState({});
@@ -197,6 +201,8 @@ const UserManagementTable = () => {
       Password: "",
       Phone: "",
       role: "",
+      departmentId: "",
+      designationId: "",
     });
     setCreateFiles({});
     Object.values(createPreviewUrls).forEach(
@@ -224,6 +230,8 @@ const UserManagementTable = () => {
       Password: "",
       Phone: "",
       role: "",
+      departmentId: "",
+      designationId: "",
     });
     setCreateFiles({});
     Object.values(createPreviewUrls).forEach(
@@ -234,7 +242,11 @@ const UserManagementTable = () => {
   };
 
   const handleEdit = (u) => {
-    setCurrentUser({ ...u });
+    setCurrentUser({
+      ...u,
+      departmentId: u.departmentId ? String(u.departmentId) : "",
+      designationId: u.designationId ? String(u.designationId) : "",
+    });
     setEditPassword("");
     setEditFiles({});
     Object.values(editPreviewUrls).forEach(
@@ -266,6 +278,72 @@ const UserManagementTable = () => {
     });
   };
 
+  // Department / Designation options (a designation belongs to a department)
+  const { data: departmentRes } = useGetAllDepartmentsQuery({ page: 1, limit: 500 });
+  const { data: designationRes } = useGetAllDesignationsQuery({ page: 1, limit: 500 });
+  const departmentOptions = departmentRes?.data || [];
+  const designationOptions = designationRes?.data || [];
+
+  const renderDepartmentFields = (value, setValue) => {
+    const designations = designationOptions.filter(
+      (row) => !value?.departmentId || String(row.departmentId) === String(value.departmentId),
+    );
+    const selectClass =
+      "w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition";
+    return (
+      <>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Department</label>
+          <select
+            value={value?.departmentId || ""}
+            onChange={(e) => {
+              const departmentId = e.target.value;
+              setValue((p) => {
+                const keep = designationOptions.some(
+                  (row) =>
+                    String(row.Id) === String(p.designationId) &&
+                    String(row.departmentId) === String(departmentId),
+                );
+                return { ...p, departmentId, designationId: keep ? p.designationId : "" };
+              });
+            }}
+            className={selectClass}
+          >
+            <option value="">Select Department</option>
+            {departmentOptions.map((row) => (
+              <option key={row.Id} value={row.Id}>
+                {row.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Designation</label>
+          <select
+            value={value?.designationId || ""}
+            onChange={(e) => {
+              const designationId = e.target.value;
+              const designation = designationOptions.find((row) => String(row.Id) === designationId);
+              setValue((p) => ({
+                ...p,
+                designationId,
+                departmentId: designation?.departmentId ? String(designation.departmentId) : p.departmentId,
+              }));
+            }}
+            className={selectClass}
+          >
+            <option value="">Select Designation</option>
+            {designations.map((row) => (
+              <option key={row.Id} value={row.Id}>
+                {row.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </>
+    );
+  };
+
   // Create
   const [userRegister, { isLoading: creating }] = useUserRegisterMutation();
 
@@ -284,6 +362,8 @@ const UserManagementTable = () => {
       form.append("Password", createUser.Password || "");
       form.append("Phone", createUser.Phone || "");
       form.append("role", createUser.role || "");
+      form.append("departmentId", createUser.departmentId || "");
+      form.append("designationId", createUser.designationId || "");
       Object.entries(createFiles).forEach(([field, file]) => {
         if (file) form.append(field, file);
       });
@@ -319,6 +399,8 @@ const UserManagementTable = () => {
       form.append("Email", currentUser.Email || "");
       form.append("Phone", currentUser.Phone || "");
       form.append("role", currentUser.role || "");
+      form.append("departmentId", currentUser.departmentId || "");
+      form.append("designationId", currentUser.designationId || "");
       if (editPassword?.trim()) form.append("Password", editPassword.trim());
       Object.entries(editFiles).forEach(([field, file]) => {
         if (file) form.append(field, file);
@@ -557,7 +639,9 @@ const UserManagementTable = () => {
                         {item.Email || "-"}
                       </div>
                       <div className="mt-1 text-xs leading-relaxed text-slate-500">
-                        Role: {getRoleLabel(item.role)} • Status:{" "}
+                        Role: {getRoleLabel(item.role)}
+                        {item.attendanceDepartment?.name && ` • ${item.attendanceDepartment.name}`}
+                        {item.userDesignation?.name && ` • ${item.userDesignation.name}`} • Status:{" "}
                         <span
                           className={
                             isInactive
@@ -754,6 +838,8 @@ const UserManagementTable = () => {
               </select>
             </div>
 
+            {renderDepartmentFields(currentUser, setCurrentUser)}
+
             <div className="md:col-span-2">
               <DocumentFields
                 mode="edit"
@@ -840,6 +926,8 @@ const UserManagementTable = () => {
                 ))}
               </select>
             </div>
+
+            {renderDepartmentFields(createUser, setCreateUser)}
 
             <div className="md:col-span-2">
               <DocumentFields

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
+import Select from "react-select";
 import {
   CalendarCheck2,
   CalendarDays,
@@ -48,7 +49,7 @@ import {
 const TABS = [
   { key: "daily", label: "Daily", icon: CalendarCheck2 },
   { key: "monthly", label: "Monthly Summary", icon: CalendarDays },
-  { key: "job-card", label: "Job Card", icon: ListChecks },
+  { key: "job-card", label: "Monthly Attendance Sheet", icon: ListChecks },
   { key: "punches", label: "Punch Log", icon: Fingerprint },
   { key: "leave", label: "Leave Balance", icon: WalletCards },
 ];
@@ -70,6 +71,35 @@ const useDepartmentOptions = () => {
   const { data } = useGetAllDepartmentsQuery({ page: 1, limit: 500 });
   return (data?.data || []).map((row) => ({ value: row.Id, label: row.name }));
 };
+
+const departmentSelectStyles = {
+  control: (base, state) => ({
+    ...base,
+    minHeight: 38,
+    minWidth: 220,
+    borderRadius: 12,
+    fontSize: 14,
+    borderColor: state.isFocused ? "#6366f1" : "#e2e8f0",
+    boxShadow: state.isFocused ? "0 0 0 4px rgba(99,102,241,0.1)" : "none",
+    "&:hover": { borderColor: state.isFocused ? "#6366f1" : "#cbd5e1" },
+  }),
+  placeholder: (base) => ({ ...base, color: "#0f172a" }),
+  option: (base) => ({ ...base, fontSize: 14 }),
+  menuPortal: (base) => ({ ...base, zIndex: 9999 }),
+};
+
+const DepartmentSelect = ({ value, onChange, options }) => (
+  <Select
+    options={options}
+    value={options.find((option) => String(option.value) === String(value)) || null}
+    onChange={(option) => onChange(option ? String(option.value) : "")}
+    placeholder="All departments"
+    isClearable
+    isSearchable
+    styles={departmentSelectStyles}
+    menuPortalTarget={typeof document !== "undefined" ? document.body : null}
+  />
+);
 
 const errorMessage = (error, fallback) => error?.data?.message || fallback;
 
@@ -225,12 +255,18 @@ const DayEditModal = ({ target, onClose }) => {
 const DailyView = ({ onEdit, onOpenJobCard }) => {
   const [date, setDate] = useState(bdToday());
   const [departmentId, setDepartmentId] = useState("");
+  const [deviceId, setDeviceId] = useState("");
   const [status, setStatus] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const departments = useDepartmentOptions();
   const isToday = date === bdToday();
   const { data, isFetching, refetch } = useGetAttendanceDailyQuery(
-    { date, departmentId: departmentId || undefined, status: status || undefined },
+    {
+      date,
+      departmentId: departmentId || undefined,
+      deviceId: deviceId || undefined,
+      status: status || undefined,
+    },
     { refetchOnMountOrArgChange: true, pollingInterval: isToday ? 120000 : 0 },
   );
   const [recompute, { isLoading: recomputing }] = useRecomputeAttendanceMutation();
@@ -261,20 +297,21 @@ const DailyView = ({ onEdit, onOpenJobCard }) => {
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           <input type="date" value={date} max={bdToday()} onChange={(e) => setDate(e.target.value)} className={inputClass} />
-          <select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} className={inputClass}>
-            <option value="">All departments</option>
-            {departments.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          <DepartmentSelect value={departmentId} onChange={setDepartmentId} options={departments} />
           <input
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search name / PIN"
             className={inputClass}
           />
+          <select value={deviceId} onChange={(e) => setDeviceId(e.target.value)} className={inputClass}>
+            <option value="">All devices</option>
+            {(result?.devices || []).map((device) => (
+              <option key={device.Id} value={device.Id}>
+                {device.name || `Device #${device.Id}`}
+              </option>
+            ))}
+          </select>
         </div>
         {canManageAttendance() && (
           <button
@@ -399,14 +436,7 @@ const MonthlyView = ({ onOpenJobCard }) => {
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           <input type="month" value={month} max={currentMonth()} onChange={(e) => setMonth(e.target.value)} className={inputClass} />
-          <select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} className={inputClass}>
-            <option value="">All departments</option>
-            {departments.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          <DepartmentSelect value={departmentId} onChange={setDepartmentId} options={departments} />
           <input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Search name" className={inputClass} />
         </div>
         <button
@@ -470,7 +500,147 @@ const MonthlyView = ({ onOpenJobCard }) => {
   );
 };
 
-// --- Job card --------------------------------------------------------------------------------
+// --- Monthly attendance sheet ----------------------------------------------------------------
+const monthLabel = (month) =>
+  new Date(`${month}-01T00:00:00`).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+
+const statusText = (day, date) => {
+  if (!day) return date <= bdToday() ? "No record" : "";
+  const flags = [
+    day.isLate && "Late",
+    day.isEarlyLeave && "Early",
+    day.isMissingPunch && "Missing out",
+    day.workedOnOffDay && "Worked",
+    day.isLocked && "Manual",
+  ].filter(Boolean);
+  return flags.length ? `${day.status} (${flags.join(", ")})` : day.status;
+};
+
+const sheetData = (card) => {
+  const t = card.totals || {};
+  const summary = [
+    ["Present", num(t.present)],
+    ["Absent", num(t.absent)],
+    ["Leave", num(t.leave)],
+    ["Late days", t.lateDays ?? 0],
+    ["Early leave", t.earlyLeaveDays ?? 0],
+    ["Overtime", minutesToHm(t.overtimeMinutes)],
+    ["Weekly off / Holiday", `${t.weeklyOffs ?? 0} / ${t.holidays ?? 0}`],
+    ["Payable days", num(t.payableDays)],
+  ];
+  const head = ["Date", "Day", "Shift", "In", "Out", "Worked", "Late", "Early", "OT", "Status", "Punches", "Remarks"];
+  const body = card.days.map(({ date, day, punches }) => [
+    date,
+    weekdayShort(date),
+    day?.shiftStart ? `${day.shiftStart}-${day.shiftEnd}` : "-",
+    clockOf(day?.inTime, date),
+    clockOf(day?.outTime, date),
+    minutesToHm(day?.workedMinutes),
+    minutesToHm(day?.lateMinutes),
+    minutesToHm(day?.earlyLeaveMinutes),
+    minutesToHm(day?.overtimeMinutes),
+    statusText(day, date),
+    punches.map((punch) => punch.clock.slice(0, 5)).join(" "),
+    day?.manualNote || day?.remarks || "",
+  ]);
+  return { summary, head, body };
+};
+
+const sheetFileName = (card, month, ext) =>
+  `attendance-sheet-${String(card.employee.name || "employee").replace(/[^\w]+/g, "-")}-${month}.${ext}`;
+
+const downloadSheetPdf = async (card, month) => {
+  const { default: jsPDF } = await import("jspdf");
+  const { default: autoTable } = await import("jspdf-autotable");
+  const { summary, head, body } = sheetData(card);
+  const { employee } = card;
+  const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  doc.setFontSize(15);
+  doc.setFont("helvetica", "bold");
+  doc.text("Monthly Attendance Sheet", pageWidth / 2, 36, { align: "center" });
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.text(monthLabel(month), pageWidth / 2, 52, { align: "center" });
+  doc.text(
+    [
+      `Employee: ${employee.name}`,
+      `PIN: ${employee.pin || "-"}`,
+      employee.department && `Department: ${employee.department}`,
+      employee.shift && `Default shift: ${employee.shift}`,
+    ]
+      .filter(Boolean)
+      .join("     "),
+    40,
+    74,
+  );
+
+  autoTable(doc, {
+    startY: 84,
+    head: [summary.map(([label]) => label)],
+    body: [summary.map(([, value]) => String(value))],
+    theme: "grid",
+    styles: { fontSize: 8.5, halign: "center", cellPadding: 3 },
+    headStyles: { fillColor: [241, 245, 249], textColor: [51, 65, 85] },
+    margin: { left: 40, right: 40 },
+  });
+
+  autoTable(doc, {
+    startY: doc.lastAutoTable.finalY + 10,
+    head: [head],
+    body,
+    theme: "grid",
+    styles: { fontSize: 7.5, cellPadding: 2.5, valign: "middle" },
+    headStyles: { fillColor: [79, 70, 229], textColor: 255 },
+    columnStyles: { 10: { cellWidth: 150 }, 11: { cellWidth: 90 } },
+    margin: { left: 40, right: 40 },
+    didParseCell: ({ section, row, cell }) => {
+      if (section !== "body") return;
+      const status = String(row.raw[9] || "");
+      if (status.startsWith("Weekly Off") || status.startsWith("Holiday")) cell.styles.fillColor = [248, 250, 252];
+      if (cell.column.index === 9 && status.startsWith("Absent")) cell.styles.textColor = [190, 18, 60];
+    },
+  });
+
+  let y = doc.lastAutoTable.finalY + 50;
+  if (y > doc.internal.pageSize.getHeight() - 30) {
+    doc.addPage();
+    y = 80;
+  }
+  doc.setFontSize(9);
+  [["Employee Signature", 40], ["Prepared By", pageWidth / 2 - 70], ["Authorized Signature", pageWidth - 180]].forEach(
+    ([label, x]) => {
+      doc.line(x, y, x + 140, y);
+      doc.text(label, x + 70, y + 12, { align: "center" });
+    },
+  );
+
+  doc.save(sheetFileName(card, month, "pdf"));
+};
+
+const downloadSheetExcel = async (card, month) => {
+  const XLSX = await import("xlsx");
+  const { summary, head, body } = sheetData(card);
+  const { employee } = card;
+  const rows = [
+    ["Monthly Attendance Sheet"],
+    [monthLabel(month)],
+    ["Employee", employee.name, "PIN", employee.pin || "-", "Department", employee.department || "-", "Default shift", employee.shift || "-"],
+    [],
+    summary.map(([label]) => label),
+    summary.map(([, value]) => value),
+    [],
+    head,
+    ...body,
+  ];
+  const sheet = XLSX.utils.aoa_to_sheet(rows);
+  sheet["!cols"] = [12, 6, 13, 9, 9, 9, 8, 8, 8, 24, 40, 30].map((wch) => ({ wch }));
+  const book = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(book, sheet, "Attendance Sheet");
+  XLSX.writeFile(book, sheetFileName(card, month, "xlsx"));
+};
+
 const JobCardView = ({ employeeId, month, onChange, onEdit }) => {
   const { data: monthlyData } = useGetAttendanceMonthlyQuery({ month });
   const employees = (monthlyData?.data?.rows || []).map(({ employee }) => employee);
@@ -499,6 +669,22 @@ const JobCardView = ({ employeeId, month, onChange, onEdit }) => {
           onChange={(e) => onChange({ employeeId, month: e.target.value })}
           className={inputClass}
         />
+        <div className="ml-auto flex flex-wrap gap-2">
+          {[
+            ["Download PDF", downloadSheetPdf],
+            ["Download Excel", downloadSheetExcel],
+          ].map(([label, download]) => (
+            <button
+              key={label}
+              type="button"
+              disabled={!card}
+              onClick={() => download(card, month).catch(() => toast.error("Failed to download attendance sheet"))}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              <Download size={16} /> {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {!employeeId && <p className="mt-6 text-center text-sm text-slate-500">Choose an employee to see the month day by day.</p>}
@@ -731,7 +917,7 @@ const AttendanceManager = () => {
     <HrmWorkspace
       eyebrow="Attendance"
       title="Attendance"
-      description="Daily status, monthly summary and per-employee job card, calculated from the device punches with shifts, weekly off, holidays and approved leave."
+      description="Daily status, monthly summary and per-employee monthly attendance sheet, calculated from the device punches with shifts, weekly off, holidays and approved leave."
       stats={[]}
     >
       <div className="flex flex-wrap gap-2">

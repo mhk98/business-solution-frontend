@@ -2690,8 +2690,7 @@ const buildCashStockSummaryTableHtml = (
   const dmBalance = Number(dmBalanceTotal || 0);
   const due = Number(payableTotal || 0);
   const receivable = Number(receivableTotal || 0);
-  // Only the closing summary passes a courier balance; the opening one
-  // leaves it undefined and shows no row.
+  // No courier balance passed (undefined) → no courier row.
   const hasCourierBalance = courierBalanceTotal !== undefined;
   const courier = Number(courierBalanceTotal || 0);
   const total =
@@ -2800,6 +2799,7 @@ const appendOpeningCashSummarySection = async (
     itemFactoryStock,
     packagingStock,
     courierProductStock,
+    courierOpeningBalance,
     regularFontDataUrl,
     boldFontDataUrl,
   },
@@ -2843,6 +2843,11 @@ const appendOpeningCashSummarySection = async (
       receivableTotal: Number(
         inventoryStockReport?.meta?.receivableOpeningBalance || 0,
       ),
+      // Courier balance as of the day before the start date (latest
+      // snapshot dated before it); no row when the backend doesn't send it.
+      courierBalanceTotal: courierOpeningBalance
+        ? getCourierBalanceTotal(courierOpeningBalance)
+        : undefined,
     },
     totalLabel: "শুরু ব্যালেন্স",
     regularFontDataUrl,
@@ -3124,6 +3129,7 @@ export const generateBookStatementPdf = async ({
   assetsSummary = null,
   paymentModeSummary = null,
   courierBalance = null,
+  courierOpeningBalance = null,
 }) => {
   const { jsPDF } = await import("jspdf");
   const html2canvas = (await import("html2canvas")).default;
@@ -3182,6 +3188,7 @@ export const generateBookStatementPdf = async ({
     itemFactoryStock,
     packagingStock,
     courierProductStock,
+    courierOpeningBalance,
     regularFontDataUrl,
     boldFontDataUrl,
   });

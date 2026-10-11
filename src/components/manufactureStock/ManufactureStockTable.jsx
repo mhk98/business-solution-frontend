@@ -10,13 +10,18 @@ import {
   FileSpreadsheet,
   FileText,
   Printer,
+  Pencil,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
 import { useLayout } from "../../context/LayoutContext";
 import { translations } from "../../utils/translations";
 import { useGetAllItemWithoutQueryQuery } from "../../features/item/item";
-import { useGetAllItemMasterQuery } from "../../features/manufactureStock/manufactureStock";
+import {
+  useGetAllItemMasterQuery,
+  useUpdateItemMasterUnitCostMutation,
+} from "../../features/manufactureStock/manufactureStock";
+import Modal from "../common/Modal";
 import { useGetAllManufactureStockQuery } from "../../features/manufactureStockBalance/manufactureStockBalance";
 import { useGetAllManufacturerWithoutQueryQuery } from "../../features/manufacturer/manufacturer";
 import { useGetAllLogoQuery } from "../../features/logo/logo";
@@ -31,9 +36,18 @@ const ManufactureStockTable = ({ stockType = "item" }) => {
   const t = translations[language] || translations.EN;
   const isManufactureStock = stockType === "manufacture";
   const [rows, setRows] = useState([]);
+  // Unit Cost edit (Item Stock only, admin/superAdmin).
+  const role = localStorage.getItem("role");
+  const canEditUnitCost =
+    !isManufactureStock && (role === "superAdmin" || role === "admin");
+  const [costEditRow, setCostEditRow] = useState(null);
+  const [costInput, setCostInput] = useState("");
+  const [updateUnitCost, { isLoading: isSavingUnitCost }] =
+    useUpdateItemMasterUnitCostMutation();
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [productName, setProductName] = useState("");
+  const [selectedItems, setSelectedItems] = useState([]);
   const [manufacturerId, setManufacturerId] = useState("");
 
   const { data: logoData } = useGetAllLogoQuery();
@@ -62,7 +76,7 @@ const ManufactureStockTable = ({ stockType = "item" }) => {
   useEffect(() => {
     setCurrentPage(1);
     setStartPage(1);
-  }, [startDate, endDate, productName, manufacturerId, itemsPerPage]);
+  }, [startDate, endDate, productName, selectedItems, manufacturerId, itemsPerPage]);
 
   const endPage = Math.min(startPage + pagesPerSet - 1, totalPages);
 
@@ -122,7 +136,10 @@ const ManufactureStockTable = ({ stockType = "item" }) => {
       limit: itemsPerPage,
       startDate: startDate || undefined,
       endDate: endDate || undefined,
-      name: productName || undefined,
+      name: isManufactureStock ? productName || undefined : undefined,
+      itemIds: !isManufactureStock && selectedItems.length
+        ? selectedItems.map((item) => item.value).join(",")
+        : undefined,
       manufacturerId: isManufactureStock
         ? manufacturerId || undefined
         : undefined,
@@ -137,6 +154,7 @@ const ManufactureStockTable = ({ stockType = "item" }) => {
     startDate,
     endDate,
     productName,
+    selectedItems,
     manufacturerId,
     isManufactureStock,
   ]);
@@ -698,10 +716,16 @@ const ManufactureStockTable = ({ stockType = "item" }) => {
           <Select
             options={productDropdownOptions}
             value={
-              productDropdownOptions.find((o) => o.label === productName) ||
-              null
+              isManufactureStock
+                ? productDropdownOptions.find((o) => o.label === productName) || null
+                : selectedItems
             }
-            onChange={(selected) => setProductName(selected?.label || "")}
+            onChange={(selected) => {
+              if (isManufactureStock) setProductName(selected?.label || "");
+              else setSelectedItems(selected || []);
+            }}
+            isMulti={!isManufactureStock}
+            closeMenuOnSelect={isManufactureStock}
             placeholder={isLoadingAllProducts ? t.syncing : t.select_assets}
             isClearable
             isDisabled={isLoadingAllProducts}
@@ -738,6 +762,7 @@ const ManufactureStockTable = ({ stockType = "item" }) => {
           className="h-11 bg-slate-100 hover:bg-slate-200 text-slate-600 transition rounded-xl px-4 text-sm font-bold flex items-center justify-center gap-2 active:scale-95 border border-slate-200"
           onClick={() => {
             setProductName("");
+            setSelectedItems([]);
             setManufacturerId("");
             setStartDate("");
             setEndDate("");
@@ -815,6 +840,19 @@ const ManufactureStockTable = ({ stockType = "item" }) => {
                     <span className="inline-flex items-center px-4 py-1.5 rounded-2xl text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-100 shadow-sm shadow-emerald-50 tabular-nums">
                       {formatUnitCost(getUnitCost(rp))}
                     </span>
+                    {canEditUnitCost && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCostEditRow(rp);
+                          setCostInput(String(Number(getUnitCost(rp) || 0)));
+                        }}
+                        className="ml-2 inline-flex items-center justify-center h-8 w-8 rounded-xl border border-slate-200 text-indigo-600 hover:bg-indigo-50 align-middle"
+                        title="Edit unit cost"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                    )}
                   </td>
                 </motion.tr>
               ))}
@@ -840,6 +878,78 @@ const ManufactureStockTable = ({ stockType = "item" }) => {
           )}
         </div>
       </div>
+
+      <Modal
+        isOpen={!!costEditRow}
+        onClose={() => setCostEditRow(null)}
+        title="Edit Unit Cost"
+        maxWidth="max-w-md"
+      >
+        {costEditRow && (
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const value = Number(costInput);
+              if (costInput === "" || !Number.isFinite(value) || value < 0) {
+                toast.error("Enter a valid unit cost");
+                return;
+              }
+              try {
+                await updateUnitCost({ id: costEditRow.Id, unitCost: value }).unwrap();
+                toast.success("Unit cost updated");
+                setCostEditRow(null);
+              } catch (err) {
+                toast.error(err?.data?.message || "Unit cost update failed");
+              }
+            }}
+            className="space-y-4"
+          >
+            <div className="text-sm text-slate-600">
+              <div className="font-bold text-slate-900">{costEditRow.name}</div>
+              <div>
+                In hand: {Number(costEditRow.unitValue || 0)}{" "}
+                {costEditRow.unit || "Pcs"}
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm text-slate-600 mb-1">
+                Unit Cost (per {costEditRow.unit || "Pcs"})
+              </label>
+              <input
+                type="number"
+                step="any"
+                min="0"
+                value={costInput}
+                onChange={(e) => setCostInput(e.target.value)}
+                className="w-full h-11 border border-slate-200 rounded-xl px-3 text-sm"
+                autoFocus
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                Balance ={" "}
+                {(
+                  Number(costInput || 0) * Number(costEditRow.unitValue || 0)
+                ).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setCostEditRow(null)}
+                className="h-10 px-4 rounded-xl border border-slate-200 text-sm font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSavingUnitCost}
+                className="h-10 px-4 rounded-xl bg-indigo-600 text-white text-sm font-semibold disabled:opacity-60"
+              >
+                {isSavingUnitCost ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
 
       <div className="flex flex-col sm:flex-row items-center justify-between mt-10 gap-6 px-2">
         <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">

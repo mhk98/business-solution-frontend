@@ -505,6 +505,13 @@ export const SIDEBAR_ITEMS = [
     roles: ["superAdmin", "admin", "inventor"],
     children: [
       {
+        name: "Asset",
+        key: "asset",
+        icon: Package,
+        href: "/asset",
+        roles: ["superAdmin", "admin", "inventor"],
+      },
+      {
         name: "Assets Stock",
         key: "assets_stock",
         icon: Boxes,

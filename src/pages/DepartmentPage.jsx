@@ -30,10 +30,10 @@ const DepartmentPage = () => {
             {
               name: "teamLeaderUserId",
               label: "Team Leader",
-              type: "select",
+              type: "combobox",
               options: userOptions,
               placeholder: "No team leader",
-              help: "Approves this department's leave requests and gets their notifications.",
+              help: "The department head: approves leave requests and staff edit/delete requests, and gets their notifications.",
             },
             {
               name: "status",

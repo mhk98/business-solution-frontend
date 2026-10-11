@@ -34,6 +34,8 @@ const TiktokPage = lazy(() => import("./pages/TiktokPage"));
 const SEOPage = lazy(() => import("./pages/SEOPage"));
 const AssetsPurchasePage = lazy(() => import("./pages/AssetsPurchasePage"));
 const AssetsStockPage = lazy(() => import("./pages/AssetsStockPage"));
+const AssetPage = lazy(() => import("./pages/AssetPage"));
+const ApprovalsPage = lazy(() => import("./pages/ApprovalsPage"));
 const AssetsSalePage = lazy(() => import("./pages/AssetsSalePage"));
 const ConfirmOrderPage = lazy(() => import("./pages/ConfirmOrderPage"));
 const CashInPage = lazy(() => import("./pages/CashInOutPage"));
@@ -330,6 +332,8 @@ function App() {
                 <Route path="/supplier-history/:id" element={<AuthedRoute><SupplierHistoryPage /></AuthedRoute>} />
                 <Route path="/assets-requisition" element={<AuthedRoute><AssetsRequisitionPage /></AuthedRoute>} />
                 <Route path="/assets-stock" element={<AuthedRoute><AssetsStockPage /></AuthedRoute>} />
+                <Route path="/asset" element={<AuthedRoute><AssetPage /></AuthedRoute>} />
+                <Route path="/approvals" element={<AuthedRoute><ApprovalsPage /></AuthedRoute>} />
                 <Route path="/assets-purchase" element={<AuthedRoute><AssetsPurchasePage /></AuthedRoute>} />
                 <Route path="/assets-sale" element={<AuthedRoute><AssetsSalePage /></AuthedRoute>} />
                 <Route path="/assets-damage" element={<AuthedRoute><AssetsDamagePage /></AuthedRoute>} />

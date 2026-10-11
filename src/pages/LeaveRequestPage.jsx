@@ -8,6 +8,9 @@ import {
 } from "../features/leaveRequest/leaveRequest";
 import { useGetAttendancePeopleQuery } from "../features/attendance/attendance";
 import { useGetAllLeaveTypesQuery } from "../features/leaveType/leaveType";
+import { useGetAllDepartmentsQuery } from "../features/department/department";
+
+const NO_DEPARTMENT = "none";
 
 const LeaveRequestPage = () => {
   const currentUserId = localStorage.getItem("userId");
@@ -20,10 +23,22 @@ const LeaveRequestPage = () => {
     limit: 500,
   });
 
+  const { data: departmentsRes } = useGetAllDepartmentsQuery({ page: 1, limit: 500 });
+
   const employeeOptions = (peopleRes?.data || []).map((person) => ({
     value: person.Id,
     label: `${person.name} (ID ${person.Id})`,
+    departmentId: person.departmentId ? String(person.departmentId) : NO_DEPARTMENT,
   }));
+  // Departments from HRM → Department; "No department" catches employees not yet placed in one.
+  const departmentOptions = [
+    ...(departmentsRes?.data || [])
+      .map((department) => ({ value: String(department.Id), label: department.name }))
+      .sort((a, b) => a.label.localeCompare(b.label)),
+    ...(employeeOptions.some((option) => option.departmentId === NO_DEPARTMENT)
+      ? [{ value: NO_DEPARTMENT, label: "No department" }]
+      : []),
+  ];
   const allPeople = allPeopleRes?.data || [];
   const personById = (id) => allPeople.find((person) => String(person.Id) === String(id));
   const requesterOptions = allPeople.map((person) => ({ value: person.Id, label: person.name }));
@@ -54,10 +69,26 @@ const LeaveRequestPage = () => {
           description="Apply for leave and send it to the department's team leader for approval. Approved leave is counted in attendance."
           fields={[
             {
+              name: "departmentId",
+              label: "Department",
+              type: "combobox",
+              options: departmentOptions,
+              omit: true,
+              placeholder: "Select department",
+            },
+            {
               name: "userId",
               label: "Employee",
-              type: "select",
-              options: employeeOptions,
+              type: "combobox",
+              options: (form) =>
+                form.departmentId
+                  ? employeeOptions.filter((option) => option.departmentId === String(form.departmentId))
+                  : employeeOptions,
+              allOptions: employeeOptions,
+              // On edit the saved employee stays shown without picking a department.
+              disabledText: (form) => (form.departmentId || form.userId ? null : "Select a department first"),
+              placeholder: "Select employee",
+              noOptionsText: "No employee in this department",
               required: true,
             },
             {
@@ -104,14 +135,16 @@ const LeaveRequestPage = () => {
             {
               name: "requestedByUserId",
               label: "Requested By",
-              type: "select",
+              type: "combobox",
+              placeholder: "Select requester",
               options: requesterOptions,
               defaultValue: currentUserId || "",
             },
             {
               name: "approvedByUserId",
               label: "Approved By (Team Leader)",
-              type: "select",
+              type: "combobox",
+              placeholder: "Select approver",
               options: approverOptions,
               defaultValue: leaderFor(currentUserId),
               help: "Filled with the employee's department team leader — they get a notification to approve.",
@@ -160,6 +193,12 @@ const LeaveRequestPage = () => {
             { key: "approvalStatus", label: "Approval" },
           ]}
           onFieldChange={(name, value, form) => {
+            if (name === "departmentId") {
+              const keep = employeeOptions.some(
+                (option) => String(option.value) === String(form.userId) && option.departmentId === String(value),
+              );
+              if (!keep) return { userId: "" };
+            }
             if (name === "userId" || name === "requestedByUserId") {
               const leader = leaderFor(form.userId, form.requestedByUserId);
               if (leader) return { approvedByUserId: leader };

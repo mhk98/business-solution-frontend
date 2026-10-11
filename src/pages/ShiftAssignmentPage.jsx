@@ -2,10 +2,12 @@ import { CalendarRange, Users } from "lucide-react";
 import Header from "../components/common/Header";
 import HrmCrudManager from "../components/hrm/HrmCrudManager";
 import { useGetAllShiftsQuery } from "../features/shift/shift";
+import { useGetAllDepartmentsQuery } from "../features/department/department";
 import {
   useCreateShiftAssignmentMutation,
   useDeleteShiftAssignmentMutation,
   useGetAttendancePeopleQuery,
+  useGetAttendanceSetupQuery,
   useGetShiftAssignmentsQuery,
   useUpdateShiftAssignmentMutation,
 } from "../features/attendance/attendance";
@@ -28,6 +30,8 @@ const parseWeekdays = (value) => {
   return [];
 };
 
+const NO_DEPARTMENT = "none";
+
 const isCurrent = (row) => {
   const today = bdToday();
   return row.effectiveFrom <= today && (!row.effectiveTo || row.effectiveTo >= today);
@@ -35,13 +39,35 @@ const isCurrent = (row) => {
 
 const ShiftAssignmentPage = () => {
   const { data: peopleRes } = useGetAttendancePeopleQuery();
+  const { data: setupRes } = useGetAttendanceSetupQuery();
   const { data: shiftsRes } = useGetAllShiftsQuery({ page: 1, limit: 200 });
+  const { data: departmentsRes } = useGetAllDepartmentsQuery({ page: 1, limit: 500 });
   const { data: assignmentsRes } = useGetShiftAssignmentsQuery({ page: 1, limit: 200 });
 
-  const employeeOptions = (peopleRes?.data || []).map((person) => ({
+  // Only people enrolled on / punching at an attendance device can be put on a shift.
+  // Attendance Setup knows who is on a device (device user list / recent punches).
+  const deviceIds = new Set(
+    (setupRes?.data?.employees || [])
+      .filter((employee) => employee.onDevice || employee.lastPunchDate)
+      .map((employee) => Number(employee.Id)),
+  );
+  const devicePeople = (peopleRes?.data || []).filter(
+    (person) => person.onDevice || deviceIds.has(Number(person.Id)),
+  );
+  const employeeOptions = devicePeople.map((person) => ({
     value: person.Id,
-    label: `${person.name} (ID ${person.Id})`,
+    label: `${person.name}${person.pin ? ` (PIN ${person.pin})` : ""}`,
+    departmentId: person.departmentId ? String(person.departmentId) : NO_DEPARTMENT,
   }));
+  // Departments from HRM → Department; "No department" catches device people not yet placed in one.
+  const departmentOptions = [
+    ...(departmentsRes?.data || [])
+      .map((department) => ({ value: String(department.Id), label: department.name }))
+      .sort((a, b) => a.label.localeCompare(b.label)),
+    ...(employeeOptions.some((option) => option.departmentId === NO_DEPARTMENT)
+      ? [{ value: NO_DEPARTMENT, label: "No department" }]
+      : []),
+  ];
   const shiftOptions = (shiftsRes?.data || [])
     .filter((shift) => shift.status !== "Inactive")
     .map((shift) => ({ value: shift.Id, label: `${shift.name} (${shift.startTime || "?"}–${shift.endTime || "?"})` }));
@@ -62,12 +88,24 @@ const ShiftAssignmentPage = () => {
           ]}
           fields={[
             {
+              name: "departmentId",
+              label: "Department",
+              type: "combobox",
+              options: departmentOptions,
+              omit: true,
+              placeholder: "Select department",
+            },
+            {
               name: "employeeIds",
               label: "Employees",
-              type: "multiselect",
-              options: employeeOptions,
-              fullWidth: true,
-              help: "Pick one or more employees. When editing, the employee can't be changed — delete and assign again instead.",
+              type: "combobox",
+              multiple: true,
+              options: (form) => employeeOptions.filter((option) => option.departmentId === String(form.departmentId)),
+              allOptions: employeeOptions,
+              disabledText: (form) => (form.departmentId ? null : "Select a department first"),
+              placeholder: "Select employees",
+              noOptionsText: "No device-registered employee in this department",
+              help: "Only employees registered on an attendance device are listed. You can switch department and keep adding. When editing, the employee can't be changed — delete and assign again instead.",
             },
             { name: "shiftId", label: "Shift", type: "select", options: shiftOptions, required: true },
             { name: "effectiveFrom", label: "From", type: "date", required: true, defaultValue: bdToday() },

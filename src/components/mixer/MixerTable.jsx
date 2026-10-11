@@ -632,14 +632,29 @@ const validatePackagingSelections = (selections) => {
   return "";
 };
 
-const buildPackagingPayload = (selections) =>
-  getSelectedPackagingItems(selections).map((selection) => ({
-    itemMasterId: Number(selection.itemMasterId) || "",
-    unitValue: getPackagingTotal(selection),
-    value: Number(selection.value) || 0,
-    quantity: getEffectiveQuantity(selection, selection.unit),
-    unit: selection.unit || "Pcs",
-  }));
+// The saved unit is resolved against the item's Item Stock unit, the same
+// way the Unit box shows it — an older recipe row saved as "Pcs" for a Gram
+// item would otherwise be re-saved as "Pcs" on every edit.
+const buildPackagingPayload = (selections, packagingOptions = []) => {
+  const unitMap = new Map(
+    (packagingOptions || []).map((option) => [
+      String(option.value),
+      option.unit || "Pcs",
+    ]),
+  );
+
+  return getSelectedPackagingItems(selections).map((selection) => {
+    const stockUnit = unitMap.get(String(selection.itemMasterId));
+    const unit = resolveRowUnit(selection.unit, stockUnit);
+    return {
+      itemMasterId: Number(selection.itemMasterId) || "",
+      unitValue: getPackagingTotal(selection, unit),
+      value: Number(selection.value) || 0,
+      quantity: getEffectiveQuantity(selection, unit),
+      unit,
+    };
+  });
+};
 
 const MixerTable = () => {
   const { language } = useLayout();
@@ -1309,6 +1324,7 @@ const MixerTable = () => {
         ),
         packagingItems: buildPackagingPayload(
           createProduct.packagingSelections,
+          packagingItemOptions,
         ),
         // unit: createProduct.unit || "Pcs",
         // unitValue: createProduct.hasUnit
@@ -1390,6 +1406,7 @@ const MixerTable = () => {
         ),
         packagingItems: buildPackagingPayload(
           currentProduct?.packagingSelections,
+          packagingItemOptions,
         ),
         // unit: currentProduct.unit || "Pcs",
         // unitValue: currentProduct.hasUnit

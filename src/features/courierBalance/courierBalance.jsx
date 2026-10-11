@@ -41,6 +41,11 @@ export const courierBalanceApi = baseApi.injectEndpoints({
       providesTags: [{ type: "CourierBalance", id: "LIST" }],
       refetchOnMountOrArgChange: true,
     }),
+    // Are courier stock + balance entered for the day before `from` and for `to`?
+    getCourierReportCoverage: build.query({
+      query: ({ from, to }) => ({ url: "/courier-balance/report-coverage", params: { from, to } }),
+      keepUnusedDataFor: 0,
+    }),
   }),
 });
 
@@ -49,4 +54,5 @@ export const {
   useUpdateCourierBalanceMutation,
   useDeleteCourierBalanceMutation,
   useGetAllCourierBalanceQuery,
+  useLazyGetCourierReportCoverageQuery,
 } = courierBalanceApi;
