@@ -32,6 +32,7 @@ import { useGetAllDesignationsQuery } from "../../features/designation/designati
 import useDebounce from "../../hooks/useDebounce";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 import {
+  useCanUseMasterPermission,
   DEFAULT_MASTER_PERMISSION_EMAIL,
   normalizePermissionEmail,
 } from "../../utils/masterPermissions";
@@ -72,6 +73,7 @@ const UserManagementTable = () => {
   const navigate = useNavigate();
   const actorRole = localStorage.getItem("role");
   const actorUserId = Number(localStorage.getItem("userId"));
+  const { canUseMasterPermission } = useCanUseMasterPermission();
   const canManageStatus = actorRole === "superAdmin";
 
   // Modals
@@ -157,14 +159,15 @@ const UserManagementTable = () => {
   const users = useMemo(() => {
     const allUsers = data?.data ?? [];
 
+    if (canUseMasterPermission) return allUsers;
     return allUsers.filter(
       (user) =>
         !masterPermissionEmails.has(normalizePermissionEmail(user?.Email)),
     );
-  }, [data, masterPermissionEmails]);
+  }, [data, masterPermissionEmails, canUseMasterPermission]);
   const visibleRoleOptions = useMemo(
-    () => getVisibleRoleOptions(actorRole),
-    [actorRole],
+    () => getVisibleRoleOptions(canUseMasterPermission ? "superAdmin" : actorRole),
+    [actorRole, canUseMasterPermission],
   );
 
   useEffect(() => {
@@ -607,8 +610,7 @@ const UserManagementTable = () => {
               const img = item?.image ? `${API_BASE}/${item.image}` : null;
               const isInactive = item?.status === "Inactive";
               const isCurrentUser = item?.Id === actorUserId;
-              // Only the superAdmin account itself may edit/delete another
-              // superAdmin's row — mirrors the backend guard.
+              // Master permission allows editing other super admins; deletion stays protected.
               const isOtherSuperAdmin =
                 item?.role === "superAdmin" && !isCurrentUser;
 
@@ -699,7 +701,7 @@ const UserManagementTable = () => {
                       </>
                     )}
 
-                    {!isOtherSuperAdmin && (
+                    {(canUseMasterPermission || !isOtherSuperAdmin) && (
                       <button
                         onClick={() => handleEdit(item)}
                         type="button"

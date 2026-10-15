@@ -9,6 +9,41 @@ const DAY_TAGS = ["AttendanceDay", "Attendance"];
 
 export const attendanceApi = baseApi.injectEndpoints({
   endpoints: (build) => ({
+    // Self service: own month (job card), corrections → HR.
+    getMyAttendance: build.query({
+      query: (params = {}) => ({ url: "/attendance/me", params }),
+      providesTags: [...DAY_TAGS, "AttendanceCorrection"],
+    }),
+    applyMyCorrection: build.mutation({
+      query: (body) => ({ url: "/attendance/me/correction", method: "POST", body: withNonce(body) }),
+      invalidatesTags: ["AttendanceCorrection"],
+    }),
+    cancelMyCorrection: build.mutation({
+      query: (id) => ({ url: `/attendance/me/correction/${id}/cancel`, method: "POST", body: withNonce({ correctionId: id }) }),
+      invalidatesTags: ["AttendanceCorrection"],
+    }),
+    // Team leaders: their departments.
+    getMyTeamAttendance: build.query({
+      query: (params = {}) => ({ url: "/attendance/my-team", params }),
+      providesTags: DAY_TAGS,
+    }),
+    getTeamJobCard: build.query({
+      query: (params = {}) => ({ url: "/attendance/my-team/job-card", params }),
+      providesTags: DAY_TAGS,
+    }),
+    // HR: pending attendance corrections.
+    getCorrectionApprovals: build.query({
+      query: () => ({ url: "/attendance/corrections/approvals" }),
+      providesTags: ["AttendanceCorrection"],
+    }),
+    decideCorrection: build.mutation({
+      query: ({ id, decision, note }) => ({
+        url: `/attendance/corrections/${id}/decide`,
+        method: "POST",
+        body: withNonce({ decision, note, correctionId: id }),
+      }),
+      invalidatesTags: [...DAY_TAGS, "AttendanceCorrection"],
+    }),
     getAttendanceDaily: build.query({
       query: (params = {}) => ({ url: "/attendance/daily", params }),
       providesTags: DAY_TAGS,
@@ -106,6 +141,13 @@ export const attendanceApi = baseApi.injectEndpoints({
 });
 
 export const {
+  useGetMyAttendanceQuery,
+  useApplyMyCorrectionMutation,
+  useCancelMyCorrectionMutation,
+  useGetMyTeamAttendanceQuery,
+  useGetTeamJobCardQuery,
+  useGetCorrectionApprovalsQuery,
+  useDecideCorrectionMutation,
   useGetAttendanceDailyQuery,
   useGetAttendanceMonthlyQuery,
   useGetAttendanceJobCardQuery,

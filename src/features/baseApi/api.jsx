@@ -95,6 +95,7 @@ export const TAG_TYPES = [
   "Attendance",
   "AttendanceDevice",
   "AttendanceDay",
+  "AttendanceCorrection",
   "AttendanceSetup",
   "ShiftAssignment",
   "AttendancePolicy",

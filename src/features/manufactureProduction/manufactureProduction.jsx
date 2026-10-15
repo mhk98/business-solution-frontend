@@ -42,9 +42,9 @@ export const manufactureProductionApi = baseApi.injectEndpoints({
     }),
 
     getAllManufactureProduction: build.query({
-      query: ({ page, limit, startDate, endDate, name, manufacturerId }) => ({
+      query: ({ page, limit, startDate, endDate, name, manufacturerId, itemId }) => ({
         url: "manufacture",
-        params: { page, limit, startDate, endDate, name, manufacturerId },
+        params: { page, limit, startDate, endDate, name, manufacturerId, itemId },
       }),
       providesTags: (result) =>
         result?.data?.length

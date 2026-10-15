@@ -778,7 +778,7 @@ const DailyProfitLossUserPage = () => {
             .map(
               (r) => `<tr>
                 <td class="date-cell">${escapeHtml(r.reportDate || "-")}</td>
-                <td>${escapeHtml(r.employee?.name || r.name || "-")}</td>
+                <td class="name-cell">${escapeHtml(r.employee?.name || r.name || "-")}</td>
                 <td>${safeNumber(r.failedReceived)}</td>
                 <td>${safeNumber(r.pendingReceived)}</td>
                 <td>${safeNumber(r.leadReceived)}</td>
@@ -827,7 +827,13 @@ const DailyProfitLossUserPage = () => {
             .profit { color: #059669; }
             .loss { color: #dc2626; }
             .span2 { grid-column: span 2; }
-            @media print { body { padding: 16px; } }
+            .report-table { table-layout: auto; }
+            .report-table th, .report-table td { padding: 5px 4px; font-size: 10px; }
+            .report-table th { font-size: 8px; letter-spacing: 0; line-height: 1.2; }
+            .report-table .name-cell { word-break: break-word; overflow-wrap: anywhere; }
+            .report-table .amount { white-space: nowrap; }
+            @page { margin: 10mm; }
+            @media print { body { padding: 0; } }
           </style>
         </head>
         <body>
@@ -846,6 +852,10 @@ const DailyProfitLossUserPage = () => {
 
           <h2>Calculation Breakdown</h2>
           <div class="breakdown">
+            <div class="breakdown-item">
+              <div class="lbl">Total Order</div>
+              <div class="val">${safeNumber(totals.totalOrder)}</div>
+            </div>
             <div class="breakdown-item">
               <div class="lbl">Total Sale</div>
               <div class="val">${escapeHtml(formatCurrency(invoiceSummary.revenue))}</div>
@@ -870,7 +880,7 @@ const DailyProfitLossUserPage = () => {
               <div class="lbl">Return (${invoiceSummary.returnRate.toFixed(2)}%)</div>
               <div class="val">${escapeHtml(formatCurrency(invoiceSummary.returnDeduction))}</div>
             </div>
-            <div class="breakdown-item span2">
+            <div class="breakdown-item">
               <div class="lbl">Gross Profit</div>
               <div class="val">${escapeHtml(formatCurrency(invoiceSummary.grossProfit))}</div>
             </div>
@@ -881,7 +891,7 @@ const DailyProfitLossUserPage = () => {
           </div>
 
           <h2>Employee Reports</h2>
-          <table>
+          <table class="report-table">
             <thead>
               <tr>
                 <th>Date</th><th>Name</th><th>Failed</th><th>Pending</th>
@@ -947,6 +957,7 @@ const DailyProfitLossUserPage = () => {
       employeeReports: employeeReportDetails,
       savedHistory: savedHistoryDetails,
       calculationSummary: {
+        totalOrder: safeNumber(totals.totalOrder),
         revenue: invoiceSummary.revenue,
         returnRate: invoiceSummary.returnRate,
         returnDeduction: invoiceSummary.returnDeduction,

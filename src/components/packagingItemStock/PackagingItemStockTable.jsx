@@ -137,7 +137,7 @@ const PackagingItemStockTable = () => {
                   <td className="px-6 py-5 text-sm font-semibold text-slate-700">{Number(row.unitValue || 0).toLocaleString()}</td>
                   <td className="px-6 py-5 text-sm text-slate-600">{row.unit || "Pcs"}</td>
                   <td className="px-6 py-5 text-sm text-slate-700">{formatMoney(getUnitCost(row))}</td>
-                  <td className="px-6 py-5 text-sm font-bold text-slate-900">{formatMoney(row.cost)}</td>
+                  <td className="px-6 py-5 text-sm font-bold text-slate-900">{formatMoney(Number(row.unitValue || 0) > 0 ? row.cost : 0)}</td>
                 </tr>
               ))}
             </tbody>

@@ -1,4 +1,4 @@
-import { ChevronDown, Search, X } from "lucide-react";
+import { CalendarCheck, CalendarDays, ChevronDown, Fingerprint, Search, Users, X } from "lucide-react";
 import { useLayout } from "../../context/LayoutContext";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Link, useLocation } from "react-router-dom";
 import { useGetAllLogoQuery } from "../../features/logo/logo";
 import { useGetMyRolePermissionsQuery } from "../../features/auth/auth";
+import { useGetMyLeaveApprovalCountQuery } from "../../features/leaveRequest/leaveRequest";
 import {
   getCurrentUserEmail,
   isDefaultMasterPermissionEmail,
@@ -65,6 +66,15 @@ const Sidebar = () => {
     refetchOnFocus: true,
     refetchOnMountOrArgChange: true,
   });
+
+  // Self-service leave menus sit outside the permission system: everyone has
+  // My Leave; Leave Approvals shows for team leaders, HR and admins.
+  const { data: leaveApprovalRes } = useGetMyLeaveApprovalCountQuery(undefined, {
+    skip: !localStorage.getItem("token"),
+    pollingInterval: 60000,
+    refetchOnFocus: true,
+  });
+  const leaveApproval = leaveApprovalRes?.data;
 
   useEffect(() => {
     if (!myPermissionsData?.data?.menuPermissions) return;
@@ -126,8 +136,58 @@ const Sidebar = () => {
         })
         .filter(Boolean);
 
-    return filterMasterOnlyItems(filterSidebarItemsByRole(userRole));
-  }, [userRole, permissionVersion, canViewMasterPermissionSubmenu]);
+    const items = filterMasterOnlyItems(filterSidebarItemsByRole(userRole));
+    const withBadge = (children) => children.reduce((sum, child) => sum + (child.badge || 0), 0);
+    // Self-service submenus go first inside Attendance / Leave; when the role
+    // can't see that menu at all, it is created with just these.
+    const mergeMenu = (list, base, selfChildren) => {
+      const at = list.findIndex((item) => item.key === base.key);
+      const existing = at >= 0 ? list[at] : null;
+      const children = [...selfChildren, ...(existing?.children || [])];
+      const menu = { ...base, ...(existing || {}), children, badge: withBadge(children) };
+      if (existing) return list.map((item, index) => (index === at ? menu : item));
+      const anchor = list.findIndex((item) => item.key === "attendance_management");
+      const insertAt = anchor >= 0 ? anchor + 1 : Math.min(1, list.length);
+      return [...list.slice(0, insertAt), menu, ...list.slice(insertAt)];
+    };
+
+    let result = mergeMenu(
+      items,
+      { name: "Attendance", key: "attendance_management", icon: Fingerprint, color: "#0ea5e9" },
+      [
+        { name: "My Attendance", key: "self_my_attendance", icon: Fingerprint, href: "/my-attendance" },
+        ...(leaveApproval?.isTeamLeader
+          ? [{ name: "My Team Attendance", key: "self_my_team_attendance", icon: Users, href: "/my-team-attendance" }]
+          : []),
+        ...(leaveApproval?.isHr
+          ? [
+              {
+                name: "Correction Approvals",
+                key: "self_correction_approvals",
+                icon: CalendarCheck,
+                href: "/attendance-correction-approvals",
+                badge: leaveApproval.correctionCount,
+              },
+            ]
+          : []),
+      ],
+    );
+    result = mergeMenu(result, { name: "Leave", key: "leave_menu", icon: CalendarDays, color: "#0284c7" }, [
+      { name: "My Leave", key: "self_my_leave", icon: CalendarDays, href: "/my-leave" },
+      ...(leaveApproval?.isApprover
+        ? [
+            {
+              name: "Leave Approvals",
+              key: "self_leave_approvals",
+              icon: CalendarCheck,
+              href: "/leave-approvals",
+              badge: leaveApproval.leaveCount,
+            },
+          ]
+        : []),
+    ]);
+    return result;
+  }, [userRole, permissionVersion, canViewMasterPermissionSubmenu, leaveApproval?.isApprover, leaveApproval?.isTeamLeader, leaveApproval?.isHr, leaveApproval?.leaveCount, leaveApproval?.correctionCount]);
 
   // ✅ then search filter (parent + child)
   const filteredItems = useMemo(() => {
@@ -435,6 +495,11 @@ const Sidebar = () => {
                               <span className="text-sm font-medium text-slate-800 flex-1 text-left">
                                 {t[item.key] || item.name}
                               </span>
+                              {item.badge > 0 ? (
+                                <span className="min-w-5 h-5 px-1 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">
+                                  {item.badge > 99 ? "99+" : item.badge}
+                                </span>
+                              ) : null}
                               <ChevronDown
                                 size={16}
                                 className={`text-slate-500 transition-transform ${
@@ -484,6 +549,16 @@ const Sidebar = () => {
                             {shouldShowExpanded ? (
                               <span className="text-sm font-medium text-slate-800">
                                 {t[item.key] || item.name}
+                              </span>
+                            ) : null}
+
+                            {item.badge > 0 ? (
+                              <span
+                                className={`min-w-5 h-5 px-1 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center ${
+                                  shouldShowExpanded ? "ml-auto" : "absolute top-1 right-1"
+                                }`}
+                              >
+                                {item.badge > 99 ? "99+" : item.badge}
                               </span>
                             ) : null}
 
@@ -553,6 +628,12 @@ const Sidebar = () => {
                                     >
                                       {t[sub.key] || sub.name}
                                     </span>
+
+                                    {sub.badge > 0 ? (
+                                      <span className="ml-auto min-w-5 h-5 px-1 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center">
+                                        {sub.badge > 99 ? "99+" : sub.badge}
+                                      </span>
+                                    ) : null}
 
                                     {activeSub ? (
                                       <span className="ml-auto h-2 w-2 rounded-full bg-indigo-500" />

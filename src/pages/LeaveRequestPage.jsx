@@ -14,6 +14,9 @@ const NO_DEPARTMENT = "none";
 
 const LeaveRequestPage = () => {
   const currentUserId = localStorage.getItem("userId");
+  // Only HR / Admin / Super Admin set a status here; everyone else's request
+  // goes Team Leader → HR on the Leave Approvals page.
+  const canSetStatus = ["hr", "admin", "superAdmin"].includes(localStorage.getItem("role") || "");
   // Attendance people are Users; their Id is the device PIN.
   const { data: peopleRes } = useGetAttendancePeopleQuery();
   // Everyone active (incl. exempt) — requesters and approvers.
@@ -66,7 +69,7 @@ const LeaveRequestPage = () => {
           eyebrow="Phase 3"
           entityLabel="Leave Request"
           title="Leave Requests"
-          description="Apply for leave and send it to the department's team leader for approval. Approved leave is counted in attendance."
+          description="Apply for leave: the department's team leader approves first, then HR gives the final approval. Only HR-approved leave is counted in attendance."
           fields={[
             {
               name: "departmentId",
@@ -149,22 +152,27 @@ const LeaveRequestPage = () => {
               defaultValue: leaderFor(currentUserId),
               help: "Filled with the employee's department team leader — they get a notification to approve.",
             },
-            {
-              name: "approvedAt",
-              label: "Approved At",
-              type: "datetime-local",
-            },
-            {
-              name: "approvalStatus",
-              label: "Approval Status",
-              type: "select",
-              options: [
-                { value: "Pending", label: "Pending" },
-                { value: "Approved", label: "Approved" },
-                { value: "Rejected", label: "Rejected" },
-              ],
-              defaultValue: "Pending",
-            },
+            ...(canSetStatus
+              ? [
+                  {
+                    name: "approvedAt",
+                    label: "Approved At",
+                    type: "datetime-local",
+                  },
+                  {
+                    name: "approvalStatus",
+                    label: "Approval Status",
+                    type: "select",
+                    options: [
+                      { value: "Pending", label: "Waiting Team Leader" },
+                      { value: "Leader Approved", label: "Waiting HR (Team Leader approved)" },
+                      { value: "Approved", label: "Approved (HR)" },
+                      { value: "Rejected", label: "Rejected" },
+                    ],
+                    defaultValue: "Pending",
+                  },
+                ]
+              : []),
             { name: "note", label: "Note", type: "textarea" },
           ]}
           columns={[
@@ -189,8 +197,14 @@ const LeaveRequestPage = () => {
               render: (row) => (row.isHalfDay ? `½ (${row.halfDaySession || "Half"})` : row.totalDays || "-"),
             },
             { key: "requestedBy", label: "Requested By", render: (row) => fullName(row.requestedBy) },
-            { key: "approvedBy", label: "Approver", render: (row) => fullName(row.approvedBy) },
-            { key: "approvalStatus", label: "Approval" },
+            { key: "approvedBy", label: "Team Leader", render: (row) => fullName(row.approvedBy) },
+            { key: "hrApprovedBy", label: "HR", render: (row) => (row.hrApprovedBy ? fullName(row.hrApprovedBy) : "-") },
+            {
+              key: "approvalStatus",
+              label: "Approval",
+              render: (row) =>
+                ({ Pending: "Waiting Team Leader", "Leader Approved": "Waiting HR" })[row.approvalStatus] || row.approvalStatus,
+            },
           ]}
           onFieldChange={(name, value, form) => {
             if (name === "departmentId") {

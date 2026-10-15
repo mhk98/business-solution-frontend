@@ -217,6 +217,8 @@ const ManufactureStockTable = ({ stockType = "item" }) => {
     const cost = Number(row?.cost || 0);
     const unitValue = Number(row?.unitValue || 0);
     const unitCost = getUnitCost(row);
+    // An empty row keeps a reference cost, not stock value.
+    if (unitValue <= 0) return 0;
     if (cost > 0) return cost;
     return unitValue * unitCost;
   };

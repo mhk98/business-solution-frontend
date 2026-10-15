@@ -532,8 +532,9 @@ const PettyCashTable = ({ mode = "default" }) => {
       paymentStatus: isRequisitionMode
         ? "CashIn"
         : filterPaymentStatus || undefined,
+      // Rejected requisitions (from the Approvals header) stay visible.
       status: isRequisitionMode
-        ? "Pending,Approved"
+        ? "Pending,Approved,Rejected"
         : "Pending,Approved,Active",
       mode: isRequisitionMode ? "requisition" : undefined,
       searchTerm: debouncedSearchTerm || undefined, // ensure it's included in the query

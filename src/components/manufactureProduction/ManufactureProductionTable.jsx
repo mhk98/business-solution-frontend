@@ -89,13 +89,14 @@ const ManufactureProductionTable = () => {
   const [editingRow, setEditingRow] = useState(null);
   const [form, setForm] = useState(initialForm);
   const [manufacturerId, setManufacturerId] = useState("");
+  const [itemFilter, setItemFilter] = useState("");
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [manufacturerId, itemsPerPage]);
+  }, [manufacturerId, itemFilter, itemsPerPage]);
 
   const { data: itemsRes, isLoading: isItemsLoading } =
     useGetAllItemWithoutQueryQuery();
@@ -144,8 +145,9 @@ const ManufactureProductionTable = () => {
       page: currentPage,
       limit: itemsPerPage,
       manufacturerId: manufacturerId || undefined,
+      itemId: itemFilter || undefined,
     }),
-    [currentPage, itemsPerPage, manufacturerId],
+    [currentPage, itemsPerPage, manufacturerId, itemFilter],
   );
 
   const { data, isLoading, refetch } =
@@ -341,7 +343,7 @@ const ManufactureProductionTable = () => {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-[1fr_160px_180px] gap-4 mb-10 bg-slate-50/50 p-6 rounded-3xl border border-slate-100 items-end">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[1fr_1fr_160px_180px] gap-4 mb-10 bg-slate-50/50 p-6 rounded-3xl border border-slate-100 items-end">
         <div>
           <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1 block">
             Manufacturer
@@ -356,6 +358,22 @@ const ManufactureProductionTable = () => {
             isClearable
             isDisabled={isManufacturersLoading}
             placeholder="Select manufacturer..."
+            styles={selectStyles}
+            className="text-black"
+          />
+        </div>
+
+        <div>
+          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1 block">
+            Item
+          </label>
+          <Select
+            options={itemOptions}
+            value={itemOptions.find((o) => o.value === itemFilter) || null}
+            onChange={(selected) => setItemFilter(selected?.value || "")}
+            isClearable
+            isDisabled={isItemsLoading}
+            placeholder="Select item..."
             styles={selectStyles}
             className="text-black"
           />
@@ -380,7 +398,10 @@ const ManufactureProductionTable = () => {
 
         <button
           className="h-11 bg-slate-100 hover:bg-slate-200 text-slate-600 transition rounded-xl px-4 text-sm font-bold flex items-center justify-center gap-2 active:scale-95 border border-slate-200"
-          onClick={() => setManufacturerId("")}
+          onClick={() => {
+            setManufacturerId("");
+            setItemFilter("");
+          }}
           type="button"
         >
           <X size={16} /> Clear

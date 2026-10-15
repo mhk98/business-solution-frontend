@@ -10,12 +10,19 @@ const ACTION_STYLES = {
   Create: "bg-amber-50 text-amber-700 border-amber-200",
   Update: "bg-sky-50 text-sky-700 border-sky-200",
   Delete: "bg-rose-50 text-rose-700 border-rose-200",
+  Requisition: "bg-violet-50 text-violet-700 border-violet-200",
 };
 
 const ACTION_TEXT = {
   Create: "New entry (back-dated)",
   Update: "Edit request",
   Delete: "Delete request",
+  Requisition: "Requisition",
+};
+
+// Shown under the item so the approver knows what Approve does.
+const APPROVE_HINT = {
+  Requisition: "Approve adds a Petty Cash entry and a Cash Out in the Book.",
 };
 
 // What reject does, so nobody is surprised.
@@ -23,6 +30,7 @@ const REJECT_HINT = {
   Create: "Rejecting removes this entry.",
   Update: "Rejecting keeps the record as it was.",
   Delete: "Rejecting keeps the record.",
+  Requisition: "Rejecting marks the requisition Rejected — nothing is paid out.",
 };
 
 const actionKind = (action) => (String(action).startsWith("Update") ? "Update" : action);
@@ -89,6 +97,7 @@ const ApprovalItem = ({ item }) => {
             {item.requestedBy ? `By ${item.requestedBy} · ` : ""}
             {timeAgo(item.requestedAt)}
           </p>
+          {APPROVE_HINT[kind] && <p className="text-xs text-violet-700">{APPROVE_HINT[kind]}</p>}
           {item.reason && <p className="text-xs text-rose-700">Reason: {item.reason}</p>}
           {item.changes?.length > 0 && (
             <ul className="mt-2 space-y-0.5 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-700">

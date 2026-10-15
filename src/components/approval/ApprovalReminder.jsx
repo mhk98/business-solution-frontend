@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { BellRing } from "lucide-react";
+import { BellRing, CalendarCheck } from "lucide-react";
 import Modal from "../common/Modal";
 import ApprovalList from "./ApprovalList";
 import { useGetPendingApprovalsQuery } from "../../features/approval/approval";
+import { useGetMyLeaveApprovalCountQuery } from "../../features/leaveRequest/leaveRequest";
 
 export const REMINDER_INTERVAL_MS = 5 * 60 * 1000;
 const SHOWN_AT_KEY = "approvalReminderShownAt";
@@ -24,8 +25,9 @@ const writeShownAt = (value) => {
   }
 };
 
-// For admin / superAdmin / department heads: pops up the pending approvals
-// every 5 minutes until each one is approved or rejected.
+// For admin / superAdmin / department heads (and HR for leave): pops up the
+// pending approvals and leave requests every 5 minutes until each one is
+// approved or rejected.
 const ApprovalReminder = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -34,12 +36,27 @@ const ApprovalReminder = () => {
     pollingInterval: REMINDER_INTERVAL_MS / 2,
     skip: !localStorage.getItem("token"),
   });
-  const items = data?.data || [];
-  const isApprover = Boolean(data?.meta?.isApprover);
-  const onApprovalsPage = location.pathname === "/approvals";
+  const { data: leaveRes } = useGetMyLeaveApprovalCountQuery(undefined, {
+    pollingInterval: REMINDER_INTERVAL_MS / 2,
+    skip: !localStorage.getItem("token"),
+  });
+  const items = (data?.meta?.isApprover && data?.data) || [];
+  const leaveCount =
+    (leaveRes?.data?.isApprover && leaveRes.data.leaveCount) || 0;
+  const correctionCount =
+    (leaveRes?.data?.isApprover && leaveRes.data.correctionCount) || 0;
+  const total = items.length + leaveCount + correctionCount;
+  const isApprover = Boolean(
+    data?.meta?.isApprover || leaveRes?.data?.isApprover,
+  );
+  const onApprovalsPage = [
+    "/approvals",
+    "/leave-approvals",
+    "/attendance-correction-approvals",
+  ].includes(location.pathname);
 
   useEffect(() => {
-    if (!isApprover || !items.length || onApprovalsPage) return undefined;
+    if (!isApprover || !total || onApprovalsPage) return undefined;
     const check = () => {
       if (Date.now() - readShownAt() >= REMINDER_INTERVAL_MS) {
         writeShownAt(Date.now());
@@ -49,41 +66,82 @@ const ApprovalReminder = () => {
     check();
     const timer = setInterval(check, 30 * 1000);
     return () => clearInterval(timer);
-  }, [isApprover, items.length, onApprovalsPage]);
+  }, [isApprover, total, onApprovalsPage]);
 
   // Close once everything is decided.
   useEffect(() => {
-    if (open && !items.length) setOpen(false);
-  }, [open, items.length]);
+    if (open && !total) setOpen(false);
+  }, [open, total]);
 
   if (!isApprover) return null;
 
   return (
     <Modal
-      isOpen={open && items.length > 0 && !onApprovalsPage}
+      isOpen={open && total > 0 && !onApprovalsPage}
       onClose={() => setOpen(false)}
-      title={`${items.length} waiting for your approval`}
+      title={`${total} waiting for your approval`}
       maxWidth="max-w-3xl"
     >
       <div className="space-y-4">
         <div className="flex items-center gap-2 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
           <BellRing size={18} className="shrink-0" />
-          This reminder comes back every 5 minutes until each request is approved or rejected.
+          This reminder comes back every 5 minutes until each request is
+          approved or rejected.
         </div>
-        <div className="max-h-[60vh] overflow-y-auto pr-1">
-          <ApprovalList items={items} />
-        </div>
-        <div className="flex justify-between gap-2">
+        {leaveCount > 0 && (
           <button
             type="button"
             onClick={() => {
               setOpen(false);
-              navigate("/approvals");
+              navigate("/leave-approvals");
             }}
-            className="rounded-xl px-4 py-2 text-sm font-semibold text-indigo-600 hover:bg-indigo-50"
+            className="flex w-full items-center justify-between gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-left text-sm text-sky-800 hover:bg-sky-100"
           >
-            Open Approvals page
+            <span className="flex items-center gap-2 font-semibold">
+              <CalendarCheck size={18} className="shrink-0" />
+              {leaveCount} leave request{leaveCount > 1 ? "s" : ""} waiting for
+              you
+            </span>
+            <span className="font-semibold">Open Leave Approvals →</span>
           </button>
+        )}
+        {correctionCount > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              navigate("/attendance-correction-approvals");
+            }}
+            className="flex w-full items-center justify-between gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-left text-sm text-sky-800 hover:bg-sky-100"
+          >
+            <span className="flex items-center gap-2 font-semibold">
+              <CalendarCheck size={18} className="shrink-0" />
+              {correctionCount} attendance correction
+              {correctionCount > 1 ? "s" : ""} waiting for you
+            </span>
+            <span className="font-semibold">Open Correction Approvals →</span>
+          </button>
+        )}
+        {items.length > 0 && (
+          <div className="max-h-[60vh] overflow-y-auto pr-1">
+            <ApprovalList items={items} />
+          </div>
+        )}
+        <div className="flex justify-between gap-2">
+          {items.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                navigate("/approvals");
+              }}
+              className="rounded-xl px-4 py-2 text-sm font-semibold text-indigo-600 hover:bg-indigo-50"
+            >
+              Open Approvals page
+            </button>
+          ) : (
+            <span />
+          )}
           <button
             type="button"
             onClick={() => setOpen(false)}

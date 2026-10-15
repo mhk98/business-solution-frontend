@@ -874,6 +874,7 @@ const EmployeeWorkReportManager = () => {
                       aria-label="Select visible reports"
                     />
                   </th>
+                  <th className="px-4 py-3">SL</th>
                   {REPORT_EXPORT_COLUMNS.map((column) => (
                     <th key={column.key} className="px-4 py-3">
                       {column.label}
@@ -888,7 +889,7 @@ const EmployeeWorkReportManager = () => {
                 {isLoading && (
                   <tr>
                     <td
-                      colSpan={REPORT_EXPORT_COLUMNS.length + 2}
+                      colSpan={REPORT_EXPORT_COLUMNS.length + 3}
                       className="px-4 py-10 text-center text-slate-500"
                     >
                       Loading reports...
@@ -898,7 +899,7 @@ const EmployeeWorkReportManager = () => {
                 {!isLoading && reports.length === 0 && (
                   <tr>
                     <td
-                      colSpan={REPORT_EXPORT_COLUMNS.length + 2}
+                      colSpan={REPORT_EXPORT_COLUMNS.length + 3}
                       className="px-4 py-10 text-center text-slate-500"
                     >
                       No cs work report found.
@@ -906,7 +907,7 @@ const EmployeeWorkReportManager = () => {
                   </tr>
                 )}
                 {!isLoading &&
-                  reports.map((row) => {
+                  reports.map((row, index) => {
                     const canMutateRow = Number(row.user?.Id) === currentUserId;
                     const isSelected = selectedReportIds.includes(row.Id);
 
@@ -920,6 +921,9 @@ const EmployeeWorkReportManager = () => {
                             className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                             aria-label={`Select report ${row.Id}`}
                           />
+                        </td>
+                        <td className="px-4 py-3 tabular-nums text-slate-500">
+                          {(currentPage - 1) * pageSize + index + 1}
                         </td>
                         {REPORT_EXPORT_COLUMNS.map((column) => (
                           <td

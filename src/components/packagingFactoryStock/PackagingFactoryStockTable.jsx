@@ -165,7 +165,7 @@ const PackagingFactoryStockTable = () => {
                   {money(unitCost(row))}
                 </td>
                 <td className="px-6 py-5 text-sm text-slate-600 font-bold">
-                  {money(row.cost)}
+                  {money(Number(row.unitValue || 0) > 0 ? row.cost : 0)}
                 </td>
               </tr>
             ))}

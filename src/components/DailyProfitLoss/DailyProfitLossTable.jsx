@@ -707,6 +707,7 @@ const DailyProfitLossTable = () => {
               }
             </div>
             <table class="summary">
+              ${summaryRow("Total Order", safeNumber(row?.totalOrder).toLocaleString())}
               ${summaryRow("Total Sale", formatCurrency(recordSummary.totalRevenue))}
               ${summaryRow("Less: Total Purchase", formatCurrency(recordSummary.totalCost))}
               ${summaryRow("Gross Profit", formatCurrency(recordSummary.grossProfit), "sub")}
@@ -783,7 +784,10 @@ const DailyProfitLossTable = () => {
       cost: safeNumber(selectedInvoiceRow?.cost),
       profitLoss: safeNumber(selectedInvoiceRow?.profitLoss),
       selectedProducts: items,
-      calculationSummary: recordSummary,
+      calculationSummary: {
+        ...recordSummary,
+        totalOrder: safeNumber(selectedInvoiceRow?.totalOrder),
+      },
     };
 
     try {

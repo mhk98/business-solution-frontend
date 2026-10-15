@@ -460,6 +460,7 @@ const AutoProfitLossTable = () => {
 
           <h2>Calculation Breakdown</h2>
           <div class="breakdown">
+            <div class="breakdown-item"><div class="lbl">Total Order</div><div class="val">${safeNumber(row?.totalOrder).toLocaleString()}</div></div>
             <div class="breakdown-item"><div class="lbl">Purchase</div><div class="val">${escapeHtml(formatCurrency(summaryDetails.totalCost))}</div></div>
             <div class="breakdown-item"><div class="lbl">Sale</div><div class="val">${escapeHtml(formatCurrency(summaryDetails.totalRevenue))}</div></div>
             <div class="breakdown-item"><div class="lbl">Return (${summaryDetails.returnRate.toFixed(2)}%)</div><div class="val">${escapeHtml(formatCurrency(summaryDetails.returnDeduction))}</div></div>
@@ -503,7 +504,10 @@ const AutoProfitLossTable = () => {
     cost: safeNumber(row?.cost),
     profitLoss: safeNumber(row?.profitLoss),
     selectedProducts: getInvoiceProducts(),
-    calculationSummary: getInvoiceSummary(row),
+    calculationSummary: {
+      ...getInvoiceSummary(row),
+      totalOrder: safeNumber(row?.totalOrder),
+    },
   });
 
   const sendInvoiceEmail = async (row, recipientEmail, { closeModal } = {}) => {

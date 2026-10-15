@@ -373,7 +373,7 @@ const EmployeeSelfServiceProfile = () => {
           )}
         </SectionCard>
 
-        <SectionCard title="Recent Leave Requests" actionLabel="Open Leave" actionHref="/hrm/leave-requests">
+        <SectionCard title="Recent Leave Requests" actionLabel="My Leave" actionHref="/my-leave">
           {isLeaveLoading ? (
             <EmptyState text="Loading leave requests..." />
           ) : leaveRows.length === 0 ? (

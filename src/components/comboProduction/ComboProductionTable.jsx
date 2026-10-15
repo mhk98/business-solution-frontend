@@ -24,13 +24,19 @@ import { useGetAllWirehouseWithoutQueryQuery } from "../../features/wirehouse/wi
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-const EMPTY_FORM = {
+let rowKey = 0;
+const emptyRow = () => ({
+  key: ++rowKey,
   productId: "",
   warehouseId: "",
   quantity: "",
+});
+
+const emptyForm = () => ({
+  rows: [emptyRow()],
   date: today(),
   note: "",
-};
+});
 
 const selectStyles = {
   control: (base, state) => ({
@@ -55,43 +61,66 @@ const headerCell =
 const inputClass =
   "w-full h-11 px-4 rounded-xl bg-white border border-slate-200 text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition text-sm";
 
-const RecipePreview = ({ combo, quantity }) => {
-  if (!combo) return null;
-  const qty = Number(quantity) || 0;
-  const rows = [
-    ...combo.mixItems.map((item) => ({
-      ...item,
-      source: combo.manufacturerId ? "Factory Stock" : "Item Stock",
-    })),
-    ...combo.packagingItems.map((item) => ({ ...item, source: "Item Stock (Packaging)" })),
-  ];
+// Total stock the whole batch uses — rows sharing an item are summed so the
+// user sees the real draw on each Item/Factory Stock.
+const RecipePreview = ({ rows: formRows, combos }) => {
+  const totals = new Map();
+  for (const formRow of formRows) {
+    const combo = combos.find(
+      (item) => String(item.productId) === String(formRow.productId),
+    );
+    if (!combo) continue;
+    const qty = Number(formRow.quantity) || 0;
+    const items = [
+      ...combo.mixItems.map((item) => ({
+        ...item,
+        id: item.manufactureId,
+        source: combo.manufacturerId
+          ? `Factory Stock${combo.manufacturerName ? ` · ${combo.manufacturerName}` : ""}`
+          : "Item Stock",
+      })),
+      ...combo.packagingItems.map((item) => ({
+        ...item,
+        id: item.itemMasterId,
+        source: "Item Stock (Packaging)",
+      })),
+    ];
+    for (const item of items) {
+      const key = `${item.source}-${item.id}-${item.unit}`;
+      const current = totals.get(key) || { ...item, total: 0, combos: [] };
+      current.total += item.perCombo * qty;
+      if (!current.combos.includes(combo.name)) current.combos.push(combo.name);
+      totals.set(key, current);
+    }
+  }
+  const rows = [...totals.values()];
+  if (!rows.length) return null;
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
       <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">
         Stock that will be used
-        {combo.manufacturerName ? ` · ${combo.manufacturerName}` : ""}
       </div>
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-[11px] text-slate-500 uppercase">
             <th className="pb-2 font-bold">Item</th>
-            <th className="pb-2 font-bold">Per combo</th>
+            <th className="pb-2 font-bold">Used for</th>
             <th className="pb-2 font-bold text-right">Total</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200">
           {rows.map((item) => (
-            <tr key={`${item.source}-${item.manufactureId || item.itemMasterId}`}>
+            <tr key={`${item.source}-${item.id}-${item.unit}`}>
               <td className="py-2 text-slate-800">
                 {item.name}
                 <div className="text-[11px] text-slate-400">{item.source}</div>
               </td>
-              <td className="py-2 text-slate-600">
-                {formatNumber(item.perCombo)} {item.unit}
+              <td className="py-2 text-slate-600 text-xs">
+                {item.combos.join(", ")}
               </td>
               <td className="py-2 text-right font-semibold text-slate-900 tabular-nums">
-                {qty > 0 ? `${formatNumber(item.perCombo * qty)} ${item.unit}` : "-"}
+                {item.total > 0 ? `${formatNumber(item.total)} ${item.unit}` : "-"}
               </td>
             </tr>
           ))}
@@ -111,7 +140,7 @@ const ComboProductionTable = () => {
   const [endDate, setEndDate] = useState("");
   const [comboFilter, setComboFilter] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState(emptyForm);
 
   const { data, isLoading } = useGetAllComboProductionQuery({
     page: currentPage,
@@ -145,44 +174,84 @@ const ComboProductionTable = () => {
     () => new Map(warehouseOptions.map((option) => [option.value, option.label])),
     [warehouseOptions],
   );
-  const selectedCombo = combos.find(
-    (combo) => String(combo.productId) === String(form.productId),
-  );
 
   const rows = data?.data || [];
   const totalCount = data?.meta?.count || 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
 
   const openModal = () => {
-    setForm({ ...EMPTY_FORM, date: today() });
+    setForm(emptyForm());
     setIsModalOpen(true);
   };
 
-  const handleComboChange = (option) => {
+  const updateRow = (key, changes) =>
+    setForm((prev) => ({
+      ...prev,
+      rows: prev.rows.map((row) => (row.key === key ? { ...row, ...changes } : row)),
+    }));
+
+  const addRow = () =>
+    setForm((prev) => {
+      // A new row starts in the previous row's warehouse — usually the same.
+      const last = prev.rows[prev.rows.length - 1];
+      return {
+        ...prev,
+        rows: [...prev.rows, { ...emptyRow(), warehouseId: last?.warehouseId || "" }],
+      };
+    });
+
+  const removeRow = (key) =>
+    setForm((prev) => ({
+      ...prev,
+      rows: prev.rows.length > 1 ? prev.rows.filter((row) => row.key !== key) : prev.rows,
+    }));
+
+  const handleComboChange = (key, option) => {
     const combo = combos.find((item) => String(item.productId) === option?.value);
     setForm((prev) => ({
       ...prev,
-      productId: option?.value || "",
-      // Default to the warehouse the combo was last mixed into.
-      warehouseId: combo?.warehouseId ? String(combo.warehouseId) : prev.warehouseId,
+      rows: prev.rows.map((row) =>
+        row.key === key
+          ? {
+              ...row,
+              productId: option?.value || "",
+              // Default to the warehouse the combo was last mixed into.
+              warehouseId: combo?.warehouseId
+                ? String(combo.warehouseId)
+                : row.warehouseId,
+            }
+          : row,
+      ),
     }));
   };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    if (!form.productId) return toast.error("Please select a combo");
-    if (!form.warehouseId) return toast.error("Please select a warehouse");
-    if (!(Number(form.quantity) > 0)) return toast.error("Quantity must be greater than 0");
+    const many = form.rows.length > 1;
+    for (const [index, row] of form.rows.entries()) {
+      const label = many ? `Row ${index + 1}: ` : "";
+      if (!row.productId) return toast.error(`${label}Please select a combo`);
+      if (!row.warehouseId) return toast.error(`${label}Please select a warehouse`);
+      if (!(Number(row.quantity) > 0)) {
+        return toast.error(`${label}Quantity must be greater than 0`);
+      }
+    }
 
     try {
       await insertComboProduction({
-        productId: Number(form.productId),
-        warehouseId: Number(form.warehouseId),
-        quantity: Number(form.quantity),
+        items: form.rows.map((row) => ({
+          productId: Number(row.productId),
+          warehouseId: Number(row.warehouseId),
+          quantity: Number(row.quantity),
+        })),
         date: form.date || today(),
         note: form.note,
       }).unwrap();
-      toast.success("Combo added to Stock Product");
+      toast.success(
+        many
+          ? `${form.rows.length} combos added to Stock Product`
+          : "Combo added to Stock Product",
+      );
       setIsModalOpen(false);
     } catch (err) {
       toast.error(err?.data?.message || "Combo production failed");
@@ -418,60 +487,78 @@ const ComboProductionTable = () => {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title="Add Combo Production"
+        maxWidth="max-w-4xl"
       >
         <form onSubmit={handleSubmit} className="space-y-5">
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2">
-              Combo Name
-            </label>
-            <Select
-              options={comboOptions}
-              value={comboOptions.find((o) => o.value === form.productId) || null}
-              onChange={handleComboChange}
-              placeholder={isLoadingCombos ? "Loading..." : "Select combo"}
-              isDisabled={isLoadingCombos}
-              styles={selectStyles}
-              menuPortalTarget={document.body}
-              className="text-black"
-            />
+          <div className="space-y-3">
+            <div className="hidden sm:grid grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_120px_40px] gap-3 text-sm font-semibold text-slate-700">
+              <span>Combo Name</span>
+              <span>Warehouse</span>
+              <span>Quantity</span>
+              <span />
+            </div>
+            {form.rows.map((row, index) => (
+              <div
+                key={row.key}
+                className="grid grid-cols-1 sm:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_120px_40px] gap-3 items-center rounded-2xl sm:rounded-none border sm:border-0 border-slate-200 p-3 sm:p-0"
+              >
+                <Select
+                  aria-label={`Combo ${index + 1}`}
+                  options={comboOptions}
+                  value={comboOptions.find((o) => o.value === row.productId) || null}
+                  onChange={(option) => handleComboChange(row.key, option)}
+                  placeholder={isLoadingCombos ? "Loading..." : "Select combo"}
+                  isDisabled={isLoadingCombos}
+                  styles={selectStyles}
+                  menuPortalTarget={document.body}
+                  className="text-black"
+                />
+                <Select
+                  aria-label={`Warehouse ${index + 1}`}
+                  options={warehouseOptions}
+                  value={
+                    warehouseOptions.find((o) => o.value === row.warehouseId) || null
+                  }
+                  onChange={(option) =>
+                    updateRow(row.key, { warehouseId: option?.value || "" })
+                  }
+                  placeholder="Select warehouse"
+                  isDisabled={isLoadingWarehouses}
+                  styles={selectStyles}
+                  menuPortalTarget={document.body}
+                  className="text-black"
+                />
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={row.quantity}
+                  onChange={(e) => updateRow(row.key, { quantity: e.target.value })}
+                  className={inputClass}
+                  placeholder="Qty"
+                  aria-label={`Quantity ${index + 1}`}
+                />
+                <button
+                  type="button"
+                  onClick={() => removeRow(row.key)}
+                  disabled={form.rows.length === 1}
+                  className="h-11 w-10 flex items-center justify-center rounded-xl text-rose-600 hover:bg-rose-50 transition disabled:opacity-30 disabled:hover:bg-transparent"
+                  aria-label={`Remove row ${index + 1}`}
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={addRow}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-dashed border-indigo-300 text-indigo-600 text-sm font-bold hover:bg-indigo-50 transition"
+            >
+              <Plus size={16} /> Add another combo
+            </button>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
-                Warehouse
-              </label>
-              <Select
-                options={warehouseOptions}
-                value={
-                  warehouseOptions.find((o) => o.value === form.warehouseId) || null
-                }
-                onChange={(option) =>
-                  setForm((prev) => ({ ...prev, warehouseId: option?.value || "" }))
-                }
-                placeholder="Select warehouse"
-                isDisabled={isLoadingWarehouses}
-                styles={selectStyles}
-                menuPortalTarget={document.body}
-                className="text-black"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
-                Quantity
-              </label>
-              <input
-                type="number"
-                min="1"
-                step="1"
-                value={form.quantity}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, quantity: e.target.value }))
-                }
-                className={inputClass}
-                placeholder="How many combos"
-              />
-            </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-2">
                 Date
@@ -496,7 +583,7 @@ const ComboProductionTable = () => {
             </div>
           </div>
 
-          <RecipePreview combo={selectedCombo} quantity={form.quantity} />
+          <RecipePreview rows={form.rows} combos={combos} />
 
           <div className="flex justify-end gap-3 pt-2">
             <button
@@ -511,7 +598,11 @@ const ComboProductionTable = () => {
               disabled={isSaving}
               className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold disabled:opacity-60"
             >
-              {isSaving ? "Saving..." : "Add to Stock"}
+              {isSaving
+                ? "Saving..."
+                : form.rows.length > 1
+                  ? `Add ${form.rows.length} to Stock`
+                  : "Add to Stock"}
             </button>
           </div>
         </form>

@@ -29,6 +29,28 @@ export const leaveRequestApi = createApi({
       }),
       invalidatesTags: ["LeaveRequest"],
     }),
+    // Sidebar badge / reminder: { isApprover, count }.
+    getMyLeaveApprovalCount: build.query({
+      query: () => ({ url: "/leave-request/approvals/count" }),
+      providesTags: ["LeaveRequest"],
+    }),
+    // My Leave (self service): balance, team leader and own requests.
+    getMyLeave: build.query({
+      query: (params) => ({ url: "/leave-request/my", params }),
+      providesTags: ["LeaveRequest"],
+    }),
+    applyMyLeave: build.mutation({
+      query: (data) => ({ url: "/leave-request/my", method: "POST", body: { ...data, requestedAt: Date.now() } }),
+      invalidatesTags: ["LeaveRequest"],
+    }),
+    cancelMyLeave: build.mutation({
+      query: (id) => ({
+        url: `/leave-request/my/${id}/cancel`,
+        method: "POST",
+        body: { leaveRequestId: id, requestedAt: Date.now() },
+      }),
+      invalidatesTags: ["LeaveRequest"],
+    }),
     createLeaveRequest: build.mutation({
       query: (data) => ({
         url: "/leave-request/create",
@@ -63,6 +85,10 @@ export const leaveRequestApi = createApi({
 });
 
 export const {
+  useGetMyLeaveApprovalCountQuery,
+  useGetMyLeaveQuery,
+  useApplyMyLeaveMutation,
+  useCancelMyLeaveMutation,
   useGetMyLeaveApprovalsQuery,
   useDecideLeaveRequestMutation,
   useCreateLeaveRequestMutation,

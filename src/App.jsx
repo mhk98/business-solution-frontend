@@ -158,6 +158,10 @@ const AttendanceSetupPage = lazy(() => import("./pages/AttendanceSetupPage"));
 const AttendancePolicyPage = lazy(() => import("./pages/AttendancePolicyPage"));
 const ShiftAssignmentPage = lazy(() => import("./pages/ShiftAssignmentPage"));
 const LeaveApprovalsPage = lazy(() => import("./pages/LeaveApprovalsPage"));
+const MyLeavePage = lazy(() => import("./pages/MyLeavePage"));
+const MyAttendancePage = lazy(() => import("./pages/MyAttendancePage"));
+const MyTeamAttendancePage = lazy(() => import("./pages/MyTeamAttendancePage"));
+const CorrectionApprovalsPage = lazy(() => import("./pages/CorrectionApprovalsPage"));
 const LeaveTypePage = lazy(() => import("./pages/LeaveTypePage"));
 const LeaveRequestPage = lazy(() => import("./pages/LeaveRequestPage"));
 const PayrollRunPage = lazy(() => import("./pages/PayrollRunPage"));
@@ -220,6 +224,10 @@ function App() {
                 <Route path="/hrm/attendance-policy" element={<AuthedRoute><AttendancePolicyPage /></AuthedRoute>} />
                 <Route path="/hrm/shift-assignments" element={<AuthedRoute><ShiftAssignmentPage /></AuthedRoute>} />
                 <Route path="/leave-approvals" element={<AuthedRoute><LeaveApprovalsPage /></AuthedRoute>} />
+                <Route path="/my-leave" element={<AuthedRoute><MyLeavePage /></AuthedRoute>} />
+                <Route path="/my-attendance" element={<AuthedRoute><MyAttendancePage /></AuthedRoute>} />
+                <Route path="/my-team-attendance" element={<AuthedRoute><MyTeamAttendancePage /></AuthedRoute>} />
+                <Route path="/attendance-correction-approvals" element={<AuthedRoute><CorrectionApprovalsPage /></AuthedRoute>} />
                 <Route path="/hrm/leave-types" element={<AuthedRoute><LeaveTypePage /></AuthedRoute>} />
                 <Route path="/hrm/leave-requests" element={<AuthedRoute><LeaveRequestPage /></AuthedRoute>} />
                 <Route path="/hrm/payroll-runs" element={<AuthedRoute><PayrollRunPage /></AuthedRoute>} />
