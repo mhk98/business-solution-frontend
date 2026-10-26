@@ -1,7 +1,9 @@
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import {
+  ArrowLeft,
   BookOpen,
+  ChevronRight,
   Pencil,
   Plus,
   Search,
@@ -15,7 +17,7 @@ import {
   useUpdateMarketingBookMutation,
 } from "../../features/marketingBook/marketingBook.jsx";
 import toast from "react-hot-toast";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import Modal from "../common/Modal";
 import {
   useGetOverviewSummaryQuery,
@@ -24,6 +26,17 @@ import {
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
 import useDebounce from "../../hooks/useDebounce";
 import DateRangeFilter from "../common/DateRangeFilter";
+import { useGetAllDollarSupplierWithoutQueryQuery } from "../../features/dollarSupplier/dollarSupplier";
+import {
+  getPlatformStyle,
+  useMarketingPlatforms,
+} from "../../utils/marketingPlatforms";
+import {
+  useDeleteMarketingPlatformMutation,
+  useInsertMarketingPlatformMutation,
+} from "../../features/marketingBook/marketingBook.jsx";
+
+const UNASSIGNED = "Unassigned";
 
 
 // ✅ helper: default range (এই মাসের ১ তারিখ → আজ)
@@ -47,9 +60,34 @@ const MarketingBookTable = () => {
   const userId = localStorage.getItem("userId");
   const [currentProduct, setCurrentProduct] = useState(null);
 
-  const [createProduct, setCreateProduct] = useState({ name: "" });
+  // Two levels: the platform list, then (?platform=Facebook) that platform's
+  // ad accounts. Kept in the URL so Back from an ad account lands here again.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const rawPlatform = searchParams.get("platform");
+  const platform = String(rawPlatform || "").trim();
+  const { platforms: MARKETING_PLATFORMS, rows: platformRecords } =
+    useMarketingPlatforms();
+  const selectPlatform = (value) => {
+    const next = new URLSearchParams(searchParams);
+    if (value) next.set("platform", value);
+    else next.delete("platform");
+    setSearchParams(next);
+    setCurrentPage(1);
+    setStartPage(1);
+    setName("");
+  };
+
+  const [createProduct, setCreateProduct] = useState({
+    name: "",
+    platform: "",
+  });
   const [name, setName] = useState("");
   const debouncedName = useDebounce(name, 400); // search state
+
+  // Dollar Supplier filter — accounts + totals of what was bought from them.
+  const [dollarSupplierId, setDollarSupplierId] = useState("");
+  const { data: dollarSupplierRes } = useGetAllDollarSupplierWithoutQueryQuery();
+  const dollarSuppliers = dollarSupplierRes?.data || [];
 
   const [currentPage, setCurrentPage] = useState(1);
   const [startPage, setStartPage] = useState(1);
@@ -69,11 +107,16 @@ const MarketingBookTable = () => {
   }, []);
 
   const { data, isLoading, isError, error, refetch } =
-    useGetAllMarketingBookQuery({
+    useGetAllMarketingBookQuery(
+    {
       page: currentPage,
       limit: itemsPerPage,
       searchTerm: debouncedName || undefined,
-    });
+      platform: platform || undefined,
+      dollarSupplierId: dollarSupplierId || undefined,
+    },
+    { skip: !platform },
+  );
 
   const books = useMemo(() => data?.data ?? [], [data]);
   const bookIds = useMemo(() => books.map((item) => item.Id), [books]);
@@ -85,7 +128,12 @@ const MarketingBookTable = () => {
   const [applied, setApplied] = useState(defaultRange);
 
   const { data: bookTotalsRes } = useGetMarketingExpenseTotalsByBookQuery(
-    { bookIds, from: applied.from, to: applied.to },
+    {
+      bookIds,
+      from: applied.from,
+      to: applied.to,
+      dollarSupplierId: dollarSupplierId || undefined,
+    },
     { skip: bookIds.length === 0 },
   );
   const bookTotals = bookTotalsRes?.data || {};
@@ -108,7 +156,10 @@ const MarketingBookTable = () => {
   };
 
   const handleAddBook = () => {
-    setCreateProduct({ name: "" });
+    setCreateProduct({
+      name: "",
+      platform: platform && platform !== UNASSIGNED ? platform : "",
+    });
     setIsModalOpen1(true);
   };
 
@@ -117,14 +168,18 @@ const MarketingBookTable = () => {
   const handleCreateBook = async (e) => {
     e.preventDefault();
     try {
-      const payload = { name: createProduct.name };
+      const payload = {
+        name: createProduct.name,
+        platform: createProduct.platform || null,
+      };
       const res = await insertMarketingBook(payload).unwrap();
 
       if (res?.success) {
         toast.success("Successfully created book");
         setIsModalOpen1(false);
-        setCreateProduct({ name: "" });
+        setCreateProduct({ name: "", platform: "" });
         refetch?.();
+        refetchSummary?.();
       } else {
         toast.error("Create failed!");
       }
@@ -141,6 +196,7 @@ const MarketingBookTable = () => {
     try {
       const updated = {
         name: currentProduct.name || "",
+        platform: currentProduct.platform || null,
         userId: userId,
         actorRole: role,
       };
@@ -154,6 +210,7 @@ const MarketingBookTable = () => {
         setIsModalOpen(false);
         setCurrentProduct(null);
         refetch?.();
+        refetchSummary?.();
       } else toast.error("Update failed!");
     } catch (err) {
       toast.error(err?.data?.message || "Update failed!");
@@ -171,6 +228,7 @@ const MarketingBookTable = () => {
       if (res?.success !== false) {
         toast.success("Book deleted successfully!");
         refetch?.();
+        refetchSummary?.();
       } else toast.error("Delete failed!");
     } catch (err) {
       toast.error(err?.data?.message || "Delete failed!");
@@ -197,9 +255,58 @@ const MarketingBookTable = () => {
     isLoading1,
     isError1,
     error1,
-  } = useGetOverviewSummaryQuery({ from: applied.from, to: applied.to });
+    refetch: refetchSummary,
+  } = useGetOverviewSummaryQuery({
+    from: applied.from,
+    to: applied.to,
+    platform: platform || undefined,
+    dollarSupplierId: dollarSupplierId || undefined,
+  });
 
   const summary = summaryRes?.data || {};
+  const byPlatform = summary?.byPlatform || {};
+  // Unassigned shows only while some ad account still has no platform.
+  const platformRows = [
+    ...MARKETING_PLATFORMS,
+    ...(byPlatform[UNASSIGNED] ? [UNASSIGNED] : []),
+  ];
+
+  // Add / delete platform (admin, superAdmin)
+  const canManagePlatforms = role === "superAdmin" || role === "admin";
+  const [isPlatformModalOpen, setIsPlatformModalOpen] = useState(false);
+  const [newPlatformName, setNewPlatformName] = useState("");
+  const [insertMarketingPlatform, { isLoading: isAddingPlatform }] =
+    useInsertMarketingPlatformMutation();
+  const [deleteMarketingPlatform] = useDeleteMarketingPlatformMutation();
+
+  const handleCreatePlatform = async (e) => {
+    e.preventDefault();
+    const platformName = newPlatformName.trim();
+    if (!platformName) return toast.error("Platform name is required");
+    try {
+      await insertMarketingPlatform({ name: platformName }).unwrap();
+      toast.success(`${platformName} added`);
+      setIsPlatformModalOpen(false);
+      setNewPlatformName("");
+    } catch (err) {
+      toast.error(err?.data?.message || "Could not add platform");
+    }
+  };
+
+  const handleDeletePlatform = async (platformName) => {
+    const record = platformRecords.find((r) => r.name === platformName);
+    if (!record) return;
+    const ok = await requestDeleteConfirmation({
+      message: `Delete platform ${platformName}?`,
+    });
+    if (!ok) return;
+    try {
+      await deleteMarketingPlatform(record.Id).unwrap();
+      toast.success(`${platformName} deleted`);
+    } catch (err) {
+      toast.error(err?.data?.message || "Could not delete platform");
+    }
+  };
 
 
   if (isError1) console.error("Overview Summary error:", error1);
@@ -218,7 +325,7 @@ const MarketingBookTable = () => {
       transition={{ delay: 0.2 }}
     >
       {/* Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-[minmax(220px,300px)_minmax(260px,1fr)_auto] gap-4 items-end mb-6 w-full">
+      <div className="grid grid-cols-1 md:grid-cols-[minmax(220px,300px)_minmax(200px,260px)_minmax(260px,1fr)_auto] gap-4 items-end mb-6 w-full">
         <DateRangeFilter
           startDate={from}
           endDate={to}
@@ -244,7 +351,26 @@ const MarketingBookTable = () => {
         </div> */}
         {/* Add button */}
 
-        <div className="relative w-full sm:max-w-[520px]">
+        <select
+          value={dollarSupplierId}
+          onChange={(e) => {
+            setDollarSupplierId(e.target.value);
+            setCurrentPage(1);
+            setStartPage(1);
+          }}
+          className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300"
+        >
+          <option value="">All Dollar Suppliers</option>
+          {dollarSuppliers.map((s) => (
+            <option key={s.Id} value={s.Id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+
+        <div
+          className={`relative w-full sm:max-w-[520px] ${platform ? "" : "invisible"}`}
+        >
           <input
             value={name}
             onChange={(e) => {
@@ -260,15 +386,50 @@ const MarketingBookTable = () => {
             size={18}
           />
         </div>
-        <button
-          onClick={handleAddBook}
-          type="button"
-          className="inline-flex h-11 w-full sm:w-[260px] items-center justify-center gap-2 rounded-lg bg-indigo-600 text-sm font-semibold text-white hover:bg-indigo-700 transition"
-        >
-          <Plus size={18} />
-          Add DM Channel
-        </button>
+        {platform ? (
+          <button
+            onClick={handleAddBook}
+            type="button"
+            className="inline-flex h-11 w-full sm:w-[260px] items-center justify-center gap-2 rounded-lg bg-indigo-600 text-sm font-semibold text-white hover:bg-indigo-700 transition"
+          >
+            <Plus size={18} />
+            Add DM Channel
+          </button>
+        ) : canManagePlatforms ? (
+          <button
+            onClick={() => {
+              setNewPlatformName("");
+              setIsPlatformModalOpen(true);
+            }}
+            type="button"
+            className="inline-flex h-11 w-full sm:w-[260px] items-center justify-center gap-2 rounded-lg bg-indigo-600 text-sm font-semibold text-white hover:bg-indigo-700 transition"
+          >
+            <Plus size={18} />
+            Add Platform
+          </button>
+        ) : (
+          <span />
+        )}
       </div>
+
+      {platform && (
+        <div className="mb-6 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => selectPlatform("")}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition"
+          >
+            <ArrowLeft size={16} />
+            All Platforms
+          </button>
+          <span
+            className={`rounded-full border px-3 py-1 text-sm font-semibold ${getPlatformStyle(platform)}`}
+          >
+            {platform}
+          </span>
+          <span className="text-sm text-slate-500">Ad Accounts</span>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
         {/* CashIn */}
@@ -356,7 +517,89 @@ const MarketingBookTable = () => {
       </div>
       {/* Top bar */}
 
-      {/* List */}
+      {/* Platform list */}
+      {!platform && (
+        <div className="mt-8">
+          {platformRows.map((p) => {
+            const totals = byPlatform[p] || {};
+            const canDelete =
+              canManagePlatforms &&
+              p !== UNASSIGNED &&
+              Number(totals.accounts || 0) === 0;
+            return (
+              <div
+                key={p}
+                role="button"
+                tabIndex={0}
+                onClick={() => selectPlatform(p)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") selectPlatform(p);
+                }}
+                className="flex w-full cursor-pointer items-center justify-between border-b border-gray-200 py-5 text-left hover:bg-gray-50 transition rounded-lg px-2"
+              >
+                <div className="flex flex-1 items-center gap-5">
+                  <div
+                    className={`flex h-11 w-11 items-center justify-center rounded-full border text-sm font-bold ${getPlatformStyle(p)}`}
+                  >
+                    {p.slice(0, 2).toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="text-[16px] font-semibold text-gray-900">
+                      {p}
+                    </div>
+                    <div className="mt-0.5 text-xs text-slate-500">
+                      {Number(totals.accounts || 0)} ad account
+                      {Number(totals.accounts || 0) === 1 ? "" : "s"}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="hidden sm:flex items-center gap-12 px-6 text-sm">
+                  <div className="text-right">
+                    <div className="text-[11px] text-slate-500">CashIn</div>
+                    <div className="font-semibold text-emerald-600 tabular-nums">
+                      {Number(totals.cashIn || 0).toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[11px] text-slate-500">CashOut</div>
+                    <div className="font-semibold text-rose-600 tabular-nums">
+                      {Number(totals.cashOut || 0).toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[11px] text-slate-500">Net Balance</div>
+                    <div className="font-semibold text-indigo-600 tabular-nums">
+                      {Number(totals.netBalance || 0).toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+
+                {canDelete ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeletePlatform(p);
+                    }}
+                    className="mr-2 inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 bg-white hover:bg-red-50 transition"
+                    title="Delete platform"
+                  >
+                    <Trash2 className="text-red-600" size={16} />
+                  </button>
+                ) : (
+                  <span className="mr-2 w-9" />
+                )}
+                <ChevronRight className="text-slate-400" size={20} />
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Ad accounts of the selected platform */}
+      {platform && (
+      <>
       <div className="mt-8">
         {books.map((item) => (
           <div
@@ -377,6 +620,7 @@ const MarketingBookTable = () => {
                   <div className="text-[16px] font-semibold text-gray-900">
                     {item.name}
                   </div>
+
                   {/* <div className="mt-1 text-sm text-gray-600">
                     {item.createdAt
                       ? new Date(item.createdAt).toLocaleDateString()
@@ -449,6 +693,8 @@ const MarketingBookTable = () => {
         totalPages={totalPages}
         onPageChange={handlePageChange}
       />
+      </>
+      )}
 
       {/* Edit Modal */}
       <Modal
@@ -473,6 +719,27 @@ const MarketingBookTable = () => {
             />
           </div>
 
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Platform</label>
+            <select
+              value={currentProduct?.platform || ""}
+              onChange={(e) =>
+                setCurrentProduct((prev) => ({
+                  ...prev,
+                  platform: e.target.value,
+                }))
+              }
+              className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+            >
+              <option value="">Unassigned</option>
+              {MARKETING_PLATFORMS.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
             <button
               onClick={handleModalClose}
@@ -490,6 +757,46 @@ const MarketingBookTable = () => {
         </div>
       </Modal>
 
+      {/* Add Platform Modal */}
+      <Modal
+        isOpen={isPlatformModalOpen}
+        onClose={() => setIsPlatformModalOpen(false)}
+        title="Add Platform"
+      >
+        <form onSubmit={handleCreatePlatform} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Platform Name</label>
+            <input
+              type="text"
+              value={newPlatformName}
+              onChange={(e) => setNewPlatformName(e.target.value)}
+              maxLength={32}
+              className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+              placeholder="e.g. YouTube"
+              required
+              autoFocus
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsPlatformModalOpen(false)}
+              className="px-6 py-3 rounded-2xl border border-slate-200 text-slate-500 font-bold text-sm hover:bg-slate-50 transition"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isAddingPlatform}
+              className="px-10 py-3 rounded-2xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-700 transition shadow-xl shadow-indigo-100 disabled:opacity-60"
+            >
+              Add Platform
+            </button>
+          </div>
+        </form>
+      </Modal>
+
       {/* Add Modal */}
       <Modal
         isOpen={isModalOpen1}
@@ -502,12 +809,40 @@ const MarketingBookTable = () => {
             <input
               type="text"
               value={createProduct.name}
-              onChange={(e) => setCreateProduct({ name: e.target.value })}
+              onChange={(e) =>
+                setCreateProduct((prev) => ({ ...prev, name: e.target.value }))
+              }
               className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
               placeholder="e.g. Google Search"
               required
             />
           </div>
+
+          {/* Opened from inside a platform → saved under it, nothing to pick.
+              Only the Unassigned list still asks for one. */}
+          {platform === UNASSIGNED && (
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Platform</label>
+            <select
+              value={createProduct.platform || ""}
+              onChange={(e) =>
+                setCreateProduct((prev) => ({
+                  ...prev,
+                  platform: e.target.value,
+                }))
+              }
+              className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+              required
+            >
+              <option value="">Select Platform</option>
+              {MARKETING_PLATFORMS.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </div>
+          )}
 
           <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
             <button

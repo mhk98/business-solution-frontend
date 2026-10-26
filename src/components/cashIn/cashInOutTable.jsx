@@ -39,6 +39,7 @@ import { useGetAllSupplierWithoutQueryQuery } from "../../features/supplier/supp
 import { useGetAllSupplierHistoryQuery } from "../../features/supplierHistory/supplierHistory";
 import { useGetAllDollarSupplierWithoutQueryQuery } from "../../features/dollarSupplier/dollarSupplier";
 import { useGetAllDollarSupplierHistoryQuery } from "../../features/dollarSupplierHistory/dollarSupplierHistory";
+import { useGetAllEmployeeListWithoutQueryQuery } from "../../features/employeeList/employeeList";
 import { useGetAllOwnerWithoutQueryQuery } from "../../features/ownerTransaction/ownerTransaction";
 import { useGetAllDirectorWithoutQueryQuery } from "../../features/ownerTransaction/directorProfitShare";
 import { useGetAllManufacturerWithoutQueryQuery } from "../../features/manufacturer/manufacturer";
@@ -447,6 +448,7 @@ const CashInOutTable = () => {
     partyType: "",
     supplierId: "",
     dollarSupplierId: "",
+    employeeId: "",
     manufacturerId: "",
     packagingManufacturerId: "",
     ownerId: "",
@@ -522,6 +524,7 @@ const CashInOutTable = () => {
   const getPartyTypeFromRow = (row) => {
     if (row?.supplierId) return "Supplier";
     if (row?.dollarSupplierId) return "Dollar Supplier";
+    if (row?.employeeId) return "Employee";
     if (row?.manufacturerId) return "Manufacturer";
     if (row?.packagingManufacturerId) return "Packaging Manufacturer";
     if (row?.loanId) return "Lender";
@@ -542,6 +545,12 @@ const CashInOutTable = () => {
       !String(value?.dollarSupplierId || "").trim()
     ) {
       return "Dollar Supplier is required!";
+    }
+    if (
+      value?.partyType === "Employee" &&
+      !String(value?.employeeId || "").trim()
+    ) {
+      return "Employee is required!";
     }
     if (
       value?.partyType === "Manufacturer" &&
@@ -1033,6 +1042,7 @@ const CashInOutTable = () => {
       partyType: "",
       supplierId: "",
       dollarSupplierId: "",
+      employeeId: "",
       manufacturerId: "",
       packagingManufacturerId: "",
       ownerId: "",
@@ -1101,6 +1111,7 @@ const CashInOutTable = () => {
       partyType: getPartyTypeFromRow(rp),
       supplierId: rp.supplierId ?? "",
       dollarSupplierId: rp.dollarSupplierId ?? "",
+      employeeId: rp.employeeId ?? "",
       manufacturerId: rp.manufacturerId ?? "",
       packagingManufacturerId: rp.packagingManufacturerId ?? "",
       ownerId: rp.ownerId ?? "",
@@ -1142,6 +1153,7 @@ const CashInOutTable = () => {
       partyType: getPartyTypeFromRow(rp),
       supplierId: rp.supplierId ?? "",
       dollarSupplierId: rp.dollarSupplierId ?? "",
+      employeeId: rp.employeeId ?? "",
       manufacturerId: rp.manufacturerId ?? "",
       packagingManufacturerId: rp.packagingManufacturerId ?? "",
       ownerId: rp.ownerId ?? "",
@@ -1226,6 +1238,10 @@ const CashInOutTable = () => {
         currentProduct?.partyType === "Dollar Supplier"
           ? currentProduct?.dollarSupplierId || ""
           : "",
+      );
+      formData.append(
+        "employeeId",
+        currentProduct?.partyType === "Employee" ? currentProduct?.employeeId || "" : "",
       );
       formData.append(
         "manufacturerId",
@@ -1422,6 +1438,10 @@ const CashInOutTable = () => {
           : "",
       );
       formData.append(
+        "employeeId",
+        createProduct?.partyType === "Employee" ? createProduct?.employeeId || "" : "",
+      );
+      formData.append(
         "manufacturerId",
         createProduct?.partyType === "Manufacturer"
           ? createProduct?.manufacturerId || ""
@@ -1586,6 +1606,10 @@ const CashInOutTable = () => {
           : "",
       );
       formData.append(
+        "employeeId",
+        createProduct?.partyType === "Employee" ? createProduct?.employeeId || "" : "",
+      );
+      formData.append(
         "manufacturerId",
         createProduct?.partyType === "Manufacturer"
           ? createProduct?.manufacturerId || ""
@@ -1642,6 +1666,7 @@ const CashInOutTable = () => {
           loanId: "",
           supplierId: "",
           dollarSupplierId: "",
+          employeeId: "",
           manufacturerId: "",
           packagingManufacturerId: "",
           ownerId: "",
@@ -1873,6 +1898,7 @@ const CashInOutTable = () => {
       rowSupplier?.supplierName ||
       row?.dollarSupplier?.name ||
       rowDollarSupplier?.name ||
+      findEmployeeById(row?.employeeId)?.name ||
       row?.manufacturer?.name ||
       rowManufacturer?.name ||
       "-";
@@ -2010,6 +2036,25 @@ const CashInOutTable = () => {
     if (isErrorSupplier)
       console.error("Error fetching suppliers", errorSupplier);
   }, [isErrorSupplier, errorSupplier]);
+
+  // ✅ employees (Book party type "Employee", CashOut only = advance)
+  const { data: allEmployeeRes } = useGetAllEmployeeListWithoutQueryQuery();
+  const employees = useMemo(
+    () => (Array.isArray(allEmployeeRes?.data) ? allEmployeeRes.data : []),
+    [allEmployeeRes],
+  );
+  const employeeOptions = useMemo(
+    () =>
+      employees.map((employee) => ({
+        value: employee.Id,
+        label: employee.employee_id
+          ? `${employee.name} (${employee.employee_id})`
+          : employee.name,
+      })),
+    [employees],
+  );
+  const findEmployeeById = (employeeId) =>
+    employees.find((item) => String(item.Id) === String(employeeId));
 
   // ✅ dollar suppliers (Book party type "Dollar Supplier", CashOut only)
   const { data: allDollarSupplierRes } =
@@ -2164,6 +2209,8 @@ const CashInOutTable = () => {
       return row?.dollarSupplier?.name || rowDollarSupplier?.name || "---";
     }
 
+    if (row?.employeeId) return findEmployeeById(row.employeeId)?.name || "---";
+
     if (row?.manufacturerId) {
       const rowManufacturer = manufacturers.find(
         (item) => String(item.Id) === String(row.manufacturerId),
@@ -2200,6 +2247,7 @@ const CashInOutTable = () => {
   const partyTypeOptions = [
     { value: "Supplier", label: "Supplier" },
     { value: "Dollar Supplier", label: "Dollar Supplier" },
+    { value: "Employee", label: "Employee" },
     { value: "Manufacturer", label: "Manufacturer" },
     { value: "Packaging Manufacturer", label: "Packaging Manufacturer" },
     { value: "Lender", label: "Lender" },
@@ -2210,6 +2258,7 @@ const CashInOutTable = () => {
     (option) =>
       option.value !== "Supplier" &&
       option.value !== "Dollar Supplier" &&
+      option.value !== "Employee" &&
       option.value !== "Manufacturer" &&
       option.value !== "Packaging Manufacturer",
   );
@@ -2399,6 +2448,7 @@ const CashInOutTable = () => {
         partyType: nextType,
         supplierId: "",
         dollarSupplierId: "",
+        employeeId: "",
         manufacturerId: "",
         packagingManufacturerId: "",
         loanId: "",
@@ -2450,6 +2500,7 @@ const CashInOutTable = () => {
                   ...value,
                   supplierId: selectedOption?.value || "",
                   dollarSupplierId: "",
+                  employeeId: "",
                   manufacturerId: "",
                   packagingManufacturerId: "",
                   loanId: "",
@@ -2499,6 +2550,49 @@ const CashInOutTable = () => {
               isClearable
             />
             {showBalance && renderDollarSupplierBalance(value?.dollarSupplierId)}
+          </div>
+        )}
+
+        {partyType === "Employee" && selectedPartyTypeOption && (
+          <div>
+            <label className="block text-sm text-slate-600 mb-1">
+              Employee Name
+            </label>
+            <Select
+              options={employeeOptions}
+              value={
+                employeeOptions.find(
+                  (option) =>
+                    String(option.value) === String(value?.employeeId),
+                ) || null
+              }
+              onChange={(selectedOption) =>
+                onChange({
+                  ...value,
+                  supplierId: "",
+                  dollarSupplierId: "",
+                  employeeId: selectedOption?.value || "",
+                  manufacturerId: "",
+                  packagingManufacturerId: "",
+                  loanId: "",
+                  lender: "",
+                  ownerId: "",
+                  directorId: "",
+                })
+              }
+              placeholder="Select Employee"
+              className="text-sm"
+              styles={selectStyles}
+              isClearable
+            />
+            {showBalance && value?.employeeId ? (
+              <p className="mt-1 text-xs font-semibold text-amber-600">
+                Current Advance: ৳
+                {Number(
+                  findEmployeeById(value.employeeId)?.advanceBalance || 0,
+                ).toLocaleString()}
+              </p>
+            ) : null}
           </div>
         )}
 

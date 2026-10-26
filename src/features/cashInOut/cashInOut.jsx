@@ -41,6 +41,7 @@ export const cashInOutApi = baseApi.injectEndpoints({
       invalidatesTags: [
         { type: "CashInOut" },
         { type: "SupplierHistory", id: "LIST" },
+        { type: "LedgerHistory", id: "LIST" },
         { type: "Overview", id: "LIST" },
         { type: "Overview", id: "DASHBOARD" },
         { type: "AccountBalance", id: "SUMMARY" },
@@ -59,6 +60,7 @@ export const cashInOutApi = baseApi.injectEndpoints({
         { type: "CashInOut", id: arg.id },
         { type: "CashInOut" },
         { type: "SupplierHistory", id: "LIST" },
+        { type: "LedgerHistory", id: "LIST" },
         { type: "Overview", id: "LIST" },
         { type: "Overview", id: "DASHBOARD" },
         { type: "AccountBalance", id: "SUMMARY" },
@@ -84,6 +86,7 @@ export const cashInOutApi = baseApi.injectEndpoints({
           { type: "CashInOut", id },
           { type: "CashInOut" },
           { type: "SupplierHistory", id: "LIST" },
+        { type: "LedgerHistory", id: "LIST" },
           { type: "Overview", id: "LIST" },
           { type: "Overview", id: "DASHBOARD" },
           { type: "AccountBalance", id: "SUMMARY" },

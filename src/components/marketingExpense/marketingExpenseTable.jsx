@@ -4,7 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import Modal from "../common/Modal";
 import DateRangeFilter from "../common/DateRangeFilter";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
+import {
+  getPlatformStyle,
+  useMarketingPlatforms,
+} from "../../utils/marketingPlatforms";
 
 import ReportMenu from "./ReportMenu";
 import ReportPreviewModal from "./ReportPreviewModal";
@@ -48,7 +52,7 @@ const BANKS = [
   "Trust Bank",
 ];
 
-const MarketingExpenseTable = ({ bookName = "" }) => {
+const MarketingExpenseTable = ({ bookName = "", bookPlatform = "" }) => {
   const { language } = useLayout();
   const t = translations[language] || translations.EN;
   const { id } = useParams(); // bookId
@@ -59,6 +63,10 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
   const [isModalOpen3, setIsModalOpen3] = useState(false); // delete/note
   const [currentProduct, setCurrentProduct] = useState(null);
   const [filterCategory, setFilterCategory] = useState("");
+  // The ad account's own platform: every Cash In / Cash Out here is saved
+  // under it, so it is not picked per entry.
+  const accountPlatform = String(bookPlatform || "").trim();
+  const { platforms } = useMarketingPlatforms();
 
   const userId = localStorage.getItem("userId");
 
@@ -460,7 +468,7 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
       formData.append("paymentStatus", "CashIn");
       formData.append("date", createProduct.date);
       formData.append("note", createProduct.note || "");
-      formData.append("category", createProduct.category || "");
+      formData.append("category", accountPlatform || createProduct.category || "");
       formData.append("bankName", "");
       formData.append("bankAccount", "");
       formData.append("remarks", remarks);
@@ -530,7 +538,7 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
       formData.append("paymentStatus", "CashOut");
       formData.append("date", createProduct.date);
       formData.append("note", createProduct.note);
-      formData.append("category", createProduct.category);
+      formData.append("category", accountPlatform || createProduct.category || "");
 
       formData.append(
         "bankName",
@@ -786,6 +794,22 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
     >
+      <div className="mb-5 flex flex-wrap items-center gap-3">
+        <Link
+          to={`/marketing-book?platform=${encodeURIComponent(accountPlatform || "Unassigned")}`}
+          className="text-sm font-medium text-indigo-600 hover:underline"
+        >
+          ← {accountPlatform || "Unassigned"} Ad Accounts
+        </Link>
+        {accountPlatform && (
+          <span
+            className={`rounded-full border px-3 py-1 text-xs font-semibold ${getPlatformStyle(accountPlatform)}`}
+          >
+            {accountPlatform}
+          </span>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
         {/* CashIn */}
         <div className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md">
@@ -993,10 +1017,11 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
                        focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
           >
             <option value="">All</option>
-            <option value="Facebook">Facebook</option>
-            <option value="Google">Google</option>
-            <option value="Tiktok">Tiktok</option>
-            <option value="SEO">SEO</option>
+            {platforms.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -1737,23 +1762,32 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
               Platform
             </label>
-            <select
-              value={createProduct.category || ""}
-              onChange={(e) =>
-                setCreateProduct({
-                  ...createProduct,
-                  category: e.target.value,
-                })
-              }
-              className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-              required
-            >
-              <option value="">Select Platform</option>
-              <option value="Facebook">Facebook</option>
-              <option value="Google">Google</option>
-              <option value="Tiktok">Tiktok</option>
-              <option value="SEO">SEO</option>
-            </select>
+            {accountPlatform ? (
+              <div
+                className={`flex h-12 items-center rounded-2xl border px-4 text-sm font-semibold ${getPlatformStyle(accountPlatform)}`}
+              >
+                {accountPlatform}
+              </div>
+            ) : (
+              <select
+                value={createProduct.category || ""}
+                onChange={(e) =>
+                  setCreateProduct({
+                    ...createProduct,
+                    category: e.target.value,
+                  })
+                }
+                className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+                required
+              >
+                <option value="">Select Platform</option>
+                {platforms.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div>
@@ -1894,23 +1928,32 @@ const MarketingExpenseTable = ({ bookName = "" }) => {
             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
               Platform
             </label>
-            <select
-              value={createProduct.category || ""}
-              onChange={(e) =>
-                setCreateProduct({
-                  ...createProduct,
-                  category: e.target.value,
-                })
-              }
-              className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
-              required
-            >
-              <option value="">Select Platform</option>
-              <option value="Facebook">Facebook</option>
-              <option value="Google">Google</option>
-              <option value="Tiktok">Tiktok</option>
-              <option value="SEO">SEO</option>
-            </select>
+            {accountPlatform ? (
+              <div
+                className={`flex h-12 items-center rounded-2xl border px-4 text-sm font-semibold ${getPlatformStyle(accountPlatform)}`}
+              >
+                {accountPlatform}
+              </div>
+            ) : (
+              <select
+                value={createProduct.category || ""}
+                onChange={(e) =>
+                  setCreateProduct({
+                    ...createProduct,
+                    category: e.target.value,
+                  })
+                }
+                className="w-full h-12 border border-slate-200 rounded-2xl px-4 text-sm font-medium text-slate-900 bg-white outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition"
+                required
+              >
+                <option value="">Select Platform</option>
+                {platforms.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div>

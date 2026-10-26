@@ -68,6 +68,23 @@ export const profitLossApi = baseApi.injectEndpoints({
       providesTags: [{ type: "ProfitLoss", id: "LIST" }],
       refetchOnMountOrArgChange: true,
     }),
+
+    getProfitLossTemplate: build.query({
+      query: (mode = "product") => ({
+        url: "profit-loss/template",
+        params: { mode },
+      }),
+      providesTags: [{ type: "ProfitLoss", id: "TEMPLATE" }],
+    }),
+
+    saveProfitLossTemplate: build.mutation({
+      query: (data) => ({
+        url: "profit-loss/template",
+        method: "PUT",
+        body: data,
+      }),
+      invalidatesTags: [{ type: "ProfitLoss", id: "TEMPLATE" }],
+    }),
   }),
 
   overrideExisting: false,
@@ -80,4 +97,6 @@ export const {
   useDeleteProfitLossMutation,
   useUpdateProfitLossMutation,
   useGetAllProfitLossWithoutQueryQuery,
+  useGetProfitLossTemplateQuery,
+  useSaveProfitLossTemplateMutation,
 } = profitLossApi;

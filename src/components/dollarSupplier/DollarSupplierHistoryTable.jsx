@@ -73,8 +73,9 @@ const DollarSupplierHistoryTable = () => {
   const rows = data?.data || [];
   const meta = data?.meta || {};
   const totalPaid = Number(meta.totalPaid || 0);
-  const totalAdvance = Number(meta.totalAdvance ?? meta.netBalance ?? 0);
-  const totalDue = Number(meta.totalDue ?? meta.totalUnpaid ?? 0);
+  // Everything ever owed (all Due rows) vs everything paid so far.
+  const grossDue = Number(meta.grossDue ?? 0);
+  const balance = totalPaid - grossDue; // + = advance, − = still due
   const totalCount = Number(meta.count ?? meta.total ?? rows.length);
   const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage));
 
@@ -110,28 +111,47 @@ const DollarSupplierHistoryTable = () => {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full mb-6">
+        <div className="rounded-2xl border border-rose-200 bg-white p-5 shadow-sm">
+          <p className="text-xs font-semibold text-rose-600 uppercase tracking-wide">
+            Total Due Amount
+          </p>
+          <p className="text-[11px] text-slate-400">
+            All dollar purchases (Due entries)
+          </p>
+          <p className="mt-2 text-2xl font-bold text-rose-600 tabular-nums">
+            ৳{isLoading ? "—" : fmt(grossDue)}
+          </p>
+        </div>
         <div className="rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wide">
             Total Paid
           </p>
+          <p className="text-[11px] text-slate-400">Paid so far</p>
           <p className="mt-2 text-2xl font-bold text-emerald-700 tabular-nums">
             ৳{isLoading ? "—" : fmt(totalPaid)}
           </p>
         </div>
-        <div className="rounded-2xl border border-sky-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold text-sky-600 uppercase tracking-wide">
-            Total Advance
+        <div
+          className={`rounded-2xl border bg-white p-5 shadow-sm ${
+            balance > 0 ? "border-sky-200" : "border-amber-200"
+          }`}
+        >
+          <p
+            className={`text-xs font-semibold uppercase tracking-wide ${
+              balance > 0 ? "text-sky-600" : "text-amber-600"
+            }`}
+          >
+            {balance > 0 ? "Advance" : "Remaining Due"}
           </p>
-          <p className="mt-2 text-2xl font-bold text-sky-700 tabular-nums">
-            ৳{isLoading ? "—" : fmt(totalAdvance)}
+          <p className="text-[11px] text-slate-400">
+            Total Paid − Total Due Amount
           </p>
-        </div>
-        <div className="rounded-2xl border border-rose-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold text-rose-600 uppercase tracking-wide">
-            Total Due
-          </p>
-          <p className="mt-2 text-2xl font-bold text-rose-600 tabular-nums">
-            ৳{isLoading ? "—" : fmt(totalDue)}
+          <p
+            className={`mt-2 text-2xl font-bold tabular-nums ${
+              balance > 0 ? "text-sky-700" : "text-amber-700"
+            }`}
+          >
+            ৳{isLoading ? "—" : fmt(Math.abs(balance))}
           </p>
         </div>
       </div>

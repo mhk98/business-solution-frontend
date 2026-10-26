@@ -67,6 +67,8 @@ const DateRangeFilter = ({
   onEndDateChange,
   onFilterTypeChange,
   defaultFilter = "",
+  // Range Reset returns to when defaultFilter is "custom".
+  defaultRange,
   label = "Filter",
   startLabel = "Start",
   endLabel = "End",
@@ -107,7 +109,10 @@ const DateRangeFilter = ({
   };
 
   const handleReset = () => {
-    const range = getDatePresetRange(defaultFilter);
+    const range =
+      defaultFilter === "custom" && defaultRange
+        ? defaultRange
+        : getDatePresetRange(defaultFilter);
     setSelectedFilter(defaultFilter);
     setCustomFrom(range.from);
     setCustomTo(range.to);

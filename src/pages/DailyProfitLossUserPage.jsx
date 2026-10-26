@@ -229,7 +229,9 @@ const getSavedCalculationSummary = (row, fallbackSummary) => {
 
   return {
     revenue: revenue || fallbackSummary.revenue,
-    purchaseCost: revenue ? purchaseCost : safeNumber(fallbackSummary.purchaseCost),
+    purchaseCost: revenue
+      ? purchaseCost
+      : safeNumber(fallbackSummary.purchaseCost),
     returnRate,
     returnDeduction,
     marketingCost,
@@ -368,7 +370,14 @@ const DailyProfitLossUserPage = () => {
       startDate: fromDate || undefined,
       endDate: toDate || undefined,
     }),
-    [currentPage, debouncedSearchTerm, selectedEmployee, reportSaleType, fromDate, toDate],
+    [
+      currentPage,
+      debouncedSearchTerm,
+      selectedEmployee,
+      reportSaleType,
+      fromDate,
+      toDate,
+    ],
   );
 
   const allReportsQueryArgs = useMemo(
@@ -1264,8 +1273,7 @@ const DailyProfitLossUserPage = () => {
                   )}
                   {!isLoading &&
                     reports.map((row) => {
-                      const isRowOwner =
-                        Number(row.user?.Id) === currentUserId;
+                      const isRowOwner = Number(row.user?.Id) === currentUserId;
                       const canMutateRow = isRowOwner;
                       // Total Amount / Total Sale Price / Total Purchase
                       // Price are financial figures visible to superAdmin
@@ -1580,8 +1588,8 @@ const DailyProfitLossUserPage = () => {
           {canSeeSensitiveSummary && summary.reportsWithoutProducts > 0 && (
             <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
               {summary.reportsWithoutProducts} টি report-এ কোনো product দেওয়া
-              নেই — ওগুলোর Total Amount sale হিসেবে ধরা হয়েছে, কিন্তু কেনা
-              দাম 0 ধরা হয়েছে।
+              নেই — ওগুলোর Total Amount sale হিসেবে ধরা হয়েছে, কিন্তু কেনা দাম
+              0 ধরা হয়েছে।
             </p>
           )}
 

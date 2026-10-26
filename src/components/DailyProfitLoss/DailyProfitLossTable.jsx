@@ -2,9 +2,11 @@ import { motion } from "framer-motion";
 import {
   ChevronLeft,
   ChevronRight,
+  ListRestart,
   Mail,
   Printer,
   RefreshCcw,
+  Save,
   Trash2,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -21,6 +23,8 @@ import {
   useInsertProfitLossMutation,
   useDeleteProfitLossMutation,
   useSendProfitLossInvoiceMutation,
+  useGetProfitLossTemplateQuery,
+  useSaveProfitLossTemplateMutation,
 } from "../../features/profitLoss/profitLoss";
 import { useCanUseMasterPermission } from "../../utils/masterPermissions";
 import { useGetAllLogoQuery } from "../../features/logo/logo";
@@ -254,6 +258,24 @@ const DailyProfitLossTable = () => {
     useDeleteProfitLossMutation();
 
   const [selectedRows, setSelectedRows] = useState([]);
+
+  // Saved product list: "Load Template" puts it in the table so only units
+  // sold need entering; while it is loaded, adding/removing products edits it.
+  const { data: templateRes, isLoading: templateLoading } =
+    useGetProfitLossTemplateQuery("product");
+  const [saveProfitLossTemplate, { isLoading: isSavingTemplate }] =
+    useSaveProfitLossTemplateMutation();
+  const templateIds = useMemo(
+    () => (templateRes?.data?.productIds || []).map(String),
+    [templateRes],
+  );
+  const [isTemplateLoaded, setIsTemplateLoaded] = useState(false);
+  // Daily invoice recipients, kept with the template so they are typed once.
+  const savedInvoiceEmails = useMemo(
+    () => (templateRes?.data?.invoiceEmails || []).join(", "),
+    [templateRes],
+  );
+  const [rememberInvoiceEmails, setRememberInvoiceEmails] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 400);
   const [marketingSpends, setMarketingSpends] = useState(0);
@@ -370,6 +392,23 @@ const DailyProfitLossTable = () => {
     return productOptions.filter((option) => selectedIdSet.has(option.value));
   }, [productOptions, selectedRows]);
 
+  const persistTemplate = async (productIds, successMessage) => {
+    try {
+      const res = await saveProfitLossTemplate({
+        mode: "product",
+        productIds,
+      }).unwrap();
+      if (res?.success) {
+        toast.success(successMessage);
+        return true;
+      }
+      toast.error(res?.message || "Template save failed");
+    } catch (error) {
+      toast.error(error?.data?.message || "Template save failed");
+    }
+    return false;
+  };
+
   const handleProductSelect = (selectedOptions) => {
     const options = selectedOptions || [];
     setSelectedRows((prev) => {
@@ -388,6 +427,49 @@ const DailyProfitLossTable = () => {
           : item;
       });
     });
+
+    if (isTemplateLoaded) {
+      const added = options.length > selectedRows.length;
+      persistTemplate(
+        options.map((option) => option.value),
+        added ? "Template-এ product যোগ হয়েছে" : "Template থেকে product বাদ হয়েছে",
+      );
+    }
+  };
+
+  const buildTemplateRows = () => {
+    const productMap = new Map(normalizedProducts.map((item) => [item.id, item]));
+    return templateIds
+      .map((id) => productMap.get(id))
+      .filter(Boolean)
+      .map((item) => ({ ...item, unitsSold: 0 }));
+  };
+
+  const handleSaveAsTemplate = () => {
+    if (!selectedRows.length) {
+      toast.error("Template-এ রাখতে আগে product select করুন");
+      return;
+    }
+    if (
+      templateIds.length &&
+      !window.confirm(
+        `বর্তমান template (${templateIds.length}টা product) এই ${selectedRows.length}টা product দিয়ে replace হবে। Continue?`,
+      )
+    )
+      return;
+    persistTemplate(
+      selectedRows.map((item) => item.id),
+      "Template saved",
+    ).then((saved) => saved && setIsTemplateLoaded(true));
+  };
+
+  const handleLoadTemplate = () => {
+    if (!templateIds.length) {
+      toast.error("কোনো template save করা নেই");
+      return;
+    }
+    setSelectedRows(buildTemplateRows());
+    setIsTemplateLoaded(true);
   };
 
   const handleFieldChange = (id, field, value) => {
@@ -404,11 +486,19 @@ const DailyProfitLossTable = () => {
   };
 
   const handleRemoveRow = (id) => {
-    setSelectedRows((prev) => prev.filter((item) => item.id !== id));
+    const remaining = selectedRows.filter((item) => item.id !== id);
+    setSelectedRows(remaining);
+    if (isTemplateLoaded) {
+      persistTemplate(
+        remaining.map((item) => item.id),
+        "Template থেকে product বাদ হয়েছে",
+      );
+    }
   };
 
   const handleReset = () => {
     setSelectedRows([]);
+    setIsTemplateLoaded(false);
     setSearchTerm("");
     setMarketingSpends(0);
     setOtherExpenses(0);
@@ -738,7 +828,8 @@ const DailyProfitLossTable = () => {
 
   const handleSendEmail = (row) => {
     setSelectedInvoiceRow(row);
-    setClientEmail("");
+    setClientEmail(savedInvoiceEmails);
+    setRememberInvoiceEmails(true);
     setIsEmailModalOpen(true);
   };
 
@@ -794,6 +885,14 @@ const DailyProfitLossTable = () => {
       const res = await sendProfitLossInvoice(payload).unwrap();
       if (res?.success) {
         toast.success("Invoice sent successfully");
+        if (rememberInvoiceEmails && recipientEmail !== savedInvoiceEmails) {
+          saveProfitLossTemplate({
+            mode: "product",
+            invoiceEmails: recipientEmail,
+          })
+            .unwrap()
+            .catch(() => toast.error("Email list save হয়নি"));
+        }
         handleCloseEmailModal();
       } else {
         toast.error(res?.message || "Failed to send invoice");
@@ -869,7 +968,13 @@ const DailyProfitLossTable = () => {
                 isDisabled={receivedLoading || normalizedProducts.length === 0}
                 closeMenuOnSelect={false}
                 hideSelectedOptions={false}
-                placeholder="Select product by variants"
+                controlShouldRenderValue={false}
+                isClearable={false}
+                placeholder={
+                  selectedRows.length
+                    ? `${selectedRows.length}টা product selected — আরও add করুন`
+                    : "Select product by variants"
+                }
                 styles={selectStyles}
                 formatOptionLabel={(option) => (
                   <div className="flex items-center justify-between gap-3">
@@ -910,6 +1015,39 @@ const DailyProfitLossTable = () => {
             >
               <RefreshCcw size={16} />
               Reset
+            </button>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm font-medium text-slate-600">
+            <span className="font-bold text-indigo-700">Template:</span>{" "}
+            {templateLoading
+              ? "Loading..."
+              : !templateIds.length
+                ? "এখনো save করা হয়নি। Product select করে “Save as Template” চাপুন।"
+                : isTemplateLoaded
+                  ? `${templateIds.length}টা product loaded — এখন product add/remove করলে template-এও save হবে।`
+                  : `${templateIds.length}টা product — “Load Template” চাপলে table-এ আসবে, শুধু Units Sold দিন।`}
+          </p>
+          <div className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              onClick={handleLoadTemplate}
+              disabled={!templateIds.length}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <ListRestart size={16} />
+              Load Template
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveAsTemplate}
+              disabled={isSavingTemplate || !selectedRows.length}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-3 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Save size={16} />
+              Save as Template
             </button>
           </div>
         </div>
@@ -973,7 +1111,7 @@ const DailyProfitLossTable = () => {
                   className="px-3 py-16 text-center text-sm font-medium text-slate-500"
                 >
                   {selectedRows.length === 0
-                    ? "Dropdown থেকে product select করলে এখানে দেখা যাবে।"
+                    ? "“Load Template” চাপুন অথবা dropdown থেকে product select করুন।"
                     : "Search অনুযায়ী কোনো product পাওয়া যায়নি।"}
                 </td>
               </tr>
@@ -1060,7 +1198,11 @@ const DailyProfitLossTable = () => {
                         type="button"
                         onClick={() => handleRemoveRow(item.id)}
                         className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-rose-500 transition hover:bg-rose-50 hover:text-rose-600"
-                        title="Remove row"
+                        title={
+                          isTemplateLoaded
+                            ? "Template থেকে বাদ দিন"
+                            : "List থেকে বাদ দিন"
+                        }
                       >
                         <Trash2 size={17} />
                       </button>
@@ -1454,6 +1596,16 @@ const DailyProfitLossTable = () => {
               placeholder="Type email and press Enter"
               disabled={isSendingProfitLossInvoice}
             />
+          </label>
+
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-600">
+            <input
+              type="checkbox"
+              checked={rememberInvoiceEmails}
+              onChange={(e) => setRememberInvoiceEmails(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+            />
+            এই email গুলো save রাখুন — পরের বার automatically চলে আসবে
           </label>
 
           <div className="flex justify-end gap-3 border-t border-slate-100 pt-5">

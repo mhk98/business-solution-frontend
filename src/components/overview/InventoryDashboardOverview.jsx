@@ -722,7 +722,8 @@ const InventoryDashboardOverview = () => {
         const gross =
           safeNumber(row.total_salary) +
           holidaySalary +
-          safeNumber(row.festival_bonus);
+          safeNumber(row.festival_bonus) +
+          safeNumber(row.additional_pay);
         const net = safeNumber(row.net_salary);
 
         acc.grossAmount += gross;

@@ -116,7 +116,7 @@ export const marketingBookApi = createApi({
     },
   }),
 
-  tagTypes: ["MarketingBook"],
+  tagTypes: ["MarketingBook", "MarketingPlatform"],
 
   endpoints: (build) => ({
     insertMarketingBook: build.mutation({
@@ -154,9 +154,25 @@ export const marketingBookApi = createApi({
     // ✅ LIST (Paginated + search)
     getAllMarketingBook: build.query({
       query: (arg = {}) => {
-        const { page, limit, startDate, endDate, searchTerm } = arg;
+        const {
+          page,
+          limit,
+          startDate,
+          endDate,
+          searchTerm,
+          platform,
+          dollarSupplierId,
+        } = arg;
 
-        const params = { page, limit, startDate, endDate, searchTerm };
+        const params = {
+          page,
+          limit,
+          startDate,
+          endDate,
+          searchTerm,
+          platform,
+          dollarSupplierId,
+        };
         Object.keys(params).forEach((k) => {
           if (params[k] === undefined || params[k] === null || params[k] === "")
             delete params[k];
@@ -196,6 +212,29 @@ export const marketingBookApi = createApi({
       query: (id) => ({ url: `/marketing-book/${id}` }),
       providesTags: (res, err, id) => [{ type: "MarketingBook", id }],
     }),
+
+    // DM Expense platforms (Facebook, Google, ... + any added)
+    getMarketingPlatforms: build.query({
+      query: () => ({ url: "/marketing-book/platforms" }),
+      providesTags: [{ type: "MarketingPlatform", id: "LIST" }],
+    }),
+
+    insertMarketingPlatform: build.mutation({
+      query: (data) => ({
+        url: "/marketing-book/platforms",
+        method: "POST",
+        body: data,
+      }),
+      invalidatesTags: [{ type: "MarketingPlatform", id: "LIST" }],
+    }),
+
+    deleteMarketingPlatform: build.mutation({
+      query: (id) => ({
+        url: `/marketing-book/platforms/${id}`,
+        method: "DELETE",
+      }),
+      invalidatesTags: [{ type: "MarketingPlatform", id: "LIST" }],
+    }),
   }),
 });
 
@@ -206,4 +245,7 @@ export const {
   useDeleteMarketingBookMutation,
   useUpdateMarketingBookMutation,
   useInsertMarketingBookMutation,
+  useGetMarketingPlatformsQuery,
+  useInsertMarketingPlatformMutation,
+  useDeleteMarketingPlatformMutation,
 } = marketingBookApi;

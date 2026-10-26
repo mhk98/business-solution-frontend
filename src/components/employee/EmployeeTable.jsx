@@ -9,6 +9,9 @@ import {
   Printer,
   Upload,
   RotateCcw,
+  Search,
+  SlidersHorizontal,
+  X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
@@ -38,8 +41,11 @@ import {
 import { useGetAllDepartmentsQuery } from "../../features/department/department";
 import { useGetAllDesignationsQuery } from "../../features/designation/designation";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
-import { useGetAllLogoQuery } from "../../features/logo/logo";
-import { DEFAULT_COMPANY_NAME, buildAssetUrl } from "../../utils/pdfBranding";
+import { DEFAULT_COMPANY_NAME } from "../../utils/pdfBranding";
+import SalaryStatementSheet, {
+  SALARY_STATEMENT_CSS,
+  formatPaymentDate,
+} from "./SalaryStatementSheet";
 
 const isActiveEmployee = (employee) =>
   String(employee?.status || "")
@@ -89,6 +95,113 @@ const normalizeSheetNumber = (value) => {
   const parsed = Number(String(value).replace(/,/g, "").trim());
   return Number.isFinite(parsed) ? String(parsed) : "0";
 };
+
+// Payroll Sheet (PDF / Print) — header + footer like the HR salary sheet.
+const PAYROLL_SHEET_GROUP_NAME = "Wazih Group";
+const PAYROLL_SIGNATORIES_STORAGE_KEY = "payrollSheetSignatories";
+const DEFAULT_PAYROLL_SIGNATORIES = [
+  { role: "Prepared By", name: "Rebeka Sultana Mithun", title: "On Behalf of HRD" },
+  { role: "Verified By", name: "Nazrul Islam", title: "Accountant" },
+  { role: "Scrutinized By", name: "Abbas Uddin", title: "Head of Finance & Accounts" },
+];
+
+const loadPayrollSignatories = () => {
+  try {
+    const saved = JSON.parse(
+      localStorage.getItem(PAYROLL_SIGNATORIES_STORAGE_KEY) || "null",
+    );
+    if (Array.isArray(saved) && saved.length === 3) {
+      return DEFAULT_PAYROLL_SIGNATORIES.map((d, i) => ({
+        ...d,
+        name: String(saved[i]?.name ?? d.name),
+        title: String(saved[i]?.title ?? d.title),
+      }));
+    }
+  } catch {
+    // storage blocked / bad JSON → defaults
+  }
+  return DEFAULT_PAYROLL_SIGNATORIES.map((d) => ({ ...d }));
+};
+
+const savePayrollSignatories = (signatories) => {
+  try {
+    localStorage.setItem(
+      PAYROLL_SIGNATORIES_STORAGE_KEY,
+      JSON.stringify(signatories.map(({ name, title }) => ({ name, title }))),
+    );
+  } catch {
+    // not critical
+  }
+};
+
+// "2026-09" → "September 2026"
+const formatSheetMonth = (value) => {
+  const match = /^(\d{4})-(\d{2})/.exec(String(value || ""));
+  if (!match) return "";
+  return new Date(Number(match[1]), Number(match[2]) - 1, 1).toLocaleDateString(
+    "en-US",
+    { month: "long", year: "numeric" },
+  );
+};
+
+const toMonthValue = (date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+
+// Salary is paid the month after: paid October → September salary.
+const previousMonthValue = (monthValue) => {
+  const match = /^(\d{4})-(\d{2})/.exec(String(monthValue || ""));
+  if (!match) return "";
+  return toMonthValue(new Date(Number(match[1]), Number(match[2]) - 2, 1));
+};
+
+// Taka amount in words, Bangladeshi grouping (Crore / Lac / Thousand):
+// 136088 → "One Lac Thirty Six Thousand Eighty Eight Taka Only".
+const ONES = [
+  "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
+  "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen",
+  "Seventeen", "Eighteen", "Nineteen",
+];
+const TENS = [
+  "", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty",
+  "Ninety",
+];
+const twoDigitWords = (n) =>
+  n < 20 ? ONES[n] : `${TENS[Math.floor(n / 10)]} ${ONES[n % 10]}`.trim();
+const threeDigitWords = (n) => {
+  const hundred = Math.floor(n / 100);
+  const rest = n % 100;
+  return [hundred ? `${ONES[hundred]} Hundred` : "", rest ? twoDigitWords(rest) : ""]
+    .filter(Boolean)
+    .join(" ");
+};
+const integerToWordsBD = (value) => {
+  let n = Math.floor(Math.abs(value));
+  if (n === 0) return "Zero";
+  const parts = [];
+  const crore = Math.floor(n / 10000000);
+  n %= 10000000;
+  const lac = Math.floor(n / 100000);
+  n %= 100000;
+  const thousand = Math.floor(n / 1000);
+  n %= 1000;
+  if (crore) parts.push(`${integerToWordsBD(crore)} Crore`);
+  if (lac) parts.push(`${twoDigitWords(lac)} Lac`);
+  if (thousand) parts.push(`${twoDigitWords(thousand)} Thousand`);
+  if (n) parts.push(threeDigitWords(n));
+  return parts.join(" ");
+};
+const amountInWordsBD = (amount) => {
+  const rounded = Math.round(Number(amount || 0) * 100) / 100;
+  const taka = Math.floor(rounded);
+  const paisa = Math.round((rounded - taka) * 100);
+  return `${integerToWordsBD(taka)} Taka${paisa ? ` and ${twoDigitWords(paisa)} Paisa` : ""} Only`;
+};
+
+// Shared look for the payroll filter row (matches DateRangeFilter).
+const FILTER_LABEL =
+  "text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1.5";
+const FILTER_CONTROL =
+  "h-11 w-full rounded-xl border border-slate-200 bg-white text-sm text-slate-900 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10";
 
 const EmployeeTable = () => {
   const { language } = useLayout();
@@ -142,9 +255,11 @@ const EmployeeTable = () => {
     incentive: "",
     festival_bonus: "",
     bonus: "",
+    additional_pay: "",
     holiday_payment: "",
     total_salary: "",
     advance: "",
+    advance_recovered: "",
     late: "",
     early_leave: "",
     absent: "",
@@ -152,6 +267,9 @@ const EmployeeTable = () => {
     friday_absent: "",
     unapproval_absent: "",
     approval_absent: "",
+    sick_exam_days: "",
+    misc_deduction: "",
+    sale_amount: "",
     net_salary: "",
     note: "",
     remarks: "",
@@ -176,6 +294,8 @@ const EmployeeTable = () => {
   const [selectedDesignation, setSelectedDesignation] = useState(null);
   const [selectedStatus, setSelectedStatus] = useState("All");
   const [phoneFilter, setPhoneFilter] = useState("");
+  // Bumped by Clear Filters so the date dropdown also goes back to This Month.
+  const [filterResetKey, setFilterResetKey] = useState(0);
 
   // ✅ Per-page user selectable
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -235,8 +355,11 @@ const EmployeeTable = () => {
     const incentive = Number(p.incentive) || 0;
     const festival_bonus = Number(p.festival_bonus) || 0;
     const bonus = Number(p.bonus) || 0;
+    const additional_pay = Number(p.additional_pay) || 0;
     const holiday_days = Number(p.holiday_payment) || 0;
-    const advance = Number(p.advance) || 0;
+    // Only the recovered part of the advance is deducted. Sheet-import rows
+    // have no advance_recovered and keep deducting their advance column.
+    const advance = Number(p.advance_recovered ?? p.advance) || 0;
     const payable_days =
       p.payable_days === "" ||
       p.payable_days === null ||
@@ -251,6 +374,8 @@ const EmployeeTable = () => {
     const friday_absent = Number(p.friday_absent) || 0;
     const unapproval_absent = Number(p.unapproval_absent) || 0;
     const approval_absent = Number(p.approval_absent) || 0;
+    const sick_exam_days = Number(p.sick_exam_days) || 0;
+    const misc_deduction = Number(p.misc_deduction) || 0;
 
     const perDayBasicSalary = basic_salary / 30;
 
@@ -289,13 +414,19 @@ const EmployeeTable = () => {
 
     // Bonus adds straight into Net Salary (the main/take-home salary),
     // same as Festival Bonus.
+    // Sick/Exam days deduct one day of Basic each; Misc is a flat amount.
+    const sickExamCut = perDayBasicSalary * sick_exam_days;
+
     const net_salary =
       total_salary -
       totalCutAmount -
+      sickExamCut -
+      misc_deduction -
       advance +
       holiday_salary +
       festival_bonus +
-      bonus;
+      bonus +
+      additional_pay;
 
     const safe = (n) => (Number.isFinite(n) ? n : 0);
 
@@ -307,9 +438,6 @@ const EmployeeTable = () => {
     };
   };
 
-  const formatAmount = (value) =>
-    Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
-
   const getHolidayDays = (employee) => Number(employee?.holiday_payment || 0);
 
   const getHolidaySalaryAmount = (employee) => {
@@ -317,74 +445,201 @@ const EmployeeTable = () => {
     return (basicSalary / 30) * getHolidayDays(employee);
   };
 
-  const getGrossSalaryAmount = (employee) =>
-    Number(employee?.total_salary || 0) +
-    getHolidaySalaryAmount(employee) +
-    Number(employee?.festival_bonus || 0) +
-    Number(employee?.bonus || 0);
-
-  const getSalaryDeductionAmount = (employee) => {
-    const grossSalary = getGrossSalaryAmount(employee);
-    const deduction = grossSalary - Number(employee?.net_salary || 0);
-
-    return Math.max(Number.isFinite(deduction) ? deduction : 0, 0);
+  const getAdvanceRecoveredError = (employee) => {
+    const recovered = Number(employee?.advance_recovered) || 0;
+    if (recovered < 0) return "Advance Recovered cannot be negative!";
+    if (recovered > (Number(employee?.advance) || 0))
+      return "Advance Recovered cannot be more than Advance!";
+    return "";
   };
 
-  const getDeductionItems = (employee) => {
+  const getRemainingAdvanceLabel = (employee) => {
+    const remaining = Math.max(
+      (Number(employee?.advance) || 0) -
+        (Number(employee?.advance_recovered) || 0),
+      0,
+    );
+    return `Advance Recovered (Remaining: ৳${remaining.toLocaleString()}):`;
+  };
+
+  // Maps a salary row onto the Salary Statement sheet. Entitlement/deduction
+  // lines are arranged so Gross − Total Deduction = net_salary:
+  // approval-absent days (cut from basic in calcSalary) are shown under
+  // absent days instead of shrinking Basic Pay.
+  const buildSalaryStatementData = (employee) => {
     const basicSalary = Number(employee?.basic_salary || 0);
-    const incentive = Number(employee?.incentive || 0);
-    const perDay = (basicSalary + incentive) / 30;
-    const late = Number(employee?.late || 0);
-    const earlyLeave = Number(employee?.early_leave || 0);
-    const absent = Number(employee?.absent || 0);
-    const halfDayAbsent = Number(employee?.half_day_absent || 0);
-    const fridayAbsent = Number(employee?.friday_absent || 0);
-    const unapprovalAbsent = Number(employee?.unapproval_absent || 0);
-    const advance = Number(employee?.advance || 0);
+    const perDayBasic = basicSalary / 30;
+    const perDay = (basicSalary + Number(employee?.incentive || 0)) / 30;
+    const rawPayableDays = employee?.payable_days;
+    const payableDays =
+      rawPayableDays === "" || rawPayableDays == null
+        ? 30
+        : Math.max(Math.min(Number(rawPayableDays) || 0, 30), 0);
+    const holidayDays = getHolidayDays(employee);
+    const count = (key) => Number(employee?.[key] || 0);
 
-    return [
+    const basicPay = perDayBasic * payableDays;
+    const approvalAbsentCut = perDayBasic * count("approval_absent");
+    const sickExamCut = perDayBasic * count("sick_exam_days");
+    const absentCut =
+      approvalAbsentCut +
+      count("absent") * Number(fine.absent) * perDay +
+      count("half_day_absent") * Number(fine.absent) * perDay * 0.5 +
+      count("friday_absent") * Number(fine.friday_absent) * perDay +
+      count("unapproval_absent") * Number(fine.unapproval_absent) * perDay;
+    const lateCut = Math.floor(count("late") / 3) * Number(fine.late) * perDay;
+    const earlyLeaveCut =
+      Math.floor(count("early_leave") / 3) * Number(fine.early_leave) * perDay;
+    const absentDays =
+      count("absent") +
+      count("half_day_absent") * 0.5 +
+      count("friday_absent") +
+      count("unapproval_absent") +
+      count("approval_absent");
+
+    const entitlements = [
       {
-        label: `Late (${late})`,
-        amount: Math.floor(late / 3) * (Number(fine.late) * perDay),
-        count: late,
+        label:
+          payableDays < 30 ? `Basic Pay (${payableDays} days)` : "Basic Pay",
+        amount: basicPay,
+      },
+      { label: "Incentive", amount: Number(employee?.incentive || 0) },
+      {
+        label: `Encashment for Off Day Duty${holidayDays ? ` (${holidayDays} days)` : ""}`,
+        amount: getHolidaySalaryAmount(employee),
       },
       {
-        label: `Early Leave (${earlyLeave})`,
+        label: "Additional Pay/ Allowance (If any)",
         amount:
-          Math.floor(earlyLeave / 3) * (Number(fine.early_leave) * perDay),
-        count: earlyLeave,
+          Number(employee?.festival_bonus || 0) +
+          Number(employee?.bonus || 0) +
+          Number(employee?.additional_pay || 0),
+      },
+      { label: "Advance Pay (When Applicable) for the month of", amount: 0 },
+    ];
+    const deductions = [
+      { label: "Recovery of Advance Pay", amount: count("advance_recovered") },
+      {
+        label: `Deduction for absent days${absentDays ? ` (${absentDays})` : ""}`,
+        amount: absentCut,
       },
       {
-        label: `Absent (${absent})`,
-        amount: absent * (Number(fine.absent) * perDay),
-        count: absent,
+        label: `Deduction for Sick/Exam days${count("sick_exam_days") ? ` (${count("sick_exam_days")})` : ""}`,
+        amount: sickExamCut,
       },
       {
-        label: `Half Day Absent (${halfDayAbsent})`,
-        amount: halfDayAbsent * (Number(fine.absent) * perDay * 0.5),
-        count: halfDayAbsent,
+        label: `Deduction for late days (Every 3 days, count as 1 day)${count("late") ? ` (${count("late")})` : ""}`,
+        amount: lateCut,
       },
       {
-        label: `Friday Absent (${fridayAbsent})`,
-        amount: fridayAbsent * (Number(fine.friday_absent) * perDay),
-        count: fridayAbsent,
+        label: `Misc Deduction (If any)${count("early_leave") ? ` - Early Leave (${count("early_leave")})` : ""}`,
+        amount: count("misc_deduction") + earlyLeaveCut,
       },
-      {
-        label: `Unapproval Absent (${unapprovalAbsent})`,
-        amount: unapprovalAbsent * (Number(fine.unapproval_absent) * perDay),
-        count: unapprovalAbsent,
-      },
-      {
-        label: "Advance",
-        amount: advance,
-        count: advance,
-      },
-    ].filter((item) => item.count > 0 || item.amount > 0);
+    ];
+
+    const grossPayment = entitlements.reduce((sum, row) => sum + row.amount, 0);
+    const netPayable = Number(employee?.net_salary || 0);
+    const employeeListId = String(employee?.employeeListId ?? "");
+    const listEmployee = employeeListId
+      ? employeeListRows.find(
+          (row) => String(row?.Id ?? row?.id ?? "") === employeeListId,
+        )
+      : null;
+
+    return {
+      companyName: DEFAULT_COMPANY_NAME,
+      phone: "+880 9647-555333",
+      paymentDate: formatPaymentDate(new Date()),
+      employeeName: employee?.name || "",
+      employeeId: employee?.employee_id || "",
+      department:
+        employee?.department?.name ||
+        findDepartmentOption(employee?.departmentId)?.label ||
+        "",
+      mobile: employee?.phone || listEmployee?.phone || "",
+      entitlements,
+      grossPayment,
+      deductions,
+      totalDeduction: Math.max(grossPayment - netPayable, 0),
+      netPayable,
+      remarks: employee?.remarks || "",
+      preparedBy: "",
+      preparedByRole: "HR",
+      approvedByTitle: `Finance Controller, ${DEFAULT_COMPANY_NAME}`,
+    };
   };
 
-  const getInvoiceRemarks = (employee) =>
-    employee?.remarks ||
-    "Thank you for your dedication and valuable contribution.";
+  // One payroll row in the Payroll Sheet layout (table + exports). Amounts
+  // come from the Salary Statement so they always match the payslip:
+  // Gross − Total Deduct = Net Salary.
+  const getPayrollSheetBreakdown = (employee) => {
+    const statement = buildSalaryStatementData(employee);
+    const count = (key) => Number(employee?.[key] || 0);
+    const encash = statement.entitlements[2];
+    const miscAddition = statement.entitlements[3];
+    const [advanceRow, absentRow, sickExamRow, lateRow, miscRow] =
+      statement.deductions;
+
+    return {
+      basicSalary: count("basic_salary"),
+      encashDays: getHolidayDays(employee),
+      encashAmount: encash.amount,
+      incentive: count("incentive"),
+      saleAmount: count("sale_amount"),
+      miscAddition: miscAddition.amount,
+      grossSalary: statement.grossPayment,
+      advance: advanceRow.amount,
+      lateDays: count("late"),
+      lateDeduct: lateRow.amount,
+      absentDays:
+        count("absent") +
+        count("half_day_absent") * 0.5 +
+        count("friday_absent") +
+        count("unapproval_absent") +
+        count("approval_absent"),
+      absentDeduct: absentRow.amount,
+      // Sick/Exam days and early-leave cuts have no column of their own.
+      miscDeduct: miscRow.amount + sickExamRow.amount,
+      totalDeduct: statement.totalDeduction,
+      netSalary: statement.netPayable,
+      remarks: employee?.remarks || "",
+    };
+  };
+
+  // Payroll period = 26th of the previous month → 25th of the salary month
+  // (month of the Date field, else this month). Joined before the period →
+  // full 30; after it → 0; inside it → days from joining to the 25th
+  // (joined on the 1st → 25), capped at 30.
+  const PAYROLL_PERIOD_END_DAY = 25;
+  const getDefaultPayableDays = (joiningDate, salaryDate) => {
+    const join = String(joiningDate || "").slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(join)) return 30;
+    const salaryMonth = /^\d{4}-\d{2}/.test(String(salaryDate || ""))
+      ? String(salaryDate).slice(0, 7)
+      : new Date().toISOString().slice(0, 7);
+    const [year, month] = salaryMonth.split("-").map(Number);
+    const toUtc = (y, m, d) => Date.UTC(y, m - 1, d);
+    const periodStart = toUtc(year, month - 1, PAYROLL_PERIOD_END_DAY + 1);
+    const periodEnd = toUtc(year, month, PAYROLL_PERIOD_END_DAY);
+    const joinedAt = toUtc(...join.split("-").map(Number));
+
+    if (joinedAt <= periodStart) return 30;
+    if (joinedAt > periodEnd) return 0;
+    const days = Math.round((periodEnd - joinedAt) / 86400000) + 1;
+    return Math.min(days, 30);
+  };
+
+  const applyDefaultPayableDays = (employee) => {
+    const payableDays = getDefaultPayableDays(
+      employee?.joining_date,
+      employee?.date,
+    );
+    return {
+      ...employee,
+      payable_days: String(payableDays),
+      pre_joining_days: String(30 - payableDays),
+    };
+  };
 
   const applyPreJoiningDays = (employee, value) => {
     const preJoiningDays = Math.max(Math.min(Number(value) || 0, 30), 0);
@@ -401,7 +656,9 @@ const EmployeeTable = () => {
       const next =
         key === "pre_joining_days"
           ? applyPreJoiningDays(prev, value)
-          : { ...prev, [key]: value };
+          : key === "joining_date" || key === "date"
+            ? applyDefaultPayableDays({ ...prev, [key]: value })
+            : { ...prev, [key]: value };
       const s = calcSalary(next);
       return {
         ...next,
@@ -416,7 +673,9 @@ const EmployeeTable = () => {
       const next =
         key === "pre_joining_days"
           ? applyPreJoiningDays(prev, value)
-          : { ...prev, [key]: value };
+          : key === "joining_date" || key === "date"
+            ? applyDefaultPayableDays({ ...prev, [key]: value })
+            : { ...prev, [key]: value };
       const s = calcSalary(next);
       return {
         ...next,
@@ -534,8 +793,6 @@ const EmployeeTable = () => {
     useGetAllDepartmentsQuery({ page: 1, limit: 500 });
   const { data: designationsData, isLoading: isDesignationsLoading } =
     useGetAllDesignationsQuery({ page: 1, limit: 500 });
-  const { data: logoData } = useGetAllLogoQuery();
-  const payrollLogoUrl = buildAssetUrl(logoData?.data?.file);
 
   // ----------------------------
   // Options
@@ -653,8 +910,12 @@ const EmployeeTable = () => {
       incentive: 0,
       festival_bonus: 0,
       bonus: 0,
+      additional_pay: 0,
       holiday_payment: 0,
       approval_absent: 0,
+      sick_exam_days: 0,
+      misc_deduction: 0,
+      sale_amount: 0,
       advance: employee.advance || 0,
       total_salary: salary,
       net_salary: salary,
@@ -831,7 +1092,7 @@ const EmployeeTable = () => {
     currentNetBalance > 0;
 
   const applyEmployeeSalaryDefaults = (prev, selected) => {
-    const next = {
+    const next = applyDefaultPayableDays({
       ...(prev || {}),
       name: selected?.name || selected?.label || "",
       departmentId: selected?.departmentId || "",
@@ -839,14 +1100,12 @@ const EmployeeTable = () => {
       employeeListId: selected?.id || "",
       employee_id: selected?.employee_id || getEmployeeCode(selected?.employee),
       joining_date: selected?.joiningDate || "",
-      pre_joining_days: "",
-      payable_days: "",
       basic_salary:
         selected?.salary !== undefined && selected?.salary !== null
           ? String(selected.salary)
           : "",
       festival_bonus: prev?.festival_bonus ?? "",
-    };
+    });
 
     const s = calcSalary(next);
 
@@ -865,6 +1124,9 @@ const EmployeeTable = () => {
       ),
       late: normalizeSheetNumber(
         getSheetValue(sheetRow, ["Late", "late", "Late Days"]),
+      ),
+      sale_amount: normalizeSheetNumber(
+        getSheetValue(sheetRow, ["Sale Amount", "sale_amount", "Sales Amount"]),
       ),
       early_leave: normalizeSheetNumber(
         getSheetValue(sheetRow, [
@@ -940,9 +1202,19 @@ const EmployeeTable = () => {
         return prev;
       }
 
-      const next = hasCurrentNetBalance
-        ? { ...prev, advance: String(currentNetBalance) }
-        : { ...prev, advance: "" };
+      // Ledger balance already includes this salary's own recovery.
+      const ownRecovery =
+        prev.saved_employee_id === currentEmployeeId
+          ? Number(prev.saved_advance_recovered || 0)
+          : 0;
+      const outstanding = Math.max(
+        (hasCurrentNetBalance ? currentNetBalance : 0) + ownRecovery,
+        0,
+      );
+      const next = {
+        ...prev,
+        advance: outstanding > 0 ? String(outstanding) : "",
+      };
       const s = calcSalary(next);
 
       return {
@@ -980,9 +1252,15 @@ const EmployeeTable = () => {
       incentive: employee.incentive ?? "",
       festival_bonus: employee.festival_bonus ?? "",
       bonus: employee.bonus ?? "",
+      additional_pay: employee.additional_pay ?? "",
       holiday_payment: employee.holiday_payment ?? "",
       total_salary: employee.total_salary ?? "",
       advance: employee.advance ?? "",
+      advance_recovered: employee.advance_recovered ?? "",
+      // What this salary already recovered — added back so the Advance field
+      // shows the balance as it stood before this salary.
+      saved_advance_recovered: Number(employee.advance_recovered || 0),
+      saved_employee_id: String(employee.employee_id ?? "").trim(),
       late: employee.late ?? "",
       early_leave: employee.early_leave ?? "",
       absent: employee.absent ?? "",
@@ -990,6 +1268,9 @@ const EmployeeTable = () => {
       friday_absent: employee.friday_absent ?? "",
       unapproval_absent: employee.unapproval_absent ?? "",
       approval_absent: employee.approval_absent ?? "",
+      sick_exam_days: employee.sick_exam_days ?? "",
+      misc_deduction: employee.misc_deduction ?? "",
+      sale_amount: employee.sale_amount ?? "",
       net_salary: employee.net_salary ?? "",
       note: employee.note ?? "",
       remarks: employee.remarks ?? "",
@@ -1074,9 +1355,11 @@ const EmployeeTable = () => {
       incentive: Number(source.incentive) || 0,
       festival_bonus: Number(source.festival_bonus) || 0,
       bonus: Number(source.bonus) || 0,
+      additional_pay: Number(source.additional_pay) || 0,
       holiday_payment: Number(source.holiday_payment) || 0,
 
       advance: Number(source.advance) || 0,
+      advance_recovered: Number(source.advance_recovered) || 0,
       late: Number(source.late) || 0,
       early_leave: Number(source.early_leave) || 0,
       absent: Number(source.absent) || 0,
@@ -1084,6 +1367,9 @@ const EmployeeTable = () => {
       friday_absent: Number(source.friday_absent) || 0,
       unapproval_absent: Number(source.unapproval_absent) || 0,
       approval_absent: Number(source.approval_absent) || 0,
+      sick_exam_days: Number(source.sick_exam_days) || 0,
+      misc_deduction: Number(source.misc_deduction) || 0,
+      sale_amount: Number(source.sale_amount) || 0,
 
       total_salary: s.total_salary,
       net_salary: s.net_salary,
@@ -1099,6 +1385,8 @@ const EmployeeTable = () => {
     if (!createEmployee.name?.trim()) return toast.error("Name is required!");
     if (!createEmployee.employee_id?.toString().trim())
       return toast.error("Employee Id is required!");
+    if (getAdvanceRecoveredError(createEmployee))
+      return toast.error(getAdvanceRecoveredError(createEmployee));
     // if (
     //   Number(createEmployee.advance) > 0 &&
     //   !normalizeOptionalId(createEmployee.bookId)
@@ -1128,6 +1416,8 @@ const EmployeeTable = () => {
     if (!currentEmployee.name?.trim()) return toast.error("Name is required!");
     if (!currentEmployee.employee_id?.toString().trim())
       return toast.error("Employee Id is required!");
+    if (getAdvanceRecoveredError(currentEmployee))
+      return toast.error(getAdvanceRecoveredError(currentEmployee));
     // if (
     //   Number(currentEmployee.advance) > 0 &&
     //   !normalizeOptionalId(currentEmployee.bookId)
@@ -1158,9 +1448,11 @@ const EmployeeTable = () => {
         incentive: Number(currentEmployee.incentive) || 0,
         festival_bonus: Number(currentEmployee.festival_bonus) || 0,
         bonus: Number(currentEmployee.bonus) || 0,
+        additional_pay: Number(currentEmployee.additional_pay) || 0,
         holiday_payment: Number(currentEmployee.holiday_payment) || 0,
 
         advance: Number(currentEmployee.advance) || 0,
+        advance_recovered: Number(currentEmployee.advance_recovered) || 0,
         late: Number(currentEmployee.late) || 0,
         early_leave: Number(currentEmployee.early_leave) || 0,
         absent: Number(currentEmployee.absent) || 0,
@@ -1168,6 +1460,9 @@ const EmployeeTable = () => {
         friday_absent: Number(currentEmployee.friday_absent) || 0,
         unapproval_absent: Number(currentEmployee.unapproval_absent) || 0,
         approval_absent: Number(currentEmployee.approval_absent) || 0,
+        sick_exam_days: Number(currentEmployee.sick_exam_days) || 0,
+        misc_deduction: Number(currentEmployee.misc_deduction) || 0,
+        sale_amount: Number(currentEmployee.sale_amount) || 0,
 
         total_salary: s.total_salary,
         net_salary: s.net_salary,
@@ -1215,6 +1510,8 @@ const EmployeeTable = () => {
         return;
       }
 
+      // Salary date for imported rows (was referenced but never defined).
+      const today = new Date().toISOString().slice(0, 10);
       const drafts = rows.map((row, index) => {
         const regId = String(
           getSheetValue(row, [
@@ -1411,6 +1708,8 @@ const EmployeeTable = () => {
       holiday_payment: Number(employee.holiday_payment) || 0,
 
       advance: Number(employee.advance) || 0,
+      advance_recovered:
+        Number(employee.advance_recovered ?? employee.advance) || 0,
       late: Number(employee.late) || 0,
       early_leave: Number(employee.early_leave) || 0,
       absent: Number(employee.absent) || 0,
@@ -1478,10 +1777,20 @@ const EmployeeTable = () => {
     setSelectedDesignation(null);
     setSelectedStatus("All");
     setPhoneFilter("");
+    setFilterResetKey((k) => k + 1);
 
     setCurrentPage(1);
     setStartPage(1);
   };
+
+  // Filters other than the date range (which always has a value).
+  const activeFilterCount = [
+    selectedEmployee,
+    selectedDepartment,
+    selectedDesignation,
+    selectedStatus !== "All" ? selectedStatus : null,
+    phoneFilter.trim() ? phoneFilter : null,
+  ].filter(Boolean).length;
 
   const endPage = Math.min(startPage + pagesPerSet - 1, totalPages);
 
@@ -1526,49 +1835,6 @@ const EmployeeTable = () => {
         logging: false,
         scrollX: 0,
         scrollY: -window.scrollY,
-        onclone: (clonedDoc) => {
-          clonedDoc.documentElement.style.background = "#ffffff";
-          clonedDoc.body.style.background = "#ffffff";
-
-          const style = clonedDoc.createElement("style");
-          style.setAttribute("data-html2canvas-fix", "true");
-          style.innerHTML = `
-            #invoiceCapture, #invoiceCapture * {
-              color: #000 !important;
-              background: transparent !important;
-              background-color: transparent !important;
-              border-color: #d1d5db !important;
-              box-shadow: none !important;
-              text-shadow: none !important;
-              filter: none !important;
-              outline: none !important;
-            }
-            #invoiceCapture { background: #fff !important; background-color: #fff !important; }
-            #invoiceCapture *::before,
-            #invoiceCapture *::after {
-              color: #000 !important;
-              background: transparent !important;
-              background-color: transparent !important;
-              border-color: #d1d5db !important;
-              box-shadow: none !important;
-              text-shadow: none !important;
-              filter: none !important;
-              outline: none !important;
-            }
-            #invoiceCapture .salary-brand-name,
-            #invoiceCapture .salary-title-block h3 {
-              color: #111827 !important;
-            }
-            #invoiceCapture .salary-brand-subtitle,
-            #invoiceCapture .salary-title-block p {
-              color: #525252 !important;
-            }
-            #invoiceCapture .salary-brand-phone {
-              color: #737373 !important;
-            }
-          `;
-          clonedDoc.head.appendChild(style);
-        },
       });
 
       const imgData = canvas.toDataURL("image/jpeg", 0.98);
@@ -1597,172 +1863,44 @@ const EmployeeTable = () => {
     }
   };
 
-  const printInvoice = () => {
-    if (!invoiceRef.current || !invoiceEmployee) return;
-
+  // Opens a popup with the given Salary Statement markup and prints it.
+  const openSalaryStatementPrint = (title, sheetsHtml) => {
     const printWindow = window.open("", "_blank", "width=900,height=700");
     if (!printWindow) {
       toast.error("Popup blocked! Allow popups then try again.");
       return;
     }
 
-    const styles = Array.from(
-      document.querySelectorAll("link[rel='stylesheet'], style"),
-    )
-      .map((node) => node.outerHTML)
-      .join("");
-
     printWindow.document.open();
     printWindow.document.write(`
       <html>
         <head>
-          <title>Salary Invoice</title>
-          ${styles}
+          <title>${title}</title>
           <style>
-            @page { size: A4; margin: 0; }
-            * { box-sizing: border-box; }
-            html,
-            body {
+            @page { size: A4; margin: 10mm; }
+            html, body {
               margin: 0;
-              min-height: 0;
               background: #ffffff;
-              color: #0f172a;
               -webkit-print-color-adjust: exact;
               print-color-adjust: exact;
             }
-            body {
-              padding: 7mm;
-            }
-            #invoiceCapture {
-              width: 100%;
+            ${SALARY_STATEMENT_CSS}
+            .salary-sheet {
               max-width: 100%;
-              margin: 0 auto;
-              box-shadow: none !important;
+              padding: 0;
+              page-break-after: always;
+              break-after: page;
               page-break-inside: avoid;
               break-inside: avoid;
-              transform-origin: top center;
             }
-            #invoiceCapture table { page-break-inside: avoid; break-inside: avoid; }
-            #invoiceCapture tr { page-break-inside: avoid; break-inside: avoid; }
-            #invoiceCapture .salary-statement-header {
-              display: flex !important;
-              align-items: center !important;
-              justify-content: space-between !important;
-              gap: 40px !important;
-              margin-bottom: 36px !important;
-            }
-            #invoiceCapture .salary-branding-block {
-              display: flex !important;
-              flex-direction: column !important;
-              align-items: flex-start !important;
-              min-width: 0 !important;
-            }
-            #invoiceCapture .salary-brand-logo {
-              width: auto !important;
-              height: 68px !important;
-              max-width: 220px !important;
-              object-fit: contain !important;
-              margin: 0 0 10px !important;
-            }
-            #invoiceCapture .salary-brand-name {
-              color: #111827 !important;
-              font-size: 28px !important;
-              line-height: 1.05 !important;
-              font-weight: 900 !important;
-              margin: 0 !important;
-            }
-            #invoiceCapture .salary-brand-subtitle {
-              color: #525252 !important;
-              font-size: 14px !important;
-              line-height: 1.35 !important;
-              font-weight: 600 !important;
-              margin: 8px 0 0 !important;
-            }
-            #invoiceCapture .salary-brand-phone {
-              color: #737373 !important;
-              font-size: 14px !important;
-              line-height: 1.35 !important;
-              font-weight: 400 !important;
-              margin: 6px 0 0 !important;
-            }
-            #invoiceCapture .salary-title-block {
-              flex: 0 0 auto !important;
-              text-align: right !important;
-            }
-            #invoiceCapture .salary-title-block h3 {
-              color: #111827 !important;
-              font-size: 27px !important;
-              line-height: 1.12 !important;
-              font-weight: 900 !important;
-              margin: 0 !important;
-            }
-            #invoiceCapture .salary-title-block p {
-              color: #525252 !important;
-              font-size: 14px !important;
-              line-height: 1.35 !important;
-              font-weight: 600 !important;
-              margin: 8px 0 0 !important;
-            }
-            @media print {
-              html,
-              body {
-                width: 210mm;
-                height: 297mm;
-                overflow: hidden;
-                background: #ffffff;
-              }
-              #invoiceCapture {
-                border: 0 !important;
-                border-radius: 0 !important;
-                padding: 8mm !important;
-                zoom: 1;
-              }
-              #invoiceCapture > .flex:first-child,
-              #invoiceCapture .salary-statement-header {
-                margin-bottom: 30px !important;
-              }
-              #invoiceCapture > .grid {
-                margin-bottom: 24px !important;
-                padding: 18px !important;
-                gap: 18px 54px !important;
-              }
-              #invoiceCapture h3 {
-                font-size: 28px !important;
-                margin-bottom: 6px !important;
-              }
-              #invoiceCapture p,
-              #invoiceCapture td,
-              #invoiceCapture th,
-              #invoiceCapture div {
-                line-height: 1.25 !important;
-              }
-              #invoiceCapture table {
-                font-size: 16px !important;
-              }
-              #invoiceCapture th {
-                padding-top: 10px !important;
-                padding-bottom: 10px !important;
-              }
-              #invoiceCapture td {
-                padding-top: 9px !important;
-                padding-bottom: 9px !important;
-              }
-              #invoiceCapture tr:last-child td {
-                padding-top: 14px !important;
-                padding-bottom: 14px !important;
-                font-size: 20px !important;
-              }
-              #invoiceCapture .mt-8 {
-                margin-top: 26px !important;
-              }
-              #invoiceCapture .mt-10 {
-                margin-top: 44px !important;
-              }
+            .salary-sheet:last-child {
+              page-break-after: auto;
+              break-after: auto;
             }
           </style>
         </head>
         <body>
-          ${invoiceRef.current.outerHTML}
+          ${sheetsHtml}
           <script>
             window.onload = function() {
               window.focus();
@@ -1774,6 +1912,11 @@ const EmployeeTable = () => {
       </html>
     `);
     printWindow.document.close();
+  };
+
+  const printInvoice = () => {
+    if (!invoiceRef.current || !invoiceEmployee) return;
+    openSalaryStatementPrint("Salary Statement", invoiceRef.current.innerHTML);
   };
 
   // ----------------------------
@@ -1818,25 +1961,63 @@ const EmployeeTable = () => {
     return selectedIds.map((id) => map.get(id)).filter(Boolean);
   }, [selectedIds, employeesAll, employees]);
 
-  const formatExportDate = (value) => {
-    if (!value) return "-";
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return String(value);
-    return date.toLocaleDateString("en-GB");
-  };
+  // Payroll Sheet layout shared by Download Sheet / PDF / Print.
+  const PAYROLL_SHEET_COLUMNS = [
+    "Emp ID",
+    "Employee Name",
+    "Designation",
+    "Basic Salary",
+    "Encash days (in no.)",
+    "Encash Amount",
+    "Incentive Amount",
+    "Sale Amount",
+    "Misc Addition",
+    "Gross Salary",
+    "Advance",
+    "Late Days",
+    "Late Deduct",
+    "Absent Days",
+    "Absent Deduct",
+    "Misc Deduct",
+    "Total Deduct",
+    "Net Salary",
+    "Remarks",
+    "Signature",
+  ];
 
   const getSelectedPayrollRows = () =>
-    selectedEmployees.map((emp, idx) => ({
-      SL: idx + 1,
-      Date: formatExportDate(emp.date || emp.createdAt),
-      Employee: emp.name || "-",
-      "Employee ID": emp.employee_id || "-",
-      "Basic Salary": Number(emp.basic_salary || 0),
-      Incentive: Number(emp.incentive || 0),
-      Advance: Number(emp.advance || 0),
-      "Total Salary": Number(emp.total_salary || 0),
-      "Net Salary": Number(emp.net_salary || 0),
-    }));
+    selectedEmployees.map((emp) => {
+      const b = getPayrollSheetBreakdown(emp);
+      const money = (v) => Math.round(Number(v || 0) * 100) / 100;
+      return {
+        "Emp ID": emp.employee_id || "-",
+        "Employee Name": emp.name || "-",
+        Designation:
+          emp.designation?.name ||
+          findDesignationOption(
+            emp.designationId ?? emp.employeeProfile?.designationId,
+            emp.departmentId,
+          )?.label ||
+          "-",
+        "Basic Salary": money(b.basicSalary),
+        "Encash days (in no.)": b.encashDays,
+        "Encash Amount": money(b.encashAmount),
+        "Incentive Amount": money(b.incentive),
+        "Sale Amount": money(b.saleAmount),
+        "Misc Addition": money(b.miscAddition),
+        "Gross Salary": money(b.grossSalary),
+        Advance: money(b.advance),
+        "Late Days": b.lateDays,
+        "Late Deduct": money(b.lateDeduct),
+        "Absent Days": b.absentDays,
+        "Absent Deduct": money(b.absentDeduct),
+        "Misc Deduct": money(b.miscDeduct),
+        "Total Deduct": money(b.totalDeduct),
+        "Net Salary": money(b.netSalary),
+        Remarks: b.remarks,
+        Signature: "",
+      };
+    });
 
   const handleDownloadSelectedSheet = () => {
     if (!selectedEmployees.length) {
@@ -1846,19 +2027,17 @@ const EmployeeTable = () => {
 
     const rows = getSelectedPayrollRows();
 
-    const worksheet = XLSX.utils.json_to_sheet(rows);
-    worksheet["!cols"] = [
-      { wch: 6 },
-      { wch: 14 },
-      { wch: 24 },
-      { wch: 14 },
-      { wch: 14 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 14 },
-      { wch: 14 },
-      { wch: 12 },
-    ];
+    const worksheet = XLSX.utils.json_to_sheet(rows, {
+      header: PAYROLL_SHEET_COLUMNS,
+    });
+    worksheet["!cols"] = PAYROLL_SHEET_COLUMNS.map((column) => ({
+      wch:
+        column === "Employee Name"
+          ? 26
+          : column === "Remarks" || column === "Signature"
+            ? 18
+            : Math.max(10, column.length + 2),
+    }));
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Selected Payroll");
@@ -1868,31 +2047,74 @@ const EmployeeTable = () => {
     toast.success("Selected payroll sheet downloaded!");
   };
 
-  const drawPayrollSheetSignatures = (pdf) => {
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const signatureY = pageHeight - 16;
-    const signatureWidth = 48;
-    const signatureGap = 22;
-    const groupWidth = signatureWidth * 3 + signatureGap * 2;
-    const startX = (pageWidth - groupWidth) / 2;
+  // Columns summed in the Total row (everything from Basic Salary to Net).
+  const PAYROLL_SHEET_TOTAL_COLUMNS = PAYROLL_SHEET_COLUMNS.slice(
+    PAYROLL_SHEET_COLUMNS.indexOf("Basic Salary"),
+    PAYROLL_SHEET_COLUMNS.indexOf("Net Salary") + 1,
+  );
 
-    [
-      [startX, "Prepared By"],
-      [startX + signatureWidth + signatureGap, "Checked By"],
-      [startX + (signatureWidth + signatureGap) * 2, "Approved By"],
-    ].forEach(([x, label]) => {
-      pdf.setDrawColor(71, 85, 105);
-      pdf.line(x, signatureY, x + signatureWidth, signatureY);
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(7);
-      pdf.text(label, x + signatureWidth / 2, signatureY + 4.5, {
-        align: "center",
-      });
+  const getPayrollSheetTotals = (rows) =>
+    Object.fromEntries(
+      PAYROLL_SHEET_TOTAL_COLUMNS.map((column) => [
+        column,
+        Math.round(
+          rows.reduce((sum, row) => sum + Number(row[column] || 0), 0) * 100,
+        ) / 100,
+      ]),
+    );
+
+  // Header/footer details asked once before PDF / Print.
+  const [sheetMetaAction, setSheetMetaAction] = useState(null); // "pdf" | "print"
+  const [sheetMeta, setSheetMeta] = useState(null);
+
+  const openPayrollSheetMeta = (action) => {
+    if (!selectedEmployees.length) {
+      toast.error("Please select employees first!");
+      return;
+    }
+
+    const departments = [
+      ...new Set(
+        selectedEmployees
+          .map(
+            (emp) =>
+              emp.department?.name ||
+              findDepartmentOption(emp.departmentId)?.label ||
+              "",
+          )
+          .filter(Boolean),
+      ),
+    ];
+
+    const paymentMonth = toMonthValue(new Date());
+    setSheetMeta({
+      paymentMonth,
+      salaryMonth: previousMonthValue(paymentMonth),
+      department: departments.join(", "),
+      signatories: loadPayrollSignatories(),
     });
+    setSheetMetaAction(action);
   };
 
-  const handleDownloadSelectedPdf = async () => {
+  const updateSheetSignatory = (index, key, value) =>
+    setSheetMeta((prev) => ({
+      ...prev,
+      signatories: prev.signatories.map((sig, i) =>
+        i === index ? { ...sig, [key]: value } : sig,
+      ),
+    }));
+
+  const confirmPayrollSheetMeta = () => {
+    const meta = sheetMeta;
+    const action = sheetMetaAction;
+    savePayrollSignatories(meta.signatories);
+    setSheetMetaAction(null);
+    // Print opens a window — must stay inside this click handler.
+    if (action === "print") handlePrintSelectedSheet(meta);
+    else handleDownloadSelectedPdf(meta);
+  };
+
+  const handleDownloadSelectedPdf = async (meta) => {
     if (!selectedEmployees.length) {
       toast.error("Please select employees first!");
       return;
@@ -1900,43 +2122,61 @@ const EmployeeTable = () => {
 
     const autoTable = (await import("jspdf-autotable")).default;
     const rows = getSelectedPayrollRows();
+    const totals = getPayrollSheetTotals(rows);
     const pdf = new jsPDF("l", "mm", "a4");
     const pageWidth = pdf.internal.pageSize.getWidth();
-    const generatedAt = new Date().toLocaleDateString("en-GB");
-    const columns = [
-      "SL",
-      "Date",
-      "Employee",
-      "Employee ID",
-      "Basic Salary",
-      "Incentive",
-      "Advance",
-      "Total Salary",
-      "Net Salary",
-    ];
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const columns = PAYROLL_SHEET_COLUMNS;
+    const left = 8;
+    const right = pageWidth - 8;
+
+    // "Label: value" centred, label bold
+    const centredPair = (label, value, y, size = 11) => {
+      pdf.setFontSize(size);
+      pdf.setFont("helvetica", "bold");
+      const labelText = `${label}: `;
+      const labelWidth = pdf.getTextWidth(labelText);
+      pdf.setFont("helvetica", "normal");
+      const valueWidth = pdf.getTextWidth(value || "-");
+      const x = (pageWidth - labelWidth - valueWidth) / 2;
+      pdf.setFont("helvetica", "bold");
+      pdf.text(labelText, x, y);
+      pdf.setFont("helvetica", "normal");
+      pdf.text(value || "-", x + labelWidth, y);
+    };
 
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(14);
-    pdf.text(DEFAULT_COMPANY_NAME, 12, 12);
-    pdf.setFontSize(12);
-    pdf.text("Selected Payroll Sheet", pageWidth / 2, 12, { align: "center" });
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(8);
-    pdf.text(`Date: ${generatedAt}`, pageWidth - 12, 12, { align: "right" });
-    pdf.text(`Total Selected: ${rows.length}`, pageWidth - 12, 17, {
-      align: "right",
+    pdf.setFontSize(10);
+    pdf.text(
+      `Date of Payment:   ${formatSheetMonth(meta?.paymentMonth)}`,
+      right,
+      10,
+      { align: "right" },
+    );
+    centredPair(PAYROLL_SHEET_GROUP_NAME, DEFAULT_COMPANY_NAME, 16, 12);
+    centredPair("Department", meta?.department, 22);
+    centredPair("Salary Month", formatSheetMonth(meta?.salaryMonth), 28);
+    pdf.setDrawColor(71, 85, 105);
+    pdf.line(left, 31, right, 31);
+
+    const totalRow = columns.map((column) => {
+      if (column === "Emp ID") return "";
+      if (column === "Employee Name") return "Total";
+      return totals[column] ?? "";
     });
 
     autoTable(pdf, {
-      startY: 22,
+      startY: 34,
       head: [columns],
       body: rows.map((row) => columns.map((column) => row[column] ?? "")),
+      foot: [totalRow],
+      showFoot: "lastPage",
       theme: "grid",
-      margin: { left: 8, right: 8, bottom: 26 },
+      margin: { left, right: 8, bottom: 12 },
       styles: {
         font: "helvetica",
-        fontSize: 7.2,
-        cellPadding: 1.5,
+        fontSize: 5.8,
+        cellPadding: 1,
         overflow: "linebreak",
         valign: "middle",
         textColor: [15, 23, 42],
@@ -1948,20 +2188,59 @@ const EmployeeTable = () => {
         textColor: [51, 65, 85],
         fontStyle: "bold",
       },
-      columnStyles: {
-        0: { cellWidth: 10, halign: "center" },
-        1: { cellWidth: 24 },
-        2: { cellWidth: 60 },
-        3: { cellWidth: 28 },
-        4: { cellWidth: 24, halign: "right" },
-        5: { cellWidth: 24, halign: "right" },
-        6: { cellWidth: 24, halign: "right" },
-        7: { cellWidth: 24, halign: "right" },
-        8: { cellWidth: 24, halign: "right" },
+      footStyles: {
+        fillColor: [241, 245, 249],
+        textColor: [15, 23, 42],
+        fontStyle: "bold",
+        halign: "right",
       },
-      didDrawPage: () => {
-        drawPayrollSheetSignatures(pdf);
-      },
+      // 20 columns on A4 landscape (281mm usable).
+      columnStyles: Object.fromEntries(
+        PAYROLL_SHEET_COLUMNS.map((column, index) => {
+          if (column === "Emp ID") return [index, { cellWidth: 10 }];
+          if (column === "Employee Name") return [index, { cellWidth: 24 }];
+          if (column === "Designation") return [index, { cellWidth: 16 }];
+          if (column === "Remarks") return [index, { cellWidth: 17 }];
+          if (column === "Signature") return [index, { cellWidth: 18 }];
+          return [index, { cellWidth: 12.4, halign: "right" }];
+        }),
+      ),
+    });
+
+    // In words + signatures (new page if they don't fit under the table)
+    let y = pdf.lastAutoTable.finalY + 7;
+    if (y + 40 > pageHeight - 8) {
+      pdf.addPage();
+      y = 16;
+    }
+    pdf.setFontSize(9);
+    pdf.setFont("helvetica", "bold");
+    const wordsLabel = "In Words : ";
+    const wordsText = amountInWordsBD(totals["Net Salary"]);
+    const wordsLabelWidth = pdf.getTextWidth(wordsLabel);
+    pdf.setFont("helvetica", "normal");
+    const wordsX =
+      (pageWidth - wordsLabelWidth - pdf.getTextWidth(wordsText)) / 2;
+    pdf.setFont("helvetica", "bold");
+    pdf.text(wordsLabel, wordsX, y);
+    pdf.setFont("helvetica", "normal");
+    pdf.text(wordsText, wordsX + wordsLabelWidth, y);
+
+    const signatories = meta?.signatories || DEFAULT_PAYROLL_SIGNATORIES;
+    const positions = [
+      [left + 2, "left"],
+      [pageWidth / 2, "center"],
+      [right - 2, "right"],
+    ];
+    signatories.forEach((sig, index) => {
+      const [x, align] = positions[index];
+      pdf.setFontSize(10);
+      pdf.setFont("helvetica", "bold");
+      pdf.text(`${sig.role}:`, x, y + 13, { align });
+      pdf.text(sig.name || "", x, y + 29, { align });
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(9);
+      pdf.text(sig.title || "", x, y + 34, { align });
     });
 
     const fileDate = new Date().toISOString().slice(0, 10);
@@ -1969,7 +2248,7 @@ const EmployeeTable = () => {
     toast.success("Selected payroll PDF sheet downloaded!");
   };
 
-  const handlePrintSelectedSheet = () => {
+  const handlePrintSelectedSheet = (meta) => {
     if (!selectedEmployees.length) {
       toast.error("Please select employees first!");
       return;
@@ -1982,17 +2261,9 @@ const EmployeeTable = () => {
     }
 
     const rows = getSelectedPayrollRows();
-    const columns = [
-      "SL",
-      "Date",
-      "Employee",
-      "Employee ID",
-      "Basic Salary",
-      "Incentive",
-      "Advance",
-      "Total Salary",
-      "Net Salary",
-    ];
+    const totals = getPayrollSheetTotals(rows);
+    const columns = PAYROLL_SHEET_COLUMNS;
+    const signatories = meta?.signatories || DEFAULT_PAYROLL_SIGNATORIES;
 
     const escapeHtml = (value) =>
       String(value ?? "")
@@ -2076,50 +2347,86 @@ const EmployeeTable = () => {
               color: #334155;
               font-weight: 700;
             }
-            td:nth-child(1),
-            td:nth-child(n+5):nth-child(-n+9) {
+            td:nth-child(n+4):nth-child(-n+18) {
               text-align: right;
+            }
+            td:nth-child(20) {
+              height: 28px;
+            }
+            .sheet-top {
+              border: 1px solid #475569;
+              margin-bottom: 8px;
+              font-size: 14px;
+            }
+            .sheet-top div {
+              padding: 3px 6px;
+              text-align: center;
+              border-bottom: 1px solid #475569;
+            }
+            .sheet-top div:last-child { border-bottom: none; }
+            .sheet-top .payment { text-align: right; font-weight: 700; }
+            .sheet-top b { font-weight: 700; }
+            tfoot td {
+              background: #f1f5f9;
+              font-weight: 700;
+            }
+            .in-words {
+              text-align: center;
+              font-size: 12px;
+              padding: 6px;
             }
             .signatures {
               display: grid;
               grid-template-columns: repeat(3, 1fr);
               gap: 34px;
-              margin-top: auto;
-              padding-top: 34px;
+              margin-top: 18px;
               page-break-inside: avoid;
+              font-size: 13px;
             }
-            .signature {
-              border-top: 1px solid #475569;
-              padding-top: 6px;
-              text-align: center;
-              font-size: 11px;
-              font-weight: 700;
-            }
+            .signature .role { font-weight: 700; }
+            .signature .name { font-weight: 700; margin-top: 40px; }
+            .signature:nth-child(2) { text-align: center; }
+            .signature:nth-child(3) { text-align: right; }
           </style>
         </head>
         <body>
           <div class="sheet-page">
-            <div class="sheet-header">
-              <div>
-                <h1>${escapeHtml(DEFAULT_COMPANY_NAME)}</h1>
-                <p class="meta" style="text-align:left;">Payroll sheet</p>
-              </div>
-              <h2>Selected Payroll Sheet</h2>
-              <div>
-                <p class="meta">Date: ${escapeHtml(new Date().toLocaleDateString("en-GB"))}</p>
-                <p class="meta">Total Selected: ${rows.length}</p>
-              </div>
+            <div class="sheet-top">
+              <div class="payment">Date of Payment: &nbsp; ${escapeHtml(formatSheetMonth(meta?.paymentMonth))}</div>
+              <div><b>${escapeHtml(PAYROLL_SHEET_GROUP_NAME)}:</b> ${escapeHtml(DEFAULT_COMPANY_NAME)}</div>
+              <div><b>Department:</b> ${escapeHtml(meta?.department || "-")}</div>
+              <div><b>Salary Month:</b> ${escapeHtml(formatSheetMonth(meta?.salaryMonth))}</div>
             </div>
             <table>
               <thead>
                 <tr>${columns.map((column) => `<th>${escapeHtml(column)}</th>`).join("")}</tr>
               </thead>
               <tbody>${tableRows}</tbody>
+              <tfoot>
+                <tr>${columns
+                  .map((column) => {
+                    if (column === "Employee Name") return "<td>Total</td>";
+                    return `<td>${escapeHtml(totals[column] ?? "")}</td>`;
+                  })
+                  .join("")}</tr>
+                <tr>
+                  <td colspan="${columns.length}" class="in-words">
+                    <b>In Words :</b> ${escapeHtml(amountInWordsBD(totals["Net Salary"]))}
+                  </td>
+                </tr>
+              </tfoot>
             </table>
             <div class="signatures">
-              <div class="signature">Prepared By</div>
-              <div class="signature">Checked By</div>
-              <div class="signature">Approved By</div>
+              ${signatories
+                .map(
+                  (sig) => `
+                <div class="signature">
+                  <div class="role">${escapeHtml(sig.role)}:</div>
+                  <div class="name">${escapeHtml(sig.name)}</div>
+                  <div>${escapeHtml(sig.title)}</div>
+                </div>`,
+                )
+                .join("")}
             </div>
           </div>
           <script>
@@ -2134,467 +2441,14 @@ const EmployeeTable = () => {
     printWindow.document.close();
   };
 
-  //
   const printBulkInvoices = () => {
-    if (!selectedEmployees?.length) return;
-
-    const printWindow = window.open("", "_blank", "width=900,height=650");
-    if (!printWindow) {
-      toast.error("Popup blocked! Allow popups then try again.");
-      return;
-    }
-
-    const formatDate = (d = new Date()) =>
-      new Date(d).toLocaleDateString("en-GB");
-
-    const escapeHtml = (v) => {
-      const s = String(v ?? "");
-      return s
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-    };
-
-    const money = (n) => Number(n || 0).toLocaleString();
-    const brandHtml = payrollLogoUrl
-      ? `
-            <img
-              class="brand-logo"
-              src="${escapeHtml(payrollLogoUrl)}"
-              alt="${escapeHtml(DEFAULT_COMPANY_NAME)}"
-            />
-            <h1>${escapeHtml(DEFAULT_COMPANY_NAME)}</h1>
-          `
-      : `<h1>${escapeHtml(DEFAULT_COMPANY_NAME)}</h1>`;
-
-    const sessionSuffix = String(Date.now()).slice(-6);
-
-    const invoicesHtml = selectedEmployees
-      .map((emp, idx) => {
-        const invoiceDate = formatDate(new Date());
-        const invoiceNo = `${escapeHtml(
-          emp?.employee_id || "EMP",
-        )}-${invoiceDate.replaceAll("/", "")}-${sessionSuffix}${idx}`;
-
-        return `
-        <div class="invoice-container invoice-page">
-          <div class="invoice-header">
-            <div class="left-header">
-              ${brandHtml}
-              <p class="sub">Official Salary Statement</p>
-              <p class="phone">Phone: +880 9647-555333</p>
-            </div>
-            <div class="right-header">
-              <h2>Salary Statement</h2>
-              <p>Date: ${invoiceDate}</p>
-              <p>ID: ${invoiceNo}</p>
-            </div>
-          </div>
-
-          <div class="employee-box">
-            <div>
-              <p class="label">Employee Name</p>
-              <p class="value">${escapeHtml(emp?.name || "-")}</p>
-            </div>
-            <div>
-              <p class="label">Employee ID</p>
-              <p class="value">${escapeHtml(emp?.employee_id || "-")}</p>
-            </div>
-            <div>
-              <p class="label">Department</p>
-              <p class="value">${escapeHtml(emp?.department?.name || "-")}</p>
-            </div>
-            <div>
-              <p class="label">Designation</p>
-              <p class="value">${escapeHtml(emp?.designation?.name || "-")}</p>
-            </div>
-          </div>
-
-          <table class="invoice-table">
-            <thead>
-              <tr>
-                <th>Description</th>
-                <th class="amount-col">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Basic Salary</td>
-                <td class="amount-col">${money(emp?.basic_salary)}</td>
-              </tr>
-              <tr>
-                <td>Incentive</td>
-                <td class="amount-col">${money(emp?.incentive)}</td>
-              </tr>
-              <tr class="invoice-underlined-row">
-                <td>Holiday Days (${getHolidayDays(emp)})</td>
-                <td class="amount-col">${formatAmount(getHolidaySalaryAmount(emp))}</td>
-              </tr>
-              <tr class="total-row">
-                <td>Gross Amount</td>
-                <td class="amount-col">${formatAmount(getGrossSalaryAmount(emp))}</td>
-              </tr>
-              <tr class="section-row">
-                <td colspan="2">Deduction</td>
-              </tr>
-              ${
-                getDeductionItems(emp)
-                  .map(
-                    (item) => `
-                <tr>
-                  <td>${escapeHtml(item.label)}</td>
-                  <td class="amount-col red">-${formatAmount(item.amount)}</td>
-                </tr>`,
-                  )
-                  .join("") ||
-                `
-                <tr>
-                  <td>No Deduction</td>
-                  <td class="amount-col">0</td>
-                </tr>`
-              }
-              <tr class="invoice-underlined-row">
-                <td>Total Deduction</td>
-                <td class="amount-col red">-${formatAmount(getSalaryDeductionAmount(emp))}</td>
-              </tr>
-              <tr class="net-row">
-                <td>Net Payable Amount</td>
-                <td class="amount-col">৳ ${formatAmount(emp?.net_salary)}</td>
-              </tr>
-            </tbody>
-          </table>
-
-          <div class="remarks-wrap">
-            <h4 class="remarks-title">Remarks</h4>
-            <div class="remarks-box">
-              ${escapeHtml(getInvoiceRemarks(emp))}
-            </div>
-          </div>
-
-          <div class="signature-section">
-            <div class="signature-box">
-              <p class="sig-label">Received By</p>
-              <p class="sig-value">${escapeHtml(emp?.name || "-")}</p>
-            </div>
-            <div class="signature-box">
-              <p class="sig-label">Checked By</p>
-              <p class="sig-value">Accounts</p>
-            </div>
-            <div class="signature-box">
-              <p class="sig-label">Authorized By</p>
-              <p class="sig-value">Kafela Mart Management</p>
-            </div>
-          </div>
-        </div>
-      `;
-      })
+    if (!selectedEmployees?.length || !bulkInvoiceRef.current) return;
+    const sheetsHtml = Array.from(
+      bulkInvoiceRef.current.querySelectorAll(".salary-sheet"),
+    )
+      .map((node) => node.outerHTML)
       .join("");
-
-    printWindow.document.open();
-    printWindow.document.write(`
-    <html>
-      <head>
-        <title>Print Invoices</title>
-        <style>
-          * { box-sizing: border-box; }
-          @page { size: A4; margin: 0; }
-          body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 6mm;
-            background: #fff;
-            color: #111;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-
-          .invoice-page {
-            page-break-after: always;
-            break-after: page;
-            page-break-inside: avoid;
-            break-inside: avoid;
-          }
-
-          .invoice-page:last-child {
-            page-break-after: auto;
-            break-after: auto;
-          }
-
-          .invoice-container {
-            width: 100%;
-            max-width: 900px;
-            margin: 0 auto;
-            padding: 28px;
-            background: #fff;
-            border: 1px solid #e2e8f0;
-            border-radius: 18px;
-          }
-
-          .invoice-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 40px;
-            margin-bottom: 38px;
-          }
-
-          .left-header {
-            min-width: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-          }
-
-          .brand-logo {
-            display: block;
-            width: auto;
-            height: 72px;
-            max-width: 220px;
-            object-fit: contain;
-            margin: 0 0 10px;
-          }
-
-          .left-header h1 {
-            margin: 0;
-            font-size: 28px;
-            line-height: 1.05;
-            font-weight: 800;
-            color: #0f172a;
-          }
-
-          .sub {
-            margin: 7px 0 0;
-            font-size: 14px;
-            font-weight: 600;
-            color: #525252;
-          }
-
-          .phone {
-            margin: 6px 0 0;
-            font-size: 14px;
-            font-weight: 400;
-            color: #737373;
-          }
-
-          .right-header {
-            text-align: right;
-            flex: 0 0 auto;
-          }
-
-          .right-header h2 {
-            margin: 0;
-            font-size: 27px;
-            line-height: 1.12;
-            font-weight: 800;
-            color: #0f172a;
-          }
-
-          .right-header p {
-            margin: 7px 0 0;
-            font-size: 14px;
-            font-weight: 600;
-            color: #525252;
-          }
-
-          .employee-box {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 28px 80px;
-            margin-bottom: 32px;
-            padding: 24px;
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-          }
-
-          .label {
-            margin: 0 0 6px;
-            font-size: 12px;
-            font-weight: 800;
-            color: #64748b;
-            text-transform: uppercase;
-            letter-spacing: 0.12em;
-          }
-
-          .value {
-            margin: 0;
-            font-size: 18px;
-            font-weight: 700;
-            color: #0f172a;
-          }
-
-          .invoice-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 4px;
-            page-break-inside: avoid;
-            break-inside: avoid;
-          }
-
-          .invoice-table th {
-            text-align: left;
-            padding: 16px 0;
-            font-size: 14px;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 0.12em;
-            color: #64748b;
-            border-bottom: 1px solid #cbd5e1;
-          }
-
-          .invoice-table td {
-            padding: 10px 0;
-            font-size: 18px;
-            font-weight: 500;
-            color: #0f172a;
-            border-bottom: 1px solid #e2e8f0;
-          }
-
-          .amount-col {
-            text-align: right;
-            color: #0f172a;
-            font-weight: 800;
-          }
-
-          .red {
-            color: #dc2626;
-          }
-
-          .invoice-underlined-row td {
-            border-bottom: 1.5px solid #334155 !important;
-          }
-
-          .muted {
-            color: #94a3b8;
-            font-weight: 600;
-          }
-
-          .total-row td {
-            background: #f8fafc;
-            font-weight: 800;
-          }
-
-          .section-row td {
-            padding-top: 14px;
-            color: #0f172a;
-            font-weight: 800;
-          }
-
-          .total-border {
-            border-top: 2px solid #0f172a !important;
-          }
-
-          .net-row td {
-            background: #ecfdf5;
-            border-top: 1px solid #d1fae5;
-            border-bottom: 1px solid #d1fae5;
-            color: #0f172a;
-            font-weight: 800;
-            padding: 16px 26px;
-            font-size: 20px;
-          }
-
-          .net-row td:first-child {
-            border-left: 1px solid #d1fae5;
-            border-radius: 8px 0 0 8px;
-          }
-
-          .net-row td:last-child {
-            border-right: 1px solid #d1fae5;
-            border-radius: 0 8px 8px 0;
-            color: #047857;
-            font-size: 26px;
-          }
-
-          .remarks-wrap {
-            margin-top: 30px;
-            page-break-inside: avoid;
-            break-inside: avoid;
-          }
-
-          .remarks-title {
-            margin: 0 0 6px;
-            font-size: 14px;
-            font-weight: 800;
-            color: #64748b;
-            text-transform: uppercase;
-            letter-spacing: 0.12em;
-          }
-
-          .remarks-box {
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 16px 20px;
-            font-size: 16px;
-            font-weight: 700;
-            line-height: 1.5rem;
-            color: #000000;
-            white-space: pre-wrap;
-          }
-
-          .signature-section {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 36px;
-            margin-top: 38px;
-            page-break-inside: avoid;
-            break-inside: avoid;
-          }
-
-          .signature-box {
-            text-align: center;
-            padding-top: 16px;
-            border-top: 1px solid #cbd5e1;
-          }
-
-          .sig-label {
-            margin: 0 0 6px;
-            font-size: 10px;
-            font-weight: 800;
-            color: #94a3b8;
-            text-transform: uppercase;
-            letter-spacing: 0.12em;
-          }
-
-          .sig-value {
-            margin: 0;
-            font-size: 14px;
-            font-weight: 700;
-            color: #0f172a;
-          }
-
-          @media print {
-            html,
-            body {
-              width: 210mm;
-              min-height: 297mm;
-              background: #fff;
-            }
-            .invoice-container {
-              max-width: 100%;
-              padding: 7mm;
-              border: 0;
-              border-radius: 0;
-              zoom: 0.84;
-            }
-            .invoice-table tr { page-break-inside: avoid; break-inside: avoid; }
-          }
-        </style>
-      </head>
-      <body>
-        ${invoicesHtml}
-        <script>
-          window.onload = function() {
-            window.print();
-            window.onafterprint = function() { window.close(); }
-          }
-        </script>
-      </body>
-    </html>
-  `);
-    printWindow.document.close();
+    openSalaryStatementPrint("Salary Statements", sheetsHtml);
   };
 
   // ----------------------------
@@ -2612,9 +2466,22 @@ const EmployeeTable = () => {
           : "none",
         "&:hover": { borderColor: state.isFocused ? "#c7d2fe" : "#cbd5e1" },
       }),
-      valueContainer: (base) => ({ ...base, padding: "0 12px" }),
-      placeholder: (base) => ({ ...base, color: "#64748b" }), // slate-500
-      singleValue: (base) => ({ ...base, color: "#0f172a" }), // slate-900
+      valueContainer: (base) => ({
+        ...base,
+        padding: "0 12px",
+        flexWrap: "nowrap",
+      }),
+      placeholder: (base) => ({
+        ...base,
+        color: "#64748b", // slate-500
+        fontSize: 14,
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+      }),
+      input: (base) => ({ ...base, fontSize: 14 }),
+      indicatorSeparator: () => ({ display: "none" }),
+      singleValue: (base) => ({ ...base, color: "#0f172a", fontSize: 14 }), // slate-900
       menu: (base) => ({
         ...base,
         borderRadius: 12,
@@ -2710,7 +2577,7 @@ const EmployeeTable = () => {
 
           <button
             className="inline-flex min-h-10 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-slate-900 px-4 py-2 text-white shadow-sm hover:bg-slate-800 disabled:opacity-60"
-            onClick={handleDownloadSelectedPdf}
+            onClick={() => openPayrollSheetMeta("pdf")}
             disabled={selectedIds.length === 0}
           >
             <FileText size={18} />
@@ -2719,7 +2586,7 @@ const EmployeeTable = () => {
 
           <button
             className="inline-flex min-h-10 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-4 py-2 text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-60"
-            onClick={handlePrintSelectedSheet}
+            onClick={() => openPayrollSheetMeta("print")}
             disabled={selectedIds.length === 0}
           >
             <Printer size={18} />
@@ -2746,124 +2613,144 @@ const EmployeeTable = () => {
         </div>
       </div>
 
-      <div className="mb-6 grid w-full grid-cols-1 items-end gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 2xl:grid-cols-8">
-        <DateRangeFilter
-          startDate={startDate}
-          endDate={endDate}
-          onStartDateChange={setStartDate}
-          onEndDateChange={setEndDate}
-          defaultFilter="thisMonth"
-          compact
-          className="sm:col-span-2 lg:col-span-3 xl:col-span-3"
-        />
+      {/* Filters — one toolbar: header (count, per page, clear) + equal-height
+          controls with the same label style. */}
+      <div className="mb-6 rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal size={16} className="text-indigo-600" />
+            <span className="text-sm font-semibold text-slate-800">
+              Filters
+            </span>
+            {activeFilterCount > 0 ? (
+              <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700">
+                {activeFilterCount} active
+              </span>
+            ) : null}
+          </div>
 
-        <div className="flex flex-col">
-          <label className="text-sm text-slate-600 mb-1">
-            {t.employee || "Employee"}
-          </label>
-          <Select
-            options={employeeOptions}
-            value={selectedEmployee}
-            onChange={setSelectedEmployee}
-            placeholder={t.select_employee || "Select Employee"}
-            isClearable
-            hideSelectedOptions={false}
-            styles={selectStyles}
-            className="w-full"
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 text-sm text-slate-600">
+              {t.per_page_label || "Per Page"}
+              <select
+                value={itemsPerPage}
+                onChange={(e) => {
+                  setItemsPerPage(Number(e.target.value));
+                  setCurrentPage(1);
+                  setStartPage(1);
+                }}
+                className={`${FILTER_CONTROL} !h-9 w-20 px-2`}
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={200}>200</option>
+              </select>
+            </label>
+
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+            >
+              <X size={14} />
+              {t.clear_filters || "Clear Filters"}
+            </button>
+          </div>
+        </div>
+
+        <div className="grid w-full grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          <DateRangeFilter
+            key={filterResetKey}
+            startDate={startDate}
+            endDate={endDate}
+            onStartDateChange={setStartDate}
+            onEndDateChange={setEndDate}
+            defaultFilter="thisMonth"
+            label="Date"
+            compact
           />
+
+          <div className="flex min-w-0 flex-col">
+            <label className={FILTER_LABEL}>{t.employee || "Employee"}</label>
+            <Select
+              options={employeeOptions}
+              value={selectedEmployee}
+              onChange={setSelectedEmployee}
+              placeholder="All employees"
+              isClearable
+              hideSelectedOptions={false}
+              styles={selectStyles}
+              className="w-full"
+            />
+          </div>
+
+          <div className="flex min-w-0 flex-col">
+            <label className={FILTER_LABEL}>Department</label>
+            <Select
+              options={departmentOptions}
+              value={selectedDepartment}
+              onChange={(selected) => {
+                setSelectedDepartment(selected);
+                setSelectedDesignation(null);
+              }}
+              placeholder={
+                isDepartmentsLoading ? "Loading..." : "All departments"
+              }
+              isClearable
+              isLoading={isDepartmentsLoading}
+              styles={selectStyles}
+              className="w-full"
+            />
+          </div>
+
+          <div className="flex min-w-0 flex-col">
+            <label className={FILTER_LABEL}>Designation</label>
+            <Select
+              options={filterDesignationOptions}
+              value={selectedDesignation}
+              onChange={setSelectedDesignation}
+              placeholder={
+                isDesignationsLoading ? "Loading..." : "All designations"
+              }
+              isClearable
+              isLoading={isDesignationsLoading}
+              styles={selectStyles}
+              className="w-full"
+            />
+          </div>
+
+          <div className="flex min-w-0 flex-col">
+            <label className={FILTER_LABEL}>Status</label>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className={`${FILTER_CONTROL} px-3`}
+            >
+              <option value="All">All statuses</option>
+              <option value="Pending">Pending</option>
+              <option value="Completed">Completed</option>
+            </select>
+          </div>
+
+          <div className="flex min-w-0 flex-col">
+            <label className={FILTER_LABEL}>Phone Number</label>
+            <div className="relative">
+              <Search
+                size={16}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              />
+              <input
+                type="tel"
+                value={phoneFilter}
+                onChange={(e) => setPhoneFilter(e.target.value)}
+                placeholder="Search by phone..."
+                className={`${FILTER_CONTROL} pl-9 pr-3`}
+              />
+            </div>
+          </div>
         </div>
-
-        <div className="flex flex-col">
-          <label className="text-sm text-slate-600 mb-1">Department</label>
-          <Select
-            options={departmentOptions}
-            value={selectedDepartment}
-            onChange={(selected) => {
-              setSelectedDepartment(selected);
-              setSelectedDesignation(null);
-            }}
-            placeholder={
-              isDepartmentsLoading
-                ? "Loading departments..."
-                : "Select Department"
-            }
-            isClearable
-            isLoading={isDepartmentsLoading}
-            styles={selectStyles}
-            className="w-full"
-          />
-        </div>
-
-        <div className="flex flex-col">
-          <label className="text-sm text-slate-600 mb-1">Designation</label>
-          <Select
-            options={filterDesignationOptions}
-            value={selectedDesignation}
-            onChange={setSelectedDesignation}
-            placeholder={
-              isDesignationsLoading
-                ? "Loading designations..."
-                : "Select Designation"
-            }
-            isClearable
-            isLoading={isDesignationsLoading}
-            styles={selectStyles}
-            className="w-full"
-          />
-        </div>
-
-        <div className="flex flex-col">
-          <label className="text-sm text-slate-600 mb-1">Status</label>
-          <select
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-            className="px-3 py-[10px] rounded-xl bg-white border border-slate-200 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
-          >
-            <option value="All">All</option>
-            <option value="Pending">Pending</option>
-            <option value="Completed">Completed</option>
-          </select>
-        </div>
-
-        <div className="flex flex-col">
-          <label className="text-sm text-slate-600 mb-1">Phone Number</label>
-          <input
-            type="tel"
-            value={phoneFilter}
-            onChange={(e) => setPhoneFilter(e.target.value)}
-            placeholder="Search by phone..."
-            className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
-          />
-        </div>
-
-        <div className="flex flex-col">
-          <label className="text-sm text-slate-600 mb-1">
-            {t.per_page_label}
-          </label>
-
-          <select
-            value={itemsPerPage}
-            onChange={(e) => {
-              setItemsPerPage(Number(e.target.value));
-              setCurrentPage(1);
-              setStartPage(1);
-            }}
-            className="px-3 py-[10px] rounded-xl bg-white border border-slate-200 text-slate-900 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-200"
-          >
-            <option value={10}>10</option>
-            <option value={20}>20</option>
-            <option value={50}>50</option>
-            <option value={100}>100</option>
-            <option value={200}>200</option>
-          </select>
-        </div>
-
-        <button
-          className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-[10px] text-slate-700 transition hover:bg-slate-50"
-          onClick={clearFilters}
-        >
-          {t.clear_filters}
-        </button>
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-slate-200">
@@ -2880,29 +2767,32 @@ const EmployeeTable = () => {
 
               {[
                 { key: "Date", label: t.date },
-                { key: "Employee", label: t.employee || "Employee" },
-                { key: "Department", label: "Department" },
-                { key: "Designation", label: "Designation" },
                 {
                   key: "Employee ID",
-                  label: t.employee_id_label || "Employee ID",
+                  label: t.employee_id_label || "Emp ID",
                 },
+                { key: "Employee", label: "Employee Name" },
+                { key: "Department", label: "Department" },
+                { key: "Designation", label: "Designation" },
                 {
                   key: "Basic Salary",
                   label: t.basic_salary || "Basic Salary",
                 },
-                { key: "Incentive", label: t.incentive || "Incentive" },
-                {
-                  key: "Festival Bonus",
-                  label: t.festival_bonus || "Festival Bonus",
-                },
-                {
-                  key: "Holiday Days",
-                  label: t.holiday_days || "Incashment (Holiday)",
-                },
-                { key: "Advance", label: t.advance || "Advance" },
-                { key: "Total Salary", label: t.total_salary },
+                { key: "Encash Days", label: "Encash days (in no.)" },
+                { key: "Encash Amount", label: "Encash Amount" },
+                { key: "Incentive", label: "Incentive Amount" },
+                { key: "Sale Amount", label: "Sale Amount" },
+                { key: "Misc Addition", label: "Misc Addition" },
+                { key: "Gross Salary", label: "Gross Salary" },
+                { key: "Advance", label: "Advance" },
+                { key: "Late Days", label: "Late Days" },
+                { key: "Late Deduct", label: "Late Deduct" },
+                { key: "Absent Days", label: "Absent Days" },
+                { key: "Absent Deduct", label: "Absent Deduct" },
+                { key: "Misc Deduct", label: "Misc Deduct" },
+                { key: "Total Deduct", label: "Total Deduct" },
                 { key: "Net Salary", label: t.net_salary },
+                { key: "Remarks", label: t.remarks || "Remarks" },
                 { key: "Status", label: t.status },
                 { key: "Action", label: t.actions },
               ].map((h) => (
@@ -2939,6 +2829,9 @@ const EmployeeTable = () => {
                     ? new Date(emp.date || emp.createdAt).toLocaleDateString()
                     : "-"}
                 </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                  {emp.employee_id}
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-900">
                   {emp.name}
                   {emp.__isPayrollPlaceholder ? (
@@ -2960,45 +2853,40 @@ const EmployeeTable = () => {
                     )?.label ||
                     "-"}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                  {emp.employee_id}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                  {Number(emp.basic_salary || 0).toFixed(2)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                  {Number(emp.incentive || 0).toFixed(2)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                  {Number(emp.festival_bonus || 0).toFixed(2)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                  {Number(emp.holiday_payment || 0)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                  {Number(emp.advance || 0)}
-                </td>
-                {/* <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                  {Number(emp.late || 0)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                  {Number(emp.early_leave || 0)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                  {Number(emp.absent || 0)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                  {Number(emp.friday_absent || 0)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                  {Number(emp.unapproval_absent || 0)}
-                </td> */}
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                  {Number(emp.total_salary || 0).toFixed(2)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
-                  {Number(emp.net_salary || 0).toFixed(2)}
-                </td>
+                {(() => {
+                  const b = getPayrollSheetBreakdown(emp);
+                  const money = (v) => Number(v || 0).toFixed(2);
+                  const cell =
+                    "px-6 py-4 whitespace-nowrap text-sm text-slate-700";
+                  return (
+                    <>
+                      <td className={cell}>{money(b.basicSalary)}</td>
+                      <td className={cell}>{b.encashDays}</td>
+                      <td className={cell}>{money(b.encashAmount)}</td>
+                      <td className={cell}>{money(b.incentive)}</td>
+                      <td className={cell}>{money(b.saleAmount)}</td>
+                      <td className={cell}>{money(b.miscAddition)}</td>
+                      <td className={`${cell} font-semibold text-slate-900`}>
+                        {money(b.grossSalary)}
+                      </td>
+                      <td className={cell}>{money(b.advance)}</td>
+                      <td className={cell}>{b.lateDays}</td>
+                      <td className={cell}>{money(b.lateDeduct)}</td>
+                      <td className={cell}>{b.absentDays}</td>
+                      <td className={cell}>{money(b.absentDeduct)}</td>
+                      <td className={cell}>{money(b.miscDeduct)}</td>
+                      <td className={`${cell} text-rose-600`}>
+                        {money(b.totalDeduct)}
+                      </td>
+                      <td className={`${cell} font-semibold text-slate-900`}>
+                        {money(b.netSalary)}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-700 min-w-[160px]">
+                        {b.remarks || "-"}
+                      </td>
+                    </>
+                  );
+                })()}
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
                   {emp.__isPayrollPlaceholder ? (
                     <span className="inline-flex h-8 min-w-[118px] items-center justify-center rounded-full border border-amber-200 bg-amber-50 px-3 text-xs font-semibold text-amber-700">
@@ -3299,6 +3187,14 @@ const EmployeeTable = () => {
             />
 
             <Field
+              label="Sale Amount:"
+              type="number"
+              step="0.01"
+              value={currentEmployee?.sale_amount}
+              onChange={(v) => updateCurrentField("sale_amount", v)}
+            />
+
+            <Field
               label={`${t.festival_bonus || "Festival Bonus"}:`}
               type="number"
               step="0.01"
@@ -3315,6 +3211,14 @@ const EmployeeTable = () => {
             />
 
             <Field
+              label="Additional Pay/ Allowance (If any):"
+              type="number"
+              step="0.01"
+              value={currentEmployee?.additional_pay}
+              onChange={(v) => updateCurrentField("additional_pay", v)}
+            />
+
+            <Field
               label={t.holiday_days + ":" || "Incashment (Holiday):"}
               type="number"
               value={currentEmployee?.holiday_payment}
@@ -3322,12 +3226,20 @@ const EmployeeTable = () => {
             />
 
             <Field
-              label="Advance:"
+              label="Advance Pay:"
               type="number"
               step="0.01"
               value={currentEmployee?.advance}
               readOnly={hasCurrentNetBalance}
               onChange={(v) => updateCurrentField("advance", v)}
+            />
+
+            <Field
+              label={getRemainingAdvanceLabel(currentEmployee)}
+              type="number"
+              step="0.01"
+              value={currentEmployee?.advance_recovered}
+              onChange={(v) => updateCurrentField("advance_recovered", v)}
             />
 
             {/* 
@@ -3407,6 +3319,22 @@ const EmployeeTable = () => {
               type="number"
               value={currentEmployee?.approval_absent}
               onChange={(v) => updateCurrentField("approval_absent", v)}
+            />
+
+            <Field
+              label="Sick/Exam (days):"
+              type="number"
+              step="0.5"
+              value={currentEmployee?.sick_exam_days}
+              onChange={(v) => updateCurrentField("sick_exam_days", v)}
+            />
+
+            <Field
+              label="Misc Deduction (If any):"
+              type="number"
+              step="0.01"
+              value={currentEmployee?.misc_deduction}
+              onChange={(v) => updateCurrentField("misc_deduction", v)}
             />
 
             <Field
@@ -3931,6 +3859,14 @@ const EmployeeTable = () => {
             />
 
             <Field
+              label="Sale Amount:"
+              type="number"
+              step="0.01"
+              value={createEmployee.sale_amount}
+              onChange={(v) => updateCreateField("sale_amount", v)}
+            />
+
+            <Field
               label={`${t.festival_bonus || "Festival Bonus"}:`}
               type="number"
               step="0.01"
@@ -3947,6 +3883,14 @@ const EmployeeTable = () => {
             />
 
             <Field
+              label="Additional Pay/ Allowance (If any):"
+              type="number"
+              step="0.01"
+              value={createEmployee.additional_pay}
+              onChange={(v) => updateCreateField("additional_pay", v)}
+            />
+
+            <Field
               label={t.holiday_days + ":" || "Incashment (Holiday):"}
               type="number"
               value={createEmployee.holiday_payment}
@@ -3954,12 +3898,20 @@ const EmployeeTable = () => {
             />
 
             <Field
-              label="Advance:"
+              label="Advance Pay:"
               type="number"
               step="0.01"
               value={createEmployee.advance}
               readOnly={hasCreateNetBalance}
               onChange={(v) => updateCreateField("advance", v)}
+            />
+
+            <Field
+              label={getRemainingAdvanceLabel(createEmployee)}
+              type="number"
+              step="0.01"
+              value={createEmployee.advance_recovered}
+              onChange={(v) => updateCreateField("advance_recovered", v)}
             />
 
             {/* <div>
@@ -4041,6 +3993,22 @@ const EmployeeTable = () => {
               type="number"
               value={createEmployee.approval_absent}
               onChange={(v) => updateCreateField("approval_absent", v)}
+            />
+
+            <Field
+              label="Sick/Exam (days):"
+              type="number"
+              step="0.5"
+              value={createEmployee.sick_exam_days}
+              onChange={(v) => updateCreateField("sick_exam_days", v)}
+            />
+
+            <Field
+              label="Misc Deduction (If any):"
+              type="number"
+              step="0.01"
+              value={createEmployee.misc_deduction}
+              onChange={(v) => updateCreateField("misc_deduction", v)}
             />
 
             <Field
@@ -4128,221 +4096,17 @@ const EmployeeTable = () => {
             </button>
           </div>
 
+          <style>{SALARY_STATEMENT_CSS}</style>
           <div
             id="invoiceCapture"
             ref={invoiceRef}
-            className="bg-white text-slate-900 rounded-2xl p-10 border border-slate-200 shadow-sm"
+            className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto"
           >
-            <div className="salary-statement-header flex justify-between items-center gap-10 mb-10">
-              <div className="salary-branding-block min-w-0 flex flex-col items-start">
-                {payrollLogoUrl ? (
-                  <img
-                    src={payrollLogoUrl}
-                    alt={DEFAULT_COMPANY_NAME}
-                    crossOrigin="anonymous"
-                    className="salary-brand-logo h-[68px] max-w-[220px] object-contain mb-3"
-                  />
-                ) : null}
-                <div className="salary-brand-name text-[28px] leading-none font-black text-slate-900">
-                  {DEFAULT_COMPANY_NAME}
-                </div>
-                <div className="salary-brand-subtitle mt-2 text-sm font-semibold text-neutral-600">
-                  Official Salary Statement
-                </div>
-                <p className="salary-brand-phone mt-1.5 text-sm font-normal text-neutral-500">
-                  Phone: +880 9647-555333
-                </p>
-              </div>
-
-              {/* <div>
-                <img
-                  src={logo}
-                  alt=" Logo"
-                  className="w-36 h-auto mb-3 object-contain"
-                />
-                <p className="text-sm font-bold text-slate-500">Official Salary Statement</p>
-                <p className="text-xs text-slate-400 mt-2">Phone: +880 9647-555333</p>
-              </div> */}
-
-              <div className="salary-title-block text-right shrink-0">
-                <h3 className="text-[27px] leading-tight font-black text-slate-900 tracking-tight">
-                  {t.salary_statement || "INVOICE"}
-                </h3>
-                <p className="mt-3 text-sm font-semibold text-neutral-600">
-                  Date: {new Date().toLocaleDateString()}
-                </p>
-                <p className="mt-1.5 text-sm font-semibold text-neutral-600">
-                  ID: {invoiceEmployee?.employee_id}-
-                  {String(Date.now()).slice(-6)}
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-x-20 gap-y-7 mb-8 p-6 bg-slate-50 rounded-xl border border-slate-200">
-              <div>
-                <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3">
-                  {t.employee_name || "Employee Name"}
-                </p>
-                <p className="text-lg font-bold text-slate-900">
-                  {invoiceEmployee?.name}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3">
-                  {t.employee_id || "Employee ID"}
-                </p>
-                <p className="text-lg font-bold text-slate-900">
-                  {invoiceEmployee?.employee_id}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3">
-                  Department
-                </p>
-                <p className="text-lg font-bold text-slate-900">
-                  {invoiceEmployee?.department?.name ||
-                    findDepartmentOption(invoiceEmployee?.departmentId)
-                      ?.label ||
-                    "-"}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3">
-                  Designation
-                </p>
-                <p className="text-lg font-bold text-slate-900">
-                  {invoiceEmployee?.designation?.name ||
-                    findDesignationOption(
-                      invoiceEmployee?.designationId,
-                      invoiceEmployee?.departmentId,
-                    )?.label ||
-                    "-"}
-                </p>
-              </div>
-            </div>
-
-            <table className="w-full text-lg">
-              <thead>
-                <tr className="border-b border-slate-200">
-                  <th className="text-left py-4 text-sm font-black text-slate-500 uppercase tracking-widest">
-                    {t.description || "Description"}
-                  </th>
-                  <th className="text-right py-4 text-sm font-black text-slate-500 uppercase tracking-widest">
-                    {t.amount || "Amount"}
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                <tr>
-                  <td className="py-3 font-medium text-slate-900">
-                    {t.basic_salary || "Basic Salary"}
-                  </td>
-                  <td className="py-3 text-right font-black text-slate-900">
-                    {Number(
-                      invoiceEmployee?.basic_salary || 0,
-                    ).toLocaleString()}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-3 font-medium text-slate-900">
-                    {t.incentive || "Incentive"}
-                  </td>
-                  <td className="py-3 text-right font-black text-slate-900">
-                    {Number(invoiceEmployee?.incentive || 0).toLocaleString()}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-3 font-medium text-slate-900 border-b-[1.5px] border-slate-700">
-                    {t.holiday_days || "Incashment (Holiday)"} (
-                    {getHolidayDays(invoiceEmployee)})
-                  </td>
-                  <td className="py-3 text-right font-black text-slate-900 border-b-[1.5px] border-slate-700">
-                    {formatAmount(getHolidaySalaryAmount(invoiceEmployee))}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-4 font-black text-slate-900">
-                    {t.gross_amount || "Gross Amount"}
-                  </td>
-                  <td className="py-4 text-right font-black text-slate-900">
-                    {formatAmount(getGrossSalaryAmount(invoiceEmployee))}
-                  </td>
-                </tr>
-                <tr>
-                  <td
-                    colSpan={2}
-                    className="pt-4 pb-3 font-black text-slate-900"
-                  >
-                    {t.deduction || "Deduction"}
-                  </td>
-                </tr>
-                {getDeductionItems(invoiceEmployee).length ? (
-                  getDeductionItems(invoiceEmployee).map((item) => (
-                    <tr key={item.label}>
-                      <td className="py-3 font-bold text-slate-500">
-                        {item.label}
-                      </td>
-                      <td className="py-3 text-right font-black text-red-600">
-                        -{formatAmount(item.amount)}
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td className="py-3 font-bold text-slate-500">
-                      {t.no_deduction || "No Deduction"}
-                    </td>
-                    <td className="py-3 text-right font-black text-slate-900">
-                      0
-                    </td>
-                  </tr>
-                )}
-                <tr>
-                  <td className="py-4 font-black text-slate-900 border-b-[1.5px] border-slate-700">
-                    {t.total_deduction || "Total Deduction"}
-                  </td>
-                  <td className="py-4 text-right font-black text-red-600 border-b-[1.5px] border-slate-700">
-                    -{formatAmount(getSalaryDeductionAmount(invoiceEmployee))}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="py-4 px-7 font-black text-slate-900 rounded-l-lg border-y border-l border-emerald-100 bg-emerald-50/60">
-                    {t.net_payable_amount || "Net Payable Amount"}
-                  </td>
-                  <td className="py-4 px-7 text-right font-black text-emerald-700 rounded-r-lg text-2xl border-y border-r border-emerald-100 bg-emerald-50/60">
-                    ৳ {formatAmount(invoiceEmployee?.net_salary)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-
-            <div className="mt-8">
-              <h4 className="text-sm font-black uppercase tracking-widest text-slate-500 mb-3">
-                {t.remarks || "Remarks"}
-              </h4>
-              <div className="rounded-lg border border-slate-200 px-5 py-4 text-base font-bold text-black">
-                {getInvoiceRemarks(invoiceEmployee)}
-              </div>
-            </div>
-
-            <div className="mt-10 grid grid-cols-2 gap-16">
-              <div className="text-center pt-4 border-t border-slate-200">
-                <p className="text-sm font-black text-slate-500 uppercase tracking-widest mb-4">
-                  {t.received_by || "Received By"}
-                </p>
-                <p className="text-lg font-bold text-slate-900">
-                  {invoiceEmployee?.name}
-                </p>
-              </div>
-              <div className="text-center pt-4 border-t border-slate-200">
-                <p className="text-sm font-black text-slate-500 uppercase tracking-widest mb-4">
-                  {t.authorized_by || "Authorized By"}
-                </p>
-                <p className="text-lg font-bold text-slate-900">
-                  Kafela Mart Management
-                </p>
-              </div>
-            </div>
+            {invoiceEmployee ? (
+              <SalaryStatementSheet
+                data={buildSalaryStatementData(invoiceEmployee)}
+              />
+            ) : null}
           </div>
         </div>
       </Modal>
@@ -4380,287 +4144,137 @@ const EmployeeTable = () => {
             </div>
           </div>
 
-          {/* <div className="bg-slate-50/50 p-6 rounded-3xl max-h-[60vh] overflow-y-auto custom-scrollbar space-y-8">
-            <div ref={bulkInvoiceRef}>
-              {selectedEmployees.map((emp, idx) => (
+          <style>{SALARY_STATEMENT_CSS}</style>
+          <div className="bg-slate-50/50 p-6 rounded-3xl max-h-[60vh] overflow-y-auto custom-scrollbar">
+            <div ref={bulkInvoiceRef} className="space-y-8">
+              {selectedEmployees.map((emp) => (
                 <div
                   key={emp.Id}
-                  className={`bg-white text-slate-900 rounded-2xl p-8 border border-slate-200 shadow-sm ${idx !== selectedEmployees.length - 1 ? 'mb-8' : ''}`}
+                  className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto"
                 >
-                  <div className="flex justify-between items-start mb-6">
-                    <div>
-                      <h3 className="text-xl font-black text-indigo-600"></h3>
-                      <p className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Statement of Earnings</p>
-                    </div>
-
-                    <div className="text-right">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Invoice Date</p>
-                      <p className="text-xs font-bold text-slate-900">{new Date().toLocaleDateString()}</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 mb-6 border-y border-slate-100 py-4">
-                    <div>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Employee</p>
-                      <p className="text-sm font-bold text-slate-900">{emp.name}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Employee ID</p>
-                      <p className="text-sm font-bold text-slate-900">{emp.employee_id}</p>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-500 font-bold">Base Earnings</span>
-                      <span className="text-slate-900 font-black">{Number(emp.basic_salary || 0).toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-500 font-bold">Incentives</span>
-                      <span className="text-slate-900 font-black">+{Number(emp.incentive || 0).toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-500 font-bold text-red-400">Deductions (Adv/Fine)</span>
-                      <span className="text-red-500 font-black">-{Number(emp.advance || 0).toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between text-base pt-3 border-t border-dashed border-slate-200">
-                      <span className="text-slate-900 font-black uppercase tracking-tight">Net Payable Amount</span>
-                      <span className="text-indigo-600 font-black">৳ {Number(emp.net_salary || 0).toLocaleString()}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div> */}
-          <div className="bg-slate-50/50 p-6 rounded-3xl max-h-[60vh] overflow-y-auto custom-scrollbar space-y-8">
-            <div ref={bulkInvoiceRef}>
-              {selectedEmployees.map((emp, idx) => (
-                <div
-                  key={emp.Id}
-                  className={`invoice-page bg-white text-slate-900 rounded-2xl p-10 border border-slate-200 shadow-sm ${
-                    idx !== selectedEmployees.length - 1 ? "mb-8" : ""
-                  }`}
-                >
-                  <div className="salary-statement-header flex justify-between items-center gap-10 mb-10">
-                    <div className="salary-branding-block min-w-0 flex flex-col items-start">
-                      {payrollLogoUrl ? (
-                        <img
-                          src={payrollLogoUrl}
-                          alt={DEFAULT_COMPANY_NAME}
-                          crossOrigin="anonymous"
-                          className="salary-brand-logo h-[68px] max-w-[220px] object-contain mb-3"
-                        />
-                      ) : null}
-                      <div className="salary-brand-name text-[28px] leading-none font-black text-slate-900">
-                        {DEFAULT_COMPANY_NAME}
-                      </div>
-                      <div className="salary-brand-subtitle mt-2 text-sm font-semibold text-neutral-600">
-                        {t.official_salary_statement ||
-                          "Official Salary Statement"}
-                      </div>
-                      <p className="salary-brand-phone mt-1.5 text-sm font-normal text-neutral-500">
-                        Phone: +880 9647-555333
-                      </p>
-                    </div>
-
-                    <div className="salary-title-block text-right shrink-0">
-                      <h3 className="text-[27px] leading-tight font-black text-slate-900 tracking-tight">
-                        {t.salary_statement || "INVOICE"}
-                      </h3>
-                      <p className="mt-3 text-sm font-semibold text-neutral-600">
-                        {t.date}: {new Date().toLocaleDateString()}
-                      </p>
-                      <p className="mt-1.5 text-sm font-semibold text-neutral-600">
-                        ID: {emp?.employee_id}-{String(Date.now()).slice(-6)}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-x-20 gap-y-7 mb-8 p-6 bg-slate-50 rounded-xl border border-slate-200">
-                    <div>
-                      <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3">
-                        {t.employee_name || "Employee Name"}
-                      </p>
-                      <p className="text-lg font-bold text-slate-900">
-                        {emp?.name}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3">
-                        {t.employee_id || "Employee ID"}
-                      </p>
-                      <p className="text-lg font-bold text-slate-900">
-                        {emp?.employee_id}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3">
-                        Department
-                      </p>
-                      <p className="text-lg font-bold text-slate-900">
-                        {emp?.department?.name ||
-                          findDepartmentOption(emp?.departmentId)?.label ||
-                          "-"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-3">
-                        Designation
-                      </p>
-                      <p className="text-lg font-bold text-slate-900">
-                        {emp?.designation?.name ||
-                          findDesignationOption(
-                            emp?.designationId,
-                            emp?.departmentId,
-                          )?.label ||
-                          "-"}
-                      </p>
-                    </div>
-                  </div>
-
-                  <table className="w-full text-lg">
-                    <thead>
-                      <tr className="border-b border-slate-200">
-                        <th className="text-left py-4 text-sm font-black text-slate-500 uppercase tracking-widest">
-                          {t.description || "Description"}
-                        </th>
-                        <th className="text-right py-4 text-sm font-black text-slate-500 uppercase tracking-widest">
-                          {t.amount || "Amount"}
-                        </th>
-                      </tr>
-                    </thead>
-
-                    <tbody className="divide-y divide-slate-100">
-                      <tr>
-                        <td className="py-3 font-medium text-slate-900">
-                          {t.basic_salary || "Basic Salary"}
-                        </td>
-                        <td className="py-3 text-right font-black text-slate-900">
-                          {Number(emp?.basic_salary || 0).toLocaleString()}
-                        </td>
-                      </tr>
-
-                      <tr>
-                        <td className="py-3 font-medium text-slate-900">
-                          {t.incentive || "Incentive"}
-                        </td>
-                        <td className="py-3 text-right font-black text-slate-900">
-                          {Number(emp?.incentive || 0).toLocaleString()}
-                        </td>
-                      </tr>
-
-                      <tr>
-                        <td className="py-3 font-medium text-slate-900 border-b-[1.5px] border-slate-700">
-                          {t.holiday_days || "Incashment (Holiday)"} (
-                          {getHolidayDays(emp)})
-                        </td>
-                        <td className="py-3 text-right font-black text-slate-900 border-b-[1.5px] border-slate-700">
-                          {formatAmount(getHolidaySalaryAmount(emp))}
-                        </td>
-                      </tr>
-
-                      <tr>
-                        <td className="py-4 font-black text-slate-900">
-                          {t.gross_amount || "Gross Amount"}
-                        </td>
-                        <td className="py-4 text-right font-black text-slate-900">
-                          {formatAmount(getGrossSalaryAmount(emp))}
-                        </td>
-                      </tr>
-
-                      <tr>
-                        <td
-                          colSpan={2}
-                          className="pt-4 pb-3 font-black text-slate-900"
-                        >
-                          {t.deduction || "Deduction"}
-                        </td>
-                      </tr>
-
-                      {getDeductionItems(emp).length ? (
-                        getDeductionItems(emp).map((item) => (
-                          <tr key={item.label}>
-                            <td className="py-3 font-bold text-slate-500">
-                              {item.label}
-                            </td>
-                            <td className="py-3 text-right font-black text-red-600">
-                              -{formatAmount(item.amount)}
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td className="py-3 font-bold text-slate-500">
-                            {t.no_deduction || "No Deduction"}
-                          </td>
-                          <td className="py-3 text-right font-black text-slate-900">
-                            0
-                          </td>
-                        </tr>
-                      )}
-
-                      <tr>
-                        <td className="py-4 font-black text-slate-900 border-b-[1.5px] border-slate-700">
-                          {t.total_deduction || "Total Deduction"}
-                        </td>
-                        <td className="py-4 text-right font-black text-red-600 border-b-[1.5px] border-slate-700">
-                          -{formatAmount(getSalaryDeductionAmount(emp))}
-                        </td>
-                      </tr>
-
-                      <tr>
-                        <td className="py-4 px-7 font-black text-slate-900 rounded-l-lg border-y border-l border-emerald-100 bg-emerald-50/60">
-                          {t.net_payable_amount || "Net Payable Amount"}
-                        </td>
-                        <td className="py-4 px-7 text-right font-black text-emerald-700 rounded-r-lg text-2xl border-y border-r border-emerald-100 bg-emerald-50/60">
-                          ৳ {formatAmount(emp?.net_salary)}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-
-                  <div className="mt-8">
-                    <h4 className="text-sm font-black uppercase tracking-widest text-slate-500 mb-3">
-                      {t.remarks || "Remarks"}
-                    </h4>
-                    <div className="rounded-lg border border-slate-200 px-5 py-4 text-base font-bold text-black">
-                      {getInvoiceRemarks(emp)}
-                    </div>
-                  </div>
-
-                  <div className="mt-10 grid grid-cols-3 gap-10">
-                    <div className="text-center pt-4 border-t border-slate-200">
-                      <p className="text-sm font-black text-slate-500 uppercase tracking-widest mb-4">
-                        {t.received_by || "Received By"}
-                      </p>
-                      <p className="text-lg font-bold text-slate-900">
-                        {emp?.name}
-                      </p>
-                    </div>
-
-                    <div className="text-center pt-4 border-t border-slate-200">
-                      <p className="text-sm font-black text-slate-500 uppercase tracking-widest mb-4">
-                        {t.checked_by || "Checked By"}
-                      </p>
-                      <p className="text-lg font-bold text-slate-900">
-                        {t.accounts || "Accounts"}
-                      </p>
-                    </div>
-
-                    <div className="text-center pt-4 border-t border-slate-200">
-                      <p className="text-sm font-black text-slate-500 uppercase tracking-widest mb-4">
-                        {t.authorized_by || "Authorized By"}
-                      </p>
-                      <p className="text-lg font-bold text-slate-900">
-                        {t.holy_gift_management || "Kafela Mart Management"}
-                      </p>
-                    </div>
-                  </div>
+                  <SalaryStatementSheet data={buildSalaryStatementData(emp)} />
                 </div>
               ))}
             </div>
           </div>
         </div>
+      </Modal>
+
+      {/* Payroll Sheet header/footer details (PDF / Print) */}
+      <Modal
+        isOpen={Boolean(sheetMetaAction && sheetMeta)}
+        onClose={() => setSheetMetaAction(null)}
+        title={
+          sheetMetaAction === "print" ? "Print Payroll Sheet" : "Payroll Sheet PDF"
+        }
+      >
+        {sheetMeta ? (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              confirmPayrollSheetMeta();
+            }}
+            className="space-y-4"
+          >
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="flex flex-col">
+                <label className={FILTER_LABEL}>Salary Month</label>
+                <input
+                  type="month"
+                  value={sheetMeta.salaryMonth}
+                  onChange={(e) =>
+                    setSheetMeta((p) => ({ ...p, salaryMonth: e.target.value }))
+                  }
+                  className={`${FILTER_CONTROL} px-3`}
+                  required
+                />
+              </div>
+              <div className="flex flex-col">
+                <label className={FILTER_LABEL}>Date of Payment</label>
+                <input
+                  type="month"
+                  value={sheetMeta.paymentMonth}
+                  onChange={(e) =>
+                    setSheetMeta((p) => ({
+                      ...p,
+                      paymentMonth: e.target.value,
+                      salaryMonth:
+                        previousMonthValue(e.target.value) || p.salaryMonth,
+                    }))
+                  }
+                  className={`${FILTER_CONTROL} px-3`}
+                  required
+                />
+              </div>
+              <div className="flex flex-col sm:col-span-2">
+                <label className={FILTER_LABEL}>Department</label>
+                <input
+                  type="text"
+                  value={sheetMeta.department}
+                  onChange={(e) =>
+                    setSheetMeta((p) => ({ ...p, department: e.target.value }))
+                  }
+                  placeholder="e.g. Logistics & Supply Chain"
+                  className={`${FILTER_CONTROL} px-3`}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className={FILTER_LABEL}>Signatures</p>
+              {sheetMeta.signatories.map((sig, index) => (
+                <div
+                  key={sig.role}
+                  className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[110px_1fr_1fr]"
+                >
+                  <span className="text-sm font-semibold text-slate-700">
+                    {sig.role}
+                  </span>
+                  <input
+                    type="text"
+                    value={sig.name}
+                    onChange={(e) =>
+                      updateSheetSignatory(index, "name", e.target.value)
+                    }
+                    placeholder="Name"
+                    className={`${FILTER_CONTROL} px-3`}
+                  />
+                  <input
+                    type="text"
+                    value={sig.title}
+                    onChange={(e) =>
+                      updateSheetSignatory(index, "title", e.target.value)
+                    }
+                    placeholder="Designation"
+                    className={`${FILTER_CONTROL} px-3`}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
+              <button
+                type="button"
+                onClick={() => setSheetMetaAction(null)}
+                className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
+              >
+                {sheetMetaAction === "print" ? (
+                  <Printer size={16} />
+                ) : (
+                  <FileText size={16} />
+                )}
+                {sheetMetaAction === "print" ? "Print" : "Download PDF"} (
+                {selectedIds.length})
+              </button>
+            </div>
+          </form>
+        ) : null}
       </Modal>
 
       {/* ✅ Note Modal */}

@@ -10,7 +10,7 @@ import {
   useUpdateDollarSupplierMutation,
 } from "../../features/dollarSupplier/dollarSupplier";
 import Modal from "../common/Modal";
-import DateRangeFilter from "../common/DateRangeFilter";
+import DateRangeFilter, { formatDateOnly } from "../common/DateRangeFilter";
 import TableSkeleton from "../common/TableSkeleton";
 import { Link } from "react-router-dom";
 import { requestDeleteConfirmation } from "../../utils/deleteConfirmation";
@@ -20,6 +20,15 @@ const formatAmount = (value) => Number(value || 0).toLocaleString();
 
 const getAdvanceAmount = (item) =>
   Math.max(Number(item?.totalAdvance ?? item?.netBalance ?? 0), 0);
+
+// Default: Custom Date, 1st of this month → today.
+const getMonthToDateRange = () => {
+  const today = new Date();
+  return {
+    from: formatDateOnly(new Date(today.getFullYear(), today.getMonth(), 1)),
+    to: formatDateOnly(today),
+  };
+};
 
 const DollarSupplierTable = () => {
   const [isModalOpen, setIsModalOpen] = useState(false); // Edit modal
@@ -31,7 +40,8 @@ const DollarSupplierTable = () => {
   const [currentProduct, setCurrentProduct] = useState(null);
   const [createProduct, setCreateProduct] = useState({ name: "" });
 
-  const [dateRange, setDateRange] = useState({ from: "", to: "" });
+  const [defaultDateRange] = useState(getMonthToDateRange);
+  const [dateRange, setDateRange] = useState(defaultDateRange);
   const dateParams = {
     startDate: dateRange.from || undefined,
     endDate: dateRange.to || undefined,
@@ -224,6 +234,8 @@ const DollarSupplierTable = () => {
         startDate={dateRange.from}
         endDate={dateRange.to}
         onFilterTypeChange={handleDateFilter}
+        defaultFilter="custom"
+        defaultRange={defaultDateRange}
         label="Transaction Date"
         className="mb-6"
       />

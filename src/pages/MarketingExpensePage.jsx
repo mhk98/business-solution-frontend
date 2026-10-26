@@ -15,7 +15,10 @@ const MarketingExpensePage = () => {
       <Header title={bookName} />
 
       <main className="max-w-8xl mx-auto py-6 px-4 lg:px-8 bg-slate-50 min-h-[calc(100vh-64px)]">
-        <MarketingExpenseTable bookName={bookName} />
+        <MarketingExpenseTable
+          bookName={bookName}
+          bookPlatform={bookRes?.data?.platform || ""}
+        />
       </main>
     </div>
   );

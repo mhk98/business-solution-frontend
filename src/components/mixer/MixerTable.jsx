@@ -675,6 +675,7 @@ const MixerTable = () => {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [itemName, setItemName] = useState("");
+  const [filterManufacturerId, setFilterManufacturerId] = useState("");
 
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
@@ -700,7 +701,7 @@ const MixerTable = () => {
   useEffect(() => {
     setCurrentPage(1);
     setStartPage(1);
-  }, [startDate, endDate, itemName, itemsPerPage]);
+  }, [startDate, endDate, itemName, filterManufacturerId, itemsPerPage]);
 
   useEffect(() => {
     if (startDate && endDate && startDate > endDate) {
@@ -1148,6 +1149,7 @@ const MixerTable = () => {
       startDate: startDate || undefined,
       endDate: endDate || undefined,
       name: itemName || undefined,
+      manufacturerId: filterManufacturerId || undefined,
     };
 
     Object.keys(args).forEach((k) => {
@@ -1157,7 +1159,14 @@ const MixerTable = () => {
     });
 
     return args;
-  }, [currentPage, itemsPerPage, startDate, endDate, itemName]);
+  }, [
+    currentPage,
+    itemsPerPage,
+    startDate,
+    endDate,
+    itemName,
+    filterManufacturerId,
+  ]);
 
   const { data, isLoading, isError, error, refetch } =
     useGetAllMixerQuery(queryArgs);
@@ -1499,6 +1508,7 @@ const MixerTable = () => {
     setStartDate("");
     setEndDate("");
     setItemName("");
+    setFilterManufacturerId("");
   };
 
   const handleNoteClick = (note) => {
@@ -2057,7 +2067,7 @@ const MixerTable = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 mb-10 bg-slate-50/50 p-6 rounded-3xl border border-slate-100 items-end">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4 mb-10 bg-slate-50/50 p-6 rounded-3xl border border-slate-100 items-end">
         <DateRangeFilter
           startDate={startDate}
           endDate={endDate}
@@ -2097,6 +2107,28 @@ const MixerTable = () => {
             placeholder={t.search || "Search"}
             isClearable
             isDisabled={isLoadingAllProducts}
+            styles={selectStyles}
+            className="text-black"
+          />
+        </div>
+
+        <div className="flex flex-col">
+          <label className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">
+            {t.manufacturer || "Manufacturer"}
+          </label>
+          <Select
+            options={manufacturerDropdownOptions}
+            value={
+              manufacturerDropdownOptions.find(
+                (o) => o.value === filterManufacturerId,
+              ) || null
+            }
+            onChange={(selected) =>
+              setFilterManufacturerId(selected?.value || "")
+            }
+            placeholder={t.search || "Search"}
+            isClearable
+            isDisabled={isLoadingManufacturers}
             styles={selectStyles}
             className="text-black"
           />

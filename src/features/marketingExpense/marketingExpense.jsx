@@ -106,8 +106,14 @@ export const marketingExpenseApi = createApi({
     }),
 
     getMarketingExpenseTotalsByBook: build.query({
-      query: ({ bookIds, from, to } = {}) => {
-        const params = { bookIds: (bookIds || []).join(","), from, to };
+      query: ({ bookIds, from, to, category, dollarSupplierId } = {}) => {
+        const params = {
+          bookIds: (bookIds || []).join(","),
+          from,
+          to,
+          category,
+          dollarSupplierId,
+        };
         Object.keys(params).forEach((k) => {
           if (params[k] === undefined || params[k] === null || params[k] === "")
             delete params[k];
@@ -120,9 +126,9 @@ export const marketingExpenseApi = createApi({
 
     getOverviewSummary: build.query({
       query: (arg = {}) => {
-        const { from, to } = arg;
+        const { from, to, platform, dollarSupplierId } = arg;
 
-        const params = { from, to };
+        const params = { from, to, platform, dollarSupplierId };
         Object.keys(params).forEach((k) => {
           if (params[k] === undefined || params[k] === null || params[k] === "")
             delete params[k];
